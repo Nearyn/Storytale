@@ -8,7 +8,7 @@ Storytale (formerly DialogueWheelE) is a dialogue wheel for **WoW Forever**: tal
 - Choice wheel attached to the NPC, following the camera zoom and the NPC's size.
 - Quest preview: objectives, rewards (rarity colors), reward choice, one-click "Complete Quest".
 - Books, letters and plaques shown as an open book or a scrolling note.
-- 12 themes, including 4 illuminated ones (Gilded Vellum, Arcane, Sylvan, Starlit Night), previewed in the options.
+- 17 themes, including 4 illuminated ones (Gilded Vellum, Arcane, Sylvan, Starlit Night), previewed in the options.
 - Text written progressively, in sync with **Spoken**'s voice; Spoken reads the NPC you are talking to first, then the others and your books.
 - Works alone, or with **DialogueUI** and **Spoken**.
 - Available in every game language.
@@ -31,7 +31,7 @@ Storytale (anciennement DialogueWheelE) est une roue de dialogue pour **WoW Fore
 - Roue de choix attachée au PNJ, qui suit le zoom de la caméra et la taille du PNJ.
 - Aperçu des quêtes : objectifs, récompenses (couleurs de rareté), choix de la récompense, « Terminer la quête » en un clic.
 - Livres, lettres et plaques affichés en livre ouvert ou en note qui défile.
-- 12 thèmes, dont 4 thèmes enluminés (Vélin doré, Arcanes, Sylvain, Nuit étoilée), avec aperçu dans les options.
+- 17 thèmes, dont 4 thèmes enluminés (Vélin doré, Arcanes, Sylvain, Nuit étoilée), avec aperçu dans les options.
 - Écriture progressive du texte, synchronisée avec la voix de **Spoken** ; Spoken lit d'abord le PNJ à qui vous parlez, puis les autres et vos livres.
 - Fonctionne seul, ou avec **DialogueUI** et **Spoken**.
 - Disponible dans toutes les langues du jeu.

@@ -12,25 +12,25 @@ Every theme except Frameless and Cinematic is shown **as a bubble** by default: 
 
 | Theme | Bubble (default) | Frame |
 | :--- | :---: | :---: |
-| <b>Azeroth Bubble</b><br/>Game-style chat bubble above the NPC. Default theme. | <img src="https://github.com/user-attachments/assets/5d06315e-8b99-4c72-9fc5-e1e622a254c4" width="380" /><br/><sub>in-game</sub> | — |
-| <b>Illuminated Bubble</b><br/>A parchment bubble with dark ink. | <img src="https://github.com/user-attachments/assets/f5f04a07-ab84-4eef-8d49-674e5e89b718" width="380" /><br/><sub>in-game</sub> | — |
+| <b>Azeroth Bubble</b><br/>Game-style chat bubble above the NPC. Default theme. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/bubble.jpg" width="380" /><br/><sub>illustration</sub> | — |
+| <b>Illuminated Bubble</b><br/>A parchment bubble with dark ink. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/bubble_fantasy.jpg" width="380" /><br/><sub>illustration</sub> | — |
 | <b>Whisper</b><br/>Dark violet with pink text, like in-game whispers. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/whisper.jpg" width="380" /><br/><sub>illustration</sub> | — |
 
 ## Dark and frameless
 
 | Theme | Bubble (default) | Frame |
 | :--- | :---: | :---: |
-| <b>Frameless</b><br/>Just the text, no frame. | — | <img src="https://github.com/user-attachments/assets/696678e4-6b3b-4235-bae2-4688934d0873" width="380" /><br/><sub>in-game</sub> |
-| <b>Shadow Veil</b><br/>Semi-transparent dark with a thin grey border. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/dark_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://github.com/user-attachments/assets/9db11372-739c-4cf6-b30b-2b5b9c9431a8" width="380" /><br/><sub>in-game</sub> |
+| <b>Frameless</b><br/>Just the text, no frame. | — | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/transparent.jpg" width="380" /><br/><sub>illustration</sub> |
+| <b>Shadow Veil</b><br/>Semi-transparent dark with a thin grey border. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/dark_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/dark.jpg" width="380" /><br/><sub>illustration</sub> |
 | <b>Smoked Glass</b><br/>Dark translucent with a fine gold edge. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/glass_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/glass.jpg" width="380" /><br/><sub>illustration</sub> |
 
-## Experimental
+## Atmospheric
 
 | Theme | Bubble (default) | Frame |
 | :--- | :---: | :---: |
-| <b>Shadow Halo <i>(experimental)</i></b><br/>A soft shadow behind the text, no border. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/halo_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/halo.jpg" width="380" /><br/><sub>illustration</sub> |
-| <b>Ink & Gold <i>(experimental)</i></b><br/>Serif text, dark ink and a thin gold line. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/inkgold_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/inkgold.jpg" width="380" /><br/><sub>illustration</sub> |
-| <b>Cinematic <i>(experimental)</i></b><br/>Black bars, the line as a subtitle; the rest of the interface fades out during the conversation. | — | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/cinema.jpg" width="380" /><br/><sub>illustration</sub> |
+| <b>Shadow Halo</b><br/>A soft shadow behind the text, no border. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/halo_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/halo.jpg" width="380" /><br/><sub>illustration</sub> |
+| <b>Ink & Gold</b><br/>Serif text, dark ink and a thin gold line. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/inkgold_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/inkgold.jpg" width="380" /><br/><sub>illustration</sub> |
+| <b>Cinematic</b><br/>Black bars, the line as a subtitle; the rest of the interface fades out during the conversation. | — | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/cinema.jpg" width="380" /><br/><sub>illustration</sub> |
 
 ## Illuminated parchments
 
@@ -47,12 +47,12 @@ Every theme except Frameless and Cinematic is shown **as a bubble** by default: 
 | :--- | :---: | :---: |
 | <b>Old Parchment</b><br/>The original parchment. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/parchment_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/parchment.jpg" width="380" /><br/><sub>illustration</sub> |
 | <b>Dark Grimoire</b><br/>A dark, aged page. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/parchment_dark_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/parchment_dark.jpg" width="380" /><br/><sub>illustration</sub> |
+| <b>Folio</b><br/>A worn, gently curved parchment sheet. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/folio_bubble.png" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/folio.png" width="380" /><br/><sub>illustration</sub> |
+| <b>Night Folio</b><br/>Translucent black paper with frayed edges and a soft shadow. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/folio_dark_bubble.png" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/folio_dark.png" width="380" /><br/><sub>illustration</sub> |
 
 ## Notes
 
 - **Books and letters** are never shown in a bubble: they use a page (Gilded Vellum if a bubble theme is chosen).
-- **Experimental** themes are new and have had little testing in game. Feedback is welcome in the [issues](https://github.com/Nearyn/Storytale/issues).
-- The two **DialogueUI** themes use art from the DialogueUI addon by its author.
 
 ---
 
@@ -69,25 +69,25 @@ Tous les thèmes sauf Sans cadre et Cinématique s'affichent **en bulle** par d�
 
 | Thème | En bulle (par défaut) | En cadre |
 | :--- | :---: | :---: |
-| <b>Bulle d'Azeroth</b><br/>Bulle comme celles du jeu, au-dessus du PNJ. Thème par défaut. | <img src="https://github.com/user-attachments/assets/5d06315e-8b99-4c72-9fc5-e1e622a254c4" width="380" /><br/><sub>capture en jeu</sub> | — |
-| <b>Bulle enluminée</b><br/>Une bulle en parchemin à l'encre foncée. | <img src="https://github.com/user-attachments/assets/f5f04a07-ab84-4eef-8d49-674e5e89b718" width="380" /><br/><sub>capture en jeu</sub> | — |
+| <b>Bulle d'Azeroth</b><br/>Bulle comme celles du jeu, au-dessus du PNJ. Thème par défaut. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/bubble.jpg" width="380" /><br/><sub>illustration</sub> | — |
+| <b>Bulle enluminée</b><br/>Une bulle en parchemin à l'encre foncée. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/bubble_fantasy.jpg" width="380" /><br/><sub>illustration</sub> | — |
 | <b>Murmure</b><br/>Violet sombre au texte rose, comme les chuchotements du jeu. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/whisper.jpg" width="380" /><br/><sub>illustration</sub> | — |
 
 ## Sombres et sans cadre
 
 | Thème | En bulle (par défaut) | En cadre |
 | :--- | :---: | :---: |
-| <b>Sans cadre</b><br/>Le texte seul, sans cadre. | — | <img src="https://github.com/user-attachments/assets/696678e4-6b3b-4235-bae2-4688934d0873" width="380" /><br/><sub>capture en jeu</sub> |
-| <b>Voile d'ombre</b><br/>Sombre semi-transparent, fine bordure grise. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/dark_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://github.com/user-attachments/assets/9db11372-739c-4cf6-b30b-2b5b9c9431a8" width="380" /><br/><sub>capture en jeu</sub> |
+| <b>Sans cadre</b><br/>Le texte seul, sans cadre. | — | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/transparent.jpg" width="380" /><br/><sub>illustration</sub> |
+| <b>Voile d'ombre</b><br/>Sombre semi-transparent, fine bordure grise. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/dark_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/dark.jpg" width="380" /><br/><sub>illustration</sub> |
 | <b>Verre fumé</b><br/>Sombre translucide, fin liseré doré. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/glass_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/glass.jpg" width="380" /><br/><sub>illustration</sub> |
 
-## Expérimentaux
+## Ambiances
 
 | Thème | En bulle (par défaut) | En cadre |
 | :--- | :---: | :---: |
-| <b>Halo d'ombre <i>(expérimental)</i></b><br/>Une ombre douce derrière le texte, sans bordure. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/halo_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/halo.jpg" width="380" /><br/><sub>illustration</sub> |
-| <b>Encre et or <i>(expérimental)</i></b><br/>Police à empattements, encre sombre et filet doré. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/inkgold_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/inkgold.jpg" width="380" /><br/><sub>illustration</sub> |
-| <b>Cinématique <i>(expérimental)</i></b><br/>Bandes noires, la réplique en sous-titre ; le reste de l'interface s'efface pendant la conversation. | — | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/cinema.jpg" width="380" /><br/><sub>illustration</sub> |
+| <b>Halo d'ombre</b><br/>Une ombre douce derrière le texte, sans bordure. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/halo_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/halo.jpg" width="380" /><br/><sub>illustration</sub> |
+| <b>Encre et or</b><br/>Police à empattements, encre sombre et filet doré. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/inkgold_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/inkgold.jpg" width="380" /><br/><sub>illustration</sub> |
+| <b>Cinématique</b><br/>Bandes noires, la réplique en sous-titre ; le reste de l'interface s'efface pendant la conversation. | — | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/cinema.jpg" width="380" /><br/><sub>illustration</sub> |
 
 ## Parchemins enluminés
 
@@ -104,9 +104,9 @@ Tous les thèmes sauf Sans cadre et Cinématique s'affichent **en bulle** par d�
 | :--- | :---: | :---: |
 | <b>Parchemin ancien</b><br/>Le parchemin d'origine. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/parchment_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/parchment.jpg" width="380" /><br/><sub>illustration</sub> |
 | <b>Grimoire sombre</b><br/>Une page sombre et vieillie. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/parchment_dark_bubble.jpg" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/parchment_dark.jpg" width="380" /><br/><sub>illustration</sub> |
+| <b>Folio</b><br/>Une feuille de parchemin usée, légèrement courbée. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/folio_bubble.png" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/folio.png" width="380" /><br/><sub>illustration</sub> |
+| <b>Folio nocturne</b><br/>Papier noir translucide, bords effilochés et ombre douce. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/folio_dark_bubble.png" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/folio_dark.png" width="380" /><br/><sub>illustration</sub> |
 
 ## Remarques
 
 - Les **livres et lettres** ne s'affichent jamais en bulle : ils utilisent une page (Vélin doré si un thème bulle est choisi).
-- Les thèmes **expérimentaux** sont récents et peu testés en jeu. Vos retours sont les bienvenus dans les [issues](https://github.com/Nearyn/Storytale/issues).
-- Les deux thèmes **DialogueUI** utilisent des images de l'addon DialogueUI, de son auteur.

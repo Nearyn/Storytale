@@ -44,6 +44,8 @@ local enUS = {
     THEME_PARCH = "Parchment",
     THEME_PARCH_DARK = "Parchment (Dark)",
     THEME_DUI_BROWN = "Parchment (DialogueUI)",
+    THEME_FOLIO = "Folio",
+    THEME_FOLIO_DARK = "Night Folio",
     THEME_DUI_DARK = "Parchment Dark (DialogueUI)",
     FONT_FAMILY = "Font:",
     FONT_DEFAULT = "default",
@@ -84,6 +86,8 @@ T.frFR = {
     THEME_PARCH = "Parchemin",
     THEME_PARCH_DARK = "Parchemin (sombre)",
     THEME_DUI_BROWN = "Parchemin (DialogueUI)",
+    THEME_FOLIO = "Folio",
+    THEME_FOLIO_DARK = "Folio nocturne",
     THEME_DUI_DARK = "Parchemin sombre (DialogueUI)",
     FONT_FAMILY = "Police d'écriture :",
     FONT_DEFAULT = "défaut",
@@ -500,7 +504,7 @@ for loc, list in pairs(NEW_THEMES) do
     if dest then dest.THEME_WHISPER, dest.THEME_GLASS = list[1], list[2] end
 end
 
--- Themes experimentaux (marques comme tels dans les options).
+-- Noms des themes Halo d'ombre, Encre et or, Cinematique.
 local EXP_THEMES = {
     enUS = { "Shadow Halo", "Ink & Gold", "Cinematic", "experimental" },
     frFR = { "Halo d'ombre", "Encre et or", "Cinématique", "expérimental" },
@@ -517,8 +521,7 @@ local EXP_THEMES = {
 for loc, list in pairs(EXP_THEMES) do
     local dest = (loc == "enUS") and enUS or T[loc]
     if dest then
-        local tag = " (" .. list[4] .. ")"
-        dest.THEME_HALO, dest.THEME_INK, dest.THEME_CINEMA = list[1] .. tag, list[2] .. tag, list[3] .. tag
+        dest.THEME_HALO, dest.THEME_INK, dest.THEME_CINEMA = list[1], list[2], list[3]
     end
 end
 

@@ -267,6 +267,18 @@ local THEME_STYLES = {
         body = { 0.95, 0.92, 0.85 },
         shadow = 1,
     },
+    folio = {
+        tex = ADDON_PATH .. "Folio.png",
+        bands = { 0, 96 / 512, 416 / 512, 1 }, cap = 34, inset = { 30, 0, 30, 0 },
+        tint = { 1, 1, 1, 1 }, div = { 0.42, 0.27, 0.13, 0.5 },
+        hdr = { 0.16, 0.10, 0.05 }, body = { 0.16, 0.10, 0.05 }, shadow = 0,
+    },
+    folio_dark = {
+        tex = ADDON_PATH .. "FolioDark.png",
+        bands = { 0, 96 / 512, 416 / 512, 1 }, cap = 34, inset = { 30, 0, 30, 0 },
+        tint = { 1, 1, 1, 1 }, div = { 0.70, 0.72, 0.78, 0.35 },
+        hdr = { 1, 0.82, 0 }, body = { 0.95, 0.92, 0.85 }, shadow = 1,
+    },
     dui_brown = {
         tex = ADDON_PATH .. "ParchmentDUIBrown.png",
         coord = { 0, 1, 0, 0.53 },
@@ -300,7 +312,7 @@ DWE.THEME_STYLES = THEME_STYLES
 -- par le Velin dore pendant la lecture d'un livre.
 local BOOK_THEMES = {
     velin = true, arcane = true, sylvan = true, starry = true,
-    parchment = true, parchment_dark = true, dui_brown = true, dui_dark = true, glass = true,
+    parchment = true, parchment_dark = true, folio = true, folio_dark = true, dui_brown = true, dui_dark = true, glass = true,
 }
 
 local function CurrentTheme()
@@ -347,7 +359,12 @@ local WHEEL_WHISPER = {
     common = nil, shadow = 1,
     hex = { hdr = "|cffff9cff", body = "|cfff5e6f8", num = "|cffffffff", rep = "|cffc0a0ff", ok = "|cffb0ff9c", bad = "|cffff6080" },
 }
-local LIGHT_BACKGROUND = { parchment = true, dui_brown = true, velin = true, arcane = true, sylvan = true }
+-- Verre fume, Encre et or : palette par defaut, mais surbrillance or pale (couleur du nom du PNJ).
+DWE.HDR_PALETTE = {
+    glass = setmetatable({ selected = { 1, 0.84, 0.50 } }, { __index = WHEEL_DEFAULT }),
+    inkgold = setmetatable({ selected = { 1, 0.84, 0.47 } }, { __index = WHEEL_DEFAULT }),
+}
+local LIGHT_BACKGROUND = { parchment = true, folio = true, dui_brown = true, velin = true, arcane = true, sylvan = true }
 
 -- Themes en bulle : la replique du PNJ dans une bulle au-dessus de lui et, avec l'option
 -- "habiller la roue", chaque choix dans sa petite bulle. Les trois bulles d'origine le sont
@@ -362,11 +379,11 @@ local BUBBLE_SKINS = {
 local BUBBLE_ART = {
     dark = "Veil", glass = "Glass", halo = "Halo", inkgold = "Ink", velin = "Velin", arcane = "Arcane",
     sylvan = "Sylvan", starry = "Starry", parchment = "Parch", parchment_dark = "ParchDark",
-    dui_brown = "DUIBrown", dui_dark = "DUIDark",
+    dui_brown = "DUIBrown", dui_dark = "DUIDark", folio = "Folio", folio_dark = "FolioDark",
 }
 for id, art in pairs(BUBBLE_ART) do
     BUBBLE_SKINS[id] = { bubble = id, pill = art, art = art, optFont = true,
-        palette = LIGHT_BACKGROUND[id] and WHEEL_INK or WHEEL_DEFAULT }
+        palette = LIGHT_BACKGROUND[id] and WHEEL_INK or DWE.HDR_PALETTE[id] or WHEEL_DEFAULT }
 end
 DWE.BUBBLE_SKINS = BUBBLE_SKINS
 
@@ -402,6 +419,7 @@ function DWE.WheelPalette()
     local pill = DWE.WheelPillStyle()
     if pill then return DWE.BubbleSkin().palette end
     local id = DWE.WheelThemeId()
+    if id and DWE.HDR_PALETTE[id] then return DWE.HDR_PALETTE[id] end
     return (id and LIGHT_BACKGROUND[id]) and WHEEL_INK or WHEEL_DEFAULT
 end
 
@@ -823,9 +841,9 @@ end
 
 -- Couleur du texte Spoken pour chaque theme de DWE : 2 = texte clair, 1 = texte fonce.
 local SPOKEN_PALETTE_OF = {
-    transparent = 2, dark = 2, parchment_dark = 2, dui_dark = 2, bubble = 2, bubble_fantasy = 1,
+    transparent = 2, dark = 2, parchment_dark = 2, dui_dark = 2, folio_dark = 2, bubble = 2, bubble_fantasy = 1,
     whisper = 2, glass = 2, halo = 2, inkgold = 2, cinema = 2,
-    parchment = 1, dui_brown = 1, velin = 1, arcane = 1, sylvan = 1, starry = 2,
+    parchment = 1, dui_brown = 1, folio = 1, velin = 1, arcane = 1, sylvan = 1, starry = 2,
 }
 
 -- Ligne de livre (Spoken Readables) alors que les livres sont laisses a DialogueUI ou au jeu :
@@ -1032,7 +1050,11 @@ local function CollectUI()
     if InCombatLockdown and InCombatLockdown() then return end
     if not UIParent.GetChildren then return end
     for _, fr in ipairs({ UIParent:GetChildren() }) do
-        if not hiddenUI[fr] and fr.GetAlpha and fr:IsShown() and not KeepFrame(fr) then
+        -- Cadres proteges (fenetres Blizzard interdites aux addons) : on n'y touche pas.
+        local okF, forbidden = pcall(function() return fr.IsForbidden and fr:IsForbidden() end)
+        local okS, shown = false, false
+        if okF and not forbidden then okS, shown = pcall(fr.IsShown, fr) end
+        if okS and shown and not hiddenUI[fr] and fr.GetAlpha and not KeepFrame(fr) then
             local ok, a = pcall(fr.GetAlpha, fr)
             if ok and type(a) == "number" and a > 0 then hiddenUI[fr] = a end
         end
@@ -2658,19 +2680,34 @@ local listClip = CreateFrame("Frame", nil, choiceBox)
 pcall(listClip.SetClipsChildren, listClip, true)
 local scroll = { px = 0, target = 0, max = 0, view = 0, tops = {}, heights = {}, active = false }
 
+-- Barre arrondie : deux demi-disques et un rectangle, colores ensemble (meme API que SetColorTexture).
+function DWE.RoundBar(owner, layer)
+    local w = 6
+    local top = owner:CreateTexture(nil, layer)
+    top:SetTexture(ADDON_PATH .. "ScrollCap.png"); top:SetTexCoord(0, 1, 0, 0.5)
+    top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT"); top:SetHeight(w / 2)
+    local bot = owner:CreateTexture(nil, layer)
+    bot:SetTexture(ADDON_PATH .. "ScrollCap.png"); bot:SetTexCoord(0, 1, 0.5, 1)
+    bot:SetPoint("BOTTOMLEFT"); bot:SetPoint("BOTTOMRIGHT"); bot:SetHeight(w / 2)
+    local mid = owner:CreateTexture(nil, layer)
+    mid:SetTexture(ADDON_PATH .. "ScrollCap.png"); mid:SetTexCoord(0.25, 0.75, 0.45, 0.55)
+    mid:SetPoint("TOPLEFT", top, "BOTTOMLEFT"); mid:SetPoint("BOTTOMRIGHT", bot, "TOPRIGHT")
+    return { parts = { top, mid, bot }, SetColorTexture = function(self, r, g, b, a)
+        for _, t in ipairs(self.parts) do t:SetVertexColor(r, g, b); t:SetAlpha(a or 1) end
+    end }
+end
+
 local scrollTrack = CreateFrame("Frame", nil, choiceBox)
 scrollTrack:SetWidth(6)
-scrollTrack:SetPoint("TOPRIGHT", choiceBox, "TOPRIGHT", -3, -16)
-scrollTrack:SetPoint("BOTTOMRIGHT", choiceBox, "BOTTOMRIGHT", -3, 16)
-scrollTrack.bg = scrollTrack:CreateTexture(nil, "BACKGROUND")
-scrollTrack.bg:SetAllPoints()
+scrollTrack:SetPoint("TOPRIGHT", choiceBox, "TOPRIGHT", -3, -20)
+scrollTrack:SetPoint("BOTTOMRIGHT", choiceBox, "BOTTOMRIGHT", -3, 20)
+scrollTrack.bg = DWE.RoundBar(scrollTrack, "BACKGROUND")
 scrollTrack.bg:SetColorTexture(1, 1, 1, 0.10)
 scrollTrack:Hide()
 
 local scrollThumb = CreateFrame("Button", nil, scrollTrack)
 scrollThumb:SetWidth(6)
-scrollThumb.tex = scrollThumb:CreateTexture(nil, "ARTWORK")
-scrollThumb.tex:SetAllPoints()
+scrollThumb.tex = DWE.RoundBar(scrollThumb, "ARTWORK")
 scrollThumb.tex:SetColorTexture(1, 0.82, 0.3, 0.75)
 scrollThumb:SetHitRectInsets(-6, -6, 0, 0)
 scrollThumb:RegisterForClicks("LeftButtonUp")
@@ -2699,6 +2736,28 @@ local function PositionRows()
     scrollDown:SetShown(scroll.active and scroll.px < scroll.max - 0.5)
     if not scroll.active then scrollTrack:Hide() return end
     scrollTrack:Show()
+    -- Barre de defilement dans la couleur de surbrillance du choix (cuivre sur parchemin, or sinon).
+    local pal = DWE.WheelPalette()
+    local c, n = pal.selected, pal.normal
+    local skin = DWE.BubbleSkin()
+    if skin and skin.palette == WHEEL_INK then
+        -- Bulles claires (Bulle enluminee...) : cuivre de la surbrillance.
+        local ink = WHEEL_INK.selected
+        c = ink
+        scrollThumb.tex:SetColorTexture(ink[1], ink[2], ink[3], 0.8)
+        scrollTrack.bg:SetColorTexture(ink[1], ink[2], ink[3], 0.12)
+    elseif not DWE.WheelThemeId() then
+        -- Pas de bloc de theme (Bulle d'Azeroth...) : barre grise tres translucide, discrete.
+        scrollThumb.tex:SetColorTexture(0.6, 0.6, 0.6, 0.18)
+        scrollTrack.bg:SetColorTexture(1, 1, 1, 0.04)
+    else
+        scrollThumb.tex:SetColorTexture(c[1], c[2], c[3], 0.85)
+        scrollTrack.bg:SetColorTexture(n[1], n[2], n[3], pal.shadow == 0 and 0.18 or 0.10)
+    end
+    for _, arrow in ipairs({ scrollUp, scrollDown }) do
+        arrow:SetDesaturated(true)
+        arrow:SetVertexColor(math.min(1, c[1] * 1.25), math.min(1, c[2] * 1.25), math.min(1, c[3] * 1.25))
+    end
     local h, th = TrackSizes()
     scrollThumb:SetHeight(th)
     scrollThumb:ClearAllPoints()
@@ -2986,6 +3045,10 @@ function DWE.UpdateVisualsInner()
     listClip:SetPoint("TOPLEFT", choiceBox, "TOPLEFT", -LIST_PAD, -topPad)
     listClip:SetPoint("TOPRIGHT", choiceBox, "TOPRIGHT", 0, -topPad)
     listClip:SetHeight(view + (scroll.active and gap - 1 or 12))
+    -- Rail de defilement cale exactement sur la zone visible des choix (ne depasse pas).
+    scrollTrack:ClearAllPoints()
+    scrollTrack:SetPoint("TOPRIGHT", choiceBox, "TOPRIGHT", -3, -topPad - 3)
+    scrollTrack:SetHeight(math.max(10, view - 6))
     choiceBox:SetHeight(topPad + view + bottomPad)
     if not DWE.listDragging then AnimateScroll() end
     choiceBox:Show()
@@ -3364,6 +3427,8 @@ local THEME_LIST = {
     { id = "starry", key = "THEME_STARRY", thumb = "Starry" },
     { id = "parchment", key = "THEME_PARCH", thumb = "Parchment" },
     { id = "parchment_dark", key = "THEME_PARCH_DARK", thumb = "ParchmentDark" },
+    { id = "folio", key = "THEME_FOLIO", thumb = "Folio" },
+    { id = "folio_dark", key = "THEME_FOLIO_DARK", thumb = "FolioDark" },
 }
 -- Themes DialogueUI : images de DialogueUI, non distribuees avec l'addon. Proposes seulement
 -- si une copie locale les active (fichier Storytale_Local.lua : DialogueWheelE_LocalDUI = true).

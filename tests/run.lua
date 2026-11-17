@@ -880,7 +880,7 @@ for id, sk in pairs(DWE.BUBBLE_SKINS) do
         check(wheelBg() == 0 and pillsShown() == #DWE.currentOptions, "bubble mode " .. id .. ": choice bubbles, no block")
         local sp = DWE.GetRow(DWE.selectedIndex).pill
         check(sp.dweTex._texture and sp.dweTex._texture:find("Pill" .. sk.art .. "Sel"), "bubble mode " .. id .. ": theme art on choices")
-        local light = id == "parchment" or id == "dui_brown" or id == "velin" or id == "arcane" or id == "sylvan"
+        local light = id == "parchment" or id == "dui_brown" or id == "folio" or id == "velin" or id == "arcane" or id == "sylvan"
         check((DWE.GetRow(2 + OFF).text._color == "0.55,0.20,0.00") == light, "bubble mode " .. id .. ": text color fits the background")
     end
 end

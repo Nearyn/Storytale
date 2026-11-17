@@ -1,5 +1,35 @@
 # Changelog / Journal des versions
 
+## 1.1.0
+
+**🇬🇧 English**
+
+### New
+- Two new themes: **Folio** (a worn, gently curved parchment sheet) and **Night Folio** (translucent black paper with frayed edges and a soft shadow).
+
+### Improved
+- The scroll bar now has rounded ends, stays inside the list, and takes the theme's highlight colour (copper on parchments, gold on dark themes, discreet grey for Azeroth Bubble). The small up/down arrows match it.
+- Smoked Glass and Ink & Gold: the selected choice, scroll bar and arrows are now pale gold, like the NPC's name.
+- Shadow Halo, Ink & Gold and Cinematic are no longer marked as experimental.
+
+### Fixed
+- Cinematic theme: fixed an error when the rest of the interface fades out.
+
+---
+
+**🇫🇷 Français**
+
+### Nouveautés
+- Deux nouveaux thèmes : **Folio** (une feuille de parchemin usée, légèrement courbée) et **Folio nocturne** (papier noir translucide, bords effilochés et ombre douce).
+
+### Améliorations
+- La barre de défilement a des bouts arrondis, ne dépasse plus de la liste et prend la couleur de surbrillance du thème (cuivre sur les parchemins, or sur les thèmes sombres, gris discret pour la Bulle d'Azeroth). Les petites flèches haut/bas sont assorties.
+- Verre fumé et Encre et or : le choix sélectionné, la barre de défilement et les flèches sont en or pâle, comme le nom du PNJ.
+- Halo d'ombre, Encre et or et Cinématique ne sont plus marqués comme expérimentaux.
+
+### Corrections
+- Thème Cinématique : correction d'une erreur quand le reste de l'interface s'efface.
+
 ## 1.0.0
 
 **🇬🇧 English**
