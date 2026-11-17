@@ -1,5 +1,37 @@
 # Changelog / Journal des versions
 
+## 1.2.0
+
+**🇬🇧 English**
+
+### New
+- **Choice size** option: set the text size of the dialogue choices (10 to 24 pt).
+- **Reset all options** button (and `/storytale reset`), with a confirmation. Only Storytale's settings are reset.
+
+### Improved
+- Options reorganised into clear sections: Appearance, Text, Books and letters, Placement, Controls, Spoken. Many labels reworded.
+- Better defaults, applied once to everyone: the theme also dresses the choice wheel, text size 14.
+- Choice key: if the game's Interact key is turned off, Storytale uses **E** (changeable); if it is on, Storytale uses the game's key.
+- The key to switch between the bubble and Spoken's player now works even with the "Spoken" choice hidden, and has no key by default.
+- Spoken's player takes the theme automatically when Spoken is installed, even later.
+- New addon icon: a speech bubble.
+
+---
+
+**🇫🇷 Français**
+
+### Nouveautés
+- Option **Taille des choix** : règle la taille du texte des choix de dialogue (10 à 24 pt).
+- Bouton **Réinitialiser toutes les options** (et `/storytale reset`), avec confirmation. Seuls les réglages de Storytale sont remis à zéro.
+
+### Améliorations
+- Options réorganisées en sections claires : Apparence, Texte, Livres et lettres, Position, Commandes, Spoken. Beaucoup de libellés reformulés.
+- Meilleurs réglages par défaut, appliqués une fois à tout le monde : le thème habille aussi la roue des choix, texte en taille 14.
+- Touche de choix : si la touche d'interaction du jeu est désactivée, Storytale utilise **E** (modifiable) ; si elle est activée, Storytale utilise celle du jeu.
+- La touche pour basculer entre la bulle et le lecteur de Spoken fonctionne même avec le choix « Spoken » caché, et n'a plus de touche par défaut.
+- Le lecteur de Spoken prend le thème automatiquement quand Spoken est installé, même plus tard.
+- Nouvelle icône de l'addon : une bulle de dialogue.
+
 ## 1.1.0
 
 **🇬🇧 English**

@@ -2577,19 +2577,30 @@ end
 
 -- Police des choix et de l'apercu : celle des options avec la bulle fantasy, celle du jeu
 -- sinon (comme avant).
-local function ApplyWheelFont(fs, defaultObject, size)
+local function ApplyWheelFont(fs, defaultObject, size, forceSize)
     local key = "default"
     local sk = DWE.WheelPillStyle() and DWE.BubbleSkin()
     if sk and sk.optFont then
         key = FontPath(DWE.ThemeFontId()) .. size
+    elseif forceSize then
+        key = "obj" .. size
     end
     if fs.dweFontKey == key then return end
     if key == "default" then
         if fs.dweFontKey then fs:SetFontObject(defaultObject) end
-    else
+    elseif sk and sk.optFont then
         SafeSetFont(fs, FontPath(DWE.ThemeFontId()), size)
+    else
+        local path, _, flags = defaultObject:GetFont()
+        SafeSetFont(fs, path or STANDARD_TEXT_FONT, size, flags)
     end
     fs.dweFontKey = key
+end
+-- Taille des choix de la roue (option) ; sans reglage, la police du jeu comme avant.
+function DWE.ChoiceSize() return tonumber(DialogueWheelE_ChoiceSize) or 15 end
+function DWE.ChoiceFont(fs)
+    local cs = tonumber(DialogueWheelE_ChoiceSize)
+    ApplyWheelFont(fs, GameFontNormalLarge, cs or 15, cs ~= nil)
 end
 DWE.ApplyWheelFont = ApplyWheelFont
 DWE.SkinPill = SkinPill
@@ -2658,7 +2669,7 @@ local function PaintRow(row, opt, selected, pillWidth)
     end
     row.text:SetTextColor(color[1], color[2], color[3])
     row.text:SetShadowOffset(pal.shadow, -pal.shadow)
-    ApplyWheelFont(row.text, GameFontNormalLarge, 15)
+    DWE.ChoiceFont(row.text)
 end
 
 local MAX_VISIBLE = 7
@@ -2946,7 +2957,7 @@ function DWE.UpdateVisualsInner()
             for i, opt in ipairs(DWE.currentOptions) do
                 local row = optionRows[i]
                 if row then
-                    ApplyWheelFont(row.text, GameFontNormalLarge, 15)
+                    DWE.ChoiceFont(row.text)
                     row.text:SetText(opt.rawLabel)
                     local tw = MeasureTextWidth(row.text)
                     if not tw then need = nil break end
@@ -2967,7 +2978,7 @@ function DWE.UpdateVisualsInner()
         for i, opt in ipairs(DWE.currentOptions) do
             local row = optionRows[i]
             if row then
-                ApplyWheelFont(row.text, GameFontNormalLarge, 15)
+                DWE.ChoiceFont(row.text)
                 row.text:SetText(opt.rawLabel)
                 local tw = MeasureTextWidth(row.text)
                 if not tw then pillWidth = full break end
@@ -3438,6 +3449,26 @@ if rawget(_G, "DialogueWheelE_LocalDUI") then
 end
 DWE.THEME_LIST = THEME_LIST
 
+-- Options remises a zero : toutes les variables sauvegardees sauf la liste des livres/PNJ
+-- deja entendus avec Spoken (ce n'est pas un reglage).
+DWE.OPTION_VARS = { "Pos", "TextPos", "Theme", "Font", "FontSize", "Scale", "Opacity", "ShowText",
+    "UseBlizzKey", "InteractKey", "ToggleKey", "WheelScroll", "SpokenTheme", "AttachNPC", "NPCOffset",
+    "WheelWidth", "TextW", "TextH", "BubbleWidth", "Locked", "WheelTheme", "EscClose", "BookStyle",
+    "ThemeFrames", "BookLook", "BookPos", "BookScale", "SpokenChoice", "ChoiceSize", "DefaultsV" }
+function DWE.ResetAllOptions()
+    for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
+    if ReloadUI then ReloadUI() end
+end
+function DWE.AskResetAll()
+    if not StaticPopupDialogs then DWE.ResetAllOptions() return end
+    StaticPopupDialogs.STORYTALE_RESET_ALL = StaticPopupDialogs.STORYTALE_RESET_ALL or {
+        text = DWE.L.RESET_ALL_CONFIRM, button1 = YES or "Yes", button2 = NO or "No",
+        OnAccept = function() DWE.ResetAllOptions() end,
+        timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+    }
+    StaticPopup_Show("STORYTALE_RESET_ALL")
+end
+
 function DWE.InitOptionsPanel()
     if DWE.optionsPanel then return end
     local panel = CreateFrame("Frame", "DialogueWheelEOptionsPanel")
@@ -3515,6 +3546,12 @@ function DWE.InitOptionsPanel()
     end
 
     AddText("Storytale", 16, -12, "GameFontNormalHuge")
+    -- Remise a zero de toutes les options (avec confirmation, puis rechargement de l'interface).
+    local resetAllBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    resetAllBtn:SetPoint("TOPRIGHT", p, "TOPRIGHT", -16, -12)
+    resetAllBtn:SetSize(220, 24)
+    resetAllBtn:SetText(L.RESET_ALL)
+    resetAllBtn:SetScript("OnClick", function() DWE.AskResetAll() end)
 
     ---------------------------------------------------------------- Theme
     local y = -52
@@ -3577,58 +3614,13 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_WheelTheme = self:GetChecked() and true or false
         DWE.OnThemeChanged()
     end)
-    AddCheck(L.SPOKEN_THEME, 300, y, DialogueWheelE_SpokenTheme == true, function(self)
-        DialogueWheelE_SpokenTheme = self:GetChecked() and true or false
-        DWE.RefreshSpoken()
-    end)
-    AddSlider("DWESliderOpacity", L.OPACITY_LBL, 22, y - 52, 0.2, 1, 0.05, tonumber(DialogueWheelE_Opacity) or 1, "%.2f", function(v)
+    AddSlider("DWESliderOpacity", L.OPACITY_LBL, 22, y - 50, 0.2, 1, 0.05, tonumber(DialogueWheelE_Opacity) or 1, "%.2f", function(v)
         DialogueWheelE_Opacity = v
         DWE.OnThemeChanged()
     end)
 
-    -- Livres
-    AddText(L.BOOK_STYLE, 16, y - 100, "GameFontHighlightSmall")
-    local bookStyleBoxes = AddGroup({
-        { id = "addon", label = L.BOOK_ADDON },
-        { id = "dui", label = L.BOOK_DUI },
-        { id = "blizzard", label = L.BOOK_BLIZZ },
-    }, 16, y - 116, 26, DialogueWheelE_BookStyle or "addon", function(id)
-        DialogueWheelE_BookStyle = id
-        if DWE.RefreshBookLookOptions then DWE.RefreshBookLookOptions() end
-    end)
-    -- Livre de DialogueUI : seulement si l'addon DialogueUI est actif.
-    local duiOn = (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DialogueUI"))
-        or (IsAddOnLoaded and IsAddOnLoaded("DialogueUI"))
-    if not duiOn and bookStyleBoxes[2] then
-        bookStyleBoxes[2]:Disable()
-        if bookStyleBoxes[2].Text then bookStyleBoxes[2].Text:SetTextColor(0.5, 0.5, 0.5) end
-    end
-    local bookLookLabel = AddText(L.BOOK_LOOK, 16, y - 200, "GameFontHighlightSmall")
-    local bookLookBoxes = AddGroup({
-        { id = "auto", label = L.BOOK_LOOK_AUTO },
-        { id = "note", label = L.BOOK_LOOK_NOTE },
-        { id = "book", label = L.BOOK_LOOK_BOOK },
-        { id = "frame", label = L.BOOK_LOOK_FRAME },
-    }, 16, y - 216, 26, DialogueWheelE_BookLook or "auto", function(id)
-        DialogueWheelE_BookLook = id
-        if DWE.bookMode and textBox:IsShown() then DWE.UpdateTextPanelVisuals() end
-    end, 1, 150)
-    -- L'aspect des livres ne concerne que les livres affiches par cet addon : grise sinon
-    -- (on ne melange pas le livre de DialogueUI ou du jeu avec nos images).
-    function DWE.RefreshBookLookOptions()
-        local on = (DialogueWheelE_BookStyle or "addon") == "addon"
-        for _, cb in ipairs(bookLookBoxes) do
-            if on then cb:Enable() else cb:Disable() end
-            if cb.Text then cb.Text:SetTextColor(on and 1 or 0.5, on and 1 or 0.5, on and 1 or 0.5) end
-        end
-        if bookLookLabel and bookLookLabel.SetTextColor then
-            bookLookLabel:SetTextColor(on and 1 or 0.5, on and 1 or 0.5, on and 1 or 0.5)
-        end
-    end
-    DWE.RefreshBookLookOptions()
-
     ---------------------------------------------------------------- Texte
-    y = y - 262
+    y = y - 96
     AddSection(L.SEC_TEXT, y)
     AddText(L.FONT_FAMILY, 16, y - 32, "GameFontHighlightSmall")
     local fontItems = {}
@@ -3646,13 +3638,59 @@ function DWE.InitOptionsPanel()
         end, 5, 284)
         y = y - 48 - 5 * 26
     end
-    AddSlider("DWESliderFont", L.FONT_SIZE, 22, y - 22, 10, 22, 1, tonumber(DialogueWheelE_FontSize) or 13, "%d pt", function(v)
+    AddSlider("DWESliderFont", L.FONT_SIZE, 22, y - 22, 10, 22, 1, tonumber(DialogueWheelE_FontSize) or 14, "%d pt", function(v)
         DialogueWheelE_FontSize = v
         DWE.ApplyFont()
     end)
+    AddSlider("DWESliderChoice", L.CHOICE_SIZE, 306, y - 22, 10, 24, 1, DWE.ChoiceSize(), "%d pt", function(v)
+        DialogueWheelE_ChoiceSize = v
+        if DWE.choiceBox:IsShown() then DWE.UpdateVisuals() end
+    end)
+
+    ---------------------------------------------------------------- Livres et lettres
+    y = y - 76
+    AddSection(L.SEC_BOOKS, y)
+    AddText(L.BOOK_STYLE, 16, y - 32, "GameFontHighlightSmall")
+    local bookStyleBoxes = AddGroup({
+        { id = "addon", label = L.BOOK_ADDON },
+        { id = "dui", label = L.BOOK_DUI },
+        { id = "blizzard", label = L.BOOK_BLIZZ },
+    }, 16, y - 48, 26, DialogueWheelE_BookStyle or "addon", function(id)
+        DialogueWheelE_BookStyle = id
+        if DWE.RefreshBookLookOptions then DWE.RefreshBookLookOptions() end
+    end)
+    -- Livre de DialogueUI : seulement si l'addon DialogueUI est actif.
+    local duiOn = (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DialogueUI"))
+        or (IsAddOnLoaded and IsAddOnLoaded("DialogueUI"))
+    if not duiOn and bookStyleBoxes[2] then
+        bookStyleBoxes[2]:Disable()
+        if bookStyleBoxes[2].Text then bookStyleBoxes[2].Text:SetTextColor(0.5, 0.5, 0.5) end
+    end
+    local bookLookLabel = AddText(L.BOOK_LOOK, 16, y - 132, "GameFontHighlightSmall")
+    local bookLookBoxes = AddGroup({
+        { id = "auto", label = L.BOOK_LOOK_AUTO },
+        { id = "note", label = L.BOOK_LOOK_NOTE },
+        { id = "book", label = L.BOOK_LOOK_BOOK },
+        { id = "frame", label = L.BOOK_LOOK_FRAME },
+    }, 16, y - 148, 26, DialogueWheelE_BookLook or "auto", function(id)
+        DialogueWheelE_BookLook = id
+        if DWE.bookMode and textBox:IsShown() then DWE.UpdateTextPanelVisuals() end
+    end, 1, 150)
+    -- L'aspect des livres ne concerne que les livres affiches par cet addon : grise sinon.
+    function DWE.RefreshBookLookOptions()
+        local on = (DialogueWheelE_BookStyle or "addon") == "addon"
+        for _, cb in ipairs(bookLookBoxes) do
+            if on then cb:Enable() else cb:Disable() end
+            if cb.Text then cb.Text:SetTextColor(on and 1 or 0.5, on and 1 or 0.5, on and 1 or 0.5) end
+        end
+        if bookLookLabel and bookLookLabel.SetTextColor then
+            bookLookLabel:SetTextColor(on and 1 or 0.5, on and 1 or 0.5, on and 1 or 0.5)
+        end
+    end
+    DWE.RefreshBookLookOptions()
 
     ---------------------------------------------------------------- Placement
-    y = y - 76
+    y = y - 194
     AddSection(L.SEC_PLACE, y)
     AddCheck(L.ATTACH_NPC, 16, y - 32, DialogueWheelE_AttachNPC ~= false, function(self)
         DialogueWheelE_AttachNPC = self:GetChecked() and true or false
@@ -3673,31 +3711,58 @@ function DWE.InitOptionsPanel()
     y = y - 120
     AddSection(L.SEC_KEYS, y)
     local keysY = y - 32
-
-    -- Touches.
     local useBlizzCb = AddCheck(L.KEY_USE_BLIZZ, 16, keysY, DialogueWheelE_UseBlizzKey ~= false, nil)
-
     local interactBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     interactBtn:SetPoint("TOPLEFT", 20, keysY - 30)
     interactBtn:SetSize(240, 24)
+    AddCheck(L.ESC_CLOSE, 300, keysY, DialogueWheelE_EscClose ~= false, function(self)
+        DialogueWheelE_EscClose = self:GetChecked() and true or false
+    end)
+    AddCheck(L.WHEEL_SCROLL, 300, keysY - 28, DialogueWheelE_WheelScroll ~= false, function(self)
+        DialogueWheelE_WheelScroll = self:GetChecked() and true or false
+        DWE.RefreshBindings()
+    end)
 
-    local toggleLbl = AddText(L.KEY_TOGGLE, 300, keysY - 4, "GameFontHighlightSmall")
-    local toggleBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    ---------------------------------------------------------------- Spoken
+    y = keysY - 76
+    AddSection(L.SEC_SPOKEN, y)
+    local spokenOn = DWE.SpokenFocus and DWE.SpokenFocus.Available()
+    local function Grey(w, on)
+        if not w then return end
+        if w.Enable then if on then w:Enable() else w:Disable() end end
+        if w.SetAlpha then w:SetAlpha(on and 1 or 0.5) end
+    end
+    if not spokenOn then AddText(L.SPOKEN_NEEDED, 200, y - 4, "GameFontDisableSmall") end
+    local spokenThemeCheck = AddCheck(L.SPOKEN_THEME, 16, y - 32, DialogueWheelE_SpokenTheme == true, function(self)
+        DialogueWheelE_SpokenTheme = self:GetChecked() and true or false
+        DWE.RefreshSpoken()
+    end)
+    local toggleLbl, toggleBtn
+    -- Choix "Spoken" dans la roue (bascule bulle / lecteur de Spoken) : cache par defaut.
+    local spokenCheck = AddCheck(L.SPOKEN_CHOICE, 16, y - 60, DialogueWheelE_SpokenChoice == true, function(self)
+        DialogueWheelE_SpokenChoice = self:GetChecked() and true or false
+        DWE.RefreshBindings()
+    end)
+    toggleLbl = AddText(L.KEY_TOGGLE, 20, y - 94, "GameFontHighlightSmall")
+    toggleBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     toggleBtn:SetPoint("TOPLEFT", toggleLbl, "BOTTOMLEFT", 0, -4)
     toggleBtn:SetSize(240, 24)
+    Grey(spokenThemeCheck, spokenOn)
+    Grey(spokenCheck, spokenOn)
+    Grey(toggleBtn, spokenOn)
+    if toggleLbl.SetAlpha then toggleLbl:SetAlpha(spokenOn and 1 or 0.5) end
 
     local function RefreshKeyButtons()
         local useBlizz = DialogueWheelE_UseBlizzKey ~= false
         useBlizzCb:SetChecked(useBlizz)
         if useBlizz then
-            local bk = GetBindingKey and GetBindingKey("INTERACTTARGET")
-            interactBtn:SetText(KeyLabel(bk) .. L.KEY_BLIZZ_TAG)
+            interactBtn:SetText(KeyLabel(DWE.GetEffectiveInteractKey()) .. L.KEY_BLIZZ_TAG)
             interactBtn:Disable()
         else
             interactBtn:SetText(L.KEY_CUSTOM .. " " .. KeyLabel(DialogueWheelE_InteractKey))
             interactBtn:Enable()
         end
-        toggleBtn:SetText(KeyLabel(DWE.GetToggleKey()))
+        toggleBtn:SetText(KeyLabel(DialogueWheelE_ToggleKey))
     end
 
     useBlizzCb:SetScript("OnClick", function(self)
@@ -3735,24 +3800,7 @@ function DWE.InitOptionsPanel()
         RefreshTiles()
     end)
     RefreshKeyButtons()
-
-    AddCheck(L.ESC_CLOSE, 16, keysY - 64, DialogueWheelE_EscClose ~= false, function(self)
-        DialogueWheelE_EscClose = self:GetChecked() and true or false
-    end)
-    AddCheck(L.WHEEL_SCROLL, 16, keysY - 92, DialogueWheelE_WheelScroll ~= false, function(self)
-        DialogueWheelE_WheelScroll = self:GetChecked() and true or false
-        DWE.RefreshBindings()
-    end)
-    -- Choix "Spoken" dans la roue (bascule texte de l'addon / fenetre de Spoken) : cache par
-    -- defaut pour l'immersion, et seulement avec Spoken.
-    local spokenCheck = AddCheck(L.SPOKEN_CHOICE, 16, keysY - 120, DialogueWheelE_SpokenChoice == true, function(self)
-        DialogueWheelE_SpokenChoice = self:GetChecked() and true or false
-    end)
-    if not (DWE.SpokenFocus and DWE.SpokenFocus.Available()) and spokenCheck then
-        if spokenCheck.Disable then spokenCheck:Disable() end
-        if spokenCheck.SetAlpha then spokenCheck:SetAlpha(0.5) end
-    end
-    p:SetHeight(-(keysY - 120) + 50)
+    p:SetHeight(-(y - 150) + 30)
 
     if Settings and Settings.RegisterCanvasLayoutCategory then
         local cat = Settings.RegisterCanvasLayoutCategory(panel, panel.name)

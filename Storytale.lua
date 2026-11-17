@@ -885,7 +885,10 @@ function BuildOptions(event, keepSelection)
     -- pas de bouton (et le texte de l'addon reste affiche).
     local hasSpoken = DWE.SpokenFocus and DWE.SpokenFocus.Available()
     local spokenChoice = hasSpoken and DialogueWheelE_SpokenChoice == true
-    if not spokenChoice and DialogueWheelE_ShowText ~= true then DialogueWheelE_ShowText = true end
+    -- Sans moyen de revenir (ni choix "Spoken" ni touche), le texte de l'addon reste affiche.
+    if not (spokenChoice or (hasSpoken and DWE.GetToggleKey())) and DialogueWheelE_ShowText ~= true then
+        DialogueWheelE_ShowText = true
+    end
     if not isBook and spokenChoice then
         AddOption({
             isDialogueToggle = true,
@@ -1043,6 +1046,15 @@ btnSelect:SetScript("OnClick", function()
 end)
 btnToggleText:SetScript("OnClick", function() DWE.ToggleDialogueText() end)
 
+-- Touche d'interaction du jeu active : option "Touche d'interaction" activee (CVar
+-- SoftTargetInteract) et une touche reglee pour "Interagir avec la cible".
+function DWE.BlizzInteractOn()
+    -- 0 = desactivee, 1 = manette seulement, 2 = clavier/souris, 3 = toujours.
+    local cv = GetCVar and GetCVar("SoftTargetInteract")
+    if cv ~= nil and tostring(cv) ~= "2" and tostring(cv) ~= "3" then return false end
+    return (GetBindingKey and GetBindingKey("INTERACTTARGET")) ~= nil
+end
+
 function DWE.GetEffectiveInteractKey()
     if DialogueWheelE_UseBlizzKey == false then
         return NonEmpty(DialogueWheelE_InteractKey)
@@ -1050,9 +1062,11 @@ function DWE.GetEffectiveInteractKey()
     return GetBindingKey and GetBindingKey("INTERACTTARGET") or nil
 end
 
--- Touche "Dialogue" : T par defaut, "" = aucune.
+-- Touche "Dialogue" (texte de l'addon <-> fenetre Spoken/DialogueUI) : aucune par defaut.
 function DWE.GetToggleKey()
-    if DialogueWheelE_ToggleKey == nil then return "T" end
+    -- Seulement avec Spoken (bascule bulle de l'addon <-> lecteur de Spoken).
+    if not (DWE.SpokenFocus and DWE.SpokenFocus.Available()) then return nil end
+    if DialogueWheelE_ToggleKey == nil then return nil end
     return NonEmpty(DialogueWheelE_ToggleKey)
 end
 
@@ -1165,12 +1179,15 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         DiagnoseNPC()
     elseif msg:match("spoken") then
         if DWE.SpokenFocus then DWE.SpokenFocus.Install(); DWE.SpokenFocus.Report() end
+    elseif msg:match("reset") then
+        DWE.AskResetAll()
     elseif msg:match("perf") then
         Out("Pret : parle a un PNJ, la mesure demarre quand le texte commence a s'ecrire.")
         DWE.ArmPerf(Out)
     else
         Out("/dwe npc : diagnostic du suivi du PNJ")
         Out("/dwe perf : mesure ce que l'addon coute en images/s")
+        Out("/storytale reset : remet toutes les options par defaut")
     end
 end
 
@@ -1215,6 +1232,33 @@ f:SetScript("OnEvent", function(_, event)
         -- Premiere installation : bulle d'Azeroth, texte affiche par l'addon.
         if DialogueWheelE_Theme == nil then DialogueWheelE_Theme = "bubble" end
         if DialogueWheelE_ShowText == nil then DialogueWheelE_ShowText = true end
+        -- Nouveaux reglages par defaut (1.2), appliques une fois a tout le monde.
+        if (tonumber(DialogueWheelE_DefaultsV) or 0) < 2 then
+            DialogueWheelE_DefaultsV = 2
+            DialogueWheelE_WheelTheme = true
+            if DialogueWheelE_FontSize == nil or tonumber(DialogueWheelE_FontSize) == 13 then DialogueWheelE_FontSize = 14 end
+            if DialogueWheelE_ToggleKey == "T" then DialogueWheelE_ToggleKey = nil end
+        end
+        -- Touche de choix : celle du jeu ("Interagir avec la cible") si le joueur en a une,
+        -- sinon une touche de l'addon, E par defaut.
+        -- (1.2) Une fois : coche "touche du jeu" sans touche reglee dans le jeu -> touche E.
+        if (tonumber(DialogueWheelE_DefaultsV) or 0) < 5 then
+            DialogueWheelE_DefaultsV = 5
+            if DialogueWheelE_UseBlizzKey == true and not DWE.BlizzInteractOn() then
+                DialogueWheelE_UseBlizzKey = nil
+            end
+        end
+        if DialogueWheelE_UseBlizzKey == nil then
+            local on = DWE.BlizzInteractOn()
+            DialogueWheelE_UseBlizzKey = on and true or false
+            if not on and DialogueWheelE_InteractKey == nil then DialogueWheelE_InteractKey = "E" end
+        end
+        -- Lecteur Spoken habille du theme des que Spoken est la (meme installe plus tard),
+        -- sauf si le joueur a decoche l'option (false).
+        if DialogueWheelE_SpokenTheme == nil then
+            local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+            if isLoaded and isLoaded("Spoken") then DialogueWheelE_SpokenTheme = true end
+        end
         SetupDialogueUI()
         DWE.HookSpoken()
         DWE.RestorePosition()

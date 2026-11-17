@@ -158,7 +158,7 @@ check(DWE.choiceBox:IsShown(), "wheel shown on gossip")
 check(#DWE.currentOptions == 5 + OFF, "gossip options count (got " .. #DWE.currentOptions .. ")")
 check(DWE.textBody:GetText() == "Even within cold, stone walls...", "gossip text trimmed")
 check(M.bindings.E == "DWE_SelectBtn", "interact key bound")
-check(M.bindings.T == "DWE_ToggleTextKeyBtn", "toggle key bound")
+check(M.bindings.T == nil, "no toggle key by default")
 check(M.bindings.MOUSEWHEELUP == "DWE_WheelUpBtn", "wheel bound")
 _G.DWE_WheelDownBtn._scripts.OnClick()
 _G.DWE_SelectBtn._scripts.OnClick()
@@ -246,7 +246,11 @@ end
 -- Options: rebind live
 DialogueWheelE_ToggleKey = "Y"
 DWE.RefreshBindings()
-check(M.bindings.Y == "DWE_ToggleTextKeyBtn" and M.bindings.T == nil, "toggle key rebinding applied live")
+if DWE.SpokenFocus and DWE.SpokenFocus.Available() then
+    check(M.bindings.Y == "DWE_ToggleTextKeyBtn" and M.bindings.T == nil, "toggle key rebinding applied live")
+else
+    check(M.bindings.Y == nil, "toggle key unbound without Spoken")
+end
 DialogueWheelE_ToggleKey = ""
 DWE.RefreshBindings()
 check(M.bindings.Y == nil, "toggle key can be disabled")

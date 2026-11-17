@@ -551,6 +551,40 @@ for loc, l in pairs(BOOK_LOOK) do
     end
 end
 
+-- Options reorganisees (sections Apparence / Texte / Livres / Position / Commandes / Spoken).
+local OPTS2 = {
+    enUS = { SEC_THEME = "Appearance", SEC_BOOKS = "Books and letters", SEC_SPOKEN = "Spoken",
+        THEME_BUBBLES = "Show the theme as a bubble above the NPC (uncheck for a fixed frame)",
+        WHEEL_THEME = "Also apply the theme to the choice wheel",
+        SPOKEN_THEME = "Also apply the theme to Spoken's player",
+        OPACITY_LBL = "Background opacity",
+        FONT_SIZE = "Text size (bubble, frame, books)", CHOICE_SIZE = "Choice size",
+        BOOK_STYLE = "Who displays books and letters:",
+        SPOKEN_CHOICE = "Show a \"Spoken\" choice in the wheel",
+        KEY_TOGGLE = "Key to switch between the bubble and Spoken's player:",
+        SPOKEN_NEEDED = "Requires the Spoken addon.",
+        SPOKEN_KEY_HINT = "Turn on the \"Spoken\" choice above to use this key.",
+        RESET_ALL = "Reset all options",
+        RESET_ALL_CONFIRM = "Reset all Storytale options to their defaults?\nThe interface will reload." },
+    frFR = { SEC_THEME = "Apparence", SEC_BOOKS = "Livres et lettres", SEC_SPOKEN = "Spoken",
+        THEME_BUBBLES = "Afficher le thème en bulle au-dessus du PNJ (décocher : cadre fixe)",
+        WHEEL_THEME = "Appliquer aussi le thème à la roue des choix",
+        SPOKEN_THEME = "Appliquer aussi le thème au lecteur de Spoken",
+        OPACITY_LBL = "Opacité du fond",
+        FONT_SIZE = "Taille du texte (bulle, cadre, livres)", CHOICE_SIZE = "Taille des choix",
+        BOOK_STYLE = "Qui affiche les livres et lettres :",
+        SPOKEN_CHOICE = "Afficher un choix « Spoken » dans la roue",
+        KEY_TOGGLE = "Touche pour basculer entre la bulle et le lecteur de Spoken :",
+        SPOKEN_NEEDED = "Nécessite l'addon Spoken.",
+        SPOKEN_KEY_HINT = "Active le choix « Spoken » ci-dessus pour utiliser cette touche.",
+        RESET_ALL = "Réinitialiser toutes les options",
+        RESET_ALL_CONFIRM = "Remettre toutes les options de Storytale par défaut ?\nL'interface va se recharger." },
+}
+for loc, list in pairs(OPTS2) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then for k, v in pairs(list) do dest[k] = v end end
+end
+
 local own = T[LOCALE] or {}
 DWE.L = setmetatable({}, { __index = function(_, k)
     return GAME[k] or own[k] or enUS[k]
