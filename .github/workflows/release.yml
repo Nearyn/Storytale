@@ -1,0 +1,67 @@
+# Publie automatiquement une release quand la version du .toc change sur main.
+# Pour sortir une version : mettre "## Version: X.Y.Z" dans Storytale.toc et ajouter
+# une section "## X.Y.Z" en haut de CHANGELOG.md (son texte devient la description).
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Storytale.toc
+      - CHANGELOG.md
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lire la version
+        id: v
+        run: |
+          VERSION=$(grep -m1 '^## Version:' Storytale.toc | sed 's/^## Version:[[:space:]]*//' | tr -d '\r[:space:]')
+          if [ -z "$VERSION" ]; then echo "Pas de ## Version dans le .toc"; exit 1; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Deja publiee ?
+        id: exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v${{ steps.v.outputs.version }}" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Construire le zip
+        if: steps.exists.outputs.skip == 'false'
+        run: |
+          mkdir -p build/Storytale
+          rsync -a --exclude '.git*' --exclude '.github' --exclude 'build' \
+            --exclude 'CHANGELOG.md' --exclude 'README*' --exclude '*.py' --exclude 'docs' --exclude 'tests' --exclude 'tools' ./ build/Storytale/
+          cd build && zip -qr Storytale.zip Storytale
+
+      - name: Notes de version
+        if: steps.exists.outputs.skip == 'false'
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          awk -v v="$V" '
+            $0 ~ "^## \\[?" v "\\]?([[:space:]]|$)" { on = 1; next }
+            on && /^## / { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md || true
+          if [ ! -s notes.md ]; then echo "Version $V" > notes.md; fi
+
+      - name: Publier
+        if: steps.exists.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          gh release create "v$V" build/Storytale.zip \
+            --title "Storytale v$V" --notes-file notes.md --target "$GITHUB_SHA" --latest
