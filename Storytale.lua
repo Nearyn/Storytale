@@ -1337,7 +1337,10 @@ f:SetScript("OnEvent", function(_, event)
             DWE.ForceBlizzBook(event)
             if bookState.reachedEnd then DWE.MarkBook(bookState.title, true) end
         end
-        if event ~= "ITEM_TEXT_CLOSED" and DWE.SpokenFocus then DWE.SpokenFocus.SetNPC(false) end
+        if event ~= "ITEM_TEXT_CLOSED" and DWE.SpokenFocus then
+            DWE.SpokenFocus.SetNPC(false)
+            DWE.SpokenFocus.gossipPage = 0
+        end
         if event == "ITEM_TEXT_CLOSED" and DWE.SpokenFocus then DWE.SpokenFocus.OnBookClosed() end
         DisableKeys()
         return
@@ -1358,6 +1361,17 @@ f:SetScript("OnEvent", function(_, event)
     if DWE.SpokenFocus then
         DWE.SpokenFocus.Install()
         if not BOOK_EVENTS[event] then DWE.SpokenFocus.SetNPC(true) end
+        -- Pages de dialogue : la 1re est la salutation ; les suivantes (on a choisi un sujet,
+        -- ex. "parlez-moi de cet endroit") sont des repliques demandees. Une quete repart a zero.
+        if event == "GOSSIP_SHOW" then
+            DWE.SpokenFocus.gossipPage = (DWE.SpokenFocus.gossipPage or 0) + 1
+            if DWE.SpokenFocus.WatchPage then DWE.SpokenFocus.WatchPage() end
+        elseif QUEST_EVENTS and QUEST_EVENTS[event] then
+            DWE.SpokenFocus.gossipPage = 0
+            if DWE.SpokenFocus.WatchPage then DWE.SpokenFocus.WatchPage(event) end
+        elseif event == "QUEST_GREETING" then
+            if DWE.SpokenFocus.WatchPage then DWE.SpokenFocus.WatchPage(event) end
+        end
     end
 
     if event == "ITEM_TEXT_BEGIN" then

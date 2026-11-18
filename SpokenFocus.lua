@@ -8,6 +8,12 @@
 
 local Focus = { npc = false }
 DWE.SpokenFocus = Focus
+-- "File de lecture intelligente" (option, active par defaut). Decochee, Spoken gere seul l'ordre
+-- de lecture : aucune regle de priorite, coupure, attente de livre ni relance n'est appliquee.
+-- Restent les actions demandees par le joueur (choisir/fermer dans la file, couper la voix d'un livre).
+function Focus.Smart()
+    return DialogueWheelE_SpokenSmart ~= false
+end
 
 local function Env()
     local env = rawget(_G, "SpokenEnv")
@@ -42,6 +48,15 @@ end
 Focus.SpeakerOf = SpeakerOf
 -- Groupes de la file : un livre (son titre) ou un PNJ (son nom). La file de lecture du petit
 -- lecteur de Spoken les liste ; on peut en choisir un (il passe devant) ou le fermer.
+-- Salutation d'un PNJ (pas une ligne de quete) : priorite basse chez Spoken, ou salutation de
+-- donneur de quetes (Spoken la met en priorite normale, mais c'est bien une salutation).
+-- Une replique demandee (page choisie apres la salutation) n'en est pas une.
+local function IsGreeting(clip)
+    if type(clip) ~= "table" or IsBook(clip) or clip.dweAsked then return false end
+    if (clip.dweOrigPriority or clip.priority) == "low" then return true end
+    return type(clip.present) == "table" and clip.present.bullet == "gossip"
+end
+
 local function GroupKey(clip)
     if type(clip) ~= "table" then return nil end
     local p = type(clip.present) == "table" and clip.present or {}
@@ -214,6 +229,12 @@ function Focus.BookQueued(key)
     end
     return false
 end
+-- Meme PNJ ? Seulement si les deux noms sont connus et identiques (une salutation n'a parfois
+-- pas de nom : deux salutations "sans nom" de PNJ differents ne sont pas le meme PNJ).
+function Focus.SameSpeaker(a, b)
+    local wa, wb = SpeakerOf(a), SpeakerOf(b)
+    return wa ~= nil and wa == wb
+end
 -- Une voix qui n'est pas celle du PNJ a qui l'on parle (un autre PNJ, ou un livre sans son
 -- livre a l'ecran) : le petit lecteur reste visible, ce n'est pas un doublon de la bulle.
 function Focus.ForeignSpeaking()
@@ -268,6 +289,7 @@ function Focus.Install()
         -- Les PNJ ne se retiennent pas entre eux : chacun parle a son tour (ordre d'arrivee).
         if not IsBook(clip) then return nil end
         if Focus.bookMuted then return DWE.L.SPOKEN_MUTED end
+        if not Focus.Smart() then return nil end
         -- Jamais ecoute en entier : le livre garde la priorite, le PNJ attend son tour.
         if not Focus.Heard(clip) then return nil end
         local _, queue = Env()
@@ -284,16 +306,53 @@ function Focus.Install()
         queue.dweWrapped = true
         local origAdd = queue.Add
         queue.Add = function(self, clip, source, front)
+            if not Focus.Smart() then return origAdd(self, clip, source, front) end
+            -- Ligne de quete d'un PNJ que l'on vient de quitter (Spoken la lit ~0.4 s apres
+            -- l'ouverture de la fenetre) : on parle deja a quelqu'un d'autre, elle n'a pas
+            -- commence, on l'ignore. Sauf si Spoken lit les quetes a la fermeture (voulu).
+            if type(clip) == "table" and not IsBook(clip) and not IsGreeting(clip)
+                and Focus.leftName and SpeakerOf(clip) == Focus.leftName
+                and GetTime and (GetTime() - (Focus.leftAt or 0)) < 1.5
+                and SourceName({ source = source }) == "quests" then
+                local now = UnitName and UnitName("npc")
+                local ace = LibStub and LibStub("AceAddon-3.0", true)
+                local sq = ace and ace:GetAddon("SpokenQuests", true)
+                local afterClose = sq and sq.db and sq.db.profile and sq.db.profile.Audio
+                    and sq.db.profile.Audio.ReadAfterClose
+                if now and now ~= Focus.leftName and not afterClose then
+                    Log("left before read, skipped: " .. tostring(Focus.leftName))
+                    Focus.lineSeq = (Focus.lineSeq or 0) + 1
+                    return nil, "left"
+                end
+            end
             -- Salutation generique (priorite basse) : jamais mise en attente. Elle ne passe que si
             -- rien ne parle, ou si ce qui parle peut etre coupe (salutation deja ecoutee).
-            if type(clip) == "table" and clip.priority == "low" and not IsBook(clip) then
+            -- Replique demandee (page de dialogue apres la salutation) : elle se met en file
+            -- comme une ligne normale, apres ce qui attend deja (sans rien couper).
+            if type(clip) == "table" and clip.priority == "low" and not IsBook(clip)
+                and (Focus.gossipPage or 0) > 1 then
+                clip.priority = "normal"
+                clip.dweAsked = true
+                Log("asked line queued: " .. tostring(SpeakerOf(clip)))
+            end
+            if IsGreeting(clip) then
                 local head = self.sounds and self.sounds[1]
                 if head then
                     -- (Un livre en tete garde ses propres regles : la ligne entre, le livre decide.)
-                    local cuttable = IsBook(head) or (head.priority == "low" and Focus.Heard(head)
-                        and SpeakerOf(head) ~= SpeakerOf(clip))
-                    if not cuttable then
+                    -- La salutation d'un autre PNJ (meme pas finie) cede a celle du PNJ a qui l'on
+                    -- parle maintenant : on passe de l'un a l'autre sans silence.
+                    local cuttable = IsBook(head) or (IsGreeting(head) and not Focus.SameSpeaker(head, clip))
+                    -- Une ligne de quete parle (jamais coupee) et l'on parle maintenant a ce PNJ :
+                    -- sa salutation attend la fin de cette ligne (souvent courte). Si on ferme sa
+                    -- fenetre avant qu'elle commence, elle quitte la file (voir SetNPC).
+                    local name = UnitName and UnitName("npc")
+                    if not cuttable and not IsGreeting(head) and name and SpeakerOf(clip) == name
+                        and not Focus.SameSpeaker(head, clip) then
+                        clip.dweWaitGreeting = true
+                        Log("greeting waits for quest line: " .. tostring(name))
+                    elseif not cuttable then
                         Log("greeting not queued: " .. tostring(SpeakerOf(clip)))
+                        Focus.lineSeq = (Focus.lineSeq or 0) + 1
                         return nil, "busy"
                     end
                 end
@@ -348,6 +407,8 @@ function Focus.Install()
     if type(api.RegisterCallback) == "function" then
         pcall(api.RegisterCallback, api, "CLIP_QUEUED", function(clip)
             Log("queued book=" .. tostring(IsBook(clip)) .. " who=" .. tostring(SpeakerOf(clip)))
+            if not IsBook(clip) then Focus.lineSeq = (Focus.lineSeq or 0) + 1 end
+            if IsBook(clip) and not Focus.Smart() then return end
             if IsBook(clip) then
                 -- Nouveau livre ouvert : un autre livre deja ecoute en entier (en cours ou en
                 -- attente) lui cede la place et quitte la file.
@@ -374,20 +435,26 @@ function Focus.Install()
             -- On parle a quelqu'un : la conversation en cours reprend la priorite sur un choix fait
             -- dans la file de lecture.
             if talking and Focus.forced and Focus.forced ~= GroupKey(clip) then Focus.forced = nil end
+            if not Focus.Smart() then return end
             local _, queue = Env()
             if not queue then return end
             local head = queue.GetCurrentSound and queue:GetCurrentSound()
             if IsBook(head) then
                 -- Un livre cede sa place a la conversation.
                 YieldBook()
-            elseif talking and head and head ~= clip and head.priority == "low" and clip.priority ~= "low"
+            elseif talking and head and head ~= clip and IsGreeting(head) and not IsGreeting(clip)
                 and Focus.IsCurrentNPC(head) then
                 -- Le meme PNJ passe de sa salutation (repetee a chaque visite, priorite basse) a un
                 -- texte de quete (dit une fois) : la salutation s'arrete, la quete parle tout de suite.
                 Log("greeting cut for quest text: " .. tostring(who))
                 pcall(queue.RemoveSoundFromQueue, queue, head)
+            elseif talking and head and head ~= clip and not Focus.SameSpeaker(head, clip)
+                and IsGreeting(clip) and IsGreeting(head) then
+                -- Nouvelle salutation : celle d'un autre PNJ s'arrete (on parle a quelqu'un d'autre).
+                Log("greeting switched: " .. tostring(SpeakerOf(head)) .. " -> " .. tostring(who))
+                pcall(queue.RemoveSoundFromQueue, queue, head)
             elseif talking and head and head ~= clip and SpeakerOf(head) ~= who and Focus.Heard(head)
-                and (head.dweOrigPriority or head.priority) == "low" then
+                and IsGreeting(head) then
                 -- (Seule une salutation deja ecoutee peut etre coupee. Une ligne de quete ne l'est
                 -- jamais, meme deja ecoutee : elle finit, puis la suivante.)
                 -- Le PNJ qui parle redit une replique deja ecoutee en entier : on la coupe et elle
@@ -413,8 +480,41 @@ function Focus.Install()
         end)
         pcall(api.RegisterCallback, api, "CLIP_DROPPED", function(clip, reason)
             Log("DROPPED book=" .. tostring(IsBook(clip)) .. " src=" .. SourceName(clip) .. " why=" .. tostring(reason))
+            if not IsBook(clip) then Focus.lineSeq = (Focus.lineSeq or 0) + 1 end
         end)
     end
+end
+
+-- Une page de dialogue s'ouvre. Quand on passe vite d'un PNJ a l'autre, Spoken Quests attend que
+-- la fenetre de DialogueUI soit entierement affichee pour lire la salutation ; si l'ancienne
+-- fenetre finit de se fermer pendant cette attente, la lecture est oubliee et le PNJ reste muet.
+-- Si aucune ligne n'est arrivee peu apres, on redemande la lecture (Spoken applique toujours
+-- ses propres regles : frequence des salutations, lecture auto, etc. ; un doublon est refuse).
+-- Meme chose pour une page de quete (Spoken la lit quand le texte est stable, ~0.4 s) : on
+-- attend un peu plus longtemps avant de redemander.
+function Focus.WatchPage(event)
+    event = event or "GOSSIP_SHOW"
+    local quest = event == "QUEST_DETAIL" or event == "QUEST_PROGRESS" or event == "QUEST_COMPLETE"
+    if not (C_Timer and C_Timer.After and UnitGUID) or not Focus.Smart() then return end
+    local guid, seq = UnitGUID("npc"), Focus.lineSeq or 0
+    if not guid then return end
+    Focus.pageSerial = (Focus.pageSerial or 0) + 1
+    local serial = Focus.pageSerial
+    C_Timer.After(quest and 1.3 or 0.9, function()
+        if Focus.pageSerial ~= serial or (Focus.lineSeq or 0) ~= seq then return end
+        if not Focus.npc or UnitGUID("npc") ~= guid then return end
+        local name = UnitName and UnitName("npc")
+        local _, queue = Env()
+        for _, c in ipairs(queue and queue.sounds or {}) do
+            if not IsBook(c) and name and SpeakerOf(c) == name then return end
+        end
+        local ace = LibStub and LibStub("AceAddon-3.0", true)
+        local sq = ace and ace:GetAddon("SpokenQuests", true)
+        if not (sq and type(sq.DispatchDirectEvent) == "function") then return end
+        if quest and sq.db and sq.db.profile and sq.db.profile.Audio and sq.db.profile.Audio.ReadAfterClose then return end
+        Log("page read again: " .. tostring(name) .. " (" .. event .. ")")
+        pcall(sq.DispatchDirectEvent, sq, event, "page not read")
+    end)
 end
 
 -- Conversation avec un PNJ ouverte / fermee.
@@ -422,13 +522,30 @@ function Focus.SetNPC(on)
     on = on and true or false
     if Focus.npc == on then return end
     Focus.npc = on
+    -- Qui l'on quitte (et quand) : sa ligne de quete pas encore lue sera ignoree (voir Add).
+    if on then
+        Focus.npcName = UnitName and UnitName("npc") or nil
+    else
+        Focus.leftName, Focus.leftAt = Focus.npcName, GetTime and GetTime() or 0
+        Focus.npcName = nil
+    end
     Log("npc=" .. tostring(on))
     if on then
-        YieldBook()
-    elseif C_Timer and C_Timer.After then
-        C_Timer.After(0.3, Wake)
+        if Focus.Smart() then YieldBook() end
     else
-        Wake()
+        -- Fenetre fermee : une salutation qui attendait son tour ne sert plus a rien.
+        local _, queue = Env()
+        if queue and type(queue.RemoveSoundFromQueue) == "function" then
+            local cur = queue.GetCurrentSound and queue:GetCurrentSound()
+            for i = #(queue.sounds or {}), 1, -1 do
+                local c = queue.sounds[i]
+                if c and c ~= cur and c.dweWaitGreeting then
+                    Log("waiting greeting dropped: " .. tostring(SpeakerOf(c)))
+                    pcall(queue.RemoveSoundFromQueue, queue, c)
+                end
+            end
+        end
+        if C_Timer and C_Timer.After then C_Timer.After(0.3, Wake) else Wake() end
     end
 end
 

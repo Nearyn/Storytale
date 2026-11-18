@@ -3886,7 +3886,7 @@ DWE.THEME_LIST = THEME_LIST
 DWE.OPTION_VARS = { "Pos", "TextPos", "Theme", "Font", "FontSize", "Scale", "Opacity", "ShowText",
     "UseBlizzKey", "InteractKey", "ToggleKey", "WheelScroll", "SpokenTheme", "AttachNPC", "NPCOffset",
     "WheelWidth", "TextW", "TextH", "BubbleWidth", "Locked", "WheelTheme", "EscClose", "BookStyle",
-    "ThemeFrames", "BookLook", "BookPos", "BookScale", "NoteScale", "QuestWidth", "QuestAuto", "PlaceSkin", "SpokenChoice", "ChoiceSize", "WheelSide", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "DefaultsV" }
+    "ThemeFrames", "BookLook", "BookPos", "BookScale", "NoteScale", "QuestWidth", "QuestAuto", "PlaceSkin", "SpokenChoice", "ChoiceSize", "WheelSide", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "SpokenSmart", "DefaultsV" }
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if ReloadUI then ReloadUI() end
@@ -4277,6 +4277,19 @@ function DWE.InitOptionsPanel()
         Grey(cb, spokenOn and (i ~= 3 or DWE.DUI_ON))
     end
     if placeLbl.SetAlpha then placeLbl:SetAlpha(spokenOn and 1 or 0.5) end
+    -- File de lecture intelligente (decochee : Spoken gere seul sa file, sans nos regles).
+    local smartCheck = AddCheck(L.SPOKEN_SMART, 16, y - 204, DialogueWheelE_SpokenSmart ~= false, function(self)
+        DialogueWheelE_SpokenSmart = self:GetChecked() and true or false
+    end)
+    smartCheck.tooltipText = L.SPOKEN_SMART_TIP
+    smartCheck:HookScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(L.SPOKEN_SMART, 1, 0.82, 0)
+        GameTooltip:AddLine(L.SPOKEN_SMART_TIP, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    smartCheck:HookScript("OnLeave", function() GameTooltip:Hide() end)
+    Grey(smartCheck, spokenOn)
     Grey(spokenThemeCheck, spokenOn)
     Grey(spokenCheck, spokenOn)
     Grey(toggleBtn, spokenOn)
@@ -4330,7 +4343,7 @@ function DWE.InitOptionsPanel()
         RefreshTiles()
     end)
     RefreshKeyButtons()
-    p:SetHeight(-(y - 200) + 30)
+    p:SetHeight(-(y - 232) + 30)
 
     if Settings and Settings.RegisterCanvasLayoutCategory then
         local cat = Settings.RegisterCanvasLayoutCategory(panel, panel.name)

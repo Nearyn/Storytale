@@ -1,5 +1,33 @@
 # Changelog / Journal des versions
 
+## 1.3.8
+
+**🇬🇧 English**
+
+### New
+- **Smart reading queue** (Spoken section, on by default): Storytale decides who speaks first. Uncheck it to let Spoken manage its queue on its own, untouched.
+- Dialogue pages you ask for (a topic chosen after the greeting) now wait their turn instead of being dropped.
+
+### Fixed
+- Talking to another NPC now switches greetings right away, including the greeting of a quest giver.
+- An NPC's greeting waits for the end of a quest line that has already started, then plays.
+- The quest line of an NPC you left before Spoken started reading it is skipped, so the next NPC speaks at once.
+- A greeting or quest page Spoken forgot to read when switching NPCs quickly is now read.
+
+---
+
+**🇫🇷 Français**
+
+### Nouveautés
+- **File de lecture intelligente** (section Spoken, activée par défaut) : Storytale décide qui parle en premier. Décochez-la pour laisser Spoken gérer seul sa file, sans aucune modification.
+- Les pages de dialogue demandées (un sujet choisi après la salutation) attendent leur tour au lieu d'être ignorées.
+
+### Corrections
+- Parler à un autre PNJ fait passer sa salutation tout de suite, y compris celle d'un donneur de quêtes.
+- La salutation d'un PNJ attend la fin d'une ligne de quête déjà commencée, puis se lance.
+- La ligne de quête d'un PNJ quitté avant que Spoken commence à la lire est ignorée : le PNJ suivant parle tout de suite.
+- Une salutation ou une page de quête que Spoken oubliait de lire quand on change vite de PNJ est maintenant lue.
+
 ## 1.3.7
 
 **🇬🇧 English**
