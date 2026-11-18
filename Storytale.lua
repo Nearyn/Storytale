@@ -661,6 +661,7 @@ local function ShowBookPage(pageNum)
     if DWE.BookLook() == "note" then
         -- Note : tout le texte d'un coup (les pages deja lues), sans numero de page.
         DWE.bookInfo = { page = 1, total = total, hasNext = false, note = true }
+        if not (ItemTextHasNextPage and ItemTextHasNextPage()) then bookState.reachedEnd = true end
         DWE.SetDialogueText(bookState.title, table.concat(bookState.pages, "\n\n"))
         return
     end
@@ -669,6 +670,7 @@ local function ShowBookPage(pageNum)
     local title = bookState.title
     if total > 1 then title = title .. " (" .. pageNum .. "/" .. total .. ")" end
     DWE.bookInfo = { page = pageNum, total = total, hasNext = BookHasNext and BookHasNext() or false }
+    if not DWE.bookInfo.hasNext then bookState.reachedEnd = true end
     DWE.SetDialogueText(title, bookState.pages[pageNum] or "")
 end
 
@@ -1190,6 +1192,9 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
     msg = (msg or ""):lower()
     if msg:match("npc") then
         DiagnoseNPC()
+    elseif msg:match("forget") then
+        local n = DWE.SpokenFocus and DWE.SpokenFocus.ForgetOpenBook and DWE.SpokenFocus.ForgetOpenBook() or 0
+        Out("livre ouvert considere comme jamais ecoute (" .. n .. " ligne(s) oubliee(s)).")
     elseif msg:match("spoken") then
         if DWE.SpokenFocus then DWE.SpokenFocus.Install(); DWE.SpokenFocus.Report() end
     elseif msg:match("^%s*plate") then
@@ -1317,7 +1322,10 @@ f:SetScript("OnEvent", function(_, event)
         DWE.RestoreNameplateCVar()
         return
     elseif CLOSE_EVENTS[event] then
-        if event == "ITEM_TEXT_CLOSED" then DWE.ForceBlizzBook(event) end
+        if event == "ITEM_TEXT_CLOSED" then
+            DWE.ForceBlizzBook(event)
+            if bookState.reachedEnd then DWE.MarkBook(bookState.title, true) end
+        end
         if event ~= "ITEM_TEXT_CLOSED" and DWE.SpokenFocus then DWE.SpokenFocus.SetNPC(false) end
         if event == "ITEM_TEXT_CLOSED" and DWE.SpokenFocus then DWE.SpokenFocus.OnBookClosed() end
         DisableKeys()
@@ -1326,7 +1334,10 @@ f:SetScript("OnEvent", function(_, event)
 
     -- Livres : selon l'option, la roue de l'addon (avec un theme parchemin, jamais en bulle),
     -- ou on laisse faire le livre de DialogueUI / la fenetre du jeu.
-    if event == "ITEM_TEXT_BEGIN" then DWE.lastBookStyle = DWE.BookStyleNow() end
+    if event == "ITEM_TEXT_BEGIN" then
+        DWE.lastBookStyle = DWE.BookStyleNow()
+        DWE.MarkBook(ItemTextGetItem and ItemTextGetItem(), false)
+    end
     if BOOK_EVENTS[event] and DWE.BookStyleNow() ~= "addon" then
         if DWE.BookStyleNow() == "blizzard" then DWE.ForceBlizzBook(event) end
         return
@@ -1428,4 +1439,115 @@ function DWE.SpokenMiniFrame()
     local sk = type(env) == "table" and rawget(env, "DialogueUIPlayer")
     local fr = type(sk) == "table" and sk.frame
     return type(fr) == "table" and fr.SetAlpha and fr or nil
+end
+
+-- Livres lus / pas encore finis (par personnage), reconnus a leur titre.
+-- 1 = commence, 2 = lu jusqu'au bout (derniere page atteinte, ou narre en entier par Spoken).
+function DWE.BookKey(title)
+    if type(title) ~= "string" or (issecretvalue and issecretvalue(title)) then return nil end
+    local k = title:gsub("%s*%(%d+%s*/%s*%d+%)%s*$", ""):gsub("^%s+", ""):gsub("%s+$", ""):lower()
+    return k ~= "" and k or nil
+end
+function DWE.MarkBook(title, done)
+    local k = DWE.BookKey(title)
+    if not k then return end
+    if type(DialogueWheelE_ReadBooks) ~= "table" then DialogueWheelE_ReadBooks = {} end
+    local cur = DialogueWheelE_ReadBooks[k] or 0
+    DialogueWheelE_ReadBooks[k] = math.max(cur, done and 2 or 1)
+end
+function DWE.BookState(title)
+    local k = DWE.BookKey(title)
+    local t = rawget(_G, "DialogueWheelE_ReadBooks")
+    return k and type(t) == "table" and t[k] or nil
+end
+DWE.READ_ICON = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14|t"
+-- Infobulle d'un objet du monde (livre, plaque) : deja lu, ou commence sans etre fini.
+if GameTooltip and GameTooltip.HookScript then
+    -- Infobulle d'un livre a la souris (option) : elle suit le curseur, donc l'objet survole.
+    local function AtCursor(tt)
+        local x, y = GetCursorPosition()
+        local s = UIParent:GetEffectiveScale()
+        tt.dweAnchoring = true
+        tt:ClearAllPoints()
+        tt:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", x / s + 18, y / s + 12)
+        tt.dweAnchoring = nil
+    end
+    -- Le jeu reecrit l'infobulle d'un objet du monde en continu (elle perdait notre ligne :
+    -- clignotement) : on la remet a chaque fois qu'elle manque.
+    local function Mark(tt, text, r, g, b)
+        tt.dweMark = { text, r, g, b }
+        DWE.tipBusy = true
+        tt:AddLine(text, r, g, b)
+        pcall(tt.Show, tt)
+        DWE.tipBusy = nil
+    end
+    DWE.TipMark = Mark
+    GameTooltip:HookScript("OnUpdate", function(tt)
+        if tt.dweAtCursor then AtCursor(tt) end
+        local m = tt.dweMark
+        if m and not DWE.tipBusy and tt:NumLines() < 2 then Mark(tt, m[1], m[2], m[3], m[4]) end
+    end)
+    GameTooltip:HookScript("OnHide", function(tt) tt.dweAtCursor, tt.dweMark = nil, nil end)
+    -- Meme image que la reecriture du jeu (il rappelle Show apres SetText) : la ligne et la place
+    -- sont remises avant l'affichage, sans une image de titre seul.
+    if hooksecurefunc then
+        hooksecurefunc(GameTooltip, "Show", function(tt)
+            if DWE.tipBusy then return end
+            if tt.dweAtCursor then AtCursor(tt) end
+            local m = tt.dweMark
+            if m and tt:NumLines() < 2 then Mark(tt, m[1], m[2], m[3], m[4]) end
+        end)
+    end
+    -- Le jeu re-place l'infobulle (coin de l'ecran) quand il la reecrit : sans ca elle avait deux
+    -- ancres a la fois (coin + souris) et s'etirait sur tout l'ecran un instant.
+    if hooksecurefunc and rawget(_G, "GameTooltip_SetDefaultAnchor") then
+        hooksecurefunc("GameTooltip_SetDefaultAnchor", function(tt)
+            if tt == GameTooltip and tt.dweAtCursor then AtCursor(tt) end
+        end)
+    end
+    if hooksecurefunc then
+        hooksecurefunc(GameTooltip, "SetPoint", function(tt)
+            if tt.dweAtCursor and not tt.dweAnchoring and tt:GetNumPoints() > 1 then AtCursor(tt) end
+        end)
+    end
+    GameTooltip:HookScript("OnShow", function(tt)
+        if DWE.tipBusy then return end
+        tt.dweMark = nil
+        if tt.GetUnit and tt:GetUnit() then return end
+        if tt.GetItem and tt:GetItem() then return end
+        local line = rawget(_G, "GameTooltipTextLeft1")
+        local ok, title = pcall(line and line.GetText or function() end, line)
+        if not ok or type(title) ~= "string" or (issecretvalue and issecretvalue(title)) then return end
+        local data = rawget(_G, "SpokenReadablesData")
+        local known = DWE.BookState(title) or (type(data) == "table" and type(data.index) == "table" and data.index[title])
+        if known and DialogueWheelE_BookTipCursor == true and tt:GetOwner() == UIParent then
+            tt.dweAtCursor = true
+            AtCursor(tt)
+        else
+            tt.dweAtCursor = nil
+        end
+        if DialogueWheelE_ReadMarks == false then return end
+        -- Le livre que Spoken lit en ce moment.
+        local speaking = DWE.SpokenFocus and DWE.SpokenFocus.SpeakingBookTitle and DWE.SpokenFocus.SpeakingBookTitle()
+        if speaking and DWE.BookKey(speaking) == DWE.BookKey(title) then
+            Mark(tt, DWE.L.BOOK_READING, 0.55, 0.8, 1)
+            return
+        end
+        local st = DWE.BookState(title)
+        if not st then
+            -- Jamais ouvert : on ne sait que c'est un texte a lire que si Spoken Readables le
+            -- connait (sa liste de livres, par titre).
+            local data = rawget(_G, "SpokenReadablesData")
+            local idx = type(data) == "table" and data.index
+            if type(title) ~= "string" or (issecretvalue and issecretvalue(title))
+                or type(idx) ~= "table" or not idx[title] then return end
+            Mark(tt, DWE.L.BOOK_NEW, 1, 0.82, 0)
+            return
+        end
+        if st >= 2 then
+            Mark(tt, DWE.READ_ICON .. " " .. DWE.L.BOOK_READ, 0.6, 0.6, 0.6)
+        else
+            Mark(tt, DWE.L.BOOK_UNFINISHED, 1, 0.82, 0)
+        end
+    end)
 end

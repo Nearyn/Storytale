@@ -731,6 +731,13 @@ end
 
 local function ShouldHide(alwaysWithWheel, frame)
     if not (choiceBox:IsShown() or fadeHold) then return false end
+    -- Un livre lu a voix haute sans son livre a l'ecran : le lecteur Spoken reste toujours visible.
+    if not alwaysWithWheel and DWE.SpokenFocus and DWE.SpokenFocus.BookSpeaking and DWE.SpokenFocus.BookSpeaking()
+        and not (DWE.BookOpenNow and DWE.BookOpenNow()) then
+        local okN, name = pcall(frame and frame.GetName or function() end, frame)
+        local isDUI = okN and type(name) == "string" and name:find("^DUI")
+        if not isDUI then return false end
+    end
     if alwaysWithWheel then return true end
     if DWE.BookByAddon() then
         -- Le livre de DialogueUI ne se montre jamais pendant un livre de l'addon.
@@ -1047,6 +1054,30 @@ function DWE.HookSpoken()
         end
     end
     if type(skin.Layout) == "function" then hooksecurefunc(skin, "Layout", PaintSpoken) end
+    -- Texte de Spoken parcouru a la molette : quand la souris quitte le texte, il reprend tout
+    -- seul la ligne lue (Spoken attendait un clic pour ca).
+    local tr = rawget(env, "Transcript")
+    local function HookTranscript()
+        local fr = type(tr) == "table" and tr.frame
+        if type(fr) ~= "table" or fr.dweFollowHook or not fr.HookScript then return end
+        fr.dweFollowHook = true
+        fr:HookScript("OnLeave", function()
+            local token = {}
+            tr.dweLeaveToken = token
+            C_Timer.After(1.5, function()
+                if tr.dweLeaveToken ~= token or not tr.manualScroll then return end
+                local okM, over = pcall(fr.IsMouseOver, fr)
+                if okM and over then return end
+                tr.manualScroll = false
+                if type(tr.Update) == "function" then pcall(tr.Update, tr) end
+            end)
+        end)
+        fr:HookScript("OnEnter", function() tr.dweLeaveToken = nil end)
+    end
+    if type(tr) == "table" then
+        HookTranscript()
+        if type(tr.Initialize) == "function" then hooksecurefunc(tr, "Initialize", HookTranscript) end
+    end
     -- Pendant ses fondus "en une seule image", Spoken fait ignorer l'alpha du cadre a ses
     -- morceaux : notre fond fait pareil pour s'effacer au meme rythme.
     local function SyncBuffered(self)
@@ -2278,7 +2309,9 @@ function DWE.NPCHeight() return sizer.height end
 
 -- Echelle de l'interface pour ce PNJ : plus petite pour un petit PNJ.
 local function UIScaleFor(sf)
-    return math.max(0.75, math.min(1.1, 0.55 + 0.45 * sf))
+    -- Jamais plus petit que la normale : sur un nain ou un gnome le texte devenait illisible.
+    -- (La position, elle, suit toujours la taille du PNJ.)
+    return math.max(1, math.min(1.1, 0.55 + 0.45 * sf))
 end
 
 local function SetFrameScales(sc)
@@ -2317,7 +2350,11 @@ local function AnchorTo(plate)
     -- Roue a gauche : tout est en miroir (roue a gauche, texte a droite du PNJ).
     local m = DWE.WheelLeft() and -1 or 1
     choiceBox:ClearAllPoints()
-    choiceBox:SetPoint(m == 1 and "LEFT" or "RIGHT", plate, "CENTER", m * o.wheelX * k / ws, wy / ws)
+    -- Ecart sur le cote : un grand PNJ (elfe, tauren) n'eloigne plus la roue, seule la hauteur suit.
+    -- (Plafond proche de celui du nain : plus la roue est loin du PNJ, plus elle semble flotter
+    -- quand on tourne autour ou qu'on s'approche, car le zoom suit la camera, pas la distance.)
+    local kx = f * math.min(0.7, sf)
+    choiceBox:SetPoint(m == 1 and "LEFT" or "RIGHT", plate, "CENTER", m * o.wheelX * kx / ws, wy / ws)
     if not DWE.IsCinema() then
         local tp = m == 1 and "BOTTOMRIGHT" or "BOTTOMLEFT"
         textBox:ClearAllPoints()
@@ -2390,7 +2427,9 @@ local function UpdateDrag()
     NPCOffset()
     local k = (follow.zoomF or 1) * (follow.sizeF or 1)
     local m = DWE.WheelLeft() and -1 or 1
-    o[dragging.which .. "X"] = dragging.ox + m * (cx - dragging.cx) / k
+    -- La roue garde un ecart lateral plafonne (voir AnchorTo) : meme facteur ici.
+    local kx = dragging.which == "wheel" and (follow.zoomF or 1) * math.min(0.7, follow.sizeF or 1) or k
+    o[dragging.which .. "X"] = dragging.ox + m * (cx - dragging.cx) / kx
     o[dragging.which .. "Y"] = dragging.oy + (cy - dragging.cy) / k
     pcall(AnchorTo, follow.plate)
 end
@@ -3703,7 +3742,7 @@ DWE.THEME_LIST = THEME_LIST
 DWE.OPTION_VARS = { "Pos", "TextPos", "Theme", "Font", "FontSize", "Scale", "Opacity", "ShowText",
     "UseBlizzKey", "InteractKey", "ToggleKey", "WheelScroll", "SpokenTheme", "AttachNPC", "NPCOffset",
     "WheelWidth", "TextW", "TextH", "BubbleWidth", "Locked", "WheelTheme", "EscClose", "BookStyle",
-    "ThemeFrames", "BookLook", "BookPos", "BookScale", "NoteScale", "SpokenChoice", "ChoiceSize", "WheelSide", "PlateStyle", "PlateLook", "DefaultsV" }
+    "ThemeFrames", "BookLook", "BookPos", "BookScale", "NoteScale", "SpokenChoice", "ChoiceSize", "WheelSide", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "DefaultsV" }
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if ReloadUI then ReloadUI() end
@@ -3997,9 +4036,15 @@ function DWE.InitOptionsPanel()
         if plateLookLabel and plateLookLabel.SetTextColor then plateLookLabel:SetTextColor(c, c, c) end
     end
     DWE.RefreshPlateLookOptions()
+    AddCheck(L.READ_MARKS, 16, y - 272, DialogueWheelE_ReadMarks ~= false, function(self)
+        DialogueWheelE_ReadMarks = (not self:GetChecked()) and false or nil
+    end)
+    AddCheck(L.BOOK_TIP_CURSOR, 16, y - 298, DialogueWheelE_BookTipCursor == true, function(self)
+        DialogueWheelE_BookTipCursor = self:GetChecked() and true or nil
+    end)
 
     ---------------------------------------------------------------- Placement
-    y = y - 284
+    y = y - 338
     AddSection(L.SEC_PLACE, y)
     AddCheck(L.ATTACH_NPC, 16, y - 32, DialogueWheelE_AttachNPC ~= false, function(self)
         DialogueWheelE_AttachNPC = self:GetChecked() and true or false

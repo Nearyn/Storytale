@@ -1,5 +1,37 @@
 # Changelog / Journal des versions
 
+## 1.3.5
+
+**🇬🇧 English**
+
+### New
+- **Read books**: the tooltip of a book or plaque tells whether you are reading it, never read it, left it unfinished or already know it (per character). Can be turned off.
+- Option to show the tooltip of books and plaques at the mouse.
+- `/storytale forget`: treat the open book as never heard (to test the priority below).
+
+### Improved
+- A book or plaque never heard in full keeps playing when you talk to an NPC; one already heard gives way.
+- Spoken's player stays visible while a book is being read aloud, even during a conversation.
+- Spoken's captions follow the voice again by themselves after you scroll them and move the mouse away.
+- The interface no longer shrinks for small NPCs (dwarves, gnomes).
+- The choice wheel sits closer to the NPC and moves less when you walk around.
+
+---
+
+**🇫🇷 Français**
+
+### Nouveautés
+- **Livres lus** : l'infobulle d'un livre ou d'une plaque indique si vous êtes en train de le lire, ne l'avez jamais lu, ne l'avez pas terminé ou le connaissez déjà (par personnage). Désactivable.
+- Option pour afficher l'infobulle des livres et plaques à la souris.
+- `/storytale forget` : le livre ouvert compte comme jamais écouté (pour tester la priorité ci-dessous).
+
+### Améliorations
+- Un livre ou une plaque jamais écouté en entier continue d'être lu quand vous parlez à un PNJ ; un livre déjà écouté lui cède la place.
+- Le lecteur Spoken reste visible pendant la lecture d'un livre, même pendant une conversation.
+- Le texte de Spoken suit de nouveau la voix tout seul après un défilement manuel, quand la souris s'en va.
+- L'interface ne rétrécit plus pour les petits PNJ (nains, gnomes).
+- La roue des choix est plus proche du PNJ et bouge moins quand on se déplace.
+
 ## 1.3.4
 
 **🇬🇧 English**

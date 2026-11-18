@@ -298,9 +298,11 @@ row1._scripts.OnDragStart(row1)
 M.cursor = { 130, 60 }
 follower._scripts.OnUpdate(follower, 0.016)
 row1._scripts.OnDragStop(row1)
-check(DialogueWheelE_NPCOffset and DialogueWheelE_NPCOffset.wheelX == 160 and DialogueWheelE_NPCOffset.wheelY == -190, "wheel offset changed by drag")
+-- Ecart lateral de la roue plafonne a 0.7 : 30 px a l'ecran = 30 / 0.7 en unites d'ecart.
+local wx = 130 + 30 / 0.7
+check(DialogueWheelE_NPCOffset and math.abs(DialogueWheelE_NPCOffset.wheelX - wx) < 0.01 and DialogueWheelE_NPCOffset.wheelY == -190, "wheel offset changed by drag")
 local dp = DWE.choiceBox._points[#DWE.choiceBox._points]
-check(dp and dp[2] == plate and dp[4] == 160 and dp[5] == -190, "wheel still pinned after drag")
+check(dp and dp[2] == plate and math.abs(dp[4] - wx * 0.7) < 0.01 and dp[5] == -190, "wheel still pinned after drag")
 M.cursor = { 0, 0 }
 DWE.textBox._scripts.OnDragStart(DWE.textBox)
 M.cursor = { -20, 10 }
@@ -330,7 +332,7 @@ M.npcHeight = 2.75
 DWE.choiceBox:Show()
 for _ = 1, 3 do follower._scripts.OnUpdate(follower, 0.05) end
 local sp = DWE.choiceBox._points[#DWE.choiceBox._points]
-check(DWE.choiceBox:GetScale() < 0.8 and DWE.choiceBox:GetScale() > 0.7, "small NPC: smaller wheel: " .. tostring(DWE.choiceBox:GetScale()))
+check(DWE.choiceBox:GetScale() == 1, "small NPC: wheel keeps normal size: " .. tostring(DWE.choiceBox:GetScale()))
 check(sp and sp[2] == plate and math.abs(sp[4] * DWE.choiceBox:GetScale() - 71.5) < 0.5, "small NPC: wheel closer: " .. tostring(sp and sp[4]))
 DWE.choiceBox:Hide()
 check(DWE.choiceBox:GetScale() == 1, "scale back to normal after the conversation")
@@ -1063,7 +1065,8 @@ if withSpoken then
     _G.SpokenEnv = env
     local calls = { pause = 0, resume = 0, advance = 0 }
     local gates = {}
-    local book = { present = { bullet = "book" } }
+    local book = { present = { bullet = "book" }, key = "b:test-heard" }
+    DWE.SpokenFocus.MarkHeard(book)
     local queue = { sounds = { book } }
     function queue:IsPlaying() return true end
     function queue:GetCurrentSound() return self.sounds[1] end
@@ -1081,6 +1084,7 @@ if withSpoken then
     M.FireEvent("GOSSIP_SHOW")
     check(#gates == 1 and calls.pause == 1 and calls.resume == 1, "spoken focus: book stops when talking to an NPC")
     check(gates[1](book) ~= nil and gates[1]({ present = {} }) == nil, "spoken focus: book held, NPC line allowed")
+    check(gates[1]({ present = { bullet = "book" }, key = "b:never-heard" }) == nil, "spoken focus: unheard book keeps priority")
     M.FireEvent("GOSSIP_CLOSED"); M.RunTimers()
     queue.sounds = { book }
     check(gates[1](book) == nil and calls.advance >= 1, "spoken focus: book resumes after the conversation")
@@ -1368,6 +1372,15 @@ if os.getenv("TRACE") == "1" then
     print(table.concat(out, " "))
     os.exit(0)
 end
+-- Livres lus / commences
+DialogueWheelE_ReadBooks = nil
+DWE.MarkBook("The Old Tome (2/5)", false)
+check(DWE.BookState("the old tome") == 1, "read books: started book remembered")
+DWE.MarkBook("The Old Tome", true)
+DWE.MarkBook("The Old Tome", false)
+check(DWE.BookState("The Old Tome (1/5)") == 2, "read books: finished stays finished")
+check(DWE.BookState("Another Book") == nil, "read books: unknown book has no mark")
+DialogueWheelE_ReadBooks = nil
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end

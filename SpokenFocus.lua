@@ -126,7 +126,7 @@ local function YieldBook()
     local ok, playing = pcall(queue.IsPlaying, queue)
     local head = queue.GetCurrentSound and queue:GetCurrentSound()
     Log("yield? playing=" .. tostring(ok and playing) .. " headBook=" .. tostring(IsBook(head)) .. " src=" .. SourceName(head))
-    if ok and playing and IsBook(head) then
+    if ok and playing and IsBook(head) and Focus.Heard(head) then
         -- Spoken re-interroge les verrous pour la ligne en cours : elle s'arrete et reste en tete.
         if type(queue.RecheckGates) == "function" and head.source then
             local okR, stopped = pcall(queue.RecheckGates, queue, head.source)
@@ -149,6 +149,8 @@ end
 -- Repliques deja ecoutees en entier (cle de la ligne Spoken), sauvegardees.
 local HEARD_MAX = 3000
 function Focus.Heard(clip)
+    -- Test (/storytale forget) : tout ce livre compte comme jamais ecoute, jusqu'au /reload.
+    if Focus.unheardBook and IsBook(clip) and GroupKey(clip) == Focus.unheardBook then return false end
     local h = rawget(_G, "DialogueWheelE_SpokenHeard")
     return type(h) == "table" and type(clip) == "table" and clip.key ~= nil and h[tostring(clip.key)] ~= nil
 end
@@ -164,6 +166,42 @@ function Focus.MarkHeard(clip)
         local cut = h.n - HEARD_MAX
         for key, v in pairs(h) do if key ~= "n" and type(v) == "number" and v <= cut then h[key] = nil end end
     end
+end
+
+-- Un livre est en train d'etre lu a voix haute (pas en pause, pas retenu).
+function Focus.BookSpeaking()
+    local api, queue = Env()
+    if not api or not queue then return false end
+    if api.IsPaused and api:IsPaused() then return false end
+    local now = queue.GetNowPlaying and queue:GetNowPlaying()
+    return now ~= nil and IsBook(now)
+end
+-- Titre du livre lu a voix haute en ce moment (nil sinon).
+function Focus.SpeakingBookTitle()
+    local _, queue = Env()
+    local now = queue and queue.GetNowPlaying and queue:GetNowPlaying()
+    if not (now and IsBook(now)) then return nil end
+    return GroupKey(now):sub(6)
+end
+-- Test : oublie que les lignes du livre ouvert (dans la file de Spoken) ont ete ecoutees.
+function Focus.ForgetOpenBook()
+    local h = rawget(_G, "DialogueWheelE_SpokenHeard")
+    local _, queue = Env()
+    if type(h) ~= "table" or not queue then return 0 end
+    local n, seen = 0, {}
+    local list = {}
+    for _, c in ipairs(queue.sounds or {}) do list[#list + 1] = c end
+    local cur = queue.GetCurrentSound and queue:GetCurrentSound()
+    if cur then list[#list + 1] = cur end
+    for _, c in ipairs(list) do
+        if IsBook(c) and c.key ~= nil and not seen[c] then
+            seen[c] = true
+            Focus.unheardBook = Focus.unheardBook or GroupKey(c)
+            local k = tostring(c.key)
+            if h[k] then h[k] = nil; n = n + 1 end
+        end
+    end
+    return n
 end
 
 function Focus.Install()
@@ -184,6 +222,8 @@ function Focus.Install()
         -- Les PNJ ne se retiennent pas entre eux : chacun parle a son tour (ordre d'arrivee).
         if not IsBook(clip) then return nil end
         if Focus.bookMuted then return DWE.L.SPOKEN_MUTED end
+        -- Jamais ecoute en entier : le livre garde la priorite, le PNJ attend son tour.
+        if not Focus.Heard(clip) then return nil end
         local _, queue = Env()
         if Focus.npc or (queue and NpcLineWaiting(queue)) then
             return DWE.L.SPOKEN_WAIT
@@ -228,7 +268,7 @@ function Focus.Install()
                 local cur = self.GetCurrentSound and self:GetCurrentSound()
                 for i = #self.sounds, 1, -1 do
                     local c = self.sounds[i]
-                    if c ~= cur and IsBook(c) then
+                    if c ~= cur and IsBook(c) and Focus.Heard(c) then
                         parked = parked or {}
                         table.insert(parked, 1, table.remove(self.sounds, i))
                     end
@@ -290,6 +330,15 @@ function Focus.Install()
         pcall(api.RegisterCallback, api, "CLIP_STOPPED", function(clip, finished)
             if finished and type(clip) == "table" and clip.key then
                 Focus.MarkHeard(clip)
+                -- Derniere ligne d'un livre narree en entier : livre lu.
+                if IsBook(clip) and DWE.MarkBook then
+                    local key, more = GroupKey(clip), false
+                    local _, q = Env()
+                    for _, c in ipairs(q and q.sounds or {}) do
+                        if c ~= clip and IsBook(c) and GroupKey(c) == key then more = true break end
+                    end
+                    if not more then DWE.MarkBook(key:sub(6), true) end
+                end
             end
         end)
         pcall(api.RegisterCallback, api, "CLIP_DROPPED", function(clip, reason)
@@ -373,6 +422,9 @@ function Focus.Groups()
             if not g then
                 local p = type(c.present) == "table" and c.present or {}
                 local label = IsBook(c) and key:sub(6) or SpeakerOf(c) or p.label or p.header
+                if IsBook(c) and DialogueWheelE_ReadMarks ~= false and DWE.BookState and DWE.BookState(key:sub(6)) == 2 then
+                    label = DWE.READ_ICON .. " " .. tostring(label)
+                end
                 g = { key = key, label = tostring(label or "?"), book = IsBook(c), count = 0, current = false }
                 byKey[key] = g
                 list[#list + 1] = g
