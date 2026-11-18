@@ -740,6 +740,19 @@ local function UpdateDialogueText(event)
         local blizz = (GossipGreetingText and GossipGreetingText:GetText()) or (GreetingText and GreetingText:GetText())
         body = blizz or ""
     end
+    -- Le texte d'une quete (dit une seule fois) passe avant la salutation habituelle du PNJ que
+    -- le jeu rouvre juste apres : on la saute une fois, le temps de lire la quete.
+    local now = GetTime and GetTime() or 0
+    local quest = event == "QUEST_DETAIL" or event == "QUEST_PROGRESS" or event == "QUEST_COMPLETE"
+    if quest and type(body) == "string" and not (issecretvalue and issecretvalue(body)) and body ~= "" then
+        DWE.questHold = { untilT = now + math.min(40, 3 + #body * 0.065), header = header, body = body }
+    elseif (event == "GOSSIP_SHOW" or event == "QUEST_GREETING") and DWE.questHold then
+        local hold = DWE.questHold
+        DWE.questHold = nil
+        if now < hold.untilT then
+            header, body = hold.header, hold.body
+        end
+    end
     DWE.SetDialogueText(header, body)
 end
 

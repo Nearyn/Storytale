@@ -1,5 +1,19 @@
 # Changelog / Journal des versions
 
+## 1.3.4
+
+**🇬🇧 English**
+
+### Fixed
+- After a quest text, the NPC's usual greeting no longer replaces it in the bubble while the quest text is being read.
+
+---
+
+**🇫🇷 Français**
+
+### Corrections
+- Après un texte de quête, la salutation habituelle du PNJ ne le remplace plus dans la bulle pendant sa lecture.
+
 ## 1.3.3
 
 **🇬🇧 English**
