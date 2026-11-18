@@ -1,5 +1,49 @@
 # Changelog / Journal des versions
 
+## 1.3.6
+
+**🇬🇧 English**
+
+### New
+- **Quest preview width**: fits its content by default (centred under the choices when short, wider for long objectives). Uncheck the option to set it yourself with its own grip (mirrored when the wheel is on the left).
+- **Spoken dialogue priority**: a quest text always plays before an NPC's greeting and is never cut by one; greetings are never queued.
+- **Zone narration window** (Spoken): its own skin — current theme, single page or DialogueUI.
+- The tooltip of books and plaques now follows the mouse by default.
+- All new options translated into every game language.
+
+### Improved
+- Book tooltips update live, vanish as soon as the mouse leaves and no longer flicker.
+- With Spoken, a book still being read keeps the "I am reading this tale..." label after you close it.
+- The quest preview box has no dialogue tail, sits a little lower and is darker, so it no longer looks like a choice.
+
+### Fixed
+- An NPC could show the quest text of the previous NPC.
+- The bubble no longer waits for a voice that belongs to another NPC or to a book.
+- Item tooltips and reward clicks in the quest preview work again.
+- Clicking an item again now closes its pinned card.
+
+---
+
+**🇫🇷 Français**
+
+### Nouveautés
+- **Largeur de l'aperçu de quête** : ajustée à son contenu par défaut (centré sous les choix quand il est court, plus large pour un long objectif). Décochez l'option pour la régler vous-même avec sa propre poignée (en miroir quand la roue est à gauche).
+- **Priorité des dialogues Spoken** : un texte de quête passe toujours avant la salutation d'un PNJ et n'est jamais coupé par elle ; les salutations ne sont jamais mises en file d'attente.
+- **Fenêtre de narration des zones** (Spoken) : son propre habillage — thème actuel, page seule ou DialogueUI.
+- L'infobulle des livres et plaques suit maintenant la souris par défaut.
+- Toutes les nouvelles options traduites dans toutes les langues du jeu.
+
+### Améliorations
+- L'infobulle des livres se met à jour en direct, disparaît dès que la souris s'en va et ne clignote plus.
+- Avec Spoken, un livre encore en lecture garde l'étiquette « Je suis en train de lire ce récit… » après sa fermeture.
+- Le cadre de l'aperçu de quête n'a plus d'encoche de dialogue, est un peu plus bas et plus sombre : il ne ressemble plus à un choix.
+
+### Corrections
+- Un PNJ pouvait afficher le texte de quête du PNJ précédent.
+- La bulle n'attend plus une voix qui appartient à un autre PNJ ou à un livre.
+- Les infobulles des objets et les clics sur les récompenses de l'aperçu de quête refonctionnent.
+- Recliquer sur un objet referme maintenant sa fiche épinglée.
+
 ## 1.3.5
 
 **🇬🇧 English**

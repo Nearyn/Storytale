@@ -148,6 +148,12 @@ objLine:SetPoint("TOPRIGHT", choiceBox, "BOTTOMRIGHT", -4, -12)
 objLine:SetSpacing(3)
 StyleText(objLine, 1, 1, 1)
 DWE.objLine = objLine
+-- Repere invisible au haut de l'apercu (sans objectifs, le reste s'y aligne : meme largeur et
+-- meme centrage que le cadre, au lieu de coller au bord gauche des choix).
+DWE.questTop = CreateFrame("Frame", nil, choiceBox)
+DWE.questTop:SetPoint("TOPLEFT", objLine, "TOPLEFT", 0, 0)
+DWE.questTop:SetPoint("TOPRIGHT", objLine, "TOPRIGHT", 0, 0)
+DWE.questTop:SetHeight(1)
 
 local reqHeader = choiceBox:CreateFontString(nil, "OVERLAY")
 reqHeader:SetFontObject(questFontObj)
@@ -168,6 +174,49 @@ chooseHeader:SetFontObject(questFontObj)
 StyleText(chooseHeader, 1, 0.82, 0)
 chooseHeader:Hide()
 DWE.chooseHeader = chooseHeader
+-- L'apercu de quete n'est plus aussi etroit que les bulles de choix : au moins QUEST_MIN_W,
+-- etendu du cote oppose au PNJ (vers la droite, ou la gauche si la roue est a gauche).
+DWE.QUEST_MIN_W, DWE.QUEST_MAX_W, DWE.QUEST_LINES = 320, 460, 6
+-- Largeur automatique selon le texte : peu de texte -> aussi etroit que la roue ; beaucoup ->
+-- s'elargit (jusqu'a QUEST_MAX_W) pour tenir en environ QUEST_LINES lignes.
+function DWE.AutoQuestWidth()
+    -- Largeur du contenu : lignes courtes (recompenses, objets) a leur taille, objectifs longs
+    -- repartis sur environ QUEST_LINES lignes. Jamais plus que QUEST_MAX_W.
+    local function Full(fs)
+        if not (fs and fs:IsShown()) then return 0 end
+        local t = fs:GetText()
+        if type(t) ~= "string" or t == "" then return 0 end
+        local ok, w = pcall(fs.GetUnboundedStringWidth or fs.GetStringWidth, fs)
+        return (ok and type(w) == "number") and w or 0
+    end
+    local need = 0
+    local obj = Full(objLine)
+    if obj > 0 then need = math.max(need, math.min(obj, math.max(obj / DWE.QUEST_LINES + 24, 220))) end
+    for _, fs in ipairs({ rewLine, reqHeader, chooseHeader }) do need = math.max(need, Full(fs)) end
+    for _, b in ipairs(DWE.rewardButtonsList or {}) do
+        if b:IsShown() and b.text then need = math.max(need, Full(b.text) + 40) end
+    end
+    if need <= 0 then return math.max((choiceBox:GetWidth() or 0) - 10, 180) end
+    -- Le cadre epouse le contenu (centre sous les choix) : pas de vide a droite.
+    return math.floor(math.max(60, math.min(DWE.QUEST_MAX_W, need + 2)))
+end
+function DWE.SizeQuestInfo()
+    -- Largeur choisie avec la poignee de l'apercu, sinon automatique.
+    local auto = DialogueWheelE_QuestAuto ~= false
+    local w = (not auto and tonumber(DialogueWheelE_QuestWidth)) or DWE.AutoQuestWidth()
+    -- Largeur automatique : pas de poignee ; decochee : poignee pour la regler a la main.
+    if DWE.questHost then DWE.questHost.dweNoGrip = auto or nil end
+    objLine:ClearAllPoints()
+    if w <= (choiceBox:GetWidth() or 0) then
+        -- Pas plus large que les choix : centre sous eux.
+        objLine:SetPoint("TOP", choiceBox, "BOTTOM", 1, -18)
+    elseif DWE.WheelLeft and DWE.WheelLeft() then
+        objLine:SetPoint("TOPRIGHT", choiceBox, "BOTTOMRIGHT", -4, -18)
+    else
+        objLine:SetPoint("TOPLEFT", choiceBox, "BOTTOMLEFT", 6, -18)
+    end
+    objLine:SetWidth(w)
+end
 
 --------------------------------------------------------------------------------
 -- Themes du popup
@@ -898,9 +947,22 @@ function DWE.SpokenPlateMat()
     if DWE.BookByAddon() and DWE.BookLook() == "note" then return DWE.PlateMaterial() end
     return nil
 end
+-- Narration de zone (Spoken Places) : habillage choisi a part (theme, page, DialogueUI).
+function DWE.SpokenPlaceSkin()
+    local clip = spokenSkinRef and spokenSkinRef.clip
+    local f = DWE.SpokenFocus
+    if type(clip) ~= "table" or not (f and f.SourceName) then return nil end
+    if not f.SourceName(clip):lower():find("place") then return nil end
+    local v = DialogueWheelE_PlaceSkin
+    if v == "dui" and not DWE.DUI_ON then v = nil end
+    return v or "theme"
+end
 function DWE.SpokenThemeOverride()
     local st = DWE.SpokenStamp()
     if st then return st.override end
+    local place = DWE.SpokenPlaceSkin()
+    if place == "dui" then return nil end
+    if place == "paper" then return 1 end
     -- Livre affiche par l'addon : le petit lecteur Spoken prend toujours le theme du livre.
     if DWE.BookByAddon() then return 1 end
     if DialogueWheelE_SpokenTheme ~= true then return nil end
@@ -913,6 +975,7 @@ local SPOKEN_STYLE_ALIAS = { bubble = "dark", bubble_fantasy = "parchment", whis
 local function SpokenStyle()
     local st = DWE.SpokenStamp()
     if st then return st.style end
+    if DWE.SpokenPlaceSkin() == "paper" then return "bookpaper" end
     if DWE.BookByAddon() then
         -- Plaque : sa propre matiere, en petite taille (texture S a moitie, marges divisees par 2).
         local mat = DWE.BookLook() == "note" and DWE.PlateMaterial()
@@ -2444,6 +2507,7 @@ function DWE.ResetNPCOffset()
     DialogueWheelE_NPCOffset = nil
     DialogueWheelE_BookPos = nil
     DialogueWheelE_BookScale, DialogueWheelE_NoteScale = nil, nil
+    DialogueWheelE_QuestWidth = nil
     DialogueWheelE_TextW, DialogueWheelE_TextH = nil, nil
     DialogueWheelE_WheelWidth, DialogueWheelE_BubbleWidth = nil, nil
     DWE.ApplyScale()
@@ -2473,7 +2537,17 @@ function DWE.SetGripCorner(frame, anchorPoint)
     g:ClearAllPoints()
     -- Coin visible : celui du dessin s'il depasse du cadre (marges du theme, page de la note).
     local ox, oy = frame.dweGripX or 8, frame.dweGripY or 8
-    g:SetPoint("BOTTOMRIGHT", frame.dweGripAnchor or frame, "BOTTOMRIGHT", ox - 6, -(oy - 6))
+    -- Cadre qui s'etend vers la gauche (apercu de quete, roue a gauche) : poignee en miroir.
+    g.mirror = frame.dweGripLeft and true or nil
+    local l, rgt = g.mirror and 1 or 0, g.mirror and 0 or 1
+    for _, t in ipairs({ g:GetNormalTexture(), g:GetHighlightTexture(), g:GetPushedTexture() }) do
+        if t then t:SetTexCoord(l, rgt, 0, 1) end
+    end
+    if g.mirror then
+        g:SetPoint("BOTTOMLEFT", frame.dweGripAnchor or frame, "BOTTOMLEFT", -(ox - 6), -(oy - 6))
+    else
+        g:SetPoint("BOTTOMRIGHT", frame.dweGripAnchor or frame, "BOTTOMRIGHT", ox - 6, -(oy - 6))
+    end
     g.dweNoGrip = frame.dweNoGrip
     if frame.dweNoGrip then g:Hide() elseif not DWE.IsLocked() then g:Show() end
 end
@@ -2515,6 +2589,7 @@ local function ResizeStep(grip)
     if not r then return end
     local x, y = CursorUI()
     local dx, dy = x - r.x, y - r.y
+    if grip.mirror then dx = -dx end -- poignee a gauche : tirer vers la gauche elargit
     r.spec.set(r.w + (grip.both and 2 or 1) * dx, r.h - dy)
 end
 
@@ -3295,6 +3370,7 @@ function DWE.UpdateVisualsInner()
         boxW = math.min(boxW, math.max(AUTO_WHEEL_MIN, DWE.wheelNeed + DWE.WHEEL_SLACK))
     end
     choiceBox:SetWidth(pillWidth and (pillWidth + 8) or boxW)
+    DWE.SizeQuestInfo()
 
     local pill = DWE.WheelPillStyle()
     local gap = pill and 6 or 5
@@ -3412,6 +3488,7 @@ end
 --------------------------------------------------------------------------------
 
 local rewardButtons = {}
+DWE.rewardButtonsList = rewardButtons
 
 function DWE.HideRewardButtons()
     DWE.hoveredRewardBtn = nil
@@ -3500,7 +3577,24 @@ function DWE.GetRewardButton(i)
         elseif chatLink then
             if ChatEdit_InsertLink then ChatEdit_InsertLink(self.itemLink) end
         elseif SetItemRef then
-            SetItemRef(self.itemLink, self.itemLink, button)
+            -- Comme un lien du chat : la partie "item:..." seule. Recliquer referme la fiche
+            -- (avec le lien complet, le jeu la reecrivait au lieu de la fermer).
+            local ref = self.itemLink:match("|H(item:[^|]+)|h") or self.itemLink
+            local tip = rawget(_G, "ItemRefTooltip")
+            if tip and tip:IsShown() and tip.dweRef == ref then
+                tip:Hide()
+                return
+            end
+            SetItemRef(ref, self.itemLink, button)
+            if tip then
+                tip.dweRef = ref
+                if not tip.dweRefHook then
+                    tip.dweRefHook = true
+                    tip:HookScript("OnHide", function(t) t.dweRef = nil end)
+                    -- Un autre lien ouvert dans la meme fiche (chat) : ce n'est plus le notre.
+                    hooksecurefunc(tip, "SetHyperlink", function(t, l) if l ~= t.dweRef then t.dweRef = nil end end)
+                end
+            end
         end
     end)
 
@@ -3525,6 +3619,22 @@ wheelArea:EnableMouse(false)
 local wheelParts = CreateThemeParts(choiceBox, choiceBox:GetFrameLevel())
 
 -- Avec les bulles de choix : l'apercu de quete est dans sa propre bulle.
+DWE.questHost = CreateFrame("Frame", nil, choiceBox)
+DWE.questHost:SetFrameLevel(choiceBox:GetFrameLevel())
+DWE.questHost:Hide()
+DWE.MakeResizeGrip(DWE.questHost, {
+    get = function() return objLine:GetWidth() or DWE.QUEST_MIN_W, 0 end,
+    set = function(w)
+        if DialogueWheelE_QuestAuto ~= false then return end
+        DialogueWheelE_QuestWidth = math.floor(math.max(220, math.min(700, w)))
+        DWE.SizeQuestInfo()
+    end,
+    done = function() DWE.UpdateVisuals() end,
+})
+-- Le cadre de la poignee ne doit pas capter la souris (infobulles des objets, choix de recompense).
+if DWE.questHost.EnableMouse then DWE.questHost:EnableMouse(false) end
+if DWE.questHost.SetMouseMotionEnabled then DWE.questHost:SetMouseMotionEnabled(false) end
+if DWE.questHost.SetMouseClickEnabled then DWE.questHost:SetMouseClickEnabled(false) end
 local previewPanel = CreateFrame("Frame", nil, choiceBox, "BackdropTemplate")
 previewPanel:SetFrameLevel(choiceBox:GetFrameLevel())
 previewPanel:EnableMouse(false)
@@ -3532,10 +3642,24 @@ previewPanel:Hide()
 
 function DWE.PaintWheelTheme()
     local bottom = DWE.wheelBottom or choiceBox
+    -- Apercu de quete plus large que la roue : le cadre englobe sa largeur.
+    local quest = bottom ~= choiceBox
+    local left = DWE.WheelLeft and DWE.WheelLeft()
+    -- Apercu plus etroit que la roue (centre dessous) : le cadre suit la roue.
+    local wide = quest and (objLine:GetWidth() or 0) > (choiceBox:GetWidth() or 0)
     wheelArea:ClearAllPoints()
-    wheelArea:SetPoint("TOPLEFT", choiceBox, "TOPLEFT", 0, 0)
-    wheelArea:SetPoint("RIGHT", choiceBox, "RIGHT", 0, 0)
-    wheelArea:SetPoint("BOTTOM", bottom, "BOTTOM", 0, (bottom == choiceBox) and 0 or -4)
+    wheelArea:SetPoint("TOP", choiceBox, "TOP", 0, 0)
+    if wide and left then
+        wheelArea:SetPoint("LEFT", objLine, "LEFT", -6, 0)
+    else
+        wheelArea:SetPoint("LEFT", choiceBox, "LEFT", 0, 0)
+    end
+    if wide and not left then
+        wheelArea:SetPoint("RIGHT", objLine, "RIGHT", 4, 0)
+    else
+        wheelArea:SetPoint("RIGHT", choiceBox, "RIGHT", 0, 0)
+    end
+    wheelArea:SetPoint("BOTTOM", bottom, "BOTTOM", 0, quest and -4 or 0)
     local id = DWE.WheelThemeId()
     if id then
         PaintThemeParts(wheelParts, wheelArea, nil, id)
@@ -3543,11 +3667,31 @@ function DWE.PaintWheelTheme()
         ClearThemeParts(wheelParts)
     end
     local pill = DWE.WheelPillStyle()
+    -- Zone de l'apercu de quete (porte sa propre poignee de largeur).
+    local qh = DWE.questHost
+    if quest then
+        qh:ClearAllPoints()
+        qh:SetPoint("TOP", choiceBox, "BOTTOM", 0, -6)
+        qh:SetPoint("LEFT", objLine, "LEFT", -14, 0)
+        qh:SetPoint("RIGHT", objLine, "RIGHT", 12, 0)
+        qh:SetPoint("BOTTOM", bottom, "BOTTOM", 0, -14)
+        qh:Show()
+        qh.dweGripLeft = left or nil
+        DWE.SetGripCorner(qh, "TOPLEFT")
+    else
+        qh:Hide()
+    end
     if pill and bottom ~= choiceBox then
-        SkinPill(previewPanel, pill, false, true)
+        SkinPill(previewPanel, pill, false, false) -- cadre d'apercu : pas d'encoche de dialogue
+        -- Plus sombre et plus discret que les choix : on voit que ce n'est pas un bouton.
+        if previewPanel.dweTex then
+            previewPanel.dweTex:SetVertexColor(0.62, 0.62, 0.62)
+            previewPanel.dweTex:SetAlpha(0.85)
+        end
         previewPanel:ClearAllPoints()
-        previewPanel:SetPoint("TOPLEFT", choiceBox, "BOTTOMLEFT", -8, 0)
-        previewPanel:SetPoint("RIGHT", choiceBox, "RIGHT", 8, 0)
+        previewPanel:SetPoint("TOP", choiceBox, "BOTTOM", 0, -6)
+        previewPanel:SetPoint("LEFT", objLine, "LEFT", -14, 0)
+        previewPanel:SetPoint("RIGHT", objLine, "RIGHT", 12, 0)
         previewPanel:SetPoint("BOTTOM", bottom, "BOTTOM", 0, -14)
         previewPanel:Show()
     else
@@ -3742,7 +3886,7 @@ DWE.THEME_LIST = THEME_LIST
 DWE.OPTION_VARS = { "Pos", "TextPos", "Theme", "Font", "FontSize", "Scale", "Opacity", "ShowText",
     "UseBlizzKey", "InteractKey", "ToggleKey", "WheelScroll", "SpokenTheme", "AttachNPC", "NPCOffset",
     "WheelWidth", "TextW", "TextH", "BubbleWidth", "Locked", "WheelTheme", "EscClose", "BookStyle",
-    "ThemeFrames", "BookLook", "BookPos", "BookScale", "NoteScale", "SpokenChoice", "ChoiceSize", "WheelSide", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "DefaultsV" }
+    "ThemeFrames", "BookLook", "BookPos", "BookScale", "NoteScale", "QuestWidth", "QuestAuto", "PlaceSkin", "SpokenChoice", "ChoiceSize", "WheelSide", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "DefaultsV" }
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if ReloadUI then ReloadUI() end
@@ -4040,7 +4184,7 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_ReadMarks = (not self:GetChecked()) and false or nil
     end)
     AddCheck(L.BOOK_TIP_CURSOR, 16, y - 298, DialogueWheelE_BookTipCursor == true, function(self)
-        DialogueWheelE_BookTipCursor = self:GetChecked() and true or nil
+        DialogueWheelE_BookTipCursor = self:GetChecked() and true or false
     end)
 
     ---------------------------------------------------------------- Placement
@@ -4070,9 +4214,17 @@ function DWE.InitOptionsPanel()
         if choiceBox:IsShown() then DWE.UpdateVisuals() end
         DWE.Repin()
     end, 1, 120)
+    AddCheck(L.QUEST_AUTO_W, 16, y - 104, DialogueWheelE_QuestAuto ~= false, function(self)
+        DialogueWheelE_QuestAuto = (not self:GetChecked()) and false or nil
+        -- Decochee : on part de la largeur automatique actuelle.
+        if DialogueWheelE_QuestAuto == false and not tonumber(DialogueWheelE_QuestWidth) then
+            DialogueWheelE_QuestWidth = DWE.AutoQuestWidth()
+        end
+        if choiceBox:IsShown() then DWE.UpdateVisuals() end
+    end)
 
     ---------------------------------------------------------------- Commandes
-    y = y - 150
+    y = y - 178
     AddSection(L.SEC_KEYS, y)
     local keysY = y - 32
     local useBlizzCb = AddCheck(L.KEY_USE_BLIZZ, 16, keysY, DialogueWheelE_UseBlizzKey ~= false, nil)
@@ -4111,6 +4263,20 @@ function DWE.InitOptionsPanel()
     toggleBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     toggleBtn:SetPoint("TOPLEFT", toggleLbl, "BOTTOMLEFT", 0, -4)
     toggleBtn:SetSize(240, 24)
+    -- Fenetre de narration de zone : son propre habillage.
+    local placeLbl = AddText(L.PLACE_SKIN, 16, y - 154, "GameFontHighlightSmall")
+    local placeBoxes = AddGroup({
+        { id = "theme", label = L.PLACE_THEME },
+        { id = "paper", label = L.PLACE_PAPER },
+        { id = "dui", label = L.BOOK_DUI },
+    }, 16, y - 170, 26, DialogueWheelE_PlaceSkin or "theme", function(id)
+        DialogueWheelE_PlaceSkin = (id ~= "theme") and id or nil
+        DWE.RefreshSpoken()
+    end, 1, 170)
+    for i, cb in ipairs(placeBoxes) do
+        Grey(cb, spokenOn and (i ~= 3 or DWE.DUI_ON))
+    end
+    if placeLbl.SetAlpha then placeLbl:SetAlpha(spokenOn and 1 or 0.5) end
     Grey(spokenThemeCheck, spokenOn)
     Grey(spokenCheck, spokenOn)
     Grey(toggleBtn, spokenOn)
@@ -4164,7 +4330,7 @@ function DWE.InitOptionsPanel()
         RefreshTiles()
     end)
     RefreshKeyButtons()
-    p:SetHeight(-(y - 150) + 30)
+    p:SetHeight(-(y - 200) + 30)
 
     if Settings and Settings.RegisterCanvasLayoutCategory then
         local cat = Settings.RegisterCanvasLayoutCategory(panel, panel.name)

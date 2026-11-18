@@ -496,10 +496,11 @@ local function UpdatePreview(event)
 
     local obj = GetObjectiveText and NonEmpty(GetObjectiveText())
     if obj then DWE.objLine:SetText(C.hdr .. L.OBJ .. "|r " .. C.body .. obj .. "|r") end
+    if DWE.SizeQuestInfo then DWE.SizeQuestInfo() end
 
     local btnCount, needsRefresh = 0, false
-    local topAnchor = obj and DWE.objLine or DWE.choiceBox
-    local topOffset = obj and -10 or -12
+    local topAnchor = obj and DWE.objLine or DWE.questTop
+    local topOffset = obj and -10 or 1
     local function Inset(anchor, left) return (anchor == DWE.choiceBox) and (left and 6 or -4) or 0 end
 
     -- Objets a rapporter.
@@ -631,12 +632,13 @@ local function UpdatePreview(event)
         DWE.itemRetry = 0
     end
     -- Bas de la zone couverte par le theme de la roue : dernier element affiche.
-    local bottom = topAnchor
+    local bottom = (topAnchor == DWE.questTop) and DWE.choiceBox or topAnchor
     if r ~= "" or rewCount > 0 then
         DWE.rewLine:SetText(C.hdr .. L.REWARDS .. "|r" .. r)
         bottom = lastAnchor
     end
     DWE.wheelBottom = bottom
+    if DWE.SizeQuestInfo then DWE.SizeQuestInfo() end
     DWE.PaintWheelTheme()
 end
 
@@ -747,11 +749,14 @@ local function UpdateDialogueText(event)
     local now = GetTime and GetTime() or 0
     local quest = event == "QUEST_DETAIL" or event == "QUEST_PROGRESS" or event == "QUEST_COMPLETE"
     if quest and type(body) == "string" and not (issecretvalue and issecretvalue(body)) and body ~= "" then
-        DWE.questHold = { untilT = now + math.min(40, 3 + #body * 0.065), header = header, body = body }
+        DWE.questHold = { untilT = now + math.min(40, 3 + #body * 0.065), header = header, body = body,
+            npc = UnitGUID and UnitGUID("npc") or nil }
     elseif (event == "GOSSIP_SHOW" or event == "QUEST_GREETING") and DWE.questHold then
         local hold = DWE.questHold
         DWE.questHold = nil
-        if now < hold.untilT then
+        -- Seulement pour le meme PNJ : sinon un autre PNJ "parlait" avec la quete du precedent.
+        local npc = UnitGUID and UnitGUID("npc") or nil
+        if now < hold.untilT and hold.npc and npc == hold.npc then
             header, body = hold.header, hold.body
         end
     end
@@ -1281,6 +1286,12 @@ f:SetScript("OnEvent", function(_, event)
                 DialogueWheelE_UseBlizzKey = nil
             end
         end
+        -- (1.3.6) Une fois : infobulle des livres a la souris, activee aussi pour les joueurs
+        -- qui mettent a jour (ils peuvent la decocher ensuite : false reste false).
+        if (tonumber(DialogueWheelE_DefaultsV) or 0) < 6 then
+            DialogueWheelE_DefaultsV = 6
+            if DialogueWheelE_BookTipCursor == nil then DialogueWheelE_BookTipCursor = true end
+        end
         if DialogueWheelE_UseBlizzKey == nil then
             local on = DWE.BlizzInteractOn()
             DialogueWheelE_UseBlizzKey = on and true or false
@@ -1482,17 +1493,78 @@ if GameTooltip and GameTooltip.HookScript then
         DWE.tipBusy = nil
     end
     DWE.TipMark = Mark
-    GameTooltip:HookScript("OnUpdate", function(tt)
+    -- Ligne voulue pour ce titre, selon l'etat du moment (lecture en cours, lu, commence, jamais).
+    local function Desired(title)
+        if DialogueWheelE_ReadMarks == false then return nil end
+        -- Avec Spoken : tant que le livre est dans sa file (lu, en pause ou en attente), on le lit.
+        local f = DWE.SpokenFocus
+        if f and f.BookQueued and f.BookQueued(DWE.BookKey(title)) then
+            return DWE.L.BOOK_READING, 0.55, 0.8, 1
+        end
+        local st = DWE.BookState(title)
+        if not st then
+            local data = rawget(_G, "SpokenReadablesData")
+            local idx = type(data) == "table" and data.index
+            if type(idx) == "table" and idx[title] then return DWE.L.BOOK_NEW, 1, 0.82, 0 end
+            return nil
+        end
+        if st >= 2 then return DWE.READ_ICON .. " " .. DWE.L.BOOK_READ, 0.6, 0.6, 0.6 end
+        return DWE.L.BOOK_UNFINISHED, 1, 0.82, 0
+    end
+    GameTooltip:HookScript("OnUpdate", function(tt, elapsed)
         if tt.dweAtCursor then AtCursor(tt) end
+        -- Titre rempli par le jeu apres l'affichage (sans OnShow ni Show) : on re-evalue.
+        if not DWE.tipBusy and DWE.TipEvaluate then
+            local line = rawget(_G, "GameTooltipTextLeft1")
+            local okT, t = pcall(line and line.GetText or function() end, line)
+            if okT and not (issecretvalue and issecretvalue(t)) and t ~= tt.dweSeen then
+                DWE.TipEvaluate(tt)
+                tt.dweSeen = t
+            end
+        end
         local m = tt.dweMark
         if m and not DWE.tipBusy and tt:NumLines() < 2 then Mark(tt, m[1], m[2], m[3], m[4]) end
+        -- Etiquette en temps reel (ex. la lecture commence ou se termine pendant le survol).
+        if tt.dweTitle then
+            tt.dweTick = (tt.dweTick or 0) + (elapsed or 0)
+            if tt.dweTick >= 0.2 then
+                tt.dweTick = 0
+                local text, r, g, b = Desired(tt.dweTitle)
+                local line2 = rawget(_G, "GameTooltipTextLeft2")
+                if text and m and text ~= m[1] and line2 then
+                    tt.dweMark = { text, r, g, b }
+                    line2:SetText(text)
+                    line2:SetTextColor(r, g, b)
+                    DWE.tipBusy = true
+                    pcall(tt.Show, tt)
+                    DWE.tipBusy = nil
+                end
+            end
+        end
     end)
-    GameTooltip:HookScript("OnHide", function(tt) tt.dweAtCursor, tt.dweMark = nil, nil end)
+    GameTooltip:HookScript("OnHide", function(tt)
+        tt.dweAtCursor, tt.dweMark, tt.dweTitle, tt.dweSeen = nil, nil, nil, nil
+    end)
+    -- Souris partie du livre : le jeu fait s'estomper l'infobulle (et notre Show relance
+    -- l'estompage, d'ou une infobulle qui trainait). Pour un livre : disparition immediate.
+    if hooksecurefunc and GameTooltip.FadeOut then
+        hooksecurefunc(GameTooltip, "FadeOut", function(tt)
+            if tt.dweTitle then tt:Hide() end
+        end)
+    end
     -- Meme image que la reecriture du jeu (il rappelle Show apres SetText) : la ligne et la place
     -- sont remises avant l'affichage, sans une image de titre seul.
     if hooksecurefunc then
         hooksecurefunc(GameTooltip, "Show", function(tt)
             if DWE.tipBusy then return end
+            -- Infobulle deja ouverte qui passe a un autre objet (pas de OnShow) : on re-evalue.
+            local line = rawget(_G, "GameTooltipTextLeft1")
+            local okT, t = pcall(line and line.GetText or function() end, line)
+            if okT and t ~= tt.dweSeen and DWE.TipEvaluate then
+                DWE.tipBusy = nil
+                DWE.TipEvaluate(tt)
+                return
+            end
             if tt.dweAtCursor then AtCursor(tt) end
             local m = tt.dweMark
             if m and tt:NumLines() < 2 then Mark(tt, m[1], m[2], m[3], m[4]) end
@@ -1510,9 +1582,8 @@ if GameTooltip and GameTooltip.HookScript then
             if tt.dweAtCursor and not tt.dweAnchoring and tt:GetNumPoints() > 1 then AtCursor(tt) end
         end)
     end
-    GameTooltip:HookScript("OnShow", function(tt)
-        if DWE.tipBusy then return end
-        tt.dweMark = nil
+    local function Evaluate(tt)
+        tt.dweMark, tt.dweTitle = nil, nil
         if tt.GetUnit and tt:GetUnit() then return end
         if tt.GetItem and tt:GetItem() then return end
         local line = rawget(_G, "GameTooltipTextLeft1")
@@ -1526,28 +1597,14 @@ if GameTooltip and GameTooltip.HookScript then
         else
             tt.dweAtCursor = nil
         end
-        if DialogueWheelE_ReadMarks == false then return end
-        -- Le livre que Spoken lit en ce moment.
-        local speaking = DWE.SpokenFocus and DWE.SpokenFocus.SpeakingBookTitle and DWE.SpokenFocus.SpeakingBookTitle()
-        if speaking and DWE.BookKey(speaking) == DWE.BookKey(title) then
-            Mark(tt, DWE.L.BOOK_READING, 0.55, 0.8, 1)
-            return
-        end
-        local st = DWE.BookState(title)
-        if not st then
-            -- Jamais ouvert : on ne sait que c'est un texte a lire que si Spoken Readables le
-            -- connait (sa liste de livres, par titre).
-            local data = rawget(_G, "SpokenReadablesData")
-            local idx = type(data) == "table" and data.index
-            if type(title) ~= "string" or (issecretvalue and issecretvalue(title))
-                or type(idx) ~= "table" or not idx[title] then return end
-            Mark(tt, DWE.L.BOOK_NEW, 1, 0.82, 0)
-            return
-        end
-        if st >= 2 then
-            Mark(tt, DWE.READ_ICON .. " " .. DWE.L.BOOK_READ, 0.6, 0.6, 0.6)
-        else
-            Mark(tt, DWE.L.BOOK_UNFINISHED, 1, 0.82, 0)
-        end
+        tt.dweSeen = title
+        if known then tt.dweTitle = title end
+        local text, r, g, b = Desired(title)
+        if text then Mark(tt, text, r, g, b) end
+    end
+    DWE.TipEvaluate = Evaluate
+    GameTooltip:HookScript("OnShow", function(tt)
+        if DWE.tipBusy then return end
+        Evaluate(tt)
     end)
 end

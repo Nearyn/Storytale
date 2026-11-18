@@ -425,7 +425,10 @@ local function SpokenShare(st)
         st.clipMatch = SameText(st, present.transcript or clip.text)
         -- Texte different (ex. noms remplaces, texte de quete ou de dialogue) : si la voix a
         -- commence juste apres l'ouverture de ce texte, c'est bien lui qu'elle lit.
-        if not st.clipMatch and st.setAt and tonumber(clip.spokenAt) and tonumber(clip.length) then
+        -- ... mais seulement si c'est la voix du PNJ a qui l'on parle : la voix d'un autre PNJ ou
+        -- d'un livre (qui finit de parler) faisait attendre la bulle sur un texte qui n'est pas le sien.
+        if not st.clipMatch and st.setAt and tonumber(clip.spokenAt) and tonumber(clip.length)
+            and DWE.BubbleVoiceIsNPC(clip) then
             local started = clip.spokenAt - clip.length
             st.clipMatch = started >= st.setAt - 1 and started <= st.setAt + 6
         end
@@ -760,3 +763,14 @@ DWE.MakeResizeGrip(bubble, {
 })
 
 ApplyStyle("game")
+
+-- La voix vient-elle du PNJ a qui l'on parle ? (pas d'un livre, pas d'un autre PNJ)
+function DWE.BubbleVoiceIsNPC(clip)
+    local f = DWE.SpokenFocus
+    if f and f.IsBook and f.IsBook(clip) then return false end
+    local who = f and f.SpeakerOf and f.SpeakerOf(clip)
+    local npc = UnitName and UnitName("npc")
+    if type(who) ~= "string" or type(npc) ~= "string" then return true end
+    if (issecretvalue and (issecretvalue(who) or issecretvalue(npc))) then return true end
+    return who == npc
+end

@@ -168,6 +168,28 @@ function Focus.MarkHeard(clip)
     end
 end
 
+-- La ligne vient-elle du PNJ a qui l'on parle ? (le texte de quete porte parfois le titre de
+-- la quete en en-tete, pas le nom du PNJ : on compare donc la salutation au PNJ ouvert.)
+function Focus.IsCurrentNPC(clip)
+    local who = SpeakerOf(clip)
+    local npc = UnitName and UnitName("npc")
+    if type(who) ~= "string" or type(npc) ~= "string" then return true end
+    if issecretvalue and (issecretvalue(who) or issecretvalue(npc)) then return true end
+    return who == npc
+end
+-- Clic sur une quete : la salutation du PNJ (priorite basse) s'arrete tout de suite, sans
+-- attendre que Spoken ait prepare le texte de la quete.
+function Focus.CutGreeting()
+    local _, queue = Env()
+    local head = queue and queue.GetCurrentSound and queue:GetCurrentSound()
+    if not (head and head.priority == "low" and not IsBook(head)) then return end
+    local npc = UnitName and UnitName("npc")
+    local who = SpeakerOf(head)
+    if type(npc) == "string" and type(who) == "string" and not (issecretvalue and (issecretvalue(npc) or issecretvalue(who)))
+        and who ~= npc then return end
+    Log("greeting cut on quest click: " .. tostring(who))
+    pcall(queue.RemoveSoundFromQueue, queue, head)
+end
 -- Un livre est en train d'etre lu a voix haute (pas en pause, pas retenu).
 function Focus.BookSpeaking()
     local api, queue = Env()
@@ -182,6 +204,15 @@ function Focus.SpeakingBookTitle()
     local now = queue and queue.GetNowPlaying and queue:GetNowPlaying()
     if not (now and IsBook(now)) then return nil end
     return GroupKey(now):sub(6)
+end
+-- Le livre est-il dans la file de Spoken (en lecture, en pause ou en attente) ?
+function Focus.BookQueued(key)
+    local _, queue = Env()
+    if not (queue and key) then return false end
+    for _, c in ipairs(queue.sounds or {}) do
+        if IsBook(c) and DWE.BookKey(GroupKey(c):sub(6)) == key then return true end
+    end
+    return false
 end
 -- Test : oublie que les lignes du livre ouvert (dans la file de Spoken) ont ete ecoutees.
 function Focus.ForgetOpenBook()
@@ -238,6 +269,20 @@ function Focus.Install()
         queue.dweWrapped = true
         local origAdd = queue.Add
         queue.Add = function(self, clip, source, front)
+            -- Salutation generique (priorite basse) : jamais mise en attente. Elle ne passe que si
+            -- rien ne parle, ou si ce qui parle peut etre coupe (salutation deja ecoutee).
+            if type(clip) == "table" and clip.priority == "low" and not IsBook(clip) then
+                local head = self.sounds and self.sounds[1]
+                if head then
+                    -- (Un livre en tete garde ses propres regles : la ligne entre, le livre decide.)
+                    local cuttable = IsBook(head) or (head.priority == "low" and Focus.Heard(head)
+                        and SpeakerOf(head) ~= SpeakerOf(clip))
+                    if not cuttable then
+                        Log("greeting not queued: " .. tostring(SpeakerOf(clip)))
+                        return nil, "busy"
+                    end
+                end
+            end
             local lowered
             -- (Spoken peut traiter l'evenement du PNJ avant nous : la fenetre ouverte compte aussi.)
             local talking = Focus.npc
@@ -251,6 +296,7 @@ function Focus.Install()
                 for _, c in ipairs(self.sounds or {}) do
                     local other = IsBook(c) or (SpeakerOf(c) ~= who)
                     if other and (c.priority == "low") ~= (want == "low") then
+                        c.dweOrigPriority = c.priority
                         lowered[#lowered + 1] = { c, c.priority }
                         c.priority = want or "normal"
                     end
@@ -279,7 +325,7 @@ function Focus.Install()
             if parked then for _, c in ipairs(parked) do table.insert(self.sounds, c) end end
             if not okAdd then error(r1, 0) end
             if limit then source.queueLimit = limit end
-            if lowered then for _, l in ipairs(lowered) do l[1].priority = l[2] end end
+            if lowered then for _, l in ipairs(lowered) do l[1].priority, l[1].dweOrigPriority = l[2], nil end end
             return r1, r2
         end
     end
@@ -319,7 +365,16 @@ function Focus.Install()
             if IsBook(head) then
                 -- Un livre cede sa place a la conversation.
                 YieldBook()
-            elseif talking and head and head ~= clip and SpeakerOf(head) ~= who and Focus.Heard(head) then
+            elseif talking and head and head ~= clip and head.priority == "low" and clip.priority ~= "low"
+                and Focus.IsCurrentNPC(head) then
+                -- Le meme PNJ passe de sa salutation (repetee a chaque visite, priorite basse) a un
+                -- texte de quete (dit une fois) : la salutation s'arrete, la quete parle tout de suite.
+                Log("greeting cut for quest text: " .. tostring(who))
+                pcall(queue.RemoveSoundFromQueue, queue, head)
+            elseif talking and head and head ~= clip and SpeakerOf(head) ~= who and Focus.Heard(head)
+                and (clip.priority ~= "low" or (head.dweOrigPriority or head.priority) == "low") then
+                -- (Une salutation peut couper une salutation deja ecoutee, jamais une ligne de
+                -- quete : celle-ci finit et la salutation attend son tour.)
                 -- Le PNJ qui parle redit une replique deja ecoutee en entier : on la coupe et elle
                 -- ne revient pas dans la file. Une replique jamais entendue, elle, finit d'abord.
                 Log("already heard, cut: " .. tostring(SpeakerOf(head)))
