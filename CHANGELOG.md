@@ -1,5 +1,47 @@
 # Changelog / Journal des versions
 
+## 1.3.9
+
+**🇬🇧 English**
+
+### New
+- **Words highlighted as Spoken reads** in the open book, the single page and plaques, like Spoken's captions (follows Spoken's "Highlight Words" setting). The title read before the text no longer lights the first words.
+- **Follow the voice** (on by default): the single page scrolls with the narration and the open book turns its pages by itself. Scroll or turn a page yourself and it pauses, then resumes.
+- **Page turning**: an animation and the game's page sound when a page of the open book turns (option, on by default).
+- **Reading options at hand**, without leaving the book: a fabric bookmark in the open book, the scribe's signature on the single page (one of 8, always the same for a given text) and an engraved triquetra on plaques. Click it to unroll: read aloud, follow the voice, highlight, page animation. It glows on hover and pulses once the first time.
+- **Mouse wheel** on the open book turns the pages.
+- **/storytale errors**: Storytale keeps track of its own Lua errors (count, where) and stops a part that keeps failing, so nothing piles up. A single chat message tells you if anything went wrong.
+- All new options translated into every game language.
+
+### Improved
+- Spoken's mini player no longer fades out and back in between two pages of the same book, and no longer highlights words while a book's title is read.
+- The bottom bar of books now only shows previous page, next page and close.
+- The title of the single page has the same colour as the open book's.
+
+### Fixed
+- The page number of the open book no longer stays on the single page.
+
+---
+
+**🇫🇷 Français**
+
+### Nouveautés
+- **Mots surlignés pendant la lecture de Spoken** dans le livre ouvert, la page seule et les plaques, comme dans les sous-titres de Spoken (suit son réglage « Surligner les mots »). Le titre lu avant le texte n'allume plus les premiers mots.
+- **Suivre la voix** (activé par défaut) : la page seule défile avec la narration et le livre ouvert tourne ses pages tout seul. Défilez ou tournez une page vous-même : il fait une pause, puis reprend.
+- **Pages qui tournent** : une animation et le bruit de page du jeu quand une page du livre ouvert tourne (option, activée par défaut).
+- **Réglages de lecture à portée de main**, sans quitter le livre : un marque-page en tissu dans le livre ouvert, la signature du scribe sur la page seule (une parmi 8, toujours la même pour un texte donné) et une triquetra gravée sur les plaques. Un clic déroule : lecture à voix haute, suivre la voix, surbrillance, animation des pages. Il s'illumine au survol et pulse une fois la première fois.
+- **Molette de la souris** sur le livre ouvert : tourne les pages.
+- **/storytale errors** : Storytale garde la trace de ses propres erreurs Lua (combien, où) et coupe une partie qui échoue en boucle, pour que rien ne s'accumule. Un seul message dans le chat prévient en cas de problème.
+- Toutes les nouvelles options traduites dans toutes les langues du jeu.
+
+### Améliorations
+- Le petit lecteur de Spoken ne s'efface plus pour revenir entre deux pages d'un même livre, et ne surligne plus de mots pendant la lecture du titre d'un livre.
+- La barre du bas des livres ne montre plus que page précédente, page suivante et fermer.
+- Le titre de la page seule a la même couleur que celui du livre ouvert.
+
+### Corrections
+- Le numéro de page du livre ouvert ne reste plus affiché sur la page seule.
+
 ## 1.3.8
 
 **🇬🇧 English**

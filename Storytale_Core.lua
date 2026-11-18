@@ -10,7 +10,92 @@ local ADDON_PATH = "Interface\\AddOns\\Storytale\\"
 -- Mesure de performance (/dwe perf) : temps passe dans chaque partie de l'addon
 --------------------------------------------------------------------------------
 DWE.perf = { on = false, t = {}, n = {} }
+
+--------------------------------------------------------------------------------
+-- Erreurs (/storytale errors) : une erreur Lua dans un code qui tourne en continu (a chaque image)
+-- peut passer inapercue et s'accumuler (memoire, ralentissements). Les fonctions surveillees
+-- (DWE.Guard) gardent une trace de chaque erreur : combien de fois, ou, quand. La premiere de
+-- chaque sorte est aussi montree au gestionnaire d'erreurs du jeu (et a BugSack s'il est la).
+-- Une partie qui echoue en boucle (plus de 30 fois en 5 s) est coupee jusqu'au /reload.
+--------------------------------------------------------------------------------
+DWE.errors = { byKey = {}, order = {}, total = 0, off = {}, notified = false }
+function DWE.ReportError(where, err)
+    local E = DWE.errors
+    local msg = tostring(err)
+    local key = where .. "|" .. msg
+    local e = E.byKey[key]
+    local now = GetTime and GetTime() or 0
+    if not e then
+        e = { where = where, msg = msg, count = 0, first = now }
+        E.byKey[key] = e
+        E.order[#E.order + 1] = e
+        local handler = geterrorhandler and geterrorhandler()
+        if handler then pcall(handler, "Storytale (" .. where .. "): " .. msg) end
+    end
+    e.count, e.last = e.count + 1, now
+    E.total = E.total + 1
+    if not E.notified then
+        E.notified = true
+        print("|cff33ff99Storytale|r: " .. (L.ERR_NOTICE or "an error occurred. Type /storytale errors for details."))
+    end
+    -- Rafale : partie coupee (seulement pour ce qui tourne en continu, pas les evenements).
+    local burst = E.burst or {}
+    E.burst = burst
+    local b = burst[where]
+    if not b or now - b.t > 5 then b = { t = now, n = 0 }; burst[where] = b end
+    b.n = b.n + 1
+    return b.n
+end
+function DWE.Guard(where, fn, canStop)
+    if type(fn) ~= "function" then return fn end
+    return function(...)
+        if DWE.errors.off[where] then return end
+        local ok, err = pcall(fn, ...)
+        if not ok then
+            local n = DWE.ReportError(where, err)
+            if canStop and n > 30 and not DWE.errors.off[where] then
+                DWE.errors.off[where] = true
+                print("|cff33ff99Storytale|r: " .. string.format(L.ERR_LOOP or "%s keeps failing and was stopped until /reload.", where))
+            end
+        end
+    end
+end
+-- Surveille les scripts d'une fenetre (OnUpdate : coupe si erreur en boucle ; OnEvent : jamais).
+function DWE.GuardScripts(frame, name)
+    if type(frame) ~= "table" or not frame.GetScript then return end
+    for _, s in ipairs({ "OnUpdate", "OnEvent" }) do
+        local fn = frame:GetScript(s)
+        if fn and not (frame.dweGuarded and frame.dweGuarded[s]) then
+            frame.dweGuarded = frame.dweGuarded or {}
+            frame.dweGuarded[s] = true
+            frame:SetScript(s, DWE.Guard(name .. ":" .. s, fn, s == "OnUpdate"))
+        end
+    end
+end
+function DWE.ErrorsReport(arg)
+    local E = DWE.errors
+    if arg == "clear" then
+        E.byKey, E.order, E.total, E.off, E.notified = {}, {}, 0, {}, false
+        print("|cff33ff99Storytale|r: " .. (L.ERR_CLEARED or "errors cleared."))
+        return
+    end
+    if #E.order == 0 then
+        print("|cff33ff99Storytale|r: " .. (L.ERR_NONE or "no error this session."))
+        return
+    end
+    local list = {}
+    for _, e in ipairs(E.order) do list[#list + 1] = e end
+    table.sort(list, function(a, b) return a.count > b.count end)
+    print(string.format("|cff33ff99Storytale|r: %d (%d)", E.total, #list))
+    local now = GetTime and GetTime() or 0
+    for i, e in ipairs(list) do
+        if i > 10 then break end
+        print(string.format("  |cffff6060x%d|r %s%s - %s (%ds)", e.count, e.where,
+            E.off[e.where] and " |cffff6060[off]|r" or "", e.msg, math.floor(now - (e.last or now))))
+    end
+end
 function DWE.Prof(name, fn)
+    fn = DWE.Guard and DWE.Guard(name, fn, true) or fn
     return function(...)
         local perf = DWE.perf
         if not perf.on or not debugprofilestop then return fn(...) end
@@ -386,6 +471,7 @@ function DWE.SetBookMode(on)
     local function Look() return CurrentTheme() .. tostring(DWE.BubbleSkin and DWE.BubbleSkin() ~= nil) end
     local before = Look()
     DWE.bookMode = on
+    if not on then DWE.bookTurnLast = nil end -- livre ferme : le prochain s'ouvre sans bruit de page
     if Look() ~= before and DWE.OnThemeChanged then DWE.OnThemeChanged() end
     if DWE.RefreshSpoken then DWE.RefreshSpoken() end
 end
@@ -1319,6 +1405,7 @@ bookL:SetTexture(ADDON_PATH .. "BookSpread.png")
 bookL:SetTexCoord(0, 1, 0, 576 / 1024)
 bookL:SetSize(BOOK_W, BOOK_H)
 bookL:Hide()
+DWE.bookSpreadTex = bookL
 local bookR = { Hide = function() end, Show = function() end, ClearAllPoints = function() end, SetPoint = function() end }
 local noteBg = textBox:CreateTexture(nil, "BACKGROUND", nil, -7)
 noteBg:SetTexture(ADDON_PATH .. "BookPaper.png")
@@ -1487,6 +1574,7 @@ end
 local NOTE_W, NOTE_PAD_X, NOTE_PAD_Y, NOTE_MAX_H = 440, 56, 52, 340
 -- Zone qui defile pour le texte de la note (molette, ou la molette des choix pendant une note).
 local NOTE = {}
+DWE.NOTE = NOTE
 noteScroll = CreateFrame("ScrollFrame", nil, textBox)
 noteScroll:Hide()
 NOTE.noteChild = CreateFrame("Frame", nil, noteScroll)
@@ -1530,8 +1618,44 @@ function DWE.NoteScrollBy(delta)
     local v = (noteScroll:GetVerticalScroll() or 0) - delta * 40
     noteScroll:SetVerticalScroll(math.max(0, math.min(range, v)))
     NOTE.PlaceThumb()
+    NOTE.manual, NOTE.manualAt = true, GetTime() -- le joueur fait defiler : le suivi fait une pause
     return true
 end
+-- Defilement automatique (lecture par Spoken) : garde le mot lu a l'ecran. `upto` = le texte
+-- de la note jusqu'au mot lu ; on mesure sa hauteur avec un texte cache de meme largeur.
+NOTE.measure = NOTE.noteChild:CreateFontString(nil, "OVERLAY")
+NOTE.measure:SetSpacing(5)
+NOTE.measure:SetJustifyH("LEFT")
+NOTE.measure:SetAlpha(0)
+NOTE.measure:Hide()
+function DWE.NoteFollow(upto)
+    if not noteScroll:IsShown() or DialogueWheelE_BookAutoScroll == false then return end
+    local range, view = NOTE.Range()
+    if range <= 0 then return end
+    local m, src = NOTE.measure, NOTE.noteText
+    local font, size, flags = src:GetFont()
+    if not font or not pcall(m.SetFont, m, font, size, flags or "") then return end
+    m:SetWidth(src:GetWidth() or NOTE_W)
+    m:SetText(upto)
+    local okH, h = pcall(m.GetStringHeight, m)
+    if not okH or type(h) ~= "number" then return end
+    local cur = noteScroll:GetVerticalScroll() or 0
+    -- Le joueur a fait defiler : pause de 5 s apres son dernier geste (il peut remonter relire
+    -- un nom). Ensuite, on le laisse tant que le mot lu est visible ; quand la voix arrive en bas
+    -- du cadre (ou n'est plus a l'ecran), le suivi reprend.
+    if NOTE.manual then
+        if GetTime() - (NOTE.manualAt or 0) < 5 then return end
+        if h < cur or h > cur + view * 0.92 then NOTE.manual = nil else return end
+    end
+    -- Le mot lu reste dans le haut du cadre (environ au tiers), sans saut : on glisse vers lui.
+    if h > cur + view * 0.15 and h < cur + view * 0.75 then return end
+    local target = math.max(0, math.min(range, h - view * 0.35))
+    local v = cur + (target - cur) * 0.25
+    if math.abs(target - v) < 1 then v = target end
+    noteScroll:SetVerticalScroll(v)
+    NOTE.PlaceThumb()
+end
+function DWE.NoteFollowReset() NOTE.manual, NOTE.manualAt = nil, nil end
 noteScroll:EnableMouseWheel(true)
 noteScroll:SetScript("OnMouseWheel", function(_, delta) DWE.NoteScrollBy(delta) end)
 -- Clic gauche maintenu et glisser : le texte suit la souris (comme les longues listes de choix).
@@ -1540,6 +1664,7 @@ noteScroll:SetScript("OnMouseDown", function(self, button)
     if button ~= "LeftButton" then return end
     local _, y = GetCursorPosition()
     self.drag = { y = y / UIParent:GetEffectiveScale(), v = self:GetVerticalScroll() or 0 }
+    NOTE.manual, NOTE.manualAt = true, GetTime()
     self:SetScript("OnUpdate", function(f)
         if not f.drag then return end
         local _, cy = GetCursorPosition()
@@ -1572,13 +1697,16 @@ local function LayoutNote()
     DWE.SetBookScale(DWE.NoteScale())
     textBox:SetWidth(NOTE_W)
     MorpheusTitle()
-    textHeader:ClearAllPoints()
-    textHeader:SetPoint("TOPLEFT", textBox, "TOPLEFT", 0, -2)
-    textHeader:SetPoint("TOPRIGHT", textBox, "TOPRIGHT", 0, -2)
-    textHeader:SetJustifyH("CENTER")
     local plate = DWE.PLATES[DWE.PlateMaterial() or ""]
+    -- Plaque : le symbole grave (bouton des reglages) occupe le haut, centre, au-dessus du titre,
+    -- comme l'ornement d'un monument.
+    local glyphSpace = plate and 40 or 0
+    textHeader:ClearAllPoints()
+    textHeader:SetPoint("TOPLEFT", textBox, "TOPLEFT", 0, -2 - glyphSpace)
+    textHeader:SetPoint("TOPRIGHT", textBox, "TOPRIGHT", 0, -2 - glyphSpace)
+    textHeader:SetJustifyH("CENTER")
     local bodyC = plate and plate.body or { 0.17, 0.10, 0.04 }
-    local hdrC = plate and plate.hdr or { 0.24, 0.13, 0.05 }
+    local hdrC = plate and plate.hdr or { 0.40, 0.16, 0.04 } -- meme rouge-brun que le titre du livre
     local ruleC = plate and plate.rule or { 0.42, 0.26, 0.10, 0.55 }
     textHeader:SetTextColor(hdrC[1], hdrC[2], hdrC[3])
     NOTE.noteText:SetTextColor(bodyC[1], bodyC[2], bodyC[3])
@@ -1620,6 +1748,7 @@ local function LayoutNote()
     noteRule:SetPoint("TOPRIGHT", textHeader, "BOTTOMRIGHT", 0, -10)
     noteRule:Show()
     notePage:Hide()
+    bookPageNum:Hide() -- (numero du livre ouvert : la note montre toutes les pages)
     -- Tout le texte dans une zone qui defile (pas de pages).
     textBody:Hide()
     -- Plaque/page reduite : la police grossit pour rester lisible (comme les livres).
@@ -1646,7 +1775,7 @@ local function LayoutNote()
     noteScroll:SetSize(NOTE_W, math.max(20, view))
     noteScroll:Show()
     NOTE.PlaceThumb()
-    local h = TextHeight(textHeader, 22) + 24 + view
+    local h = TextHeight(textHeader, 22) + 24 + view + glyphSpace
     textBox:SetHeight(math.max(160, h))
     textBox.dweGripAnchor, textBox.dweGripX, textBox.dweGripY = noteBg, 0, 0
     textBox.dweNoGrip = nil
@@ -1756,6 +1885,81 @@ function DWE.BookSubWantLast()
     DWE.bookSub.wantLast = true
 end
 
+-- Page tournee (livre ouvert) : le bruit de page du jeu et une page qui se replie vers la
+-- reliure puis se deplie de l'autre cote (WoW ne courbe pas une page en 3D : on l'ecrase en
+-- largeur, avec une ombre qui fonce en approchant de la reliure).
+DWE.bookFlip = CreateFrame("Frame", nil, textBox)
+DWE.bookFlip:SetAllPoints(textBox)
+DWE.bookFlip:Hide()
+do
+    local F = DWE.bookFlip
+    local S = BOOK_W / 1024 -- echelle de l'image du livre
+    -- Papier des pages dans BookSpread.png (pixels) : gauche, droite, haut, bas.
+    local LEFT_PAGE = { 120, 512, 40, 490 }
+    local RIGHT_PAGE = { 516, 930, 40, 490 }
+    local DUR = 0.36
+    local tex = F:CreateTexture(nil, "OVERLAY", nil, 7)
+    tex:SetTexture(ADDON_PATH .. "BookSpread.png")
+    local function Page(p)
+        tex:SetTexCoord(p[1] / 1024, p[2] / 1024, p[3] / 1024, p[4] / 1024)
+        return (p[2] - p[1]) * S, (p[4] - p[3]) * S
+    end
+    local spineX = 514 * S
+    F:SetScript("OnUpdate", function(self, elapsed)
+        self.t = (self.t or 0) + elapsed
+        local k = math.min(1, self.t / DUR)
+        local first = k < 0.5
+        -- Avant : la page de droite se replie, puis se deplie a gauche. Arriere : l'inverse.
+        local fromRight = (self.dir > 0) == first
+        local w, h = Page(fromRight and RIGHT_PAGE or LEFT_PAGE)
+        local f = first and (1 - k * 2) or ((k - 0.5) * 2)
+        f = math.max(0.001, f)
+        -- Un peu d'acceleration au debut, de freinage a la fin : plus naturel qu'un mouvement egal.
+        f = first and (f * f) or (1 - (1 - f) * (1 - f))
+        tex:ClearAllPoints()
+        local top = -(LEFT_PAGE[3] * S)
+        if fromRight then
+            tex:SetPoint("TOPLEFT", DWE.bookSpreadTex, "TOPLEFT", spineX, top)
+        else
+            tex:SetPoint("TOPRIGHT", DWE.bookSpreadTex, "TOPLEFT", spineX, top)
+        end
+        tex:SetSize(math.max(0.5, w * f), h)
+        local shade = 0.62 + 0.38 * f
+        tex:SetVertexColor(shade, shade * 0.97, shade * 0.93)
+        if k >= 1 then self:Hide() end
+    end)
+    function DWE.BookTurnFX(dir)
+        if DialogueWheelE_BookTurnFX == false then return end
+        if PlaySound then
+            local id = SOUNDKIT and (SOUNDKIT.IG_ABILITY_PAGE_TURN or SOUNDKIT.IG_SPELLBOOK_PAGE_TURN) or 836
+            pcall(PlaySound, id)
+        end
+        if not DWE.bookSpreadTex then return end
+        -- Le marque-page disparait pendant qu'on feuillette, et revient en fondu une fois les
+        -- pages immobiles (un peu apres la derniere page tournee).
+        local rib = DWE.ribbon
+        if rib and rib.tex then
+            rib.tex:SetAlpha(0)
+            if rib.glow then rib.glow:SetAlpha(0) end
+            local fade = DWE.ribbonFade or CreateFrame("Frame", nil, textBox)
+            DWE.ribbonFade = fade
+            fade.t = 0
+            fade:SetScript("OnUpdate", function(self, elapsed)
+                self.t = self.t + elapsed
+                local a = (self.t - DUR - 0.35) / 0.35
+                if a <= 0 then return end
+                if a >= 1 then a = 1; self:SetScript("OnUpdate", nil) end
+                rib.tex:SetAlpha(a)
+            end)
+        end
+        F.dir, F.t = dir, 0
+        -- Au-dessus du marque-page (+6) : la page qui tourne passe par-dessus le ruban, comme dans
+        -- un vrai livre, au lieu que le ruban flotte devant elle.
+        F:SetFrameLevel((textBox:GetFrameLevel() or 1) + 8)
+        F:Show()
+    end
+end
+
 local function LayoutBook()
     ClearThemeParts(textParts)
     noteBg:Hide()
@@ -1825,6 +2029,16 @@ local function LayoutBook()
     bookL:ClearAllPoints()
     bookL:SetPoint("TOPLEFT", textBox, "TOPLEFT", -BOOK_LEFT, BOOK_TOP)
     bookL:Show()
+    -- Page tournee depuis le dernier affichage du meme livre : bruit + animation.
+    do
+        local pnum = tonumber(page and page:match("^(%d+)") or "1") or 1
+        local order = pnum * 100 + (sub.index or 1)
+        local id = (DWE.rawHeader or ""):gsub("%s*%(%d+/%d+%)$", "")
+        if DWE.bookTurnLast and DWE.bookTurnLast.id == id and DWE.bookTurnLast.order ~= order then
+            DWE.BookTurnFX(order > DWE.bookTurnLast.order and 1 or -1)
+        end
+        DWE.bookTurnLast = { id = id, order = order }
+    end
     if noteScroll then noteScroll:Hide() end
     textBody:Show()
     -- Poignee au coin bas-droit peint du livre : agrandit / reduit tout le livre.
@@ -1859,7 +2073,26 @@ end
 bookBar:EnableMouseWheel(true)
 bookBar:SetScript("OnMouseWheel", DWE.BookWheel)
 textBox:EnableMouseWheel(true)
+-- Molette sur le livre ouvert : tourne les pages (vers soi = page suivante), comme on feuillette.
+-- Sur la barre de boutons, elle choisit toujours un bouton.
+function DWE.BookWheelTurn(delta)
+    local now = GetTime and GetTime() or 0
+    if now - (DWE.bookWheelAt or 0) < 0.25 then return true end -- une page par cran, pas une rafale
+    local want = delta < 0 and L.NEXT_PAGE or L.PREV_PAGE
+    for _, opt in ipairs(DWE.currentOptions or {}) do
+        if opt.rawLabel == want and opt.action and not opt.disabled then
+            DWE.bookWheelAt = now
+            opt.action()
+            return true
+        end
+    end
+    return true
+end
 textBox:SetScript("OnMouseWheel", function(self, delta)
+    if DWE.bookMode and textBox.dweBook == true then
+        if IsMouseButtonDown and (IsMouseButtonDown("LeftButton") or IsMouseButtonDown("RightButton")) then return end
+        return DWE.BookWheelTurn(delta)
+    end
     if DWE.bookMode then return DWE.BookWheel(self, delta) end
     if DWE.WheelStep and DialogueWheelE_WheelScroll ~= false then DWE.WheelStep(delta > 0 and -1 or 1) end
 end)
@@ -1919,9 +2152,291 @@ local function MuteDUIBook(mute)
     if fr.EnableKeyboard then pcall(fr.EnableKeyboard, fr, not mute) end
 end
 
+-- Marque-page en tissu, en haut a droite du livre ou de la note : il deroule au-dessus du livre
+-- une rangee de reglages de lecture (voix, suivi de la voix, surbrillance, pages qui tournent),
+-- chacun une icone et son nom, qui apparaissent l'un apres l'autre. Rien ne couvre le livre.
+do
+    local rib = CreateFrame("Button", nil, textBox)
+    rib:SetSize(44, 70)
+    rib:Hide()
+    -- Halo dore au survol (fondu), pour montrer qu'on peut cliquer.
+    rib.glow = rib:CreateTexture(nil, "BACKGROUND")
+    rib.glow:SetTexture(ADDON_PATH .. "RibbonGlow.png")
+    rib.glow:SetBlendMode("ADD")
+    rib.glow:SetPoint("CENTER", rib, "CENTER", 0, 0)
+    rib.glow:SetAlpha(0)
+    rib.tex = rib:CreateTexture(nil, "ARTWORK")
+    rib.tex:SetAllPoints()
+    rib.tex:SetTexture(ADDON_PATH .. "Ribbon.png")
+    DWE.ribbon = rib
+
+    -- La rangee : sans fond, posee au-dessus du livre, comme la barre du bas.
+    local bar = CreateFrame("Frame", nil, textBox)
+    bar:SetSize(10, 28)
+    bar:Hide()
+    bar.items = {}
+    DWE.ribbonBar = bar
+
+    local function Items()
+        local focus = DWE.SpokenFocus
+        local spoken = focus and focus.Available()
+        local muted = focus and focus.bookMuted
+        local list = {}
+        if spoken then
+            list[#list + 1] = { label = L.MENU_VOICE, on = not muted,
+                icon = muted and "Interface\\Common\\VoiceChat-Muted" or "Interface\\Common\\VoiceChat-Speaker",
+                click = function() focus.SetBookMuted(not focus.bookMuted) end }
+            list[#list + 1] = { label = L.AUTOSCROLL_START, on = DialogueWheelE_BookAutoScroll ~= false, off = muted,
+                icon = "Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up",
+                click = function()
+                    DialogueWheelE_BookAutoScroll = DialogueWheelE_BookAutoScroll == false
+                    if DWE.NoteFollowReset then DWE.NoteFollowReset() end
+                end }
+            list[#list + 1] = { label = L.HIGHLIGHT_BTN, on = DialogueWheelE_BookHighlight ~= false, off = muted, swatch = true,
+                click = function()
+                    DialogueWheelE_BookHighlight = DialogueWheelE_BookHighlight == false
+                    if focus.RestoreHighlight then focus.RestoreHighlight() end
+                end }
+        end
+        if textBox.dweBook == true then
+            list[#list + 1] = { label = L.MENU_TURN_FX, on = DialogueWheelE_BookTurnFX ~= false,
+                icon = "Interface\\Icons\\INV_Misc_Book_09",
+                click = function() DialogueWheelE_BookTurnFX = DialogueWheelE_BookTurnFX == false end }
+        end
+        return list
+    end
+
+    local function Paint(b, item)
+        local dim = (not item.on) or item.off
+        if item.swatch then
+            local c = (item.on and not item.off) and (DWE.HighlightRGB and DWE.HighlightRGB() or { 0.61, 0.1, 0.1 }) or { 0.4, 0.4, 0.4 }
+            b.icon:SetTexture("Interface\\Buttons\\WHITE8X8")
+            b.icon:SetVertexColor(c[1], c[2], c[3])
+            b.icon:SetSize(11, 11)
+            b.frame:Show()
+        else
+            b.icon:SetTexture(item.icon)
+            b.icon:SetVertexColor(1, 1, 1)
+            b.icon:SetSize(16, 16)
+            b.frame:Hide()
+        end
+        if b.icon.SetDesaturated then b.icon:SetDesaturated(dim and true or false) end
+        b.text:SetText(item.label)
+        if item.off then
+            b.text:SetTextColor(0.45, 0.45, 0.45)
+        elseif item.on then
+            b.text:SetTextColor(b.hover and 1 or 0.95, b.hover and 0.85 or 0.92, b.hover and 0.2 or 0.85)
+        else
+            b.text:SetTextColor(0.6, 0.58, 0.55)
+        end
+        -- Barre fine sous un reglage actif : on voit d'un coup d'oeil ce qui est allume.
+        b.line:SetShown(item.on and not item.off)
+    end
+
+    function DWE.RibbonBarRefresh()
+        local list = Items()
+        local x = 0
+        for i, item in ipairs(list) do
+            local b = bar.items[i]
+            if not b then
+                b = CreateFrame("Button", nil, bar)
+                b:SetHeight(26)
+                b.icon = b:CreateTexture(nil, "ARTWORK")
+                b.icon:SetPoint("CENTER", b, "LEFT", 8, 0)
+                b.frame = b:CreateTexture(nil, "BORDER")
+                b.frame:SetColorTexture(0, 0, 0, 0.85)
+                b.frame:SetPoint("TOPLEFT", b.icon, "TOPLEFT", -2, 2)
+                b.frame:SetPoint("BOTTOMRIGHT", b.icon, "BOTTOMRIGHT", 2, -2)
+                b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+                b.text:SetPoint("LEFT", b, "LEFT", 22, 0)
+                b.text:SetShadowColor(0, 0, 0, 1)
+                b.text:SetShadowOffset(1, -1)
+                b.line = b:CreateTexture(nil, "ARTWORK")
+                b.line:SetColorTexture(0.85, 0.68, 0.30, 0.8)
+                b.line:SetHeight(1)
+                b.line:SetPoint("BOTTOMLEFT", b.text, "BOTTOMLEFT", 0, -3)
+                b.line:SetPoint("BOTTOMRIGHT", b.text, "BOTTOMRIGHT", 0, -3)
+                b:SetScript("OnEnter", function(self) self.hover = true; if self.item then Paint(self, self.item) end end)
+                b:SetScript("OnLeave", function(self) self.hover = nil; if self.item then Paint(self, self.item) end end)
+                b:SetScript("OnClick", function(self)
+                    if self.item and not self.item.off then
+                        self.item.click()
+                        if DWE.RefreshBookOptions then DWE.RefreshBookOptions() end
+                        DWE.RibbonBarRefresh()
+                    end
+                end)
+                bar.items[i] = b
+            end
+            b.item = item
+            Paint(b, item)
+            local w = (MeasureWidth(b.text) or 90) + 26
+            b:SetWidth(w)
+            b.x = x
+            b:ClearAllPoints()
+            b:SetPoint("LEFT", bar, "LEFT", x, 0)
+            b:Show()
+            x = x + w + 24
+        end
+        for i = #list + 1, #bar.items do bar.items[i]:Hide() end
+        bar.count = #list
+        bar:SetWidth(math.max(10, x - 24))
+        return #list
+    end
+
+    -- Deroulement : chaque reglage glisse un peu vers le bas en apparaissant, l'un apres l'autre.
+    local STAGGER, FADE = 0.06, 0.18
+    bar:SetScript("OnUpdate", function(self, elapsed)
+        if self.idle then return end
+        self.t = (self.t or 0) + elapsed * (self.closing and -1.6 or 1)
+        local done = true
+        for i = 1, self.count or 0 do
+            local b = self.items[i]
+            local k = math.max(0, math.min(1, (self.t - (i - 1) * STAGGER) / FADE))
+            if self.closing then k = math.max(0, math.min(1, (self.t - (i - 1) * STAGGER * 0.4) / FADE)) end
+            local e = 1 - (1 - k) * (1 - k)
+            b:SetAlpha(e)
+            b:ClearAllPoints()
+            b:SetPoint("LEFT", self, "LEFT", b.x or 0, 8 * (1 - e))
+            if (self.closing and k > 0) or (not self.closing and k < 1) then done = false end
+        end
+        if done then
+            if self.closing then self:Hide() end
+            self.closing, self.idle = nil, true -- fini : plus rien a calculer
+        end
+    end)
+    local function Open()
+        if DWE.RibbonBarRefresh() == 0 then return end
+        bar:ClearAllPoints()
+        if textBox.dweBook == true then
+            bar:SetPoint("BOTTOM", bookL, "TOP", 0, -10)
+        else
+            bar:SetPoint("BOTTOM", noteBg, "TOP", 0, 4)
+        end
+        bar:SetFrameLevel((textBox:GetFrameLevel() or 1) + 6)
+        bar.closing, bar.t, bar.idle = nil, 0, nil
+        for i = 1, bar.count do bar.items[i]:SetAlpha(0) end
+        bar:Show()
+        rib.open = true
+    end
+    local function Close()
+        if not bar:IsShown() then return end
+        bar.closing, bar.idle = true, nil
+        bar.t = math.max(bar.t or 0, FADE + (bar.count or 1) * STAGGER * 0.4)
+        rib.open = nil
+    end
+    DWE.RibbonClose = Close
+
+    rib:SetScript("OnClick", function()
+        rib.pulse = nil
+        DialogueWheelE_RibbonSeen = true
+        if rib.open then Close() else Open() end
+    end)
+    -- Premiere fois qu'un livre s'ouvre : le halo "respire" quelques secondes, pour montrer que
+    -- le marque-page est un bouton. Une seule fois (retenu pour le compte).
+    local PULSE_TIME = 4
+    local function Pulse()
+        rib.pulse = 0
+        DialogueWheelE_RibbonSeen = true
+        rib:SetScript("OnUpdate", function(self, elapsed)
+            if not self.pulse then self.glow:SetAlpha(0); self:SetScript("OnUpdate", nil) return end
+            self.pulse = self.pulse + elapsed
+            if self.pulse >= PULSE_TIME then
+                self.pulse = nil
+                self.glow:SetAlpha(0)
+                self:SetScript("OnUpdate", nil)
+                return
+            end
+            -- 3 battements doux, qui s'eteignent a la fin.
+            local fadeOut = math.min(1, (PULSE_TIME - self.pulse) / 0.8)
+            self.glow:SetAlpha((0.5 - 0.5 * math.cos(self.pulse * 2 * math.pi * 3 / PULSE_TIME)) * 0.7 * fadeOut)
+        end)
+    end
+    local function Glow(target)
+        rib.glowTarget = target
+        rib:SetScript("OnUpdate", function(self, elapsed)
+            local a = self.glow:GetAlpha() or 0
+            local t = self.glowTarget or 0
+            a = a + (t - a) * math.min(1, elapsed * 10)
+            if math.abs(t - a) < 0.02 then a = t; self:SetScript("OnUpdate", nil) end
+            self.glow:SetAlpha(a)
+        end)
+    end
+    rib:SetScript("OnEnter", function(self)
+        self.pulse = nil
+        Glow(0.55)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(L.RIBBON_TIP, 1, 0.82, 0)
+        GameTooltip:Show()
+    end)
+    rib:SetScript("OnLeave", function()
+        Glow(0)
+        GameTooltip:Hide()
+    end)
+
+    -- Place : dans la reliure du livre ouvert, ou au coin de la note.
+    function DWE.UpdateRibbon(active)
+        local book = textBox.dweBook
+        if not (active and DWE.BookByAddon() and (book == true or book == "note")) then
+            rib:Hide()
+            bar:Hide()
+            rib.open = nil
+            return
+        end
+        rib:ClearAllPoints()
+        if book == true then
+            local S = BOOK_W / 1024
+            -- Pres de la reliure, sur la page de droite (hors du texte). L'image est peinte pour ce
+            -- coin precis du livre (lumiere de la page, ombre portee) : 55 x 96 pixels du livre.
+            rib:SetSize(55 * S, 96 * S)
+            rib:SetPoint("TOPLEFT", bookL, "TOPLEFT", 484.9 * S, -61.3 * S)
+        else
+            -- Note : un sceau de cire dans le coin du parchemin. Plaque : un symbole grave dans la
+            -- matiere (creux sombre, aretes eclairees), qui s'illumine au survol.
+            local plate = DWE.PlateMaterial and DWE.PlateMaterial()
+            rib.tex:SetVertexColor(1, 1, 1)
+            if plate then
+                -- Triquetra (noeud a trois pointes) entrelacee avec un cercle.
+                rib.tex:SetTexture(ADDON_PATH .. "EngraveKnot.png")
+                rib.glow:SetTexture(ADDON_PATH .. "EngraveKnotGlow.png")
+                rib:SetSize(40, 40)
+                rib:SetPoint("CENTER", textBox, "TOP", 0, -12)
+                rib.baseAlpha = 0.8 -- gravure un peu plus discrete
+                rib.glow:SetSize(40, 40)
+            else
+                -- Parchemin : la signature (illisible) du scribe ou de l'auteur, a l'encre, dans la
+                -- marge en bas a droite. Une parmi 8, toujours la meme pour un meme texte.
+                local title = (DWE.rawHeader or ""):gsub("%s*%(%d+/%d+%)$", "")
+                local h = 0
+                for i = 1, #title do h = (h * 31 + title:byte(i)) % 100003 end
+                local n = h % 8 + 1
+                rib.tex:SetTexture(ADDON_PATH .. "Signature" .. n .. ".png")
+                rib.glow:SetTexture(ADDON_PATH .. "Signature" .. n .. "Glow.png")
+                rib.baseAlpha = 1
+                rib:SetSize(96, 48)
+                rib:SetPoint("BOTTOMRIGHT", noteBg, "BOTTOMRIGHT", -20, 2)
+                rib.glow:SetSize(96, 48)
+            end
+        end
+        if book == true then
+            rib.baseAlpha = 1
+            rib.tex:SetTexture(ADDON_PATH .. "Ribbon.png")
+            rib.tex:SetVertexColor(1, 1, 1)
+            rib.glow:SetTexture(ADDON_PATH .. "RibbonGlow.png")
+            local w, h = rib:GetSize()
+            rib.glow:SetSize(w * 1.25 + 8, h * 1.125 + 8)
+        end
+        rib:SetFrameLevel((textBox:GetFrameLevel() or 1) + 6)
+        rib:Show()
+        if not (DWE.ribbonFade and DWE.ribbonFade:GetScript("OnUpdate")) then rib.tex:SetAlpha(rib.baseAlpha or 1) end
+        if not DialogueWheelE_RibbonSeen and not rib.pulse then Pulse() end
+        if bar:IsShown() and not bar.closing then DWE.RibbonBarRefresh() end
+    end
+end
+
 function DWE.UpdateBookBar()
     local active = DWE.bookMode and textBox:IsShown() and choiceBox:IsShown() and #DWE.currentOptions > 0
     MuteDUIBook(DWE.BookByAddon() and choiceBox:IsShown())
+    DWE.UpdateRibbon(active)
     if not active then
         bookBar:Hide()
         SetWheelHidden(false)
@@ -1965,6 +2480,17 @@ function DWE.UpdateBookBar()
         end
         b.icon:SetTexture(opt.icon)
         b.icon:SetShown(opt.icon ~= nil)
+        -- Icone peinte (bouton "Surbrillance" : carre de la couleur des mots lus, cerne de noir).
+        local ic = opt.iconColor
+        b.icon:SetVertexColor(ic and ic[1] or 1, ic and ic[2] or 1, ic and ic[3] or 1)
+        if ic and not b.iconBorder then
+            b.iconBorder = b:CreateTexture(nil, "BORDER")
+            b.iconBorder:SetColorTexture(0, 0, 0, 0.85)
+            b.iconBorder:SetPoint("TOPLEFT", b.icon, "TOPLEFT", -2, 2)
+            b.iconBorder:SetPoint("BOTTOMRIGHT", b.icon, "BOTTOMRIGHT", 2, -2)
+        end
+        if b.iconBorder then b.iconBorder:SetShown(ic ~= nil) end
+        b.icon:SetSize(ic and 12 or 16, ic and 12 or 16)
         b.text:SetText(opt.rawLabel)
         local sel = i == DWE.selectedIndex
         if opt.disabled then
@@ -2970,6 +3496,8 @@ local function PaintRow(row, opt, selected, pillWidth)
     local pad = pill and PILL_PAD or ROW_PAD
     if opt.icon then
         row.icon:SetTexture(opt.icon)
+        local ic = opt.iconColor
+        row.icon:SetVertexColor(ic and ic[1] or 1, ic and ic[2] or 1, ic and ic[3] or 1)
         row.icon:ClearAllPoints()
         row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", pad.left, -pad.iconTop)
         row.icon:Show()
@@ -3886,7 +4414,7 @@ DWE.THEME_LIST = THEME_LIST
 DWE.OPTION_VARS = { "Pos", "TextPos", "Theme", "Font", "FontSize", "Scale", "Opacity", "ShowText",
     "UseBlizzKey", "InteractKey", "ToggleKey", "WheelScroll", "SpokenTheme", "AttachNPC", "NPCOffset",
     "WheelWidth", "TextW", "TextH", "BubbleWidth", "Locked", "WheelTheme", "EscClose", "BookStyle",
-    "ThemeFrames", "BookLook", "BookPos", "BookScale", "NoteScale", "QuestWidth", "QuestAuto", "PlaceSkin", "SpokenChoice", "ChoiceSize", "WheelSide", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "SpokenSmart", "DefaultsV" }
+    "ThemeFrames", "BookLook", "BookPos", "BookScale", "NoteScale", "QuestWidth", "QuestAuto", "PlaceSkin", "SpokenChoice", "ChoiceSize", "WheelSide", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookHighlight", "BookTurnFX", "SpokenSmart", "DefaultsV" }
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if ReloadUI then ReloadUI() end
@@ -4186,9 +4714,15 @@ function DWE.InitOptionsPanel()
     AddCheck(L.BOOK_TIP_CURSOR, 16, y - 298, DialogueWheelE_BookTipCursor == true, function(self)
         DialogueWheelE_BookTipCursor = self:GetChecked() and true or false
     end)
+    AddCheck(L.BOOK_AUTOSCROLL, 16, y - 324, DialogueWheelE_BookAutoScroll ~= false, function(self)
+        DialogueWheelE_BookAutoScroll = self:GetChecked() and true or false
+    end)
+    AddCheck(L.BOOK_TURN_FX, 16, y - 350, DialogueWheelE_BookTurnFX ~= false, function(self)
+        DialogueWheelE_BookTurnFX = self:GetChecked() and true or false
+    end)
 
     ---------------------------------------------------------------- Placement
-    y = y - 338
+    y = y - 390
     AddSection(L.SEC_PLACE, y)
     AddCheck(L.ATTACH_NPC, 16, y - 32, DialogueWheelE_AttachNPC ~= false, function(self)
         DialogueWheelE_AttachNPC = self:GetChecked() and true or false
@@ -4352,3 +4886,13 @@ function DWE.InitOptionsPanel()
         InterfaceOptions_AddCategory(panel)
     end
 end
+
+-- Scripts qui tournent en continu : surveilles (voir DWE.Guard).
+-- (Pas de variable ici : le fichier est deja a la limite de 200 variables locales.)
+DWE.GuardScripts(cineBars, "cine")
+DWE.GuardScripts(follower, "follow")
+DWE.GuardScripts(scrollAnim, "scroll")
+DWE.GuardScripts(scrollThumb, "thumb")
+DWE.GuardScripts(listDriver, "list")
+DWE.GuardScripts(DWE.bookFlip, "flip")
+DWE.GuardScripts(DWE.ribbonBar, "ribbon")

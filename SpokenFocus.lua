@@ -272,6 +272,35 @@ function Focus.ForgetOpenBook()
 end
 
 function Focus.Install()
+    -- Petit lecteur de Spoken : d'une page a l'autre du meme livre, il ne s'efface pas pour
+    -- revenir (fondu de Spoken entre deux lignes) ; la page suivante prend simplement sa place.
+    local env = rawget(_G, "SpokenEnv")
+    local sk = type(env) == "table" and rawget(env, "DialogueUIPlayer")
+    if type(sk) == "table" and type(sk.WillTurn) == "function" and not sk.dweTurnHook then
+        sk.dweTurnHook = true
+        local orig = sk.WillTurn
+        sk.WillTurn = function(self, clip, ...)
+            if IsBook(self.clip) and IsBook(clip) and GroupKey(self.clip) == GroupKey(clip) then
+                return false
+            end
+            return orig(self, clip, ...)
+        end
+    end
+    -- Sous-titres de Spoken (sa mini-fenetre) : sur la 1re page d'un livre, le 1er mot a souvent
+    -- un temps faux (il "commence" pendant la lecture du titre). Tant que la voix n'a pas atteint
+    -- ce mot, Spoken considere que rien n'est encore lu : pas de surbrillance pendant le titre.
+    local tr = type(env) == "table" and rawget(env, "Transcript")
+    if type(tr) == "table" and type(tr.IsSpeaking) == "function" and not tr.dweTitleHook then
+        tr.dweTitleHook = true
+        local origSpeaking = tr.IsSpeaking
+        tr.IsSpeaking = function(self, progress, ...)
+            local speaking = origSpeaking(self, progress, ...)
+            if not speaking or not progress then return speaking end
+            local start = Focus.FirstWordStart(self)
+            if start and progress * (self.totalWeight or 0) < start then return false end
+            return speaking
+        end
+    end
     if Focus.installed then return end
     local api = Env()
     if not api or type(api.AddGate) ~= "function" then return end
@@ -465,6 +494,9 @@ function Focus.Install()
         end)
         -- Repliques ecoutees jusqu'au bout : retenues d'une session a l'autre.
         pcall(api.RegisterCallback, api, "CLIP_STOPPED", function(clip, finished)
+            if finished and IsBook(clip) and DWE.BookPageDone then
+                pcall(DWE.BookPageDone, Focus.PageNumber(clip))
+            end
             if finished and type(clip) == "table" and clip.key then
                 Focus.MarkHeard(clip)
                 -- Derniere ligne d'un livre narree en entier : livre lu.
@@ -483,6 +515,32 @@ function Focus.Install()
             if not IsBook(clip) then Focus.lineSeq = (Focus.lineSeq or 0) + 1 end
         end)
     end
+end
+
+-- Numero de page (dans son livre) d'une ligne de Spoken Readables, ou nil.
+function Focus.PageNumber(clip)
+    local sr = rawget(_G, "SpokenReadables")
+    if type(clip) ~= "table" or not clip.pageId or type(sr) ~= "table" or type(sr.PlaceOf) ~= "function" then return nil end
+    local ok, _, number = pcall(sr.PlaceOf, sr, clip.pageId)
+    return ok and tonumber(number) or nil
+end
+
+-- Debut reel du 1er mot d'un livre quand son temps enregistre est faux (titre lu avant), ou nil.
+-- Reconnu a un ecart anormal entre le 1er et le 2e mot ; le 1er commence alors un mot moyen
+-- avant le 2e. Calcule une fois par ligne.
+function Focus.FirstWordStart(tr)
+    local clip, words = tr.clip, tr.words
+    if not (clip and IsBook(clip) and tr.timed and type(words) == "table" and #words >= 3) then return nil end
+    if Focus.fwsClip == clip and Focus.fwsWords == words then return Focus.fwsStart end
+    Focus.fwsClip, Focus.fwsWords, Focus.fwsStart = clip, words, nil
+    local n = #words
+    local w1, w2, wn = words[1], words[2], words[n]
+    if not (w1.start and w2.start and wn.start) then return nil end
+    local avg = (wn.start - w2.start) / math.max(1, n - 2)
+    if avg > 0 and (w2.start - w1.start) > avg * 4 + 1 then
+        Focus.fwsStart = w2.start - avg
+    end
+    return Focus.fwsStart
 end
 
 -- Une page de dialogue s'ouvre. Quand on passe vite d'un PNJ a l'autre, Spoken Quests attend que
@@ -566,6 +624,7 @@ function Focus.Report()
     if ui then
         local n = 0
         for _ in pairs(ui.buttons or {}) do n = n + 1 end
+        if Focus.HighlightReport then Focus.HighlightReport() end
         print("  queue button: installed=" .. tostring(ui.installed) .. " windows=" .. n
             .. " actions=" .. tostring(rawget(_G, "SpokenEnv") and type(SpokenEnv.Actions)))
     end
@@ -654,4 +713,261 @@ function Focus.CloseGroup(key)
         if c and GroupKey(c) == key then pcall(queue.RemoveSoundFromQueue, queue, c) end
     end
     Wake()
+end
+
+-- Mots lus en surbrillance dans le livre / la note / la plaque de Storytale -------------------
+-- Comme les sous-titres de Spoken : le mot que la voix lit (et son voisin) est colore dans le
+-- texte du livre. Suit le reglage "Surligner les mots" de Spoken ; rien si la voix du livre est
+-- coupee, ou si la ligne lue n'est pas le texte affiche (correspondance de Spoken:WordMarks).
+-- Un texte est decoupe en paragraphes (lignes vides) : la note montre toutes les pages d'un
+-- coup, et chaque page lue doit se retrouver a sa place, pas au premier mot identique.
+do
+    local hl = { shown = {} } -- shown[fs] = { base = texte d'origine, now = texte affiche }
+    local ticker = CreateFrame("Frame", nil, DWE.textBox) -- ne tourne que livre/texte ouvert
+    local acc = 0
+
+    local function Restore()
+        for fs, st in pairs(hl.shown) do
+            if fs:GetText() == st.now and st.now ~= st.base then fs:SetText(st.base) end
+            st.now = st.base
+        end
+        hl.clip, hl.map, hl.lit, hl.neighbor = nil, nil, nil, nil
+    end
+    Focus.RestoreHighlight = Restore
+    -- Couleur de la surbrillance (pour le petit bouton sous le livre), en {r, g, b}.
+    function DWE.HighlightRGB()
+        local hex = hl.color
+        if not hex then
+            local mat = DWE.BookLook and DWE.BookLook() == "note" and DWE.PlateMaterial and DWE.PlateMaterial()
+            hex = (mat and DWE.PLATE_MARK and DWE.PLATE_MARK[mat]) or "|cff9c1a1a"
+        end
+        local r, g, b = hex:match("|c%x%x(%x%x)(%x%x)(%x%x)")
+        if not r then return { 0.61, 0.10, 0.10 } end
+        return { tonumber(r, 16) / 255, tonumber(g, 16) / 255, tonumber(b, 16) / 255 }
+    end
+    function Focus.HighlightReport()
+        local d = hl.dbg
+        if not d then print("  highlight: none") return end
+        print(string.format("  highlight: timed=%s lead=%s raw=%s active=%s prog=%s tw=%s s1=%s note=%s page=%s m1=%s title=%s",
+            tostring(d.timed), tostring(d.lead), tostring(d.raw), tostring(d.active), tostring(d.prog), tostring(d.tw),
+            tostring(d.s1), tostring(d.note), tostring(d.page), tostring(d.m1), tostring(d.title)))
+    end
+
+    local function Texts()
+        local list = {}
+        local note = DWE.NOTE and DWE.NOTE.noteText
+        for _, fs in ipairs({ DWE.textBody, DWE.textBody2, note }) do
+            if fs and fs:IsVisible() then list[#list + 1] = fs end
+        end
+        return list
+    end
+
+    -- Paragraphes d'un texte : { fs, text, from (octet de debut dans le texte entier) }.
+    local function Split(fs, text, out)
+        local from = 1
+        while true do
+            local s, e = text:find("\n%s*\n", from)
+            local piece = text:sub(from, (s or (#text + 1)) - 1)
+            out[#out + 1] = { fs = fs, text = piece, from = from }
+            if not s then break end
+            from = e + 1
+        end
+    end
+
+    ticker:SetScript("OnUpdate", function(_, elapsed)
+        acc = acc + elapsed
+        if acc < 0.02 then return end -- ~50 fois par seconde : le mot change pile avec la voix
+        acc = 0
+        local sp = rawget(_G, "Spoken")
+        local box = DWE.textBox
+        local ok = sp and type(sp.GetCaption) == "function" and type(sp.WordMarks) == "function"
+            and type(sp.SplitCaption) == "function" and box and box:IsShown()
+            and DWE.BookByAddon and DWE.BookByAddon() and not Focus.bookMuted
+        local caption = ok and sp:GetCaption()
+        local clip = caption and caption.clip
+        if not (clip and IsBook(clip) and caption.highlight) then Restore() return end
+        local Marks = sp:WordMarks()
+        -- Nouvelle page lue : le suivi reprend (meme si une page avait ete tournee a la main).
+        if clip ~= hl.followClip then hl.followClip = clip; DWE.bookFollowPause = nil end
+        -- Livre ouvert : tourne la page (ou la sous-page) ou en est la voix.
+        if DWE.BookFollow then
+            local pr = type(clip.present) == "table" and clip.present or {}
+            local text = pr.transcript or clip.text
+            local share
+            local aw = caption.speaking and caption.activeWord
+            local wd = aw and caption.words and caption.words[aw]
+            if wd and type(text) == "string" and #text > 0 then share = (wd.first or 1) / #text end
+            DWE.BookFollow(text, share, Focus.PageNumber(clip))
+        end
+        -- Texte affiche : repris a chaque changement (page tournee, mise en page refaite).
+        local fss, changed = Texts(), false
+        for _, fs in ipairs(fss) do
+            local st = hl.shown[fs]
+            local cur = fs:GetText() or ""
+            if not st or cur ~= st.now then
+                hl.shown[fs] = { base = cur, now = cur }
+                changed = true
+            end
+        end
+        if changed or clip ~= hl.clip then
+            Restore()
+            hl.paras, hl.fss = {}, fss
+            local mat = DWE.BookLook and DWE.BookLook() == "note" and DWE.PlateMaterial and DWE.PlateMaterial()
+            for _, fs in ipairs(fss) do
+                local pieces = {}
+                Split(fs, hl.shown[fs].base, pieces)
+                local color = (mat and DWE.PLATE_MARK and DWE.PLATE_MARK[mat]) or Marks.ColorFor(fs:GetTextColor())
+                hl.color = color
+                for _, para in ipairs(pieces) do
+                    local words = sp:SplitCaption(para.text)
+                    para.words = Marks.MarkLinks(para.text, words or {})
+                    para.color = color
+                    hl.paras[#hl.paras + 1] = para
+                end
+            end
+            if clip ~= hl.clip and DWE.NoteFollowReset then DWE.NoteFollowReset() end
+            hl.clip = clip
+            hl.map = #hl.paras > 0 and Marks.Align(caption.words, hl.paras) or nil
+            -- Premiere page sans temps enregistres : le narrateur lit le titre avant le texte,
+            -- mais Spoken estime les mots comme si le texte commencait tout de suite. On calcule
+            -- la part du titre comme Spoken Readables le fait quand il a les temps.
+            hl.lead = nil
+            local first = hl.map and hl.map[1]
+            local info = DWE.bookInfo
+            if first and first.p == 1 and first.w == 1
+                and info and (info.note or (info.page == 1 and (not DWE.bookSub or (DWE.bookSub.index or 1) == 1)))
+                and type(sp.CaptionWords) == "function" then
+                local pr = type(clip.present) == "table" and clip.present or {}
+                local title = pr.label or pr.header
+                local function Bare(t) return (string.gsub(string.lower(t or ""), "[%s%p]", "")) end
+                local text = pr.transcript or clip.text
+                if type(title) == "string" and title ~= "" and type(text) == "string"
+                    and string.sub(Bare(text), 1, #Bare(title)) ~= Bare(title) then
+                    local okA, _, total = pcall(sp.CaptionWords, sp, text)
+                    local okB, _, heading = pcall(sp.CaptionWords, sp, title .. ".")
+                    if okA and okB and tonumber(total) and tonumber(heading) and total > 0 and heading > 0 then
+                        hl.lead = heading / (heading + total)
+                    end
+                end
+            end
+        end
+        if not hl.map then return end
+        -- Premiere page : le narrateur lit d'abord le titre (absent du texte de Spoken). Avant le
+        -- debut du premier mot, Spoken donne quand meme le mot 1 : rien n'est allume.
+        local active = caption.speaking and caption.activeWord or nil
+        local w = active and caption.words and caption.words[active]
+        local w1 = caption.words and caption.words[1]
+        -- Temps enregistres qui ignorent le titre (le premier mot "commence" avant la fin du
+        -- titre lu) : meme correction que pour les temps estimes. Sinon, temps fiables : rien
+        -- n'est allume avant le debut du premier mot.
+        local badTimes = caption.timed and hl.lead and w1 and caption.totalWeight
+            and (w1.start or 0) < hl.lead * caption.totalWeight * 0.5
+        -- Souvent seul le 1er mot est faux : il "commence" au debut du clip (titre compris),
+        -- mais les mots suivants ont leurs vrais temps. On garde alors les temps de Spoken et on
+        -- fait seulement commencer le 1er mot un mot moyen avant le 2e.
+        local w2 = caption.words and caption.words[2]
+        if badTimes and w2 and (w2.start or 0) >= hl.lead * caption.totalWeight * 0.7 then
+            badTimes = false
+            local n = #caption.words
+            local wn = caption.words[n]
+            local avg = (n > 2 and wn and wn.start and (wn.start - w2.start) / (n - 2)) or 0.35
+            local s1 = math.max(w1.start or 0, w2.start - avg)
+            if active == 1 and caption.progress * caption.totalWeight < s1 then active = nil end
+        end
+        if w and caption.timed and not badTimes and caption.progress and caption.totalWeight and w.start
+            and caption.progress * caption.totalWeight < w.start then
+            active = nil
+        elseif active and badTimes and caption.progress then
+            -- Temps enregistres pour le texte seul : ils restent exacts entre eux, il ne manque
+            -- que le titre devant. Sa duree = longueur du clip - duree du texte (dernier mot + un
+            -- mot moyen). Bien plus precis que l'estimation par le poids des mots.
+            local words, n, len = caption.words, #caption.words, caption.totalWeight
+            if hl.shiftFor ~= clip then
+                hl.shiftFor = clip
+                local last = words[n].start or 0
+                local avg = n > 1 and last / (n - 1) or 0.3
+                local shift = len - (last + avg)
+                local est = hl.lead * len
+                -- Mesure incoherente (temps etires sur tout le clip) : on garde l'estimation,
+                -- en etirant les temps apres le titre.
+                if shift < est * 0.5 or shift > len * 0.6 then shift = nil end
+                hl.shift = shift
+            end
+            local t
+            if hl.shift then
+                t = caption.progress * len - hl.shift
+            else
+                t = (caption.progress - hl.lead) / (1 - hl.lead) * len
+            end
+            if t < (words[1].start or 0) then
+                active = nil
+            else
+                local low, high = 1, n
+                while low < high do
+                    local mid = math.floor((low + high) / 2)
+                    if (words[mid].finish or len) <= t then low = mid + 1 else high = mid end
+                end
+                active = low
+            end
+        elseif active and hl.lead and not caption.timed and caption.progress and caption.totalWeight then
+            -- Temps estimes : le texte ne commence qu'apres le titre.
+            if caption.progress < hl.lead then
+                active = nil
+            else
+                local target = (caption.progress - hl.lead) / (1 - hl.lead) * caption.totalWeight
+                local words, low, high = caption.words, 1, #caption.words
+                while low < high do
+                    local mid = math.floor((low + high) / 2)
+                    if words[mid].finish <= target then low = mid + 1 else high = mid end
+                end
+                active = low
+            end
+        end
+        hl.dbg = { timed = caption.timed, lead = hl.lead, raw = caption.activeWord, active = active,
+            prog = caption.progress, tw = caption.totalWeight, s1 = caption.words and caption.words[1] and caption.words[1].start,
+            note = DWE.bookInfo and DWE.bookInfo.note, page = DWE.bookInfo and DWE.bookInfo.page,
+            m1 = hl.map[1] and (hl.map[1].p .. "/" .. hl.map[1].w),
+            title = type(clip.present) == "table" and (clip.present.label or clip.present.header) }
+        local lit, neighbor = Marks.Pick(hl.map, active)
+        -- Note qui defile : elle suit le mot lu (option, sauf si le joueur fait defiler).
+        local at = lit and hl.map[lit]
+        local note = DWE.NOTE and DWE.NOTE.noteText
+        if at and note and hl.paras[at.p] and hl.paras[at.p].fs == note and DWE.NoteFollow then
+            local para = hl.paras[at.p]
+            local word = para.words[at.w]
+            if word then DWE.NoteFollow(hl.shown[note].base:sub(1, para.from + word.last - 1)) end
+        end
+        if lit == hl.lit and neighbor == hl.neighbor then return end
+        hl.lit, hl.neighbor = lit, neighbor
+        local spans = (lit and DialogueWheelE_BookHighlight ~= false) and Marks.Spans(hl.map, hl.paras, lit, neighbor) or {}
+        -- Chaque texte est recompose : ses paragraphes, colores ou non, et ce qui les separe.
+        local byFs = {}
+        for p, para in ipairs(hl.paras) do
+            local list = spans[p]
+            if list then
+                table.sort(list, function(a, b) return a.first < b.first end)
+                local shifted = {}
+                for _, sw in ipairs(list) do
+                    shifted[#shifted + 1] = { first = sw.first + para.from - 1, last = sw.last + para.from - 1 }
+                end
+                byFs[para.fs] = byFs[para.fs] or {}
+                for _, sw in ipairs(shifted) do table.insert(byFs[para.fs], sw) end
+                byFs[para.fs].color = para.color
+            end
+        end
+        for _, fs in ipairs(hl.fss or {}) do
+            local st = hl.shown[fs]
+            local list = byFs[fs]
+            local want = st.base
+            if list then
+                table.sort(list, function(a, b) return a.first < b.first end)
+                want = Marks.Wrap(st.base, list, list.color)
+            end
+            if want ~= st.now then
+                fs:SetText(want)
+                st.now = want
+            end
+        end
+    end)
+    if DWE.GuardScripts then DWE.GuardScripts(ticker, "highlight") end
 end

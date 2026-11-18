@@ -835,26 +835,15 @@ local BuildOptions
 
 local function BuildBookOptions()
     if not DWE.TextWanted() then return end
-    -- Spoken lit le livre : un bouton pour couper (ou remettre) sa voix, pour lire soi-meme.
-    local focus = DWE.SpokenFocus
-    if focus and focus.Available() then
-        local muted = focus.bookMuted
-        AddOption({
-            icon = muted and "Interface\\Common\\VoiceChat-Speaker" or "Interface\\Common\\VoiceChat-Muted",
-            rawLabel = muted and L.BOOK_UNMUTE or L.BOOK_MUTE,
-            action = function()
-                focus.SetBookMuted(not focus.bookMuted)
-                BuildOptions("ITEM_TEXT_CACHED", true)
-                DWE.UpdateVisuals()
-            end,
-        })
-    end
+    -- Voix, suivi de la voix, surbrillance, animation : dans le menu du marque-page (en haut a
+    -- droite du livre). En bas : seulement tourner les pages et fermer.
     if DWE.BookLook() == "note" then return end -- la note defile, pas de pages
     -- Livre reduit : une page du jeu peut s'etaler sur plusieurs doubles pages (sous-pages),
     -- tournees d'abord.
     if bookState.currentPage > 1 or DWE.BookSubCan(-1) then
         AddOption({ icon = ICON_PREV_PAGE, rawLabel = L.PREV_PAGE, action = function()
             bookState.lastBtn = "prev"
+            DWE.bookFollowPause = true -- page tournee a la main : on ne suit plus la voix pour cette page
             if DWE.BookSubStep(-1) then
                 -- sous-page precedente
             elseif bookState.currentPage > 1 then
@@ -868,6 +857,7 @@ local function BuildBookOptions()
     if BookHasNext() or DWE.BookSubCan(1) then
         AddOption({ icon = ICON_NEXT_PAGE, rawLabel = L.NEXT_PAGE, action = function()
             bookState.lastBtn = "next"
+            DWE.bookFollowPause = true
             if DWE.BookSubStep(1) then
                 BuildOptions("ITEM_TEXT_CACHED", true)
                 DWE.UpdateVisuals()
@@ -880,6 +870,83 @@ local function BuildBookOptions()
             end
         end })
     end
+end
+
+-- Livre ouvert lu par Spoken : il tourne ses pages avec la voix (option "suivre la voix").
+-- `text` = la page que Spoken lit, `share` = ou en est la voix dans cette page (0..1).
+-- Une page tournee a la main suspend le suivi jusqu'a la page lue suivante.
+-- Aller a la page `n` du jeu : en memoire, ou la suivante demandee au jeu (comme "Page suivante").
+function DWE.BookGoTo(n)
+    if not (n and bookState.active) or n == bookState.currentPage then return false end
+    if bookState.pages[n] then
+        ShowBookPage(n)
+    elseif n == bookState.currentPage + 1 and BookHasNext() and ItemTextNextPage then
+        if bookState.awaitNext then return true end
+        bookState.awaitNext = true
+        ItemTextNextPage()
+        return true
+    else
+        return false
+    end
+    BuildOptions("ITEM_TEXT_CACHED", true)
+    DWE.UpdateVisuals()
+    return true
+end
+local function FollowOn()
+    return DialogueWheelE_BookAutoScroll ~= false and not DWE.bookFollowPause and bookState.active
+        and DWE.BookLook() == "book"
+end
+-- `number` = numero de la page lue (Spoken Readables), sinon reconnue a son texte.
+function DWE.BookFollow(text, share, number)
+    local function BareText(t) return (string.gsub(string.lower(t or ""), "[%s%p\128-\255]", "")) end
+    if not FollowOn() then return end
+    local found = number
+    if not found and type(text) == "string" then
+        local key = BareText(text):sub(1, 40)
+        if key ~= "" then
+            for p, page in pairs(bookState.pages) do
+                if BareText(page):sub(1, 40) == key then found = p break end
+            end
+        end
+    end
+    if not found then return end
+    if found ~= bookState.currentPage then
+        DWE.BookGoTo(found)
+        return
+    end
+    -- Page du jeu etalee sur plusieurs doubles pages : celle ou en est la voix.
+    local st = DWE.bookSub
+    local n = st and st.spreads and #st.spreads or 0
+    if n < 2 or not share then return end
+    local total, sizes = 0, {}
+    for i, sp in ipairs(st.spreads) do
+        sizes[i] = #(sp[1] or "") + #(sp[2] or "") + 1
+        total = total + sizes[i]
+    end
+    local at, acc, want = share * total, 0, n
+    for i = 1, n do
+        acc = acc + sizes[i]
+        if at <= acc then want = i break end
+    end
+    if want ~= st.index then
+        st.index = want
+        DWE.UpdateTextPanelVisuals()
+        BuildOptions("ITEM_TEXT_CACHED", true)
+        DWE.UpdateVisuals()
+    end
+end
+-- La voix a fini la page affichee : on tourne. Si Spoken ne lit qu'une page a la fois, c'est
+-- ce qui lui fait lire la suivante (il lit la page que le jeu ouvre).
+function DWE.BookPageDone(number)
+    if not FollowOn() or not DWE.choiceBox:IsShown() then return end
+    if number and number ~= bookState.currentPage then return end
+    DWE.BookGoTo(bookState.currentPage + 1)
+end
+
+-- Le menu du marque-page a change un reglage : boutons et affichage a jour.
+function DWE.RefreshBookOptions()
+    BuildOptions("ITEM_TEXT_CACHED", true)
+    DWE.UpdateVisuals()
 end
 
 local BOOK_EVENTS = { ITEM_TEXT_BEGIN = true, ITEM_TEXT_READY = true, ITEM_TEXT_CACHED = true }
@@ -1197,6 +1264,8 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
     msg = (msg or ""):lower()
     if msg:match("npc") then
         DiagnoseNPC()
+    elseif msg:match("^errors") then
+        DWE.ErrorsReport(msg:match("^errors%s+(%S+)"))
     elseif msg:match("forget") then
         local n = DWE.SpokenFocus and DWE.SpokenFocus.ForgetOpenBook and DWE.SpokenFocus.ForgetOpenBook() or 0
         Out("livre ouvert considere comme jamais ecoute (" .. n .. " ligne(s) oubliee(s)).")
@@ -1622,3 +1691,6 @@ if GameTooltip and GameTooltip.HookScript then
         Evaluate(tt)
     end)
 end
+
+-- Evenements surveilles (voir DWE.Guard) : une erreur est notee, jamais coupee.
+if DWE.GuardScripts then DWE.GuardScripts(f, "events") end
