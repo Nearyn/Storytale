@@ -1,5 +1,19 @@
 # Changelog / Journal des versions
 
+## 1.3.1
+
+**🇬🇧 English**
+
+### Fixed
+- Spoken's reading queue: a book or plaque played again later keeps its own look (plaque, DialogueUI book or game window) instead of the current NPC theme.
+
+---
+
+**🇫🇷 Français**
+
+### Corrections
+- File de lecture Spoken : un livre ou une plaque relancé plus tard garde son habillage (plaque, livre DialogueUI ou fenêtre du jeu) au lieu du thème du PNJ en cours.
+
 ## 1.3.0
 
 **🇬🇧 English**

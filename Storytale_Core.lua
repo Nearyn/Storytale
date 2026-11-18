@@ -868,7 +868,24 @@ local function SpokenBookLeftAlone()
     return type(present) == "table" and (present.material ~= nil or present.bullet == "book")
 end
 
+-- File de lecture : chaque ligne de livre garde l'habillage qu'elle avait, livre ouvert, pour
+-- le retrouver quand on la relance plus tard (livre ferme).
+function DWE.BookOpenNow()
+    if DWE.bookMode then return true end
+    for _, n in ipairs({ "DUIBookFrame", "ItemTextFrame" }) do
+        local f = rawget(_G, n)
+        if type(f) == "table" and f.IsShown and f:IsShown() then return true end
+    end
+    return false
+end
+function DWE.SpokenStamp()
+    local clip = spokenSkinRef and spokenSkinRef.clip
+    if type(clip) ~= "table" or not clip.dweStamp or DWE.BookOpenNow() then return nil end
+    return clip.dweStamp
+end
 function DWE.SpokenThemeOverride()
+    local st = DWE.SpokenStamp()
+    if st then return st.override end
     -- Livre affiche par l'addon : le petit lecteur Spoken prend toujours le theme du livre.
     if DWE.BookByAddon() then return 1 end
     if DialogueWheelE_SpokenTheme ~= true then return nil end
@@ -879,6 +896,8 @@ end
 -- Pour la fenetre Spoken, les bulles empruntent le style d'un theme "bloc".
 local SPOKEN_STYLE_ALIAS = { bubble = "dark", bubble_fantasy = "parchment", whisper = "glass", cinema = "transparent" }
 local function SpokenStyle()
+    local st = DWE.SpokenStamp()
+    if st then return st.style end
     if DWE.BookByAddon() then
         -- Plaque : sa propre matiere, en petite taille (texture S a moitie, marges divisees par 2).
         local mat = DWE.BookLook() == "note" and DWE.PlateMaterial()
@@ -921,6 +940,17 @@ end
 local function PaintSpoken(skin)
     local frame, content, head = skin.frame, skin.content, skin.head
     if not (frame and content and head) then return end
+    -- Ligne de livre, livre ouvert : on retient son habillage pour plus tard.
+    local clip = skin.clip
+    local present = type(clip) == "table" and clip.present
+    if type(present) == "table" and (present.material ~= nil or present.bullet == "book")
+        and not clip.dweStamp and DWE.BookOpenNow() then
+        local override = DWE.SpokenThemeOverride()
+        clip.dweStamp = {
+            override = override, style = SpokenStyle(), left = SpokenBookLeftAlone(),
+            plate = (DWE.RawPlate() or DWE.lastPlate) and true or nil,
+        }
+    end
     local parts = skin.dweParts
     if not parts then
         parts = CreateThemeParts(frame, frame:GetFrameLevel())
@@ -972,7 +1002,11 @@ function DWE.HookSpoken()
             local looks = skin.art and skin.art.LOOKS
             local quest = looks and looks.quest
             -- Livre de DialogueUI ouvert : le lecteur prend sa page (metal pour les plaques).
-            if look == quest and SpokenBookLeftAlone() and type(looks) == "table" then
+            local st = DWE.SpokenStamp()
+            if st and look == quest and st.left and type(looks) == "table" then
+                return (st.plate and looks.stone or looks.paper) or look
+            end
+            if not st and look == quest and SpokenBookLeftAlone() and type(looks) == "table" then
                 return ((DWE.RawPlate() or DWE.lastPlate) and looks.stone or looks.paper) or look
             end
             if not DWE.SpokenThemeOverride() or type(quest) ~= "table" then return look end
