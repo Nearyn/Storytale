@@ -301,7 +301,12 @@ local function Reveal()
     local n = math.floor(state.typed or 0)
     if n == state.shownN then return end -- rien de nouveau a afficher : on ne touche pas au texte
     state.shownN = n
-    if hasGradient then
+    if state.dots then
+        -- Points de suspension : un point net apres l'autre (pas de fondu), place gardee.
+        -- La bulle est taillee pour "..." : texte cale a gauche, les points s'ajoutent un a un.
+        if hasGradient then text:SetAlphaGradient(100, 1) end
+        text:SetText(Utf8Prefix(seg, n))
+    elseif hasGradient then
         GradientAt(text, n)
     else
         text:SetText(Utf8Prefix(seg, n))
@@ -538,7 +543,7 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
 
     -- Sans voix : vitesse fixe, puis temps de lecture avant le morceau suivant.
     if state.phase == "typing" then
-        state.typed = (state.typed or 0) + elapsed * (SpokenInstalled() and SPOKEN_PACE or TYPE_SPEED)
+        state.typed = (state.typed or 0) + elapsed * (state.dots and 3 or (SpokenInstalled() and SPOKEN_PACE or TYPE_SPEED))
             * (waitVoice and 0.8 or StartFactor(state))
         -- On va jusqu'au bout du fondu pour que les dernieres lettres apparaissent aussi en douceur.
         if state.typed >= (state.lens[state.index] or 0) then FinishTyping() else Reveal() end
@@ -583,9 +588,14 @@ function DWE.Bubble.SetText(s)
     end
     state.norm = Normalize(s)
     state.words = BuildWords(state.segs)
+    -- Pas de texte : "..." affiche d'un coup, centre dans la bulle.
+    state.dots = nil
+    text:SetJustifyH(#state.segs == 0 and "CENTER" or "LEFT")
     if #state.segs == 0 then
         state.phase = "idle"
         FitTo(DWE.L.NO_TEXT)
+        if hasGradient then text:SetAlphaGradient(100, 1) end
+        text:SetText(DWE.L.NO_TEXT)
     else
         StartSegment(1)
         DWE.PerfTypingStarted()

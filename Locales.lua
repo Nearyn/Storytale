@@ -34,7 +34,7 @@ local enUS = {
     OBJ = "Objectives: ",
     REWARDS = "Rewards: ",
     TEXT_BTN = "Spoken",
-    NO_TEXT = "(No text available)",
+    NO_TEXT = "...",
     NEXT_PAGE = "Next Page",
     PREV_PAGE = "Previous Page",
     LOADING = "Loading...",
@@ -78,7 +78,7 @@ local enUS = {
 local T = {}
 
 T.frFR = {
-    NO_TEXT = "(Aucun texte disponible)",
+    NO_TEXT = "...",
     NEXT_PAGE = "Page suivante",
     PREV_PAGE = "Page précédente",
     OPT_SUB = "Apparence du cadre de dialogue :",
@@ -116,7 +116,7 @@ T.frFR = {
 }
 
 T.deDE = {
-    NO_TEXT = "(Kein Text verfügbar)",
+    NO_TEXT = "...",
     NEXT_PAGE = "Nächste Seite",
     PREV_PAGE = "Vorherige Seite",
     OPT_SUB = "Aussehen des Dialogfensters:",
@@ -150,7 +150,7 @@ T.deDE = {
 }
 
 T.esES = {
-    NO_TEXT = "(Sin texto disponible)",
+    NO_TEXT = "...",
     NEXT_PAGE = "Página siguiente",
     PREV_PAGE = "Página anterior",
     OPT_SUB = "Aspecto del marco de diálogo:",
@@ -185,7 +185,7 @@ T.esES = {
 T.esMX = T.esES
 
 T.itIT = {
-    NO_TEXT = "(Nessun testo disponibile)",
+    NO_TEXT = "...",
     NEXT_PAGE = "Pagina successiva",
     PREV_PAGE = "Pagina precedente",
     OPT_SUB = "Aspetto della finestra di dialogo:",
@@ -219,7 +219,7 @@ T.itIT = {
 }
 
 T.ptBR = {
-    NO_TEXT = "(Nenhum texto disponível)",
+    NO_TEXT = "...",
     NEXT_PAGE = "Próxima página",
     PREV_PAGE = "Página anterior",
     OPT_SUB = "Aparência da janela de diálogo:",
@@ -254,7 +254,7 @@ T.ptBR = {
 
 T.ruRU = {
     TEXT_BTN = "Spoken",
-    NO_TEXT = "(Нет текста)",
+    NO_TEXT = "...",
     NEXT_PAGE = "Следующая страница",
     PREV_PAGE = "Предыдущая страница",
     OPT_SUB = "Оформление окна диалога:",
@@ -289,7 +289,7 @@ T.ruRU = {
 
 T.koKR = {
     TEXT_BTN = "Spoken",
-    NO_TEXT = "(텍스트 없음)",
+    NO_TEXT = "...",
     NEXT_PAGE = "다음 페이지",
     PREV_PAGE = "이전 페이지",
     OPT_SUB = "대화창 모양:",
@@ -324,7 +324,7 @@ T.koKR = {
 
 T.zhCN = {
     TEXT_BTN = "Spoken",
-    NO_TEXT = "（无文本）",
+    NO_TEXT = "...",
     NEXT_PAGE = "下一页",
     PREV_PAGE = "上一页",
     OPT_SUB = "对话框外观：",
@@ -359,7 +359,7 @@ T.zhCN = {
 
 T.zhTW = {
     TEXT_BTN = "Spoken",
-    NO_TEXT = "（無文字）",
+    NO_TEXT = "...",
     NEXT_PAGE = "下一頁",
     PREV_PAGE = "上一頁",
     OPT_SUB = "對話框外觀：",

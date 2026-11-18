@@ -1,5 +1,19 @@
 # Changelog / Journal des versions
 
+## 1.3.3
+
+**🇬🇧 English**
+
+### Improved
+- When an NPC has nothing to say, the bubble shows a centred "..." instead of "(No text available)".
+
+---
+
+**🇫🇷 Français**
+
+### Améliorations
+- Quand un PNJ n'a rien à dire, la bulle affiche « ... » centré au lieu de « (Aucun texte disponible) ».
+
 ## 1.3.2
 
 **🇬🇧 English**
