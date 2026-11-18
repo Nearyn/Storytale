@@ -1143,7 +1143,7 @@ end
 -- Commande /dwe npc : diagnostic du suivi du PNJ (a taper pendant une conversation)
 --------------------------------------------------------------------------------
 
-local function Out(msg) DEFAULT_CHAT_FRAME:AddMessage("|cff33ccff[DWE]|r " .. msg) end
+local function Out(msg) DEFAULT_CHAT_FRAME:AddMessage("|cff33ccff[Storytale]|r " .. msg) end
 local function Safe(fn, ...)
     local ok, a, b = pcall(fn, ...)
     if not ok then return "erreur" end
@@ -1179,6 +1179,21 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         DiagnoseNPC()
     elseif msg:match("spoken") then
         if DWE.SpokenFocus then DWE.SpokenFocus.Install(); DWE.SpokenFocus.Report() end
+    elseif msg:match("^%s*plate") then
+        -- Test : force une matiere de plaque sur le texte ouvert (et les suivants) jusqu'a "off".
+        local arg = (msg:match("plate%s+(%a+)") or ""):lower()
+        local names = { stone = "Stone", marble = "Marble", bronze = "Bronze", silver = "Silver" }
+        DWE.testPlate = names[arg]
+        if DWE.testPlate then
+            Out("plaque de test : " .. DWE.testPlate .. " (/storytale plate off pour arreter)")
+        else
+            Out("plaque de test arretee. Usage : /storytale plate stone | marble | bronze | silver | off")
+        end
+        if DWE.bookMode and DWE.UpdateTextPanelVisuals then DWE.UpdateTextPanelVisuals() end
+        if DWE.RefreshSpoken then DWE.RefreshSpoken() end
+    elseif msg:match("material") then
+        local m = ItemTextGetMaterial and ItemTextGetMaterial()
+        Out("matiere du texte ouvert : " .. tostring(m) .. (m and DWE.PLATES[m] and " (plaque)" or ""))
     elseif msg:match("reset") then
         DWE.AskResetAll()
     elseif msg:match("perf") then
@@ -1289,6 +1304,7 @@ f:SetScript("OnEvent", function(_, event)
         DWE.RestoreNameplateCVar()
         return
     elseif CLOSE_EVENTS[event] then
+        if event == "ITEM_TEXT_CLOSED" then DWE.ForceBlizzBook(event) end
         if event ~= "ITEM_TEXT_CLOSED" and DWE.SpokenFocus then DWE.SpokenFocus.SetNPC(false) end
         if event == "ITEM_TEXT_CLOSED" and DWE.SpokenFocus then DWE.SpokenFocus.OnBookClosed() end
         DisableKeys()
@@ -1297,7 +1313,9 @@ f:SetScript("OnEvent", function(_, event)
 
     -- Livres : selon l'option, la roue de l'addon (avec un theme parchemin, jamais en bulle),
     -- ou on laisse faire le livre de DialogueUI / la fenetre du jeu.
-    if BOOK_EVENTS[event] and (DialogueWheelE_BookStyle or "addon") ~= "addon" then
+    if event == "ITEM_TEXT_BEGIN" then DWE.lastBookStyle = DWE.BookStyleNow() end
+    if BOOK_EVENTS[event] and DWE.BookStyleNow() ~= "addon" then
+        if DWE.BookStyleNow() == "blizzard" then DWE.ForceBlizzBook(event) end
         return
     end
     DWE.SetBookMode(BOOK_EVENTS[event] and true or false)
@@ -1352,3 +1370,49 @@ f:SetScript("OnEvent", function(_, event)
         DisableKeys()
     end
 end)
+
+-- "Fenetre du jeu" alors que DialogueUI remplace les livres : on coupe son module de livre le
+-- temps de ce texte, la fenetre du jeu reprend ses evenements, puis on le rallume.
+function DWE.ForceBlizzBook(event)
+    local itf = rawget(_G, "ItemTextFrame")
+    if not itf then return end
+    if event == "ITEM_TEXT_BEGIN" then
+        if DWE.blizzForced or not GetFramesRegisteredForEvent then return end
+        for _, fr in ipairs({ GetFramesRegisteredForEvent("ITEM_TEXT_BEGIN") }) do
+            if type(fr) == "table" and type(fr.EnableModule) == "function" and fr.enabled and fr ~= itf then
+                if pcall(fr.EnableModule, fr, false) then DWE.blizzForced = fr end
+                break
+            end
+        end
+        if DWE.blizzForced then
+            local h = itf:GetScript("OnEvent")
+            if h then pcall(h, itf, event) end
+            -- Comme avec les autres styles : le petit lecteur Spoken attend la fermeture du texte.
+            local fr = DWE.SpokenMiniFrame()
+            if fr then
+                if not fr.dweBlizzHook then
+                    fr.dweBlizzHook = true
+                    hooksecurefunc(fr, "SetAlpha", function(f2, a)
+                        if a > 0 and DWE.blizzForced then f2:SetAlpha(0) end
+                    end)
+                end
+                fr:SetAlpha(0)
+            end
+        end
+    elseif event == "ITEM_TEXT_CLOSED" and DWE.blizzForced then
+        local fr = DWE.blizzForced
+        DWE.blizzForced = nil
+        C_Timer.After(0, function()
+            if not fr.enabled then pcall(fr.EnableModule, fr, true) end
+            local mini = DWE.SpokenMiniFrame()
+            if mini and not DWE.blizzForced then mini:SetAlpha(1) end
+        end)
+    end
+end
+
+function DWE.SpokenMiniFrame()
+    local env = rawget(_G, "SpokenEnv")
+    local sk = type(env) == "table" and rawget(env, "DialogueUIPlayer")
+    local fr = type(sk) == "table" and sk.frame
+    return type(fr) == "table" and fr.SetAlpha and fr or nil
+end

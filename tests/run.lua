@@ -108,12 +108,6 @@ SlashCmdList = {}
 local chat = {}
 DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) table.insert(chat, m) end }
 -- Load the addon ------------------------------------------------------------
--- Copie locale avec les themes DialogueUI (sauf PUBLIC=1 : version distribuee, sans eux).
-do
-    local f = io.open(dir .. "/ParchmentDUIBrown.png", "rb")
-    if f then f:close() end
-    if f and os.getenv("PUBLIC") ~= "1" then DialogueWheelE_LocalDUI = true end
-end
 for _, file in ipairs({ "Locales.lua", "Storytale_Core.lua", "Bubble.lua", "SpokenFocus.lua", "SpokenQueueUI.lua", "Storytale.lua" }) do
     local chunk, err = loadfile(dir .. "/" .. file)
     check(chunk ~= nil, "compile " .. file .. ": " .. tostring(err))
@@ -241,6 +235,23 @@ for _, ff in ipairs(DWE.FONTS) do
     DialogueWheelE_Font = ff.id
     DWE.ApplyFont()
     check(DWE.textBody:GetFont() ~= nil, "font applied " .. ff.id)
+end
+
+-- Cote de la roue : a gauche, ancrage par la droite et encoches en miroir.
+do
+    local savedPos, savedSide = DialogueWheelE_Pos, DialogueWheelE_WheelSide
+    DialogueWheelE_Pos, DialogueWheelE_WheelSide = nil, "left"
+    DWE.RestorePosition()
+    local pt = DWE.choiceBox:GetPoint(1)
+    check(pt == "TOPRIGHT", "left wheel anchored by its right edge (got " .. tostring(pt) .. ")")
+    local f = CreateFrame("Frame")
+    DWE.SkinPill(f, "game", true, nil)
+    check(f.dweTexPath and f.dweTexPath:sub(-1) == "R", "left wheel uses mirrored pill tails")
+    DialogueWheelE_Pos, DialogueWheelE_WheelSide = savedPos, savedSide
+    DWE.RestorePosition()
+    local g = CreateFrame("Frame")
+    DWE.SkinPill(g, "game", true, nil)
+    check(g.dweTexPath and g.dweTexPath:sub(-1) ~= "R", "right wheel uses normal pill tails")
 end
 
 -- Options: rebind live
@@ -728,6 +739,20 @@ do
     DialogueWheelE_BookScale, DialogueWheelE_BookLook, DialogueWheelE_BookPos = nil, nil, nil
     M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
 end
+-- Plaques : pierre / bronze -> page seule sur une plaque de cette matiere, meme a plusieurs pages.
+do
+    local savedMat = ItemTextGetMaterial
+    for _, mat in ipairs({ "Stone", "Bronze" }) do
+        ItemTextGetMaterial = function() return mat end
+        M.book = { title = "Here lies a hero", pages = { "Rest in peace.", "Second page." } }
+        M.bookPage = 1
+        M.FireEvent("ITEM_TEXT_BEGIN"); M.FireEvent("ITEM_TEXT_READY"); M.RunTimers()
+        check(DWE.BookLook() == "note", mat .. " plaque shown as a single page")
+        check(DWE.textBox:IsShown(), mat .. " plaque visible")
+        M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
+    end
+    ItemTextGetMaterial = savedMat
+end
 -- Aspect "livre" (plusieurs pages) : double page, a gauche de l'ecran, boutons en ligne
 do
     local long = ("The ancient kingdom of Azjol-Nerub was founded by spiders. "):rep(8)
@@ -861,7 +886,7 @@ check(wheelBg() == 0 and DWE.GetRow(2 + OFF).text._color == "1.00,0.88,0.15" and
 -- Regression : apres un theme a fond calcule (DialogueUI), passer a une bulle puis
 -- redimensionner ne doit pas faire revenir l'ancien fond derriere la roue.
 DialogueWheelE_WheelTheme = true
-for _, th in ipairs(DialogueWheelE_LocalDUI and { "dui_dark", "dui_brown", "arcane" } or { "arcane" }) do
+for _, th in ipairs(DWE.DUI_ON and { "dui_dark", "dui_brown", "arcane" } or { "arcane" }) do
     DialogueWheelE_Theme = th
     DWE.OnThemeChanged()
     check(wheelBg() > 0, "mix test: " .. th .. " drawn behind the wheel")
@@ -878,7 +903,7 @@ DialogueWheelE_WheelTheme = false
 DialogueWheelE_ThemeFrames = nil
 DialogueWheelE_WheelTheme = true
 for id, sk in pairs(DWE.BUBBLE_SKINS) do
-    if sk.art and (DialogueWheelE_LocalDUI or not id:find("^dui_")) then
+    if sk.art and (DWE.DUI_ON or not id:find("^dui_")) then
         DialogueWheelE_Theme = id
         DWE.OnThemeChanged()
         check(wheelBg() == 0 and pillsShown() == #DWE.currentOptions, "bubble mode " .. id .. ": choice bubbles, no block")
@@ -1224,8 +1249,12 @@ if withSpoken then
     DialogueWheelE_Theme = "velin"
     skin.clip = { present = { bullet = "book" } }
     DialogueWheelE_BookStyle = "dui"
+    DWE.lastBookStyle = "dui"
     check(DWE.SpokenThemeOverride() == nil, "DUI book: Spoken player keeps DialogueUI's look")
+    DWE.lastBookStyle = "blizzard"
+    check(DWE.SpokenThemeOverride() ~= nil, "game window: Spoken player follows the addon theme")
     DialogueWheelE_BookStyle = nil
+    DWE.lastBookStyle = nil
     check(DWE.SpokenThemeOverride() ~= nil, "addon books: Spoken player follows the addon theme")
     skin.clip = { present = {} }
     DialogueWheelE_BookStyle = "dui"

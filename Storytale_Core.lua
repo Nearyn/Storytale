@@ -176,6 +176,13 @@ DWE.chooseHeader = chooseHeader
 -- Chaque theme : fond uni + bordure (bg/border), ou texture en 3 bandes (haut / milieu
 -- etire / bas) decrites par leurs coordonnees verticales dans la texture (bands).
 -- cap = hauteur affichee des bandes haut et bas. inset = marges autour du texte.
+-- Themes DialogueUI : ils utilisent les images de l'addon DialogueUI installe chez le joueur
+-- (lues dans son dossier, jamais copiees dans Storytale) et n'existent que s'il est charge.
+DWE.DUI_ART = "Interface\\AddOns\\DialogueUI\\Art\\"
+do
+    local loaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+    DWE.DUI_ON = loaded and loaded("DialogueUI") and true or false
+end
 local THEME_STYLES = {
     dark = {
         bg = { 0.05, 0.05, 0.07, 0.82 },
@@ -280,7 +287,7 @@ local THEME_STYLES = {
         hdr = { 1, 0.82, 0 }, body = { 0.95, 0.92, 0.85 }, shadow = 1,
     },
     dui_brown = {
-        tex = ADDON_PATH .. "ParchmentDUIBrown.png",
+        tex = DWE.DUI_ART .. "Theme_Brown\\Parchment.png", -- image de DialogueUI installe (non distribuee)
         coord = { 0, 1, 0, 0.53 },
         -- Part transparente de chaque bord de l'image (gauche, haut, droite, bas) : le cadre
         -- est calcule pour laisser `margin` de papier autour du texte, quelle que soit sa taille.
@@ -293,7 +300,7 @@ local THEME_STYLES = {
         shadow = 0,
     },
     dui_dark = {
-        tex = ADDON_PATH .. "ParchmentDUIDark.png",
+        tex = DWE.DUI_ART .. "Theme_Dark\\Parchment.png",
         coord = { 0, 1, 0, 0.53 },
         -- Part transparente de chaque bord de l'image (gauche, haut, droite, bas) : le cadre
         -- est calcule pour laisser `margin` de papier autour du texte, quelle que soit sa taille.
@@ -318,7 +325,7 @@ local BOOK_THEMES = {
 local function CurrentTheme()
     if DialogueWheelE_Theme == "scroll" then DialogueWheelE_Theme = "parchment" end -- theme retire
     local t = DialogueWheelE_Theme or "bubble"
-    if (t == "dui_brown" or t == "dui_dark") and not rawget(_G, "DialogueWheelE_LocalDUI") then t = "bubble" end
+    if (t == "dui_brown" or t == "dui_dark") and not DWE.DUI_ON then t = "bubble" end
     if DWE.bookMode and not BOOK_THEMES[t] then return "velin" end
     return t
 end
@@ -379,7 +386,7 @@ local BUBBLE_SKINS = {
 local BUBBLE_ART = {
     dark = "Veil", glass = "Glass", halo = "Halo", inkgold = "Ink", velin = "Velin", arcane = "Arcane",
     sylvan = "Sylvan", starry = "Starry", parchment = "Parch", parchment_dark = "ParchDark",
-    dui_brown = "DUIBrown", dui_dark = "DUIDark", folio = "Folio", folio_dark = "FolioDark",
+    dui_brown = "Folio", dui_dark = "FolioDark", folio = "Folio", folio_dark = "FolioDark",
 }
 for id, art in pairs(BUBBLE_ART) do
     BUBBLE_SKINS[id] = { bubble = id, pill = art, art = art, optFont = true,
@@ -627,6 +634,7 @@ function DWE.ApplyTextTheme()
     textBody:SetJustifyH(just)
     local shadow = cfg and cfg.shadow or 1
     textHeader:SetTextColor(unpack(cfg and cfg.hdr or { 1, 0.85, 0.15 }))
+    textHeader:SetShadowColor(0, 0, 0, 1)
     textHeader:SetShadowOffset(shadow, -shadow)
     textBody:SetShadowOffset(shadow, -shadow)
     ApplyBodyColor()
@@ -714,7 +722,7 @@ end
 -- Faut-il masquer ? alwaysWithWheel = vrai pour les fenetres Blizzard.
 -- Livre affiche par l'addon : le texte est montre sauf si le joueur passe a la vue "Spoken".
 function DWE.BookByAddon()
-    return DWE.bookMode and (DialogueWheelE_BookStyle or "addon") == "addon"
+    return DWE.bookMode and DWE.BookStyleNow() == "addon"
 end
 function DWE.TextWanted()
     if DWE.BookByAddon() then return not DWE.bookSpokenView end
@@ -850,7 +858,11 @@ local SPOKEN_PALETTE_OF = {
 -- le lecteur Spoken garde son propre habillage (celui de DialogueUI), comme le livre.
 local spokenSkinRef
 local function SpokenBookLeftAlone()
-    if (DialogueWheelE_BookStyle or "addon") == "addon" then return false end
+    -- Seul le livre DialogueUI garde l'habillage DialogueUI ; fenetre du jeu = theme Storytale.
+    local style = (DWE.bookMode and DWE.BookStyleNow()) or DWE.lastBookStyle or DWE.BookStyleNow()
+    if style ~= "dui" then return false end
+    local duiBook = rawget(_G, "DUIBookFrame")
+    if type(duiBook) == "table" and duiBook.IsShown and duiBook:IsShown() then return true end
     local clip = spokenSkinRef and spokenSkinRef.clip
     local present = type(clip) == "table" and clip.present
     return type(present) == "table" and (present.material ~= nil or present.bullet == "book")
@@ -867,7 +879,23 @@ end
 -- Pour la fenetre Spoken, les bulles empruntent le style d'un theme "bloc".
 local SPOKEN_STYLE_ALIAS = { bubble = "dark", bubble_fantasy = "parchment", whisper = "glass", cinema = "transparent" }
 local function SpokenStyle()
-    if DWE.BookByAddon() then return "bookpaper" end
+    if DWE.BookByAddon() then
+        -- Plaque : sa propre matiere, en petite taille (texture S a moitie, marges divisees par 2).
+        local mat = DWE.BookLook() == "note" and DWE.PlateMaterial()
+        local pl = mat and DWE.PLATES[mat]
+        if not pl then return "bookpaper" end
+        local id = "plate_" .. mat
+        if not THEME_STYLES[id] then
+            local sl = pl.slice
+            local h = { math.floor(sl[1] / 2), math.floor(sl[2] / 2), math.floor(sl[3] / 2), math.floor(sl[4] / 2) }
+            THEME_STYLES[id] = {
+                tex = ADDON_PATH .. pl.tex .. "S.png", slice = h,
+                pad = { h[1] + 14, h[2] + 10, h[3] + 14, h[4] + 10 },
+                tint = { 1, 1, 1, 1 }, div = pl.rule, hdr = pl.hdr, body = pl.body, shadow = 0,
+            }
+        end
+        return id
+    end
     local t = CurrentTheme()
     return SPOKEN_STYLE_ALIAS[t] or t
 end
@@ -941,7 +969,12 @@ function DWE.HookSpoken()
         local copies = {}
         skin.Look = function(self, ...)
             local look = origLook(self, ...)
-            local quest = skin.art and skin.art.LOOKS and skin.art.LOOKS.quest
+            local looks = skin.art and skin.art.LOOKS
+            local quest = looks and looks.quest
+            -- Livre de DialogueUI ouvert : le lecteur prend sa page (metal pour les plaques).
+            if look == quest and SpokenBookLeftAlone() and type(looks) == "table" then
+                return ((DWE.RawPlate() or DWE.lastPlate) and looks.stone or looks.paper) or look
+            end
             if not DWE.SpokenThemeOverride() or type(quest) ~= "table" then return look end
             local shadow = SpokenTextShadow()
             if not copies[shadow] then
@@ -990,7 +1023,7 @@ function DWE.PaintSpokenSubtitle()
         hooksecurefunc(sub, "Layout", function() DWE.PaintSpokenSubtitle() end)
     end
     subParts = subParts or CreateThemeParts(fr, fr:GetFrameLevel())
-    if DWE.bookMode and (DialogueWheelE_BookStyle or "addon") == "addon" then
+    if DWE.bookMode and DWE.BookStyleNow() == "addon" then
         PaintThemeParts(subParts, anchor, nil, "bookpaper_dark")
     else
         ClearThemeParts(subParts)
@@ -1157,10 +1190,55 @@ StyleText(textBody2, 0.17, 0.10, 0.04)
 textBody2:Hide()
 DWE.textBody2 = textBody2
 
+-- Plaques (textes graves) : le jeu donne la matiere du texte. Pierre, marbre, bronze et argent
+-- s'affichent sur une plaque de cette matiere, toujours en page seule.
+DWE.PLATES = {
+    Stone = { tex = "PlateStone", slice = { 59, 61, 61, 61 }, body = { 0.16, 0.16, 0.16 }, hdr = { 0.10, 0.10, 0.10 }, rule = { 0.20, 0.20, 0.20, 0.45 }, engrave = { 1, 1, 1, 0.55 } },
+    Marble = { tex = "PlateMarble", slice = { 62, 66, 62, 67 }, body = { 0.22, 0.22, 0.25 }, hdr = { 0.14, 0.14, 0.17 }, rule = { 0.35, 0.35, 0.40, 0.45 }, engrave = { 1, 1, 1, 0.6 } },
+    Bronze = { tex = "PlateBronze", slice = { 68, 68, 68, 66 }, body = { 0.20, 0.13, 0.03 }, hdr = { 0.14, 0.09, 0.02 }, rule = { 0.30, 0.20, 0.05, 0.45 }, engrave = { 1, 0.94, 0.75, 0.55 } },
+    Silver = { tex = "PlateSilver", slice = { 48, 48, 48, 55 }, body = { 0.16, 0.17, 0.19 }, hdr = { 0.10, 0.11, 0.13 }, rule = { 0.25, 0.26, 0.30, 0.45 }, engrave = { 1, 1, 1, 0.6 } },
+}
+function DWE.RawPlate()
+    if DWE.testPlate and (DWE.bookMode or (ItemTextGetMaterial and ItemTextGetMaterial())) then
+        DWE.lastPlate = DWE.testPlate
+        return DWE.testPlate
+    end
+    if not ItemTextGetMaterial then return nil end
+    -- Le jeu ne donne la matiere que tant que son texte est ouvert : on la garde pour la suite
+    -- du meme texte (le lecteur Spoken se redessine apres).
+    local ok, m = pcall(ItemTextGetMaterial)
+    if ok and type(m) == "string" and m ~= "" then
+        -- Matiere choisie dans les options pour toutes les plaques (sinon celle du jeu).
+        local pick = DialogueWheelE_PlateLook
+        if DWE.PLATES[m] and pick and DWE.PLATES[pick] then m = pick end
+        DWE.lastPlate = DWE.PLATES[m] and m or nil
+        return DWE.lastPlate
+    end
+    return DWE.bookMode and DWE.lastPlate or nil
+end
+function DWE.PlateMaterial()
+    if not DWE.BookByAddon() then return nil end
+    return DWE.RawPlate()
+end
+-- Qui affiche le texte en cours : "addon", "dui" ou "blizzard". Les plaques ont leur propre
+-- reglage (DialogueUI seulement s'il est installe).
+function DWE.BookStyleNow()
+    if DWE.RawPlate() then
+        local ps = DialogueWheelE_PlateStyle or "addon"
+        if ps == "dui" then
+            local loaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+            if not (loaded and loaded("DialogueUI")) then ps = "addon" end
+        end
+        return ps
+    end
+    return DialogueWheelE_BookStyle or "addon"
+end
+
 -- "book" (livre ouvert), "note" (page seule), "frame" (cadre du theme) ou nil (pas un livre).
 -- Automatique : plusieurs pages = livre, une seule = note.
 function DWE.BookLook()
     if not DWE.BookByAddon() then return nil end
+    if DWE.PlateMaterial() then return "note" end
     local pref = DialogueWheelE_BookLook or "auto"
     if pref == "note" or pref == "book" or pref == "frame" then return pref end
     local bi = DWE.bookInfo
@@ -1190,12 +1268,23 @@ local function BookPosition()
     -- de l'ecran ; reglage de reference fait sur un ecran large).
     local okW, uw = pcall(UIParent.GetWidth, UIParent)
     uw = (okW and type(uw) == "number") and uw or 1600
-    local sc = DWE.BookScaleWanted()
     textBox:ClearAllPoints()
+    if textBox.dweBook == "note" then
+        -- Notes et plaques : la place choisie par l'auteur (a droite, un peu au-dessus du milieu).
+        local ns = DWE.NoteScale()
+        textBox:SetPoint("RIGHT", UIParent, "RIGHT", -417 / ns, 102 / ns)
+        return
+    end
+    local sc = DWE.BookScaleWanted()
     textBox:SetPoint("RIGHT", UIParent, "RIGHT", -(uw * 0.2) / sc, 63 / sc)
 end
 
 -- Echelle du livre ouvert (poignee du coin). Le coin haut-gauche reste en place.
+-- Taille des notes et plaques (poignee), a part de celle des livres ouverts.
+function DWE.NoteScale()
+    local v = tonumber(DialogueWheelE_NoteScale)
+    return (v and v >= 0.6 and v <= 2) and v or 0.77 -- taille par defaut : 77 %
+end
 function DWE.BookScaleWanted()
     local v = tonumber(DialogueWheelE_BookScale)
     return (v and v >= 0.5 and v <= 2) and v or 0.75 -- taille par defaut : 75 %
@@ -1326,15 +1415,48 @@ local function LayoutNote()
     bookL:Hide()
     textBody2:Hide()
     textBox.dweBook = "note"
-    DWE.SetBookScale(1)
+    DWE.SetBookScale(DWE.NoteScale())
     textBox:SetWidth(NOTE_W)
     MorpheusTitle()
     textHeader:ClearAllPoints()
     textHeader:SetPoint("TOPLEFT", textBox, "TOPLEFT", 0, -2)
     textHeader:SetPoint("TOPRIGHT", textBox, "TOPRIGHT", 0, -2)
     textHeader:SetJustifyH("CENTER")
-    textHeader:SetTextColor(0.24, 0.13, 0.05)
-    textHeader:SetShadowOffset(0, 0)
+    local plate = DWE.PLATES[DWE.PlateMaterial() or ""]
+    local bodyC = plate and plate.body or { 0.17, 0.10, 0.04 }
+    local hdrC = plate and plate.hdr or { 0.24, 0.13, 0.05 }
+    local ruleC = plate and plate.rule or { 0.42, 0.26, 0.10, 0.55 }
+    textHeader:SetTextColor(hdrC[1], hdrC[2], hdrC[3])
+    NOTE.noteText:SetTextColor(bodyC[1], bodyC[2], bodyC[3])
+    -- Texte grave : un liseré clair en bas a droite des lettres sombres.
+    local eg = plate and plate.engrave
+    for _, fs in ipairs({ textHeader, NOTE.noteText }) do
+        if eg then
+            fs:SetShadowColor(eg[1], eg[2], eg[3], eg[4])
+            fs:SetShadowOffset(1, -1)
+        else
+            fs:SetShadowColor(0, 0, 0, 1)
+            fs:SetShadowOffset(0, 0)
+        end
+    end
+    noteRule:SetColorTexture(ruleC[1], ruleC[2], ruleC[3], ruleC[4])
+    NOTE.noteThumb:SetColorTexture(ruleC[1], ruleC[2], ruleC[3], 0.5)
+    local texName = plate and plate.tex or "BookPaper"
+    if noteBg.dweTex ~= texName then
+        noteBg.dweTex = texName
+        noteBg:SetTexture(ADDON_PATH .. texName .. ".png")
+        if noteBg.SetTextureSliceMargins then
+            local sl = plate and plate.slice or { 90, 90, 90, 90 }
+            pcall(noteBg.SetTextureSliceMargins, noteBg, sl[1], sl[2], sl[3], sl[4])
+        end
+    end
+    -- Marges autour du texte : celles de la page, ou le cadre de la plaque plus un peu d'air.
+    local padL, padT, padR, padB = NOTE_PAD_X, NOTE_PAD_Y, NOTE_PAD_X, NOTE_PAD_Y
+    if plate then
+        local sl = plate.slice
+        padL, padT, padR, padB = sl[1] + 22, sl[2] + 18, sl[3] + 22, sl[4] + 18
+    end
+    textBox.dwePadB = padB
     local title = DWE.rawHeader or textHeader:GetText() or ""
     local plain, page = title:match("^(.-)%s*%((%d+/%d+)%)$")
     if plain then textHeader:SetText(plain) end
@@ -1346,8 +1468,16 @@ local function LayoutNote()
     notePage:Hide()
     -- Tout le texte dans une zone qui defile (pas de pages).
     textBody:Hide()
+    -- Plaque/page reduite : la police grossit pour rester lisible (comme les livres).
     local font, size = textBody:GetFont()
-    if font then pcall(NOTE.noteText.SetFont, NOTE.noteText, font, size or 13, "") end
+    local nsc = DWE.NoteScale()
+    local nbase = tonumber(DialogueWheelE_FontSize) or size or 13
+    local nsz = nsc < 0.98 and math.floor(nbase / (nsc ^ 0.9) + 0.5) or nbase
+    if font then pcall(NOTE.noteText.SetFont, NOTE.noteText, font, nsz, "") end
+    local hFont, hSize = textHeader:GetFont()
+    if nsc < 0.98 and hFont and hSize and not DWE.IS_CJK then
+        SafeSetFont(textHeader, hFont, math.floor(hSize / (nsc ^ 0.6) + 0.5))
+    end
     local body = DWE.bookRawBody or ""
     if NOTE.noteText.dweLast ~= body then
         NOTE.noteText.dweLast = body
@@ -1367,10 +1497,10 @@ local function LayoutNote()
     textBox.dweGripAnchor, textBox.dweGripX, textBox.dweGripY = noteBg, 0, 0
     textBox.dweNoGrip = nil
     noteBg:ClearAllPoints()
-    noteBg:SetPoint("TOPLEFT", textBox, "TOPLEFT", -NOTE_PAD_X, NOTE_PAD_Y)
-    noteBg:SetPoint("BOTTOMRIGHT", textBox, "BOTTOMRIGHT", NOTE_PAD_X, -NOTE_PAD_Y)
+    noteBg:SetPoint("TOPLEFT", textBox, "TOPLEFT", -padL, padT)
+    noteBg:SetPoint("BOTTOMRIGHT", textBox, "BOTTOMRIGHT", padR, -padB)
     noteBg:Show()
-    if textBox.SetHitRectInsets then textBox:SetHitRectInsets(-NOTE_PAD_X, -NOTE_PAD_X, -NOTE_PAD_Y, -NOTE_PAD_Y) end
+    if textBox.SetHitRectInsets then textBox:SetHitRectInsets(-padL, -padR, -padT, -padB) end
     DWE.SetGripCorner(textBox, "BOTTOMRIGHT")
     BookPosition()
 end
@@ -1496,6 +1626,7 @@ local function LayoutBook()
     textHeader:SetWidth(BOOK_COL)
     textHeader:SetJustifyH("LEFT")
     textHeader:SetTextColor(0.40, 0.16, 0.04)
+    textHeader:SetShadowColor(0, 0, 0, 1)
     textHeader:SetShadowOffset(0, 0)
     MorpheusTitle()
     textBody:ClearAllPoints()
@@ -1645,7 +1776,7 @@ function DWE.UpdateBookBar()
     SetWheelHidden(true)
     bookBar:ClearAllPoints()
     local below = (textBox.dweBook == true and (BOOK_H - BOOK_TOP - BOOK_TEXT_H + 4))
-        or (textBox.dweBook == "note" and (NOTE_PAD_Y + 6)) or 26
+        or (textBox.dweBook == "note" and ((textBox.dwePadB or NOTE_PAD_Y) + 6)) or 26
     bookBar:SetPoint("TOP", textBox, "BOTTOM", 0, -below)
     local x = 0
     for i, opt in ipairs(DWE.currentOptions) do
@@ -1824,9 +1955,13 @@ function DWE.RestorePosition()
     if p and p.x then
         choiceBox:SetPoint(p.point, UIParent, p.relPoint, p.x, p.y)
     else
-        choiceBox:SetPoint("TOPLEFT", UIParent, "CENTER", 170, 80)
+        if DWE.WheelLeft() then
+            choiceBox:SetPoint("TOPRIGHT", UIParent, "CENTER", -170, 80)
+        else
+            choiceBox:SetPoint("TOPLEFT", UIParent, "CENTER", 170, 80)
+        end
     end
-    DWE.SetGripCorner(choiceBox, p and p.x and p.point or "TOPLEFT")
+    DWE.SetGripCorner(choiceBox, p and p.x and p.point or (DWE.WheelLeft() and "TOPRIGHT" or "TOPLEFT"))
 end
 
 function DWE.SaveTextPosition()
@@ -1868,6 +2003,8 @@ local maskedFrames = {}  -- plaques rendues invisibles par l'addon
 -- Ecarts a une distance de camera de reference ; ils grandissent quand on zoome et
 -- rapetissent quand on dezoome, comme le PNJ a l'ecran (voir ZoomFactor).
 -- wheelY : milieu de la roue (au niveau du bras). v : version du format des ecarts.
+-- Cote de la roue par rapport au PNJ (option) : droite par defaut.
+function DWE.WheelLeft() return DialogueWheelE_WheelSide == "left" end
 local NPC_OFFSET_DEFAULT = { wheelX = 130, wheelY = -150, textX = -45, textY = -70, bubbleX = 0, bubbleY = -5, v = 4 }
 local function NPCOffset()
     local o = DialogueWheelE_NPCOffset
@@ -2117,15 +2254,18 @@ local function AnchorTo(plate)
             wy = math.min(wy, o.bubbleY * k - closeDrop - 10 - wh / 2)
         end
     end
+    -- Roue a gauche : tout est en miroir (roue a gauche, texte a droite du PNJ).
+    local m = DWE.WheelLeft() and -1 or 1
     choiceBox:ClearAllPoints()
-    choiceBox:SetPoint("LEFT", plate, "CENTER", o.wheelX * k / ws, wy / ws)
+    choiceBox:SetPoint(m == 1 and "LEFT" or "RIGHT", plate, "CENTER", m * o.wheelX * k / ws, wy / ws)
     if not DWE.IsCinema() then
+        local tp = m == 1 and "BOTTOMRIGHT" or "BOTTOMLEFT"
         textBox:ClearAllPoints()
-        textBox:SetPoint("BOTTOMRIGHT", plate, "CENTER", o.textX * k / ts, (o.textY * k - closeDrop) / ts)
-        DWE.SetGripCorner(textBox, "BOTTOMRIGHT")
+        textBox:SetPoint(tp, plate, "CENTER", m * o.textX * k / ts, (o.textY * k - closeDrop) / ts)
+        DWE.SetGripCorner(textBox, tp)
     end
-    DWE.SetGripCorner(choiceBox, "TOPLEFT")
-    if DWE.Bubble then DWE.Bubble.Pin(plate, o.bubbleX * k / bs, (o.bubbleY * k - closeDrop) / bs) end
+    DWE.SetGripCorner(choiceBox, m == 1 and "TOPLEFT" or "TOPRIGHT")
+    if DWE.Bubble then DWE.Bubble.Pin(plate, m * o.bubbleX * k / bs, (o.bubbleY * k - closeDrop) / bs) end
 end
 
 local function Unpin()
@@ -2189,7 +2329,8 @@ local function UpdateDrag()
     local o = DialogueWheelE_NPCOffset
     NPCOffset()
     local k = (follow.zoomF or 1) * (follow.sizeF or 1)
-    o[dragging.which .. "X"] = dragging.ox + (cx - dragging.cx) / k
+    local m = DWE.WheelLeft() and -1 or 1
+    o[dragging.which .. "X"] = dragging.ox + m * (cx - dragging.cx) / k
     o[dragging.which .. "Y"] = dragging.oy + (cy - dragging.cy) / k
     pcall(AnchorTo, follow.plate)
 end
@@ -2203,7 +2344,7 @@ end
 function DWE.ResetNPCOffset()
     DialogueWheelE_NPCOffset = nil
     DialogueWheelE_BookPos = nil
-    DialogueWheelE_BookScale = nil
+    DialogueWheelE_BookScale, DialogueWheelE_NoteScale = nil, nil
     DialogueWheelE_TextW, DialogueWheelE_TextH = nil, nil
     DialogueWheelE_WheelWidth, DialogueWheelE_BubbleWidth = nil, nil
     DWE.ApplyScale()
@@ -2246,11 +2387,21 @@ end
 local function GripAlpha(g)
     if g.hover or g.resize then return 1 end
     local f = g:GetParent()
-    return (f and f.dweHover) and 0.6 or 0
+    -- Toujours un peu visible (sinon on ne sait pas qu'on peut redimensionner), plus au survol.
+    return (f and f.dweHover) and 1 or 0.55
 end
 local function RefreshGrip(frame)
     local g = frame and frame.dweGrip
-    if g then g:SetAlpha(GripAlpha(g)) end
+    if g then
+        g:SetAlpha(GripAlpha(g))
+        -- Survol de la fenetre : triangle bleu brillant, bien visible.
+        local hot = g.hover or g.resize or (frame.dweHover and true)
+        local t = g:GetNormalTexture()
+        if t then
+            if hot then t:SetVertexColor(0.35, 0.8, 1) else t:SetVertexColor(1, 1, 1) end
+            t:SetBlendMode(hot and "ADD" or "BLEND")
+        end
+    end
 end
 -- A appeler sur OnEnter / OnLeave du cadre et de ses lignes (passer d'un cadre a une de ses
 -- lignes declenche OnLeave puis OnEnter : la mise a jour est donc legerement differee).
@@ -2274,12 +2425,12 @@ function DWE.MakeResizeGrip(frame, spec)
     frame.dweGrip = g
     grips[#grips + 1] = g
     g.dweIsGrip = true
-    g:SetSize(16, 16)
+    g:SetSize(20, 20)
     g:SetFrameLevel(frame:GetFrameLevel() + 20)
     g:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
     g:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
     g:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
-    g:SetAlpha(0)
+    g:SetAlpha(0.55)
     -- Survol suivi par OnEnter/OnLeave : IsMouseOver est interdit quand le cadre est
     -- accroche a une plaque de nom.
     g:SetScript("OnEnter", function(self) self.hover = true; self:SetAlpha(1) end)
@@ -2325,12 +2476,26 @@ DWE.MakeResizeGrip(choiceBox, {
 DWE.MakeResizeGrip(textBox, {
     get = function()
         if textBox.dweBook == true then return BOOK_W * DWE.BookScaleWanted(), 0 end
+        if textBox.dweBook == "note" then return NOTE_W * DWE.NoteScale(), 0 end
         return textBox.dweW or 380, 0
     end,
     done = function()
-        if textBox.dweBook == true then DWE.bookRelayoutT = nil; DWE.UpdateTextPanelVisuals() end
+        if textBox.dweBook == true or textBox.dweBook == "note" then
+            DWE.bookRelayoutT = nil; DWE.UpdateTextPanelVisuals()
+        end
     end,
     set = function(w)
+        if textBox.dweBook == "note" then
+            DialogueWheelE_NoteScale = math.floor(Clamp(w / NOTE_W, 0.6, 2) * 100 + 0.5) / 100
+            DWE.SetBookScale(DialogueWheelE_NoteScale, true)
+            DWE.SetGripCorner(textBox, "BOTTOMRIGHT")
+            local now = GetTime and GetTime() or 0
+            if not DWE.bookRelayoutT or now - DWE.bookRelayoutT > 0.1 then
+                DWE.bookRelayoutT = now
+                DWE.UpdateTextPanelVisuals()
+            end
+            return
+        end
         if textBox.dweBook == true then
             DialogueWheelE_BookScale = math.floor(Clamp(w / BOOK_W, 0.5, 2) * 100 + 0.5) / 100
             DWE.SetBookScale(DialogueWheelE_BookScale, true)
@@ -2556,21 +2721,34 @@ local function SkinPill(frame, style, selected, tail)
     end
     local shapeId = (tail == false and "none") or (tail and "left") or "down"
     local shape = PILL_SHAPES[shapeId]
-    local name = PILL_TEX[style][selected and "selected" or "normal"] .. shape.suffix
+    -- Roue a gauche du PNJ : encoches tournees vers la droite (images en miroir, suffixe R).
+    local mirror = shapeId ~= "none" and DWE.WheelLeft()
+    local name = PILL_TEX[style][selected and "selected" or "normal"] .. shape.suffix .. (mirror and "R" or "")
     local t = frame.dweTex
     if frame.dweTexPath ~= name then
         frame.dweTexPath = name
         t:SetTexture(ADDON_PATH .. name .. ".png")
         if t.SetTextureSliceMargins then
-            pcall(t.SetTextureSliceMargins, t, unpack(shape.slice))
+            local sl = shape.slice
+            if mirror then
+                pcall(t.SetTextureSliceMargins, t, sl[3], sl[2], sl[1], sl[4])
+            else
+                pcall(t.SetTextureSliceMargins, t, unpack(sl))
+            end
             if t.SetTextureSliceMode then pcall(t.SetTextureSliceMode, t, 0) end
         end
     end
-    if frame.dweShape ~= shapeId then
-        frame.dweShape = shapeId
+    local shapeKey = shapeId .. (mirror and "R" or "")
+    if frame.dweShape ~= shapeKey then
+        frame.dweShape = shapeKey
         t:ClearAllPoints()
-        t:SetPoint("TOPLEFT", frame, "TOPLEFT", -shape.left, 0)
-        t:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, -shape.bottom)
+        if mirror then
+            t:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+            t:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", shape.left, -shape.bottom)
+        else
+            t:SetPoint("TOPLEFT", frame, "TOPLEFT", -shape.left, 0)
+            t:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, -shape.bottom)
+        end
     end
     t:Show()
 end
@@ -2736,8 +2914,15 @@ local function PositionRows()
         if top and DWE.currentOptions[i] then
             local y = -(top - scroll.px)
             row:ClearAllPoints()
-            row:SetPoint("TOPLEFT", listClip, "TOPLEFT", LIST_PAD + 4, y)
-            row:SetPoint("TOPRIGHT", listClip, "TOPRIGHT", scroll.active and -14 or -4, y)
+            -- Roue a gauche du PNJ : encoches a droite et barre de defilement a gauche (miroir).
+            local barGap = scroll.active and 14 or 4
+            if DWE.WheelLeft() then
+                row:SetPoint("TOPLEFT", listClip, "TOPLEFT", barGap, y)
+                row:SetPoint("TOPRIGHT", listClip, "TOPRIGHT", -(LIST_PAD + 4), y)
+            else
+                row:SetPoint("TOPLEFT", listClip, "TOPLEFT", LIST_PAD + 4, y)
+                row:SetPoint("TOPRIGHT", listClip, "TOPRIGHT", -barGap, y)
+            end
             row:SetShown(not scroll.active or (-y + h > 0.5 and -y < scroll.view - 0.5))
         else
             row:Hide()
@@ -3052,13 +3237,18 @@ function DWE.UpdateVisualsInner()
         scroll.px = scroll.target
     end
 
+    local mirrored = DWE.WheelLeft()
     listClip:ClearAllPoints()
-    listClip:SetPoint("TOPLEFT", choiceBox, "TOPLEFT", -LIST_PAD, -topPad)
-    listClip:SetPoint("TOPRIGHT", choiceBox, "TOPRIGHT", 0, -topPad)
+    listClip:SetPoint("TOPLEFT", choiceBox, "TOPLEFT", mirrored and 0 or -LIST_PAD, -topPad)
+    listClip:SetPoint("TOPRIGHT", choiceBox, "TOPRIGHT", mirrored and LIST_PAD or 0, -topPad)
     listClip:SetHeight(view + (scroll.active and gap - 1 or 12))
     -- Rail de defilement cale exactement sur la zone visible des choix (ne depasse pas).
     scrollTrack:ClearAllPoints()
-    scrollTrack:SetPoint("TOPRIGHT", choiceBox, "TOPRIGHT", -3, -topPad - 3)
+    if mirrored then
+        scrollTrack:SetPoint("TOPLEFT", choiceBox, "TOPLEFT", 3, -topPad - 3)
+    else
+        scrollTrack:SetPoint("TOPRIGHT", choiceBox, "TOPRIGHT", -3, -topPad - 3)
+    end
     scrollTrack:SetHeight(math.max(10, view - 6))
     choiceBox:SetHeight(topPad + view + bottomPad)
     if not DWE.listDragging then AnimateScroll() end
@@ -3441,11 +3631,10 @@ local THEME_LIST = {
     { id = "folio", key = "THEME_FOLIO", thumb = "Folio" },
     { id = "folio_dark", key = "THEME_FOLIO_DARK", thumb = "FolioDark" },
 }
--- Themes DialogueUI : images de DialogueUI, non distribuees avec l'addon. Proposes seulement
--- si une copie locale les active (fichier Storytale_Local.lua : DialogueWheelE_LocalDUI = true).
-if rawget(_G, "DialogueWheelE_LocalDUI") then
-    THEME_LIST[#THEME_LIST + 1] = { id = "dui_brown", key = "THEME_DUI_BROWN", thumb = "DUIBrown" }
-    THEME_LIST[#THEME_LIST + 1] = { id = "dui_dark", key = "THEME_DUI_DARK", thumb = "DUIDark" }
+-- Themes DialogueUI : seulement avec DialogueUI installe (images lues dans son dossier).
+if DWE.DUI_ON then
+    THEME_LIST[#THEME_LIST + 1] = { id = "dui_brown", key = "THEME_DUI_BROWN", thumbTex = DWE.DUI_ART .. "Theme_Brown\\Parchment.png", thumbCoord = { 0.22, 0.78, 0.14, 0.34 } }
+    THEME_LIST[#THEME_LIST + 1] = { id = "dui_dark", key = "THEME_DUI_DARK", thumbTex = DWE.DUI_ART .. "Theme_Dark\\Parchment.png", thumbCoord = { 0.22, 0.78, 0.14, 0.34 } }
 end
 DWE.THEME_LIST = THEME_LIST
 
@@ -3454,7 +3643,7 @@ DWE.THEME_LIST = THEME_LIST
 DWE.OPTION_VARS = { "Pos", "TextPos", "Theme", "Font", "FontSize", "Scale", "Opacity", "ShowText",
     "UseBlizzKey", "InteractKey", "ToggleKey", "WheelScroll", "SpokenTheme", "AttachNPC", "NPCOffset",
     "WheelWidth", "TextW", "TextH", "BubbleWidth", "Locked", "WheelTheme", "EscClose", "BookStyle",
-    "ThemeFrames", "BookLook", "BookPos", "BookScale", "SpokenChoice", "ChoiceSize", "DefaultsV" }
+    "ThemeFrames", "BookLook", "BookPos", "BookScale", "NoteScale", "SpokenChoice", "ChoiceSize", "WheelSide", "PlateStyle", "PlateLook", "DefaultsV" }
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if ReloadUI then ReloadUI() end
@@ -3563,7 +3752,12 @@ function DWE.InitOptionsPanel()
         local cur = DialogueWheelE_Theme or "bubble"
         for _, t in ipairs(tiles) do
             local bubbleThumb = DWE.ThemeIsBubble(t.id) and BUBBLE_SKINS[t.id].art
-            t.img:SetTexture(ADDON_PATH .. "Thumbs\\" .. t.thumb .. (bubbleThumb and "Bubble" or "") .. ".png")
+            if t.thumbTex then
+                t.img:SetTexture(t.thumbTex)
+                t.img:SetTexCoord(unpack(t.thumbCoord))
+            else
+                t.img:SetTexture(ADDON_PATH .. "Thumbs\\" .. t.thumb .. (bubbleThumb and "Bubble" or "") .. ".png")
+            end
             if t.id == cur then
                 t:SetBackdropBorderColor(1, 0.82, 0.25, 1)
                 t.label:SetTextColor(1, 0.82, 0.25)
@@ -3582,10 +3776,15 @@ function DWE.InitOptionsPanel()
         t:SetPoint("TOPLEFT", 16 + col * (TILE_W + 16), gridTop - row * (TILE_H + 32))
         t:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 10 })
         local img = t:CreateTexture(nil, "ARTWORK")
-        t.img, t.thumb = img, info.thumb
+        t.img, t.thumb, t.thumbTex, t.thumbCoord = img, info.thumb, info.thumbTex, info.thumbCoord
         img:SetPoint("TOPLEFT", 3, -3)
         img:SetPoint("BOTTOMRIGHT", -3, 3)
-        img:SetTexture(ADDON_PATH .. "Thumbs\\" .. info.thumb .. ".png")
+        if info.thumbTex then
+            img:SetTexture(info.thumbTex)
+            img:SetTexCoord(unpack(info.thumbCoord))
+        else
+            img:SetTexture(ADDON_PATH .. "Thumbs\\" .. info.thumb .. ".png")
+        end
         local hl = t:CreateTexture(nil, "HIGHLIGHT")
         hl:SetAllPoints(img)
         hl:SetColorTexture(1, 1, 1, 0.12)
@@ -3650,47 +3849,97 @@ function DWE.InitOptionsPanel()
     ---------------------------------------------------------------- Livres et lettres
     y = y - 76
     AddSection(L.SEC_BOOKS, y)
-    AddText(L.BOOK_STYLE, 16, y - 32, "GameFontHighlightSmall")
+    -- Livres et lettres : qui les affiche, puis leur style (seulement pour Storytale).
+    AddText(L.BOOKS_HDR, 16, y - 32, "GameFontNormal")
+    AddText(L.BOOK_STYLE, 16, y - 54, "GameFontHighlightSmall")
+    local function Tip(cb, text)
+        if not (cb and text) then return end
+        cb:HookScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(text, 1, 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        cb:HookScript("OnLeave", function() GameTooltip:Hide() end)
+    end
     local bookStyleBoxes = AddGroup({
         { id = "addon", label = L.BOOK_ADDON },
         { id = "dui", label = L.BOOK_DUI },
         { id = "blizzard", label = L.BOOK_BLIZZ },
-    }, 16, y - 48, 26, DialogueWheelE_BookStyle or "addon", function(id)
+    }, 16, y - 70, 26, DialogueWheelE_BookStyle or "addon", function(id)
         DialogueWheelE_BookStyle = id
         if DWE.RefreshBookLookOptions then DWE.RefreshBookLookOptions() end
-    end)
-    -- Livre de DialogueUI : seulement si l'addon DialogueUI est actif.
+    end, 1, 160)
+    Tip(bookStyleBoxes[1], L.BOOK_ADDON_TIP)
+    -- DialogueUI : seulement si l'addon DialogueUI est actif.
     local duiOn = (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DialogueUI"))
         or (IsAddOnLoaded and IsAddOnLoaded("DialogueUI"))
-    if not duiOn and bookStyleBoxes[2] then
-        bookStyleBoxes[2]:Disable()
-        if bookStyleBoxes[2].Text then bookStyleBoxes[2].Text:SetTextColor(0.5, 0.5, 0.5) end
+    local function GreyDUI(boxes)
+        if not duiOn and boxes[2] then
+            boxes[2]:Disable()
+            if boxes[2].Text then boxes[2].Text:SetTextColor(0.5, 0.5, 0.5) end
+        end
     end
-    local bookLookLabel = AddText(L.BOOK_LOOK, 16, y - 132, "GameFontHighlightSmall")
+    GreyDUI(bookStyleBoxes)
+    local bookLookLabel = AddText(L.BOOK_LOOK, 16, y - 102, "GameFontHighlightSmall")
     local bookLookBoxes = AddGroup({
         { id = "auto", label = L.BOOK_LOOK_AUTO },
         { id = "note", label = L.BOOK_LOOK_NOTE },
         { id = "book", label = L.BOOK_LOOK_BOOK },
         { id = "frame", label = L.BOOK_LOOK_FRAME },
-    }, 16, y - 148, 26, DialogueWheelE_BookLook or "auto", function(id)
+    }, 16, y - 118, 26, DialogueWheelE_BookLook or "auto", function(id)
         DialogueWheelE_BookLook = id
         if DWE.bookMode and textBox:IsShown() then DWE.UpdateTextPanelVisuals() end
     end, 1, 150)
-    -- L'aspect des livres ne concerne que les livres affiches par cet addon : grise sinon.
+    -- Le style ne concerne que les livres affiches par Storytale : grise sinon.
     function DWE.RefreshBookLookOptions()
         local on = (DialogueWheelE_BookStyle or "addon") == "addon"
+        local c = on and 1 or 0.5
         for _, cb in ipairs(bookLookBoxes) do
             if on then cb:Enable() else cb:Disable() end
-            if cb.Text then cb.Text:SetTextColor(on and 1 or 0.5, on and 1 or 0.5, on and 1 or 0.5) end
+            if cb.Text then cb.Text:SetTextColor(c, c, c) end
         end
-        if bookLookLabel and bookLookLabel.SetTextColor then
-            bookLookLabel:SetTextColor(on and 1 or 0.5, on and 1 or 0.5, on and 1 or 0.5)
-        end
+        if bookLookLabel and bookLookLabel.SetTextColor then bookLookLabel:SetTextColor(c, c, c) end
     end
     DWE.RefreshBookLookOptions()
+    -- Plaques gravees : leur propre reglage.
+    AddText(L.PLATE_STYLE, 16, y - 156, "GameFontNormal")
+    AddText(L.BOOK_STYLE, 16, y - 178, "GameFontHighlightSmall")
+    local plateBoxes = AddGroup({
+        { id = "addon", label = L.PLATE_ADDON },
+        { id = "dui", label = L.BOOK_DUI },
+        { id = "blizzard", label = L.BOOK_BLIZZ },
+    }, 16, y - 194, 26, DialogueWheelE_PlateStyle or "addon", function(id)
+        DialogueWheelE_PlateStyle = (id ~= "addon") and id or nil
+        if DWE.RefreshPlateLookOptions then DWE.RefreshPlateLookOptions() end
+    end, 1, 160)
+    Tip(plateBoxes[1], L.PLATE_ADDON_TIP)
+    GreyDUI(plateBoxes)
+    local plateLookLabel = AddText(L.PLATE_LOOK, 16, y - 226, "GameFontHighlightSmall")
+    local plateLookBoxes = AddGroup({
+        { id = "auto", label = L.BOOK_LOOK_AUTO },
+        { id = "Stone", label = L.PLATE_STONE },
+        { id = "Marble", label = L.PLATE_MARBLE },
+        { id = "Bronze", label = L.PLATE_BRONZE },
+        { id = "Silver", label = L.PLATE_SILVER },
+    }, 16, y - 242, 26, DialogueWheelE_PlateLook or "auto", function(id)
+        DialogueWheelE_PlateLook = (id ~= "auto") and id or nil
+        if DWE.bookMode and textBox:IsShown() then DWE.UpdateTextPanelVisuals() end
+    end, 1, 110)
+    Tip(plateLookBoxes[1], L.PLATE_AUTO_TIP)
+    -- La matiere ne concerne que les plaques affichees par Storytale : grise sinon.
+    function DWE.RefreshPlateLookOptions()
+        local on = (DialogueWheelE_PlateStyle or "addon") == "addon"
+        local c = on and 1 or 0.5
+        for _, cb in ipairs(plateLookBoxes) do
+            if on then cb:Enable() else cb:Disable() end
+            if cb.Text then cb.Text:SetTextColor(c, c, c) end
+        end
+        if plateLookLabel and plateLookLabel.SetTextColor then plateLookLabel:SetTextColor(c, c, c) end
+    end
+    DWE.RefreshPlateLookOptions()
 
     ---------------------------------------------------------------- Placement
-    y = y - 194
+    y = y - 284
     AddSection(L.SEC_PLACE, y)
     AddCheck(L.ATTACH_NPC, 16, y - 32, DialogueWheelE_AttachNPC ~= false, function(self)
         DialogueWheelE_AttachNPC = self:GetChecked() and true or false
@@ -3706,9 +3955,19 @@ function DWE.InitOptionsPanel()
     resetBtn:SetSize(240, 24)
     resetBtn:SetText(L.NPC_RESET)
     resetBtn:SetScript("OnClick", function() DWE.ResetNPCOffset() end)
+    AddText(L.WHEEL_SIDE, 300, y - 72, "GameFontHighlightSmall")
+    AddGroup({
+        { id = "right", label = L.SIDE_RIGHT },
+        { id = "left", label = L.SIDE_LEFT },
+    }, 300, y - 88, 26, DialogueWheelE_WheelSide == "left" and "left" or "right", function(id)
+        DialogueWheelE_WheelSide = (id == "left") and "left" or nil
+        if not DialogueWheelE_Pos then DWE.RestorePosition() end
+        if choiceBox:IsShown() then DWE.UpdateVisuals() end
+        DWE.Repin()
+    end, 1, 120)
 
     ---------------------------------------------------------------- Commandes
-    y = y - 120
+    y = y - 150
     AddSection(L.SEC_KEYS, y)
     local keysY = y - 32
     local useBlizzCb = AddCheck(L.KEY_USE_BLIZZ, 16, keysY, DialogueWheelE_UseBlizzKey ~= false, nil)

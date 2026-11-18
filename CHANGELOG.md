@@ -1,5 +1,49 @@
 # Changelog / Journal des versions
 
+## 1.3.0
+
+**🇬🇧 English**
+
+### New
+- **Engraved plaques**: stone, marble, bronze and silver plaques now show on a matching plaque, with engraved text.
+- **Plaque options**: choose who displays plaques (Storytale, DialogueUI or the game window), and pick one material for every plaque or keep it automatic.
+- **Wheel side** option: show the choice wheel on the right or the left of the NPC.
+- Plaques and single pages can be **resized** with the corner grip; the text grows when they get small so it stays readable.
+- `/storytale plate stone|marble|bronze|silver|off` to preview a plaque material on the open text.
+
+### Improved
+- "Books, letters and plaques" options reorganised and shortened, with tooltips.
+- DialogueUI themes now use your installed DialogueUI's own art.
+- Resize grip easier to find: always visible when frames are unlocked, glowing blue on hover.
+- Spoken's player follows the plaque, the DialogueUI book or the game window correctly.
+- Chat messages now start with [Storytale].
+
+### Fixed
+- "Game window" now really opens the game's own window when DialogueUI is installed.
+- Close and Mute buttons no longer overlap the plaque.
+
+---
+
+**🇫🇷 Français**
+
+### Nouveautés
+- **Plaques gravées** : les plaques de pierre, marbre, bronze et argent s'affichent sur une plaque assortie, avec un texte gravé.
+- **Options des plaques** : choisis qui affiche les plaques (Storytale, DialogueUI ou la fenêtre du jeu), et une matière pour toutes les plaques ou le mode automatique.
+- Option **Côté de la roue** : roue des choix à droite ou à gauche du PNJ.
+- Les plaques et pages seules se **redimensionnent** avec la poignée du coin ; le texte grossit quand elles rapetissent pour rester lisible.
+- `/storytale plate stone|marble|bronze|silver|off` pour essayer une matière de plaque sur le texte ouvert.
+
+### Améliorations
+- Options « Livres, lettres et plaques » réorganisées et raccourcies, avec infobulles.
+- Les thèmes DialogueUI utilisent maintenant les images de ton DialogueUI installé.
+- Poignée de redimensionnement plus facile à trouver : toujours visible quand les fenêtres sont déverrouillées, bleue au survol.
+- Le lecteur Spoken suit correctement la plaque, le livre DialogueUI ou la fenêtre du jeu.
+- Les messages dans le chat commencent par [Storytale].
+
+### Corrections
+- « Fenêtre du jeu » ouvre vraiment la fenêtre du jeu quand DialogueUI est installé.
+- Les boutons Fermer et Couper la voix ne chevauchent plus la plaque.
+
 ## 1.2.0
 
 **🇬🇧 English**
