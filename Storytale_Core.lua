@@ -781,8 +781,8 @@ end
 local function ShouldHide(alwaysWithWheel, frame)
     if not (choiceBox:IsShown() or fadeHold) then return false end
     -- Un livre lu a voix haute sans son livre a l'ecran : le lecteur Spoken reste toujours visible.
-    if not alwaysWithWheel and DWE.SpokenFocus and DWE.SpokenFocus.BookSpeaking and DWE.SpokenFocus.BookSpeaking()
-        and not (DWE.BookOpenNow and DWE.BookOpenNow()) then
+    if not alwaysWithWheel and DWE.SpokenFocus and DWE.SpokenFocus.ForeignSpeaking
+        and DWE.SpokenFocus.ForeignSpeaking() then
         local okN, name = pcall(frame and frame.GetName or function() end, frame)
         local isDUI = okN and type(name) == "string" and name:find("^DUI")
         if not isDUI then return false end

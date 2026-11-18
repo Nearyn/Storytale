@@ -1,5 +1,23 @@
 # Changelog / Journal des versions
 
+## 1.3.7
+
+**🇬🇧 English**
+
+### Fixed
+- Spoken's player stays visible during a conversation when the voice playing belongs to another NPC (it only hides to avoid showing the same line twice).
+- A quest text is never cut, even if already heard: it plays to the end, then the next one.
+- Spoken's player no longer disappears for a moment when you close a conversation.
+
+---
+
+**🇫🇷 Français**
+
+### Corrections
+- Le lecteur Spoken reste visible pendant une conversation quand la voix en cours est celle d'un autre PNJ (il ne se cache que pour éviter d'afficher deux fois la même réplique).
+- Un texte de quête n'est jamais coupé, même déjà écouté : il va jusqu'au bout, puis le suivant.
+- Le lecteur Spoken ne disparaît plus un instant à la fermeture d'une conversation.
+
 ## 1.3.6
 
 **🇬🇧 English**

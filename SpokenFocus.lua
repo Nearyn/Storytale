@@ -214,6 +214,21 @@ function Focus.BookQueued(key)
     end
     return false
 end
+-- Une voix qui n'est pas celle du PNJ a qui l'on parle (un autre PNJ, ou un livre sans son
+-- livre a l'ecran) : le petit lecteur reste visible, ce n'est pas un doublon de la bulle.
+function Focus.ForeignSpeaking()
+    local api, queue = Env()
+    if not api or not queue then return false end
+    if api.IsPaused and api:IsPaused() then return false end
+    local now = queue.GetNowPlaying and queue:GetNowPlaying()
+    if not now then return false end
+    if IsBook(now) then return not (DWE.BookOpenNow and DWE.BookOpenNow()) end
+    -- Dialogue en train de se fermer (plus de PNJ ouvert) : rien a doublonner, on ne cache pas
+    -- (sinon le lecteur disparaissait un instant pendant le fondu de fermeture).
+    local npc = UnitName and UnitName("npc")
+    if npc == nil then return true end
+    return not Focus.IsCurrentNPC(now)
+end
 -- Test : oublie que les lignes du livre ouvert (dans la file de Spoken) ont ete ecoutees.
 function Focus.ForgetOpenBook()
     local h = rawget(_G, "DialogueWheelE_SpokenHeard")
@@ -372,9 +387,9 @@ function Focus.Install()
                 Log("greeting cut for quest text: " .. tostring(who))
                 pcall(queue.RemoveSoundFromQueue, queue, head)
             elseif talking and head and head ~= clip and SpeakerOf(head) ~= who and Focus.Heard(head)
-                and (clip.priority ~= "low" or (head.dweOrigPriority or head.priority) == "low") then
-                -- (Une salutation peut couper une salutation deja ecoutee, jamais une ligne de
-                -- quete : celle-ci finit et la salutation attend son tour.)
+                and (head.dweOrigPriority or head.priority) == "low" then
+                -- (Seule une salutation deja ecoutee peut etre coupee. Une ligne de quete ne l'est
+                -- jamais, meme deja ecoutee : elle finit, puis la suivante.)
                 -- Le PNJ qui parle redit une replique deja ecoutee en entier : on la coupe et elle
                 -- ne revient pas dans la file. Une replique jamais entendue, elle, finit d'abord.
                 Log("already heard, cut: " .. tostring(SpeakerOf(head)))
