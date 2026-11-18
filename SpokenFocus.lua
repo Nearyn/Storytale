@@ -221,7 +221,23 @@ function Focus.Install()
             -- de file par source pendant l'ajout.
             local limit = type(source) == "table" and source.queueLimit
             if limit then source.queueLimit = nil end
-            local r1, r2 = origAdd(self, clip, source, front)
+            -- Un livre attend dans la file : la replique du PNJ passe devant lui (sinon elle attend
+            -- derriere le livre retenu, d'ou un long silence). On le sort le temps de l'ajout.
+            local parked
+            if talking and type(clip) == "table" and not IsBook(clip) and type(self.sounds) == "table" then
+                local cur = self.GetCurrentSound and self:GetCurrentSound()
+                for i = #self.sounds, 1, -1 do
+                    local c = self.sounds[i]
+                    if c ~= cur and IsBook(c) then
+                        parked = parked or {}
+                        table.insert(parked, 1, table.remove(self.sounds, i))
+                    end
+                end
+                if parked then Log("line put before " .. #parked .. " waiting book line(s)") end
+            end
+            local okAdd, r1, r2 = pcall(origAdd, self, clip, source, front)
+            if parked then for _, c in ipairs(parked) do table.insert(self.sounds, c) end end
+            if not okAdd then error(r1, 0) end
             if limit then source.queueLimit = limit end
             if lowered then for _, l in ipairs(lowered) do l[1].priority = l[2] end end
             return r1, r2

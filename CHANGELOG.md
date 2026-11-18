@@ -1,5 +1,25 @@
 # Changelog / Journal des versions
 
+## 1.3.2
+
+**🇬🇧 English**
+
+### Improved
+- Spoken's word highlight on plaques now matches the material: gilded letters on stone, marble and silver, verdigris on bronze.
+
+### Fixed
+- A long silence before an NPC's next line when a book or plaque was waiting in Spoken's queue: the NPC now speaks first.
+
+---
+
+**🇫🇷 Français**
+
+### Améliorations
+- Surbrillance des mots de Spoken sur les plaques assortie à la matière : lettres dorées sur pierre, marbre et argent, vert-de-gris sur bronze.
+
+### Corrections
+- Long silence avant la réplique suivante d'un PNJ quand un livre ou une plaque attendait dans la file de Spoken : le PNJ parle maintenant en premier.
+
 ## 1.3.1
 
 **🇬🇧 English**

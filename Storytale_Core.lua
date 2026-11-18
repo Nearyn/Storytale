@@ -883,6 +883,14 @@ function DWE.SpokenStamp()
     if type(clip) ~= "table" or not clip.dweStamp or DWE.BookOpenNow() then return nil end
     return clip.dweStamp
 end
+-- Mot lu par Spoken sur une plaque de l'addon : couleur propre a la matiere (neutre, aucun camp).
+DWE.PLATE_MARK = { Stone = "|cff7a5a1e", Marble = "|cff8c6a1a", Silver = "|cff6e5418", Bronze = "|cff1f4a3a" }
+function DWE.SpokenPlateMat()
+    local st = DWE.SpokenStamp()
+    if st then return st.override and st.mat or nil end
+    if DWE.BookByAddon() and DWE.BookLook() == "note" then return DWE.PlateMaterial() end
+    return nil
+end
 function DWE.SpokenThemeOverride()
     local st = DWE.SpokenStamp()
     if st then return st.override end
@@ -949,6 +957,7 @@ local function PaintSpoken(skin)
         clip.dweStamp = {
             override = override, style = SpokenStyle(), left = SpokenBookLeftAlone(),
             plate = (DWE.RawPlate() or DWE.lastPlate) and true or nil,
+            mat = DWE.BookByAddon() and DWE.PlateMaterial() or nil,
         }
     end
     local parts = skin.dweParts
@@ -987,6 +996,23 @@ function DWE.HookSpoken()
 
     -- Couleurs du texte (claires / foncees) selon le theme de DWE.
     local theme = rawget(env, "DialogueUITheme")
+    if type(theme) == "table" and type(theme.Colors) == "function" then
+        local origColors, cache = theme.Colors, {}
+        theme.Colors = function(self, palette, ...)
+            local c = origColors(self, palette, ...)
+            local mat = DWE.SpokenPlateMat()
+            local hex = mat and DWE.PLATE_MARK[mat]
+            if type(c) ~= "table" or not hex then return c end
+            local k = tostring(palette) .. mat
+            if not cache[k] then
+                local n = {}
+                for a, b in pairs(c) do n[a] = b end
+                n.highlight = hex
+                cache[k] = n
+            end
+            return cache[k]
+        end
+    end
     if type(theme) == "table" and type(theme.ThemeID) == "function" then
         local origThemeID = theme.ThemeID
         theme.ThemeID = function(self, ...)
