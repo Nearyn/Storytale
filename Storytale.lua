@@ -1324,6 +1324,25 @@ if DWE.padCatcher.EnableGamePadButton then
     end)
 end
 
+-- Camera au stick droit : avec une fenetre ouverte, le jeu donne le stick droit au curseur
+-- virtuel des que le personnage s'arrete. Conversations et livres se pilotent a la croix,
+-- donc on garde la camera libre tant que Storytale tient la manette.
+DWE.padCatcher:SetScript("OnUpdate", function(self, el)
+    self.lookT = (self.lookT or 0) + el
+    if self.lookT < 0.1 then return end
+    self.lookT = 0
+    -- Le livre de DialogueUI, cache derriere celui de Storytale, garde le stick droit pour
+    -- faire defiler son texte (il ne le rend que si le stick gauche bouge) : on le lui retire.
+    local dui = rawget(_G, "DUIBookFrame")
+    if type(dui) == "table" and dui.IsShown and dui:IsShown() and not InCombatLockdown() then
+        if dui.IsGamePadStickEnabled and dui:IsGamePadStickEnabled() then pcall(dui.EnableGamePadStick, dui, false) end
+        if dui.SetPropagateKeyboardInput then pcall(dui.SetPropagateKeyboardInput, dui, true) end
+    end
+    if DialogueWheelE_PadFreeLook == false then return end
+    local isOn, setOn = rawget(_G, "IsGamePadFreelookEnabled"), rawget(_G, "SetGamePadFreeLook")
+    if isOn and setOn and not isOn() then pcall(setOn, true) end
+end)
+
 -- Petit menu du bouton Y en conversation (dans un livre, Y ouvre le ruban) : le lecteur
 -- Spoken (pause / reprise, passer). Meme allure que le ruban : icone, nom, surligne au choix.
 DWE.padMenu = CreateFrame("Frame", "DWE_PadMenu", UIParent)
@@ -1533,6 +1552,7 @@ do
         acc = acc + elapsed
         if acc < 0.25 then return end
         acc = 0
+        if DWE.SpokenPlayersPlace then DWE.SpokenPlayersPlace() end
         if InCombatLockdown() then return end
         local p = DWE.padPlayer
         DWE.PadListRefresh()
@@ -1654,7 +1674,12 @@ function DWE.ShowPadTip()
         tip = CreateFrame("Frame", "DWE_PadTip", UIParent)
         tip:SetFrameStrata("DIALOG")
         tip:SetSize(700, 30)
-        tip:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 190)
+        -- En haut de l'ecran : en bas, les barres d'action de la manette prennent la place.
+        tip:SetPoint("TOP", UIParent, "TOP", 0, -80)
+        tip.bg = tip:CreateTexture(nil, "BACKGROUND")
+        tip.bg:SetPoint("TOPLEFT", -40, 0)
+        tip.bg:SetPoint("BOTTOMRIGHT", 40, 0)
+        tip.bg:SetColorTexture(0, 0, 0, 0.55)
         tip.text = tip:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         tip.text:SetPoint("CENTER")
         tip.text:SetShadowOffset(1, -1)
@@ -1666,6 +1691,7 @@ function DWE.ShowPadTip()
         DWE.padTip = tip
     end
     tip.text:SetText(DWE.L.PAD_TIP)
+    tip:SetWidth((tip.text:GetStringWidth() or 600) + 40)
     tip.t = 0
     tip:SetAlpha(1)
     tip:Show()
@@ -1748,6 +1774,9 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         Out("livre ouvert considere comme jamais ecoute (" .. n .. " ligne(s) oubliee(s)).")
     elseif msg:match("^%s*pad") then
         -- Diagnostic manette : ce que Storytale voit (a taper avec le lecteur Spoken affiche).
+        local fl = rawget(_G, "IsGamePadFreelookEnabled")
+        local cc = rawget(_G, "IsGamePadCursorControlEnabled")
+        Out("cameraLibre=" .. tostring(fl and fl()) .. " curseur=" .. tostring(cc and cc()))
         Out("manette=" .. tostring(DWE.GamePadOn and DWE.GamePadOn()) .. " lecteurSpoken=" .. tostring(DWE.SpokenPlayerShown and DWE.SpokenPlayerShown())
             .. " ecoute=" .. tostring(DWE.padPlayer and DWE.padPlayer:IsShown()) .. " dernierBouton=" .. tostring(DWE.padLastButton))
     elseif msg:match("spoken") then

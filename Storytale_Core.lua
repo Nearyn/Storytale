@@ -470,10 +470,19 @@ function DWE.SetBookMode(on)
     if DWE.bookMode == on then return end
     local function Look() return CurrentTheme() .. tostring(DWE.BubbleSkin and DWE.BubbleSkin() ~= nil) end
     local before = Look()
+    -- Livre de l'addon referme : DialogueUI joue l'animation de fermeture de son propre livre
+    -- (le parchemin) ; il reste cache le temps qu'elle se termine.
+    if not on and DWE.BookByAddon() then
+        DWE.duiHoldUntil = (GetTime and GetTime() or 0) + 1.5
+        if C_Timer and C_Timer.After then
+            C_Timer.After(1.6, function() if DWE.RefreshHiddenFrames then DWE.RefreshHiddenFrames() end end)
+        end
+    end
     DWE.bookMode = on
     if not on then DWE.bookTurnLast = nil end -- livre ferme : le prochain s'ouvre sans bruit de page
     if Look() ~= before and DWE.OnThemeChanged then DWE.OnThemeChanged() end
     if DWE.RefreshSpoken then DWE.RefreshSpoken() end
+    if DWE.RefreshHiddenFrames then DWE.RefreshHiddenFrames() end
 end
 
 --------------------------------------------------------------------------------
@@ -871,6 +880,10 @@ local function ShouldHide(alwaysWithWheel, frame)
         local okN, name = pcall(frame.GetName, frame)
         if okN and type(name) == "string" and name:find("^Spoken.*Player") then return true end
     end
+    if DWE.duiHoldUntil and frame and frame.GetName and GetTime and GetTime() < DWE.duiHoldUntil then
+        local okN, name = pcall(frame.GetName, frame)
+        if okN and type(name) == "string" and name:find("^DUI") then return true end
+    end
     if not (choiceBox:IsShown() or fadeHold) then return false end
     -- Un livre lu a voix haute sans son livre a l'ecran : le lecteur Spoken reste toujours visible.
     if not alwaysWithWheel and DWE.SpokenFocus and DWE.SpokenFocus.ForeignSpeaking
@@ -994,6 +1007,7 @@ local function RefreshHiddenFrames()
     end
     for i = 1, #addonFrames do ApplyAlpha(addonFrames[i], false) end
 end
+DWE.RefreshHiddenFrames = RefreshHiddenFrames
 
 --------------------------------------------------------------------------------
 -- Compatibilite Spoken (mode DialogueUI)
@@ -1161,6 +1175,49 @@ function DWE.SpokenPlayerShown()
     if DWE.PlayerFrameShown(rawget(_G, "SpokenMinimalPlayerFrame")) then return true end
     if DWE.PlayerFrameShown(rawget(_G, "SpokenDialogueUIPlayerFrame")) then return true end
     return DWE.PlayerFrameShown(type(spokenSkinRef) == "table" and spokenSkinRef.frame)
+end
+
+-- Place par defaut des lecteurs de Spoken, tant que le joueur ne les a pas deplaces lui-meme
+-- (Spoken retient alors leur place et on n'y touche plus). En unites de l'interface, donc en
+-- part de la hauteur d'ecran : la meme place a toutes les resolutions et tous les formats.
+--  * sans DialogueUI, lecteur miniature : centre, au-dessus des barres d'action de la manette
+--    en mode manette, juste au-dessus de la barre principale au clavier ;
+--  * avec DialogueUI, son lecteur : a droite, un peu sous le milieu (manette comme clavier).
+DWE.SPOKEN_MINI_Y = { pad = 0.315, kbm = 0.091 } -- bas du lecteur
+DWE.SPOKEN_DUI_POS = { right = 0.26, top = 0.427 }  -- bord droit et haut du lecteur
+function DWE.SpokenPlayersPlace()
+    local env = rawget(_G, "SpokenEnv")
+    local addon = type(env) == "table" and env.Addon
+    if type(addon) ~= "table" or type(addon.Layout) ~= "function" then return end
+    local ok, layout = pcall(addon.Layout, addon)
+    if not ok or type(layout) ~= "table" then return end
+    local H, W = UIParent:GetHeight() or 768, UIParent:GetWidth() or 1366
+    local loaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+    if loaded and loaded("DialogueUI") then
+        local fr = rawget(_G, "SpokenDialogueUIPlayerFrame")
+        local saved = layout.DialogueUI
+        if type(fr) ~= "table" or not fr.GetWidth or (saved ~= nil and not (type(saved) == "table" and saved.dwe)) then return end
+        local k = fr.spokenBaseScale or 1
+        local width = fr:GetWidth() or 360
+        local left = (W - DWE.SPOKEN_DUI_POS.right * H) / k - width
+        local top = DWE.SPOKEN_DUI_POS.top * H / k
+        if saved and math.abs(saved.left - left) < 1 and math.abs(saved.top - top) < 1 then return end
+        -- Ecrit comme une place de Spoken : ses glissements de fenetre y vont d'eux-memes.
+        layout.DialogueUI = { left = left, top = top, width = width, dwe = true }
+        if not (fr.IsDragging and fr:IsDragging()) then pcall(addon.RestoreLayout, addon, "DialogueUI", fr) end
+        return
+    end
+    local fr = rawget(_G, "SpokenMinimalPlayerFrame")
+    if type(fr) ~= "table" or not fr.ClearAllPoints or layout.Minimal then return end
+    if fr.IsDragging and fr:IsDragging() then return end
+    local rel = (fr.GetEffectiveScale and UIParent.GetEffectiveScale and fr:GetEffectiveScale() / UIParent:GetEffectiveScale()) or 1
+    if not rel or rel <= 0 then rel = 1 end
+    local key = (DWE.GamePadOn and DWE.GamePadOn()) and "pad" or "kbm"
+    local y = DWE.SPOKEN_MINI_Y[key] * H / rel
+    local p, to, rp, ox, oy = fr:GetPoint(1)
+    if p == "BOTTOM" and to == UIParent and rp == "BOTTOM" and math.abs((ox or 0)) < 1 and math.abs((oy or 0) - y) < 1 then return end
+    fr:ClearAllPoints()
+    fr:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, y)
 end
 
 -- Manette : boutons du lecteur Spoken ("play" = arreter/relancer, "skip" = passer).
@@ -2696,6 +2753,14 @@ end
 choiceBox:HookScript("OnShow", function()
     ScanAddonFrames()
     DWE.UpdateTextPanelVisuals()
+    -- DialogueUI a pu montrer sa fenetre (livre, quete) juste avant la notre : rien ne l'a
+    -- recachee depuis. On repasse sur toutes les fenetres, tout de suite puis un peu apres
+    -- (le temps de son animation d'ouverture).
+    RefreshHiddenFrames()
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.3, RefreshHiddenFrames)
+        C_Timer.After(0.8, RefreshHiddenFrames)
+    end
 end)
 
 choiceBox:HookScript("OnHide", function()
@@ -4560,7 +4625,7 @@ function DWE.InitOptionsPanel()
 
     -- Tout le contenu defile (le panneau est plus haut que la fenetre des options).
     local scroll = CreateFrame("ScrollFrame", "DialogueWheelEOptionsScroll", panel, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", 0, -4)
+    scroll:SetPoint("TOPLEFT", 0, -34) -- au-dessus : la recherche, toujours visible
     scroll:SetPoint("BOTTOMRIGHT", -28, 4)
     local p = CreateFrame("Frame", nil, scroll)
     p:SetSize(600, 1100)
@@ -5022,6 +5087,119 @@ function DWE.InitOptionsPanel()
     end)
     RefreshKeyButtons()
     p:SetHeight(-(y - 284) + 30)
+
+    ---------------------------------------------------------------- Recherche
+    -- Une barre en haut du panneau (hors du defilement) : chaque frappe amene la vue sur la
+    -- premiere option dont le nom (ou l'aide) contient le texte, et l'eclaire un instant.
+    -- Entree passe a la suivante. Majuscules et accents ne comptent pas.
+    local okT, search = pcall(CreateFrame, "EditBox", "DialogueWheelEOptionsSearch", panel, "SearchBoxTemplate")
+    if not okT or not search then search = CreateFrame("EditBox", "DialogueWheelEOptionsSearch", panel, "InputBoxTemplate") end
+    search:SetSize(260, 20)
+    search:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -40, -8)
+    search:SetAutoFocus(false)
+    if type(search.Instructions) == "table" then
+        search.Instructions:SetText(L.OPT_SEARCH)
+    else -- sans le modele de recherche du jeu : un texte d'invite a nous
+        local hint = search:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+        hint:SetPoint("LEFT", 6, 0)
+        hint:SetText(L.OPT_SEARCH)
+        local function Hint(self) hint:SetShown(self:GetText() == "" and not self:HasFocus()) end
+        search:HookScript("OnEditFocusGained", function() hint:Hide() end)
+        search:HookScript("OnEditFocusLost", Hint)
+        search:HookScript("OnTextChanged", Hint)
+    end
+    local count = panel:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    count:SetPoint("RIGHT", search, "LEFT", -10, 0)
+    local glow = p:CreateTexture(nil, "BACKGROUND")
+    glow:SetColorTexture(1, 0.82, 0, 0.22)
+    glow:Hide()
+    local fader = CreateFrame("Frame", "DialogueWheelEOptionsSearchGlow", p)
+    fader:Hide()
+    fader:SetScript("OnUpdate", function(self, el)
+        self.t = (self.t or 0) + el
+        if self.t > 2 then glow:Hide(); self:Hide()
+        elseif self.t > 1.2 then glow:SetAlpha((2 - self.t) / 0.8) end
+    end)
+    local FOLD = { ["à"] = "a", ["â"] = "a", ["ä"] = "a", ["á"] = "a", ["é"] = "e", ["è"] = "e", ["ê"] = "e",
+        ["ë"] = "e", ["î"] = "i", ["ï"] = "i", ["í"] = "i", ["ô"] = "o", ["ö"] = "o", ["ó"] = "o", ["ù"] = "u",
+        ["û"] = "u", ["ü"] = "u", ["ú"] = "u", ["ç"] = "c", ["ñ"] = "n", ["ß"] = "ss",
+        ["À"] = "a", ["Â"] = "a", ["Ä"] = "a", ["Á"] = "a", ["É"] = "e", ["È"] = "e", ["Ê"] = "e",
+        ["Ë"] = "e", ["Î"] = "i", ["Ï"] = "i", ["Í"] = "i", ["Ô"] = "o", ["Ö"] = "o", ["Ó"] = "o",
+        ["Ù"] = "u", ["Û"] = "u", ["Ü"] = "u", ["Ú"] = "u", ["Ç"] = "c", ["Ñ"] = "n" }
+    local function Fold(t)
+        t = tostring(t or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):lower()
+        t = t:gsub("\195[\128-\191]", function(c) return FOLD[c] or c end)
+        return t
+    end
+    -- Tout ce qui porte un nom dans le panneau : textes, cases, boutons, curseurs, et l'aide des cases.
+    local function Entries()
+        local list = {}
+        local function Add(fs, extra)
+            if not (fs and fs.GetText) then return end
+            local txt = fs:GetText()
+            if (type(txt) == "string" and txt ~= "") or extra then
+                list[#list + 1] = { fs = fs, text = Fold((txt or "") .. " " .. (extra or "")) }
+            end
+        end
+        local function Walk(f)
+            for _, r in ipairs({ f:GetRegions() }) do
+                if r.GetObjectType and r:GetObjectType() == "FontString" then Add(r, f.tooltipText) end
+            end
+            for _, c in ipairs({ f:GetChildren() }) do Walk(c) end
+        end
+        Walk(p)
+        return list
+    end
+    local found, at = {}, 0
+    local function Show(i)
+        local e = found[i]
+        if not e then return end
+        local top, pTop = e.fs:GetTop(), p:GetTop()
+        if top and pTop then
+            local range = scroll:GetVerticalScrollRange() or 0
+            local want = math.max(0, math.min(range, pTop - top - 60))
+            scroll:SetVerticalScroll(want)
+            glow:ClearAllPoints()
+            glow:SetPoint("TOPLEFT", p, "TOPLEFT", 8, top - pTop + 6)
+            glow:SetPoint("TOPRIGHT", p, "TOPRIGHT", -8, top - pTop + 6)
+            glow:SetHeight((e.fs:GetHeight() or 14) + 12)
+            glow:SetAlpha(1); glow:Show()
+            fader.t = 0; fader:Show()
+        end
+        count:SetText(i .. " / " .. #found)
+    end
+    function DWE.OptionsSearch(text, nextOne)
+        local q = Fold(text):gsub("^%s+", ""):gsub("%s+$", "")
+        if q == "" then
+            found, at = {}, 0
+            count:SetText("")
+            glow:Hide()
+            return 0
+        end
+        if not nextOne then
+            found, at = {}, 0
+            for _, e in ipairs(Entries()) do
+                if e.text:find(q, 1, true) then found[#found + 1] = e end
+            end
+            -- De haut en bas, dans l'ordre du panneau.
+            table.sort(found, function(a, b) return (a.fs:GetTop() or 0) > (b.fs:GetTop() or 0) end)
+        end
+        if #found == 0 then
+            count:SetText(L.OPT_SEARCH_NONE)
+            glow:Hide()
+            return 0
+        end
+        at = (nextOne and at or 0) % #found + 1
+        Show(at)
+        return #found, at
+    end
+    search:HookScript("OnTextChanged", function(self, user)
+        if user then DWE.OptionsSearch(self:GetText()) end
+    end)
+    search:SetScript("OnEnterPressed", function(self) DWE.OptionsSearch(self:GetText(), true) end)
+    search:SetScript("OnEscapePressed", function(self)
+        self:SetText(""); self:ClearFocus(); DWE.OptionsSearch("")
+    end)
 
     if Settings and Settings.RegisterCanvasLayoutCategory then
         local cat = Settings.RegisterCanvasLayoutCategory(panel, panel.name)

@@ -695,6 +695,25 @@ for loc, list in pairs(PAD_HELP) do
     if dest then for k, v in pairs(list) do dest[k] = v end end
 end
 
+-- Recherche dans les options.
+local OPT_SEARCH = {
+    enUS = { OPT_SEARCH = "Search options", OPT_SEARCH_NONE = "No match" },
+    frFR = { OPT_SEARCH = "Rechercher une option", OPT_SEARCH_NONE = "Aucun résultat" },
+    deDE = { OPT_SEARCH = "Optionen durchsuchen", OPT_SEARCH_NONE = "Kein Treffer" },
+    esES = { OPT_SEARCH = "Buscar opciones", OPT_SEARCH_NONE = "Sin resultados" },
+    itIT = { OPT_SEARCH = "Cerca opzioni", OPT_SEARCH_NONE = "Nessun risultato" },
+    ptBR = { OPT_SEARCH = "Buscar opções", OPT_SEARCH_NONE = "Nenhum resultado" },
+    ruRU = { OPT_SEARCH = "Поиск настроек", OPT_SEARCH_NONE = "Ничего не найдено" },
+    koKR = { OPT_SEARCH = "설정 검색", OPT_SEARCH_NONE = "결과 없음" },
+    zhCN = { OPT_SEARCH = "搜索选项", OPT_SEARCH_NONE = "无结果" },
+    zhTW = { OPT_SEARCH = "搜尋選項", OPT_SEARCH_NONE = "無結果" },
+}
+OPT_SEARCH.esMX = OPT_SEARCH.esES
+for loc, list in pairs(OPT_SEARCH) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then for k, v in pairs(list) do dest[k] = v end end
+end
+
 local own = T[LOCALE] or {}
 DWE.L = setmetatable({}, { __index = function(_, k)
     return GAME[k] or own[k] or enUS[k]

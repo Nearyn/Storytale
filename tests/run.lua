@@ -128,6 +128,14 @@ for _, k in ipairs({ "ACCEPT","CONTINUE","INCOMPLETE","COMPLETE","CHOOSE_HDR","R
     check(type(DWE.L[k]) == "string" and DWE.L[k] ~= "", "string " .. k .. " exists")
 end
 check(DWE.optionsPanel ~= nil, "options panel created")
+do -- recherche dans les options
+    check(DWE.OptionsSearch and DWE.OptionsSearch(DWE.L.SEC_PAD) > 0, "options search finds a section")
+    check(DWE.OptionsSearch("zzqqxx") == 0, "options search: no match")
+    check(DWE.OptionsSearch("") == 0, "options search: empty clears")
+    local n = DWE.OptionsSearch(DWE.L.SEC_PAD)
+    local _, second = DWE.OptionsSearch(DWE.L.SEC_PAD, true)
+    check(n == 1 and second == 1 or second == 2, "options search: Enter goes to the next match")
+end
 
 if withDUI then
     check(not duiListener._events.GOSSIP_SHOW, "DialogueUI quest listener silenced")
@@ -164,6 +172,24 @@ do -- manette : croix, A et B pris seulement si le mode manette est actif
     check(M.bindings.PAD1 == "DWE_SelectBtn" and M.bindings.PAD2 == "DWE_PadCloseBtn", "gamepad A selects, B closes")
     check(M.bindings.PADDLEFT == "DWE_PadPrevBtn" and M.bindings.PADDRIGHT == "DWE_PadNextBtn", "gamepad left/right turn pages")
     check(M.bindings.E == "DWE_SelectBtn" and M.bindings.PADRSHOULDER == "DWE_SelectBtn", "every interact key is bound")
+    do -- camera libre forcee tant que le catcher est la
+        local look = false
+        _G.IsGamePadFreelookEnabled = function() return look end
+        _G.SetGamePadFreeLook = function(v) look = v end
+        DWE.padCatcher._scripts.OnUpdate(DWE.padCatcher, 0.2)
+        check(look == true, "right stick keeps the camera while a book or conversation is open")
+        local stick = true
+        local prevBook = rawget(_G, "DUIBookFrame")
+        local duiBook = CreateFrame("Frame", "DUIBookFrame", UIParent)
+        duiBook.IsGamePadStickEnabled = function() return stick end
+        duiBook.EnableGamePadStick = function(_, v) stick = v end
+        duiBook:Show()
+        DWE.padCatcher._scripts.OnUpdate(DWE.padCatcher, 0.2)
+        check(stick == false, "DialogueUI's hidden book gives the right stick back")
+        duiBook:Hide(); _G.DUIBookFrame = prevBook
+        _G.IsGamePadFreelookEnabled, _G.SetGamePadFreeLook = nil, nil
+        DWE.padCatcher._scripts.OnUpdate(DWE.padCatcher, 0.2) -- API absente : sans erreur
+    end
     check(DialogueWheelE_PadTipSeen == true and DWE.padTip and DWE.padTip:IsShown(), "gamepad tip shown the first time")
     check(DWE.padTip.text:GetText() == DWE.L.PAD_TIP, "gamepad tip text")
     DWE.padTip._scripts.OnUpdate(DWE.padTip, 13)
@@ -1587,6 +1613,53 @@ if os.getenv("TRACE") == "1" then
     end
     print(table.concat(out, " "))
     os.exit(0)
+end
+do -- livre de l'addon referme : le parchemin de DialogueUI reste cache pendant sa fermeture
+    local book = rawget(_G, "DUIBookFrame")
+    if book and withDUI then
+        local oldGT = _G.GetTime; local t = 100
+        _G.GetTime = function() return t end
+        if DWE.HideWheel then DWE.HideWheel() end
+        DWE.duiHoldUntil = 101.5
+        book:Show(); book:SetAlpha(1)
+        check(book:GetAlpha() == 0, "DialogueUI book kept hidden while it closes after a Storytale book")
+        t = 102; DWE.RefreshHiddenFrames()
+        DWE.duiHoldUntil = nil; _G.GetTime = oldGT
+    end
+end
+do -- place par defaut des lecteurs de Spoken
+    local layout = {}
+    local oldEnv = rawget(_G, "SpokenEnv")
+    local restored
+    _G.SpokenEnv = setmetatable({ Addon = { Layout = function() return layout end,
+        RestoreLayout = function(_, key) restored = key end } }, { __index = oldEnv })
+    local H, W = UIParent:GetHeight() or 768, UIParent:GetWidth() or 1366
+    if withDUI then
+        local fr = CreateFrame("Frame", "SpokenDialogueUIPlayerFrame", UIParent)
+        fr:SetWidth(360)
+        DWE.SpokenPlayersPlace()
+        local d = layout.DialogueUI
+        check(d and d.dwe and math.abs(d.top - H * DWE.SPOKEN_DUI_POS.top) < 0.01
+            and math.abs(d.left + 360 - (W - H * DWE.SPOKEN_DUI_POS.right)) < 0.01 and restored == "DialogueUI",
+            "spoken DialogueUI player: default place on the right")
+        layout.DialogueUI = { left = 5, top = 6 }
+        DWE.SpokenPlayersPlace()
+        check(layout.DialogueUI.left == 5, "spoken DialogueUI player: a place the player chose is kept")
+        _G.SpokenDialogueUIPlayerFrame = nil
+    else
+        local fr = CreateFrame("Frame", "SpokenMinimalPlayerFrame", UIParent)
+        local y
+        fr.SetPoint = function(_, p, _, _, _, oy) y = oy end
+        DWE.SpokenPlayersPlace()
+        check(y and math.abs(y - H * DWE.SPOKEN_MINI_Y.kbm) < 0.01, "spoken mini player: keyboard default place")
+        M.cvars.GamePadEnable = "1"; DWE.SpokenPlayersPlace()
+        check(y and math.abs(y - H * DWE.SPOKEN_MINI_Y.pad) < 0.01, "spoken mini player: gamepad default place")
+        M.cvars.GamePadEnable = nil
+        layout.Minimal = { left = 1, top = 2 }; y = nil; DWE.SpokenPlayersPlace()
+        check(y == nil, "spoken mini player: a place the player chose is kept")
+        _G.SpokenMinimalPlayerFrame = nil
+    end
+    _G.SpokenEnv = oldEnv
 end
 -- Livres lus / commences
 DialogueWheelE_ReadBooks = nil

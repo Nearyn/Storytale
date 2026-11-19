@@ -1,5 +1,31 @@
 # Changelog / Journal des versions
 
+## 1.5.1
+
+**English**
+
+### New
+- **Search bar in Storytale's options**: type a word and the view jumps to the matching option, which lights up for a moment. Enter goes to the next match. Capitals and accents don't matter.
+- **Default place for Spoken's player**: without DialogueUI, centred just above the action bar (above the gamepad's bars in gamepad mode); with DialogueUI, on the right of the screen. It applies only until you move the player yourself, and adapts to every resolution.
+
+### Fixed
+- With a gamepad, the right stick turns the camera again while a book is open. DialogueUI's hidden book was keeping the stick to scroll its own text.
+- DialogueUI's parchment no longer shows up next to a Storytale book or quest, or for a moment when a book closes.
+- The one-time gamepad hint now shows at the top of the screen, clear of the gamepad's action bars.
+
+---
+
+**Français**
+
+### Nouveautés
+- **Barre de recherche dans les options de Storytale** : tapez un mot, la vue saute sur l'option qui correspond et l'éclaire un instant. Entrée passe à la suivante. Majuscules et accents ne comptent pas.
+- **Place par défaut du lecteur de Spoken** : sans DialogueUI, centré juste au-dessus de la barre d'action (au-dessus des barres de la manette en mode manette) ; avec DialogueUI, à droite de l'écran. Seulement tant que vous ne l'avez pas déplacé vous-même, et à toutes les résolutions.
+
+### Corrections
+- À la manette, le stick droit tourne de nouveau la caméra quand un livre est ouvert. Le livre caché de DialogueUI gardait le stick pour faire défiler son propre texte.
+- Le parchemin de DialogueUI n'apparaît plus à côté d'un livre ou d'une quête de Storytale, ni un instant à la fermeture d'un livre.
+- L'astuce manette (affichée une seule fois) s'affiche maintenant en haut de l'écran, à l'écart des barres d'action de la manette.
+
 ## 1.5.0
 
 **English**
