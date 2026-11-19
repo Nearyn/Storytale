@@ -638,13 +638,15 @@ end
 function Focus.SetBookMuted(on)
     Focus.Install()
     Focus.bookMuted = on and true or nil
+    DialogueWheelE_BookVoiceOff = Focus.bookMuted -- retenu : les livres suivants restent muets
     Log("bookMuted=" .. tostring(Focus.bookMuted))
     if on then YieldBook() else Wake() end
 end
 -- Livre ferme : si la voix etait coupee, on retire ses lignes de la file (rien ne reste en attente).
 function Focus.OnBookClosed()
     if not Focus.bookMuted then return end
-    Focus.bookMuted = nil
+    -- Voix coupee par le joueur (reglage retenu) : elle le reste pour le prochain livre.
+    if DialogueWheelE_BookVoiceOff ~= true then Focus.bookMuted = nil end
     local _, queue = Env()
     if queue and type(queue.RemoveSoundFromQueue) == "function" then
         for i = #(queue.sounds or {}), 1, -1 do
@@ -653,6 +655,17 @@ function Focus.OnBookClosed()
         end
     end
     Wake()
+end
+
+-- Option "couper la voix a la fermeture" : retire de la file de Spoken toutes les lignes de livre,
+-- celle qui est lue comprise (les repliques des PNJ et des quetes restent).
+function Focus.StopBooks()
+    local _, queue = Env()
+    if not (queue and type(queue.RemoveSoundFromQueue) == "function") then return end
+    for i = #(queue.sounds or {}), 1, -1 do
+        local clip = queue.sounds[i]
+        if IsBook(clip) then pcall(queue.RemoveSoundFromQueue, queue, clip) end
+    end
 end
 
 -- File de lecture (petit lecteur de Spoken) ------------------------------------------------

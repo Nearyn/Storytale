@@ -668,6 +668,8 @@ local function ShowBookPage(pageNum)
         return
     end
     if pageNum < 1 or pageNum > total then return end
+    -- Page tournee a la main (le suivi de la voix est en pause) : la voix peut suivre le lecteur.
+    if DWE.bookFollowPause and pageNum ~= bookState.currentPage and DWE.VoiceToPage then DWE.VoiceToPage(pageNum) end
     bookState.currentPage = pageNum
     local title = bookState.title
     if total > 1 then title = title .. " (" .. pageNum .. "/" .. total .. ")" end
@@ -844,6 +846,7 @@ local function BuildBookOptions()
         AddOption({ icon = ICON_PREV_PAGE, rawLabel = L.PREV_PAGE, action = function()
             bookState.lastBtn = "prev"
             DWE.bookFollowPause = true -- page tournee a la main : on ne suit plus la voix pour cette page
+            DWE.bookResumeHold = nil
             if DWE.BookSubStep(-1) then
                 -- sous-page precedente
             elseif bookState.currentPage > 1 then
@@ -858,6 +861,7 @@ local function BuildBookOptions()
         AddOption({ icon = ICON_NEXT_PAGE, rawLabel = L.NEXT_PAGE, action = function()
             bookState.lastBtn = "next"
             DWE.bookFollowPause = true
+            DWE.bookResumeHold = nil
             if DWE.BookSubStep(1) then
                 BuildOptions("ITEM_TEXT_CACHED", true)
                 DWE.UpdateVisuals()
@@ -885,6 +889,13 @@ function DWE.BookGoTo(n)
         bookState.awaitNext = true
         ItemTextNextPage()
         return true
+    elseif n > bookState.currentPage + 1 and BookHasNext() and ItemTextNextPage then
+        -- Page plus loin que celles deja chargees (livre rouvert pendant que la voix le lit) :
+        -- on demande les pages au jeu une a une jusqu'a elle, comme pour le marque-page.
+        if bookState.awaitNext or bookState.resumeTo then return true end
+        bookState.resumeTo = n
+        DWE.BookResumeStep()
+        return true
     else
         return false
     end
@@ -899,7 +910,7 @@ end
 -- `number` = numero de la page lue (Spoken Readables), sinon reconnue a son texte.
 function DWE.BookFollow(text, share, number)
     local function BareText(t) return (string.gsub(string.lower(t or ""), "[%s%p\128-\255]", "")) end
-    if not FollowOn() then return end
+    if not (FollowOn() or (DWE.bookResumeHold and bookState.active)) then return end
     local found = number
     if not found and type(text) == "string" then
         local key = BareText(text):sub(1, 40)
@@ -910,6 +921,20 @@ function DWE.BookFollow(text, share, number)
         end
     end
     if not found then return end
+    -- Livre rouvert au marque-page : tant que la voix n'y est pas, elle ne tire pas le livre ailleurs.
+    if DWE.bookResumeHold then
+        if found ~= DWE.bookResumeHold then
+            -- La voix a demarre ailleurs (souvent page 1) : on la renvoie a la page marquee.
+            local now = GetTime and GetTime() or 0
+            if now - (DWE.resumeRedirectAt or 0) > 1.5 then
+                DWE.resumeRedirectAt = now
+                DWE.SpokenGoPage(DWE.bookResumeHold)
+            end
+            return
+        end
+        DWE.bookResumeHold = nil
+    end
+    if not FollowOn() then return end
     if found ~= bookState.currentPage then
         DWE.BookGoTo(found)
         return
@@ -938,9 +963,93 @@ end
 -- La voix a fini la page affichee : on tourne. Si Spoken ne lit qu'une page a la fois, c'est
 -- ce qui lui fait lire la suivante (il lit la page que le jeu ouvre).
 function DWE.BookPageDone(number)
-    if not FollowOn() or not DWE.choiceBox:IsShown() then return end
+    if DWE.bookResumeHold or not FollowOn() or not DWE.choiceBox:IsShown() then return end
     if number and number ~= bookState.currentPage then return end
     DWE.BookGoTo(bookState.currentPage + 1)
+end
+
+-- Marque-page pose par le joueur (par personnage, un par livre, reconnu a son titre).
+-- Renvoie la cle du livre, la page affichee et la page marquee (ou nil).
+function DWE.BookmarkInfo()
+    if not bookState.active or DWE.BookLook() == "note" then return nil end
+    local k = DWE.BookKey(bookState.title)
+    if not k then return nil end
+    local t = rawget(_G, "DialogueWheelE_Bookmarks")
+    return k, bookState.currentPage, type(t) == "table" and t[k] or nil
+end
+-- Marque la page affichee, ou retire le marque-page s'il y est deja.
+function DWE.BookmarkToggle()
+    local k, cur, saved = DWE.BookmarkInfo()
+    if not k then return end
+    if type(DialogueWheelE_Bookmarks) ~= "table" then DialogueWheelE_Bookmarks = {} end
+    DialogueWheelE_Bookmarks[k] = (saved ~= cur) and cur or nil
+    if DWE.UpdateRibbonMark then DWE.UpdateRibbonMark() end
+end
+-- A l'ouverture d'un livre marque : on demande au jeu les pages une a une jusqu'a la page
+-- marquee (sans les afficher). Renvoie true tant qu'une page est en route.
+function DWE.BookResumeStep()
+    local want = bookState.resumeTo
+    if not want then return false end
+    if DWE.BookLook() == "note" then bookState.resumeTo = nil return false end
+    if bookState.pages[want] then
+        bookState.currentPage = want
+        bookState.resumeTo = nil
+        DWE.BookResumeVoice()
+        return false
+    end
+    if BookHasNext() and ItemTextNextPage and ItemTextGetPage and ItemTextGetPage() == bookState.currentPage then
+        bookState.awaitNext = true
+        ItemTextNextPage()
+        return true
+    end
+    bookState.resumeTo = nil -- le livre n'a plus autant de pages : on reste ou on est
+    DWE.bookResumeHold = nil
+    return false
+end
+-- Spoken a commence le livre a la page 1 : il reprend a la page marquee. Si la voix demarre
+-- plus tard (file d'attente, conversation), BookFollow la renvoie a la page marquee.
+function DWE.BookResumeVoice()
+    local want = bookState.currentPage
+    C_Timer.After(0.1, function()
+        if DWE.bookResumeHold == want then DWE.SpokenGoPage(want) end
+    end)
+end
+
+-- Fait lire a Spoken la page `n` du livre ouvert (s'il lit ce livre). Renvoie true si relance.
+function DWE.SpokenGoPage(n)
+    local sr = rawget(_G, "SpokenReadables")
+    if not n or type(sr) ~= "table" or not (sr.PageOnScreen and sr.PlaceOf and sr.BookOf and sr.IsNarrating
+        and sr.StopReading and sr.PlayFrom) then return false end
+    local focus = DWE.SpokenFocus
+    if focus and focus.bookMuted then return false end
+    local ok, id = pcall(sr.PageOnScreen, sr)
+    if not ok or not id then return false end
+    local ok2, place = pcall(sr.PlaceOf, sr, id)
+    if not ok2 or not place then return false end
+    local ok3, reading = pcall(sr.IsNarrating, sr, place)
+    if not (ok3 and reading) then return false end -- la voix ne lit pas ce livre
+    local ok4, book = pcall(sr.BookOf, sr, id)
+    local target = ok4 and type(book) == "table" and type(book.pages) == "table" and book.pages[n]
+    if not target then return false end
+    local sp = rawget(_G, "Spoken")
+    local q = type(sp) == "table" and sp.GetQueue and select(2, pcall(sp.GetQueue, sp))
+    if type(q) == "table" and q[1] and q[1].pageId == target then return false end -- deja lue
+    pcall(sr.StopReading, sr, place)
+    pcall(sr.PlayFrom, sr, target, true)
+    return true
+end
+
+-- Option "la voix suit mes pages" : le joueur a tourne la page d'un livre que Spoken lit ;
+-- apres un court instant (plusieurs pages tournees d'affilee : seule la derniere compte),
+-- Spoken reprend la lecture a cette page.
+function DWE.VoiceToPage(n)
+    if DialogueWheelE_BookVoiceTurn ~= true or not n then return end -- option decochee par defaut
+    DWE.voiceTurnToken = (DWE.voiceTurnToken or 0) + 1
+    local token = DWE.voiceTurnToken
+    C_Timer.After(0.35, function()
+        if token ~= DWE.voiceTurnToken or not bookState.active or bookState.currentPage ~= n then return end
+        DWE.SpokenGoPage(n)
+    end)
 end
 
 -- Le menu du marque-page a change un reglage : boutons et affichage a jour.
@@ -1321,7 +1430,9 @@ local function OnBookReady()
     if bookState.awaitNext and p == bookState.currentPage + 1 then
         bookState.awaitNext = nil
         bookState.currentPage = p
+        if DWE.bookFollowPause and DWE.VoiceToPage then DWE.VoiceToPage(p) end -- page tournee a la main
     end
+    if DWE.BookResumeStep() then return end
     if not DWE.choiceBox:IsShown() then return end
     ShowBookPage(bookState.currentPage)
     BuildOptions("ITEM_TEXT_CACHED", true)
@@ -1405,6 +1516,16 @@ f:SetScript("OnEvent", function(_, event)
         if event == "ITEM_TEXT_CLOSED" then
             DWE.ForceBlizzBook(event)
             if bookState.reachedEnd then DWE.MarkBook(bookState.title, true) end
+            DWE.bookResumeHold = nil
+            -- Option : fermer le livre coupe sa lecture par Spoken (le reste de la file continue).
+            if DialogueWheelE_BookStopOnClose == true then
+                local sr = rawget(_G, "SpokenReadables")
+                if type(sr) == "table" and sr.lastPage and sr.PlaceOf and sr.StopReading then
+                    local ok, place = pcall(sr.PlaceOf, sr, sr.lastPage)
+                    if ok and place then pcall(sr.StopReading, sr, place) end
+                end
+                if DWE.SpokenFocus and DWE.SpokenFocus.StopBooks then DWE.SpokenFocus.StopBooks() end
+            end
         end
         if event ~= "ITEM_TEXT_CLOSED" and DWE.SpokenFocus then
             DWE.SpokenFocus.SetNPC(false)
@@ -1447,6 +1568,14 @@ f:SetScript("OnEvent", function(_, event)
         DWE.bookSpokenView = false
         DWE.bookInfo = nil
         ResetBook(true, NonEmpty(ItemTextGetItem and ItemTextGetItem()) or NonEmpty(UnitName("npc")) or "")
+        do
+            -- "Lecture a voix haute" coupee par le joueur : le livre s'ouvre muet (reglage retenu).
+            if DialogueWheelE_BookVoiceOff == true and DWE.SpokenFocus then DWE.SpokenFocus.bookMuted = true end
+            local marks, key = rawget(_G, "DialogueWheelE_Bookmarks"), DWE.BookKey(bookState.title)
+            local page = key and type(marks) == "table" and tonumber(marks[key])
+            DWE.bookResumeHold = nil
+            if page and page > 1 then bookState.resumeTo = page; DWE.bookResumeHold = page end
+        end
         DWE.SetDialogueText(bookState.title, "")
     elseif event == "ITEM_TEXT_READY" then
         if not bookState.active then ResetBook(true, "") end
@@ -1462,6 +1591,13 @@ f:SetScript("OnEvent", function(_, event)
         end
         if bookState.title == "" then
             bookState.title = NonEmpty(ItemTextGetItem and ItemTextGetItem()) or ""
+        end
+        if bookState.resumeTo then
+            if bookState.awaitNext and sp == bookState.currentPage + 1 then
+                bookState.awaitNext = nil
+                bookState.currentPage = sp
+            end
+            if DWE.BookResumeStep() then return end
         end
         ShowBookPage(bookState.currentPage)
     end

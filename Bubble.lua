@@ -24,14 +24,18 @@ local READ_PER_CHAR, READ_MIN, READ_MAX = 0.05, 2, 8 -- temps de lecture apres e
 local STYLES = {
     game = { pad = 14, color = { 1, 1, 1 }, shadow = false },
     fantasy = { pad = 20, color = { 0.18, 0.10, 0.04 }, shadow = false, art = "BubbleFantasy", slice = 24 },
-    whisper = { pad = 14, color = { 1, 0.66, 1 }, shadow = false, art = "BubbleWhisper", slice = 16 },
+    whisper = { pad = 14, color = { 1, 0.66, 1 }, shadow = false, art = "BubbleWhisper", slice = 16, split = true },
 }
+-- Bulles 64x64 dont la pointe (32x32) a ses bords a partir de la 10e ligne : le bas de la bulle
+-- est ouvert a l'endroit de la pointe pour que ses bords prolongent le contour (voir SplitArt).
+local SPLIT = { Arcane = true, Glass = true, Ink = true, ParchDark = true, Parch = true, Starry = true,
+    Sylvan = true, Veil = true, Velin = true, Whisper = true }
 -- Les autres themes en bulle : leur image Bubble<art>.png et la couleur de texte du theme.
 for id, sk in pairs(DWE.BUBBLE_SKINS) do
     if sk.art then
         local cfg = DWE.THEME_STYLES[id]
         STYLES[id] = { pad = 14, color = cfg and cfg.body or { 1, 1, 1 }, shadow = cfg and cfg.shadow == 1,
-            art = "Bubble" .. sk.art, slice = 16, optFont = true }
+            art = "Bubble" .. sk.art, slice = 16, optFont = true, split = SPLIT[sk.art] }
     end
 end
 
@@ -148,6 +152,48 @@ fantasyTail:SetSize(32, 32)
 fantasyTail:SetPoint("TOP", bubble, "BOTTOM", 0, 8)
 fantasyTail:Hide()
 
+-- Bulle "ouverte" : la meme image decoupee a la main en 9 morceaux, mais le bord du bas est
+-- coupe en deux autour de la pointe. A la place du contour, un morceau du fond de la bulle
+-- (meme couleur, meme transparence) ; les deux bords de la pointe ferment l'ouverture.
+local MOUTH = 6           -- demi-largeur de l'ouverture (bords de la pointe aux colonnes 10 et 22)
+local TAIL_ROW = 9        -- premiere ligne de la pointe gardee (debut de ses bords)
+local TAIL_TOP = 3        -- cette ligne se pose sur le contour (lignes 1 et 2 depuis le bas)
+local split = {}
+for _, k in ipairs({ "tl", "t", "tr", "l", "c", "r", "bl", "bL", "m", "bR", "br" }) do
+    split[k] = bubble:CreateTexture(nil, "BACKGROUND")
+    split[k]:Hide()
+end
+local function SplitArt(st)
+    local S, u = st.slice, st.slice / 64
+    local v = 1 - TAIL_TOP / 64
+    for _, t in pairs(split) do t:SetTexture(ADDON_PATH .. st.art .. ".png"); t:ClearAllPoints() end
+    local p = split
+    p.tl:SetSize(S, S); p.tl:SetPoint("TOPLEFT", bubble, "TOPLEFT"); p.tl:SetTexCoord(0, u, 0, u)
+    p.tr:SetSize(S, S); p.tr:SetPoint("TOPRIGHT", bubble, "TOPRIGHT"); p.tr:SetTexCoord(1 - u, 1, 0, u)
+    p.bl:SetSize(S, S); p.bl:SetPoint("BOTTOMLEFT", bubble, "BOTTOMLEFT"); p.bl:SetTexCoord(0, u, 1 - u, 1)
+    p.br:SetSize(S, S); p.br:SetPoint("BOTTOMRIGHT", bubble, "BOTTOMRIGHT"); p.br:SetTexCoord(1 - u, 1, 1 - u, 1)
+    p.t:SetPoint("TOPLEFT", p.tl, "TOPRIGHT"); p.t:SetPoint("BOTTOMRIGHT", p.tr, "BOTTOMLEFT")
+    p.t:SetTexCoord(u, 1 - u, 0, u)
+    p.l:SetPoint("TOPLEFT", p.tl, "BOTTOMLEFT"); p.l:SetPoint("BOTTOMRIGHT", p.bl, "TOPRIGHT")
+    p.l:SetTexCoord(0, u, u, 1 - u)
+    p.r:SetPoint("TOPLEFT", p.tr, "BOTTOMLEFT"); p.r:SetPoint("BOTTOMRIGHT", p.br, "TOPRIGHT")
+    p.r:SetTexCoord(1 - u, 1, u, 1 - u)
+    p.c:SetPoint("TOPLEFT", p.tl, "BOTTOMRIGHT"); p.c:SetPoint("BOTTOMRIGHT", p.br, "TOPLEFT")
+    p.c:SetTexCoord(u, 1 - u, u, 1 - u)
+    p.bL:SetPoint("TOPLEFT", p.bl, "TOPRIGHT"); p.bL:SetPoint("BOTTOMRIGHT", bubble, "BOTTOM", -MOUTH, 0)
+    p.bL:SetTexCoord(u, 1 - u, 1 - u, 1)
+    p.bR:SetPoint("TOPRIGHT", p.br, "TOPLEFT"); p.bR:SetPoint("BOTTOMLEFT", bubble, "BOTTOM", MOUTH, 0)
+    p.bR:SetTexCoord(u, 1 - u, 1 - u, 1)
+    -- ouverture : le bas de la bulle sans son contour (lignes au-dessus de celui-ci)
+    p.m:SetPoint("BOTTOMLEFT", bubble, "BOTTOM", -MOUTH, TAIL_TOP)
+    p.m:SetPoint("TOPRIGHT", bubble, "BOTTOM", MOUTH, S)
+    p.m:SetTexCoord(u, 1 - u, 1 - u, v)
+    for _, t in pairs(split) do t:Show() end
+end
+local function HideSplit()
+    for _, t in pairs(split) do t:Hide() end
+end
+
 local styleName -- style actuellement affiche
 
 local text = holder:CreateFontString(nil, "OVERLAY")
@@ -174,9 +220,24 @@ local function ApplyStyle(name)
             fantasy:SetTextureSliceMargins(st.slice, st.slice, st.slice, st.slice)
         end
         fantasyTail:SetTexture(ADDON_PATH .. st.art .. "Tail.png")
-        fantasy:Show()
+        fantasyTail:ClearAllPoints()
+        if st.split then
+            -- pointe sans ses premieres lignes (fond deja donne par l'ouverture), posee sur le contour
+            fantasyTail:SetTexCoord(0, 1, TAIL_ROW / 32, 1)
+            fantasyTail:SetSize(32, 32 - TAIL_ROW)
+            fantasyTail:SetPoint("TOP", bubble, "BOTTOM", 0, TAIL_TOP)
+            fantasy:Hide()
+            SplitArt(st)
+        else
+            fantasyTail:SetTexCoord(0, 1, 0, 1)
+            fantasyTail:SetSize(32, 32)
+            fantasyTail:SetPoint("TOP", bubble, "BOTTOM", 0, 8)
+            HideSplit()
+            fantasy:Show()
+        end
         fantasyTail:Show()
     else
+        HideSplit()
         fantasy:Hide()
         fantasyTail:Hide()
         ShowGameStyle()

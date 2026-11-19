@@ -1,8 +1,44 @@
 # Changelog / Journal des versions
 
+## 1.4.0
+
+**English**
+
+### New
+- **Bookmark**: "Bookmark this page" in the bookmark ribbon's menu. The book reopens at that page, and so does Spoken's voice. Click again on the same page to remove it. The ribbon glows softly while you are on the bookmarked page.
+- **The voice follows my pages** (Spoken, off by default): turn a page yourself and the narration jumps to it.
+- **Stop the voice when I close a book** (Spoken, off by default): closing a book ends its narration.
+- Both options are in the ribbon's menu and in the options (Spoken section).
+
+### Improved
+- **Read aloud** is remembered: mute the voice once and the next books stay silent until you turn it back on.
+- A book reopened while Spoken is still reading it opens at the page being read.
+- Without Spoken, the single page and plaques no longer show the signature or engraving (their menu only held Spoken settings). The open book keeps its ribbon.
+
+### Fixed
+- The pointer of the drawn speech bubbles now joins the bubble's outline, without a gap.
+
+---
+
+**Français**
+
+### Nouveautés
+- **Marque-page** : « Marquer cette page » dans le menu du ruban. Le livre se rouvre à cette page, et la voix de Spoken aussi. Un nouveau clic sur la même page le retire. Le ruban garde un léger halo quand vous êtes sur la page marquée.
+- **La voix suit mes pages** (Spoken, désactivé par défaut) : tournez une page vous-même, la narration y saute.
+- **Couper la voix quand je ferme un livre** (Spoken, désactivé par défaut) : fermer un livre arrête sa narration.
+- Ces deux options sont dans le menu du ruban et dans les options (section Spoken).
+
+### Améliorations
+- **Lecture à voix haute** est retenue : coupez la voix une fois, les livres suivants restent silencieux jusqu'à ce que vous la réactiviez.
+- Un livre rouvert pendant que Spoken le lit encore s'ouvre à la page en cours de lecture.
+- Sans Spoken, la page seule et les plaques n'affichent plus la signature ni la gravure (leur menu ne contenait que des réglages de Spoken). Le livre ouvert garde son ruban.
+
+### Corrections
+- La pointe des bulles dessinées rejoint maintenant le contour de la bulle, sans trou.
+
 ## 1.3.9
 
-**🇬🇧 English**
+**English**
 
 ### New
 - **Words highlighted as Spoken reads** in the open book, the single page and plaques, like Spoken's captions (follows Spoken's "Highlight Words" setting). The title read before the text no longer lights the first words.
@@ -23,7 +59,7 @@
 
 ---
 
-**🇫🇷 Français**
+**Français**
 
 ### Nouveautés
 - **Mots surlignés pendant la lecture de Spoken** dans le livre ouvert, la page seule et les plaques, comme dans les sous-titres de Spoken (suit son réglage « Surligner les mots »). Le titre lu avant le texte n'allume plus les premiers mots.
@@ -44,7 +80,7 @@
 
 ## 1.3.8
 
-**🇬🇧 English**
+**English**
 
 ### New
 - **Smart reading queue** (Spoken section, on by default): Storytale decides who speaks first. Uncheck it to let Spoken manage its queue on its own, untouched.
@@ -58,7 +94,7 @@
 
 ---
 
-**🇫🇷 Français**
+**Français**
 
 ### Nouveautés
 - **File de lecture intelligente** (section Spoken, activée par défaut) : Storytale décide qui parle en premier. Décochez-la pour laisser Spoken gérer seul sa file, sans aucune modification.
@@ -72,7 +108,7 @@
 
 ## 1.3.7
 
-**🇬🇧 English**
+**English**
 
 ### Fixed
 - Spoken's player stays visible during a conversation when the voice playing belongs to another NPC (it only hides to avoid showing the same line twice).
@@ -81,7 +117,7 @@
 
 ---
 
-**🇫🇷 Français**
+**Français**
 
 ### Corrections
 - Le lecteur Spoken reste visible pendant une conversation quand la voix en cours est celle d'un autre PNJ (il ne se cache que pour éviter d'afficher deux fois la même réplique).
@@ -90,7 +126,7 @@
 
 ## 1.3.6
 
-**🇬🇧 English**
+**English**
 
 ### New
 - **Quest preview width**: fits its content by default (centred under the choices when short, wider for long objectives). Uncheck the option to set it yourself with its own grip (mirrored when the wheel is on the left).
@@ -112,7 +148,7 @@
 
 ---
 
-**🇫🇷 Français**
+**Français**
 
 ### Nouveautés
 - **Largeur de l'aperçu de quête** : ajustée à son contenu par défaut (centré sous les choix quand il est court, plus large pour un long objectif). Décochez l'option pour la régler vous-même avec sa propre poignée (en miroir quand la roue est à gauche).
@@ -134,7 +170,7 @@
 
 ## 1.3.5
 
-**🇬🇧 English**
+**English**
 
 ### New
 - **Read books**: the tooltip of a book or plaque tells whether you are reading it, never read it, left it unfinished or already know it (per character). Can be turned off.
@@ -150,7 +186,7 @@
 
 ---
 
-**🇫🇷 Français**
+**Français**
 
 ### Nouveautés
 - **Livres lus** : l'infobulle d'un livre ou d'une plaque indique si vous êtes en train de le lire, ne l'avez jamais lu, ne l'avez pas terminé ou le connaissez déjà (par personnage). Désactivable.
@@ -166,35 +202,35 @@
 
 ## 1.3.4
 
-**🇬🇧 English**
+**English**
 
 ### Fixed
 - After a quest text, the NPC's usual greeting no longer replaces it in the bubble while the quest text is being read.
 
 ---
 
-**🇫🇷 Français**
+**Français**
 
 ### Corrections
 - Après un texte de quête, la salutation habituelle du PNJ ne le remplace plus dans la bulle pendant sa lecture.
 
 ## 1.3.3
 
-**🇬🇧 English**
+**English**
 
 ### Improved
 - When an NPC has nothing to say, the bubble shows a centred "..." instead of "(No text available)".
 
 ---
 
-**🇫🇷 Français**
+**Français**
 
 ### Améliorations
 - Quand un PNJ n'a rien à dire, la bulle affiche « ... » centré au lieu de « (Aucun texte disponible) ».
 
 ## 1.3.2
 
-**🇬🇧 English**
+**English**
 
 ### Improved
 - Spoken's word highlight on plaques now matches the material: gilded letters on stone, marble and silver, verdigris on bronze.
@@ -204,7 +240,7 @@
 
 ---
 
-**🇫🇷 Français**
+**Français**
 
 ### Améliorations
 - Surbrillance des mots de Spoken sur les plaques assortie à la matière : lettres dorées sur pierre, marbre et argent, vert-de-gris sur bronze.
@@ -214,21 +250,21 @@
 
 ## 1.3.1
 
-**🇬🇧 English**
+**English**
 
 ### Fixed
 - Spoken's reading queue: a book or plaque played again later keeps its own look (plaque, DialogueUI book or game window) instead of the current NPC theme.
 
 ---
 
-**🇫🇷 Français**
+**Français**
 
 ### Corrections
 - File de lecture Spoken : un livre ou une plaque relancé plus tard garde son habillage (plaque, livre DialogueUI ou fenêtre du jeu) au lieu du thème du PNJ en cours.
 
 ## 1.3.0
 
-**🇬🇧 English**
+**English**
 
 ### New
 - **Engraved plaques**: stone, marble, bronze and silver plaques now show on a matching plaque, with engraved text.
@@ -250,7 +286,7 @@
 
 ---
 
-**🇫🇷 Français**
+**Français**
 
 ### Nouveautés
 - **Plaques gravées** : les plaques de pierre, marbre, bronze et argent s'affichent sur une plaque assortie, avec un texte gravé.
@@ -272,7 +308,7 @@
 
 ## 1.2.0
 
-**🇬🇧 English**
+**English**
 
 ### New
 - **Choice size** option: set the text size of the dialogue choices (10 to 24 pt).
@@ -288,7 +324,7 @@
 
 ---
 
-**🇫🇷 Français**
+**Français**
 
 ### Nouveautés
 - Option **Taille des choix** : règle la taille du texte des choix de dialogue (10 à 24 pt).
@@ -304,7 +340,7 @@
 
 ## 1.1.0
 
-**🇬🇧 English**
+**English**
 
 ### New
 - Two new themes: **Folio** (a worn, gently curved parchment sheet) and **Night Folio** (translucent black paper with frayed edges and a soft shadow).
@@ -319,7 +355,7 @@
 
 ---
 
-**🇫🇷 Français**
+**Français**
 
 ### Nouveautés
 - Deux nouveaux thèmes : **Folio** (une feuille de parchemin usée, légèrement courbée) et **Folio nocturne** (papier noir translucide, bords effilochés et ombre douce).
@@ -334,7 +370,7 @@
 
 ## 1.0.0
 
-**🇬🇧 English**
+**English**
 
 First release of **Storytale** (formerly DialogueWheelE).
 
@@ -353,7 +389,7 @@ Coming from DialogueWheelE: delete the old `DialogueWheelE` folder; to keep your
 
 ---
 
-**🇫🇷 Français**
+**Français**
 
 Première version de **Storytale** (anciennement DialogueWheelE).
 

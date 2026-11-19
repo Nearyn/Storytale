@@ -701,6 +701,28 @@ check(not labels():find(DWE.L.NEXT_PAGE, 1, true), "no next page on last page: "
 check(labels():find(DWE.L.PREV_PAGE, 1, true), "prev page on last page")
 for _, o in ipairs(DWE.currentOptions) do if o.rawLabel == DWE.L.PREV_PAGE then o.action() break end end
 check(DWE.textBody:GetText() == "p3", "prev page works")
+-- Marque-page : pose sur la page 3, le livre se rouvre a la page 3 ; retire, il se rouvre a la 1.
+if DWE.BookLook() == "book" then
+    DWE.BookmarkToggle()
+    local k, cur, saved = DWE.BookmarkInfo()
+    check(saved == 3 and cur == 3, "bookmark set on page 3")
+    M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
+    M.bookPage = 1
+    M.FireEvent("ITEM_TEXT_BEGIN"); M.FireEvent("ITEM_TEXT_READY")
+    for _ = 1, 5 do M.FlushPending() end
+    check(DWE.textBody:GetText() == "p3", "book reopens on bookmarked page (got " .. tostring(DWE.textBody:GetText()) .. ")")
+    DWE.BookmarkToggle()
+    check(select(3, DWE.BookmarkInfo()) == nil, "bookmark removed")
+    M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
+    M.bookPage = 1
+    M.FireEvent("ITEM_TEXT_BEGIN"); M.FireEvent("ITEM_TEXT_READY")
+    for _ = 1, 5 do M.FlushPending() end
+    check(DWE.textBody:GetText() == "p1", "book reopens on page 1 without bookmark")
+    -- La voix lit deja la page 3 d'un livre rouvert : le livre y va (pages chargees une a une).
+    DWE.BookGoTo(3)
+    for _ = 1, 5 do M.FlushPending() end
+    check(DWE.textBody:GetText() == "p3", "far page reached from a fresh open (got " .. tostring(DWE.textBody:GetText()) .. ")")
+end
 M.FireEvent("ITEM_TEXT_CLOSED")
 M.RunTimers()
 -- Livre reduit : une longue page s'etale sur des sous-pages, tournees avant la page suivante.
@@ -1104,7 +1126,10 @@ if withSpoken then
     DWE.SpokenFocus.SetBookMuted(true)
     check(gates[1](book) ~= nil, "mute: book voice held")
     DWE.SpokenFocus.OnBookClosed()
-    check(removed == 1 and not DWE.SpokenFocus.bookMuted, "mute: book lines dropped when the book closes")
+    check(removed == 1 and DWE.SpokenFocus.bookMuted and DialogueWheelE_BookVoiceOff == true,
+        "mute: book lines dropped when the book closes, voice stays off for the next book")
+    DWE.SpokenFocus.SetBookMuted(false)
+    check(not DWE.SpokenFocus.bookMuted and DialogueWheelE_BookVoiceOff == nil, "unmute: voice back on and remembered")
     env.Spoken, env.SoundQueue = oldApi, oldQueue
     if not hadEnv then _G.SpokenEnv = nil end
     DWE.SpokenFocus.installed = nil

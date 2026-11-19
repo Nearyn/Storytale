@@ -2192,11 +2192,26 @@ do
                     DialogueWheelE_BookAutoScroll = DialogueWheelE_BookAutoScroll == false
                     if DWE.NoteFollowReset then DWE.NoteFollowReset() end
                 end }
+            if textBox.dweBook == true then
+                list[#list + 1] = { label = L.MENU_VOICE_TURN, on = DialogueWheelE_BookVoiceTurn == true, off = muted,
+                    icon = "Interface\\Icons\\INV_Misc_Book_07",
+                    click = function() DialogueWheelE_BookVoiceTurn = (DialogueWheelE_BookVoiceTurn ~= true) or nil end }
+            end
+            list[#list + 1] = { label = L.MENU_STOP_CLOSE, on = DialogueWheelE_BookStopOnClose == true,
+                icon = "Interface\\Icons\\Spell_Holy_Silence",
+                click = function() DialogueWheelE_BookStopOnClose = (DialogueWheelE_BookStopOnClose ~= true) or nil end }
             list[#list + 1] = { label = L.HIGHLIGHT_BTN, on = DialogueWheelE_BookHighlight ~= false, off = muted, swatch = true,
                 click = function()
                     DialogueWheelE_BookHighlight = DialogueWheelE_BookHighlight == false
                     if focus.RestoreHighlight then focus.RestoreHighlight() end
                 end }
+        end
+        -- Marque-page : retient la page affichee ; le livre se rouvrira a cette page.
+        local mark = textBox.dweBook == true and DWE.BookmarkInfo and { DWE.BookmarkInfo() }
+        if mark and mark[1] then
+            list[#list + 1] = { label = L.MENU_MARK or "Bookmark this page", on = mark[3] == mark[2],
+                icon = "Interface\\Icons\\INV_Misc_Note_02",
+                click = function() DWE.BookmarkToggle() end }
         end
         if textBox.dweBook == true then
             list[#list + 1] = { label = L.MENU_TURN_FX, on = DialogueWheelE_BookTurnFX ~= false,
@@ -2369,14 +2384,29 @@ do
         GameTooltip:Show()
     end)
     rib:SetScript("OnLeave", function()
-        Glow(0)
+        Glow(rib.marked and 0.35 or 0)
         GameTooltip:Hide()
     end)
+
+    -- Page marquee affichee : le ruban garde un leger halo (c'est lui, le marque-page).
+    function DWE.UpdateRibbonMark()
+        local mark = textBox.dweBook == true and DWE.BookmarkInfo and { DWE.BookmarkInfo() }
+        local on = mark and mark[1] and mark[3] == mark[2] or false
+        if on == (rib.marked or false) then return end
+        rib.marked = on or nil
+        if not rib.pulse and not (rib.IsMouseOver and rib:IsMouseOver()) then Glow(on and 0.35 or 0) end
+    end
 
     -- Place : dans la reliure du livre ouvert, ou au coin de la note.
     function DWE.UpdateRibbon(active)
         local book = textBox.dweBook
-        if not (active and DWE.BookByAddon() and (book == true or book == "note")) then
+        -- Note et plaque : leur menu n'a que les reglages de Spoken. Sans Spoken, pas de signature
+        -- ni de gravure (rien a ouvrir). Le livre garde son ruban (marque-page, pages animees).
+        local focus = DWE.SpokenFocus
+        local useful = book == true or (focus and focus.Available and focus.Available())
+        if not (active and useful and DWE.BookByAddon() and (book == true or book == "note")) then
+            rib.marked = nil
+            rib.glow:SetAlpha(0)
             rib:Hide()
             bar:Hide()
             rib.open = nil
@@ -2429,6 +2459,7 @@ do
         rib:Show()
         if not (DWE.ribbonFade and DWE.ribbonFade:GetScript("OnUpdate")) then rib.tex:SetAlpha(rib.baseAlpha or 1) end
         if not DialogueWheelE_RibbonSeen and not rib.pulse then Pulse() end
+        DWE.UpdateRibbonMark()
         if bar:IsShown() and not bar.closing then DWE.RibbonBarRefresh() end
     end
 end
@@ -4414,7 +4445,7 @@ DWE.THEME_LIST = THEME_LIST
 DWE.OPTION_VARS = { "Pos", "TextPos", "Theme", "Font", "FontSize", "Scale", "Opacity", "ShowText",
     "UseBlizzKey", "InteractKey", "ToggleKey", "WheelScroll", "SpokenTheme", "AttachNPC", "NPCOffset",
     "WheelWidth", "TextW", "TextH", "BubbleWidth", "Locked", "WheelTheme", "EscClose", "BookStyle",
-    "ThemeFrames", "BookLook", "BookPos", "BookScale", "NoteScale", "QuestWidth", "QuestAuto", "PlaceSkin", "SpokenChoice", "ChoiceSize", "WheelSide", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookHighlight", "BookTurnFX", "SpokenSmart", "DefaultsV" }
+    "ThemeFrames", "BookLook", "BookPos", "BookScale", "NoteScale", "QuestWidth", "QuestAuto", "PlaceSkin", "SpokenChoice", "ChoiceSize", "WheelSide", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose", "BookVoiceOff", "SpokenSmart", "DefaultsV" }
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if ReloadUI then ReloadUI() end
@@ -4824,6 +4855,14 @@ function DWE.InitOptionsPanel()
     end)
     smartCheck:HookScript("OnLeave", function() GameTooltip:Hide() end)
     Grey(smartCheck, spokenOn)
+    -- Page tournee a la main dans un livre lu par Spoken : la voix reprend a cette page.
+    Grey(AddCheck(L.BOOK_VOICE_TURN, 16, y - 230, DialogueWheelE_BookVoiceTurn == true, function(self)
+        DialogueWheelE_BookVoiceTurn = self:GetChecked() and true or nil
+    end), spokenOn)
+    -- Livre ferme : Spoken arrete de le lire (decoche par defaut : la lecture continue).
+    Grey(AddCheck(L.BOOK_STOP_CLOSE, 16, y - 256, DialogueWheelE_BookStopOnClose == true, function(self)
+        DialogueWheelE_BookStopOnClose = self:GetChecked() and true or nil
+    end), spokenOn)
     Grey(spokenThemeCheck, spokenOn)
     Grey(spokenCheck, spokenOn)
     Grey(toggleBtn, spokenOn)
@@ -4877,7 +4916,7 @@ function DWE.InitOptionsPanel()
         RefreshTiles()
     end)
     RefreshKeyButtons()
-    p:SetHeight(-(y - 232) + 30)
+    p:SetHeight(-(y - 284) + 30)
 
     if Settings and Settings.RegisterCanvasLayoutCategory then
         local cat = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
