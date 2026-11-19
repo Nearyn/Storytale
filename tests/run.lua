@@ -164,6 +164,17 @@ do -- manette : croix, A et B pris seulement si le mode manette est actif
     check(M.bindings.PAD1 == "DWE_SelectBtn" and M.bindings.PAD2 == "DWE_PadCloseBtn", "gamepad A selects, B closes")
     check(M.bindings.PADDLEFT == "DWE_PadPrevBtn" and M.bindings.PADDRIGHT == "DWE_PadNextBtn", "gamepad left/right turn pages")
     check(M.bindings.E == "DWE_SelectBtn" and M.bindings.PADRSHOULDER == "DWE_SelectBtn", "every interact key is bound")
+    check(DialogueWheelE_PadTipSeen == true and DWE.padTip and DWE.padTip:IsShown(), "gamepad tip shown the first time")
+    check(DWE.padTip.text:GetText() == DWE.L.PAD_TIP, "gamepad tip text")
+    DWE.padTip._scripts.OnUpdate(DWE.padTip, 13)
+    check(not DWE.padTip:IsShown(), "gamepad tip fades away")
+    DWE.RefreshBindings()
+    check(not DWE.padTip:IsShown(), "gamepad tip shown only once")
+    DialogueWheelE_GamePad = false
+    DWE.RefreshBindings()
+    check(M.bindings.PAD1 == nil and M.bindings.PADDUP == nil, "gamepad option off releases the pad buttons")
+    DialogueWheelE_GamePad = nil
+    DWE.RefreshBindings()
     _G.DWE_PadPrevBtn._scripts.OnClick(); _G.DWE_PadNextBtn._scripts.OnClick()
     local h = DWE.padCatcher._scripts and DWE.padCatcher._scripts.OnGamePadButtonDown
     if h then

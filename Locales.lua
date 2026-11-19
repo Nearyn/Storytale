@@ -636,6 +636,65 @@ for loc, list in pairs(SPOKEN_PAD) do
     if dest then for k, v in pairs(list) do dest[k] = v end end
 end
 
+-- Aide manette (options et astuce unique).
+local PAD_HELP = {
+    enUS = { SEC_PAD = "Gamepad", PAD_USE = "Use the gamepad in conversations and books",
+        PAD_HELP1 = "Conversations and books: D-pad to pick, A to confirm, B to close.",
+        PAD_HELP2 = "Books: D-pad left/right turns the pages, Y opens the ribbon's menu.",
+        PAD_HELP3 = "Spoken's player: Share (View on Xbox One), tap to pause, hold to skip, hold Share + Y for the reading queue.",
+        PAD_TIP = "D-pad: choose  ·  A: confirm  ·  B: close  (all buttons in Storytale's options)" },
+    frFR = { SEC_PAD = "Manette", PAD_USE = "Utiliser la manette dans les conversations et les livres",
+        PAD_HELP1 = "Conversations et livres : croix pour choisir, A pour valider, B pour fermer.",
+        PAD_HELP2 = "Livres : croix gauche/droite pour tourner les pages, Y pour le menu du ruban.",
+        PAD_HELP3 = "Lecteur de Spoken : Share (Vue sur Xbox One), appui court pour la pause, appui long pour passer, Share maintenu + Y pour la file de lecture.",
+        PAD_TIP = "Croix : choisir  ·  A : valider  ·  B : fermer  (tous les boutons dans les options de Storytale)" },
+    deDE = { SEC_PAD = "Controller", PAD_USE = "Controller in Gesprächen und Büchern verwenden",
+        PAD_HELP1 = "Gespräche und Bücher: Steuerkreuz zum Wählen, A zum Bestätigen, B zum Schließen.",
+        PAD_HELP2 = "Bücher: Steuerkreuz links/rechts blättert, Y öffnet das Menü des Lesebands.",
+        PAD_HELP3 = "Spoken-Player: Share (Ansicht auf Xbox One), kurz für Pause, lang zum Überspringen, Share halten + Y für die Warteschlange.",
+        PAD_TIP = "Steuerkreuz: wählen  ·  A: bestätigen  ·  B: schließen  (alle Tasten in den Storytale-Optionen)" },
+    esES = { SEC_PAD = "Mando", PAD_USE = "Usar el mando en conversaciones y libros",
+        PAD_HELP1 = "Conversaciones y libros: cruceta para elegir, A para confirmar, B para cerrar.",
+        PAD_HELP2 = "Libros: cruceta izquierda/derecha pasa las páginas, Y abre el menú de la cinta.",
+        PAD_HELP3 = "Reproductor de Spoken: Share (Vista en Xbox One), pulsar para pausar, mantener para saltar, mantener Share + Y para la cola.",
+        PAD_TIP = "Cruceta: elegir  ·  A: confirmar  ·  B: cerrar  (todos los botones en las opciones de Storytale)" },
+    itIT = { SEC_PAD = "Controller", PAD_USE = "Usa il controller nelle conversazioni e nei libri",
+        PAD_HELP1 = "Conversazioni e libri: croce direzionale per scegliere, A per confermare, B per chiudere.",
+        PAD_HELP2 = "Libri: croce sinistra/destra gira le pagine, Y apre il menu del nastro.",
+        PAD_HELP3 = "Lettore di Spoken: Share (Visualizza su Xbox One), premi per la pausa, tieni premuto per saltare, Share + Y per la coda.",
+        PAD_TIP = "Croce: scegli  ·  A: conferma  ·  B: chiudi  (tutti i tasti nelle opzioni di Storytale)" },
+    ptBR = { SEC_PAD = "Controle", PAD_USE = "Usar o controle em conversas e livros",
+        PAD_HELP1 = "Conversas e livros: direcional para escolher, A para confirmar, B para fechar.",
+        PAD_HELP2 = "Livros: direcional esquerda/direita vira as páginas, Y abre o menu da fita.",
+        PAD_HELP3 = "Player do Spoken: Share (Exibir no Xbox One), toque para pausar, segure para pular, segure Share + Y para a fila.",
+        PAD_TIP = "Direcional: escolher  ·  A: confirmar  ·  B: fechar  (todos os botões nas opções do Storytale)" },
+    ruRU = { SEC_PAD = "Геймпад", PAD_USE = "Использовать геймпад в диалогах и книгах",
+        PAD_HELP1 = "Диалоги и книги: крестовина — выбор, A — подтвердить, B — закрыть.",
+        PAD_HELP2 = "Книги: крестовина влево/вправо листает страницы, Y открывает меню закладки.",
+        PAD_HELP3 = "Плеер Spoken: Share (Просмотр на Xbox One) — нажать для паузы, удерживать для пропуска, Share + Y — очередь.",
+        PAD_TIP = "Крестовина: выбор  ·  A: подтвердить  ·  B: закрыть  (все кнопки в настройках Storytale)" },
+    koKR = { SEC_PAD = "게임패드", PAD_USE = "대화와 책에서 게임패드 사용",
+        PAD_HELP1 = "대화와 책: 방향키로 선택, A로 확인, B로 닫기.",
+        PAD_HELP2 = "책: 방향키 좌/우로 페이지 넘기기, Y로 책갈피 메뉴 열기.",
+        PAD_HELP3 = "Spoken 플레이어: Share(Xbox One은 보기) 짧게 눌러 일시정지, 길게 눌러 건너뛰기, Share + Y로 대기열.",
+        PAD_TIP = "방향키: 선택  ·  A: 확인  ·  B: 닫기  (모든 버튼은 Storytale 설정에)" },
+    zhCN = { SEC_PAD = "手柄", PAD_USE = "在对话和书籍中使用手柄",
+        PAD_HELP1 = "对话和书籍：方向键选择，A 确认，B 关闭。",
+        PAD_HELP2 = "书籍：方向键左/右翻页，Y 打开书签菜单。",
+        PAD_HELP3 = "Spoken 播放器：Share（Xbox One 为视图键）短按暂停，长按跳过，按住 Share + Y 打开队列。",
+        PAD_TIP = "方向键：选择  ·  A：确认  ·  B：关闭（全部按键见 Storytale 设置）" },
+    zhTW = { SEC_PAD = "手把", PAD_USE = "在對話與書籍中使用手把",
+        PAD_HELP1 = "對話與書籍：方向鍵選擇，A 確認，B 關閉。",
+        PAD_HELP2 = "書籍：方向鍵左/右翻頁，Y 開啟書籤選單。",
+        PAD_HELP3 = "Spoken 播放器：Share（Xbox One 為檢視鍵）短按暫停，長按跳過，按住 Share + Y 開啟佇列。",
+        PAD_TIP = "方向鍵：選擇  ·  A：確認  ·  B：關閉（全部按鍵見 Storytale 設定）" },
+}
+PAD_HELP.esMX = PAD_HELP.esES
+for loc, list in pairs(PAD_HELP) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then for k, v in pairs(list) do dest[k] = v end end
+end
+
 local own = T[LOCALE] or {}
 DWE.L = setmetatable({}, { __index = function(_, k)
     return GAME[k] or own[k] or enUS[k]

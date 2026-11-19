@@ -4896,8 +4896,21 @@ function DWE.InitOptionsPanel()
         DWE.RefreshBindings()
     end)
 
-    ---------------------------------------------------------------- Spoken
+    ---------------------------------------------------------------- Manette
     y = keysY - 76
+    AddSection(L.SEC_PAD, y)
+    AddCheck(L.PAD_USE, 16, y - 32, DialogueWheelE_GamePad ~= false, function(self)
+        DialogueWheelE_GamePad = self:GetChecked() and true or false
+        DWE.RefreshBindings()
+    end)
+    for i, key in ipairs({ "PAD_HELP1", "PAD_HELP2", "PAD_HELP3" }) do
+        local fs = AddText(L[key], 20, y - 44 - i * 18, "GameFontHighlightSmall")
+        fs:SetWidth(560)
+        fs:SetJustifyH("LEFT")
+    end
+
+    ---------------------------------------------------------------- Spoken
+    y = y - 134
     AddSection(L.SEC_SPOKEN, y)
     local spokenOn = DWE.SpokenFocus and DWE.SpokenFocus.Available()
     local function Grey(w, on)

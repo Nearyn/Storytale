@@ -15,6 +15,7 @@
 - When only on-demand lines remain, Spoken's player hides and a small, discreet button takes its place. Click it to open the queue.
 
 ### Improved
+- A **Gamepad** section in Storytale's options lists every button, with a box to turn gamepad support off. The first conversation in gamepad mode shows a one-time hint.
 - Every key bound to "Interact with target", keyboard and gamepad, now confirms a choice (not only the first one).
 - The reading queue closes by itself once it is empty.
 
@@ -33,6 +34,7 @@
 - Quand il ne reste que des lignes à la demande, le lecteur de Spoken se cache et un petit bouton discret prend sa place. Cliquez dessus pour ouvrir la file.
 
 ### Améliorations
+- Une section **Manette** dans les options de Storytale liste tous les boutons, avec une case pour couper la prise en charge de la manette. La première conversation en mode manette affiche une astuce, une seule fois.
 - Toutes les touches liées à « Interagir avec la cible », clavier et manette, valident maintenant un choix (pas seulement la première).
 - La file de lecture se ferme d'elle-même quand elle est vide.
 

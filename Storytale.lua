@@ -1642,7 +1642,33 @@ local function EnableKeys()
         SetOverrideBindingClick(f, true, "PADDLEFT", "DWE_PadPrevBtn")
         SetOverrideBindingClick(f, true, "PADDRIGHT", "DWE_PadNextBtn")
         if DWE.padCatcher.EnableGamePadButton then DWE.padCatcher:Show() end
+        if not DialogueWheelE_PadTipSeen then DWE.ShowPadTip() end
     end
+end
+
+-- Astuce manette, montree une seule fois (premiere conversation en mode manette).
+function DWE.ShowPadTip()
+    DialogueWheelE_PadTipSeen = true
+    local tip = DWE.padTip
+    if not tip then
+        tip = CreateFrame("Frame", "DWE_PadTip", UIParent)
+        tip:SetFrameStrata("DIALOG")
+        tip:SetSize(700, 30)
+        tip:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 190)
+        tip.text = tip:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        tip.text:SetPoint("CENTER")
+        tip.text:SetShadowOffset(1, -1)
+        tip:SetScript("OnUpdate", function(self, el)
+            self.t = (self.t or 0) + el
+            if self.t > 12 then self:Hide()
+            elseif self.t > 10 then self:SetAlpha((12 - self.t) / 2) end
+        end)
+        DWE.padTip = tip
+    end
+    tip.text:SetText(DWE.L.PAD_TIP)
+    tip.t = 0
+    tip:SetAlpha(1)
+    tip:Show()
 end
 
 -- Applique tout de suite un changement de touche fait dans les options.
