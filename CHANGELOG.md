@@ -1,5 +1,43 @@
 # Changelog / Journal des versions
 
+## 1.5.2
+
+**English**
+
+### New
+- **Gamepad hints for each part**: a one-time hint in a conversation, in a book (pages, the ribbon's menu) and on Spoken's player (Share). They only show when you are playing with a gamepad, not with the keyboard and mouse.
+- **DialogueUI's book**: Storytale's reading-queue button sits among Spoken's buttons, with the Compendium on its left, and the queue opens just above them. With a gamepad, Share presses the book's own Play / Stop and Skip buttons, so the icon follows.
+
+### Improved
+- Spoken's gamepad buttons (Share, Share + Y) now also work during a conversation or while a book is open.
+- When Spoken reads something else (an NPC, another book), its player stays on screen while a book is open, and the book moves aside so it does not cover it. An NPC's line keeps your conversation theme.
+- In a conversation, Y is left to the game again (the small Pause / Skip menu is gone: Spoken's player does that now).
+
+### Fixed
+- DialogueUI's parchment no longer flashes when you close a book in another theme.
+- The next pages of a book keep the book's look in Spoken's player.
+- With DialogueUI's book theme, the right stick scrolls its text again.
+- The D-pad could stay stuck on the bookmark ribbon after closing a book with its menu open.
+
+---
+
+**Français**
+
+### Nouveautés
+- **Astuces manette pour chaque élément** : une astuce, une seule fois, en conversation, dans un livre (pages, menu du ruban) et sur le lecteur de Spoken (Share). Elles ne s'affichent que si vous jouez à la manette, pas au clavier et à la souris.
+- **Livre de DialogueUI** : le bouton de file de lecture de Storytale rejoint les boutons de Spoken, avec le Compendium à sa gauche, et la file s'ouvre juste au-dessus. À la manette, Share appuie sur les boutons Lecture / Stop et Passer du livre : l'icône suit.
+
+### Améliorations
+- Les boutons de Spoken à la manette (Share, Share + Y) marchent aussi pendant une conversation ou un livre ouvert.
+- Quand Spoken lit autre chose (un PNJ, un autre livre), son lecteur reste à l'écran pendant un livre, et le livre se décale pour ne pas le recouvrir. La réplique d'un PNJ garde le thème des conversations.
+- En conversation, Y revient au jeu (le petit menu Pause / Passer disparaît : le lecteur de Spoken s'en charge).
+
+### Corrections
+- Le parchemin de DialogueUI n'apparaît plus un instant quand on ferme un livre dans un autre thème.
+- Les pages suivantes d'un livre gardent l'habillage du livre dans le lecteur de Spoken.
+- Avec le thème de livre DialogueUI, le stick droit fait de nouveau défiler son texte.
+- La croix pouvait rester bloquée sur le ruban après avoir fermé un livre avec son menu ouvert.
+
 ## 1.5.1
 
 **English**

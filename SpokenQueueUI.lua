@@ -157,7 +157,12 @@ function UI.Toggle(button)
     local mp = env and env.MinimalPlayer
     if mp and mp.menu then mp.menu:Hide() end
     UI.list:ClearAllPoints()
-    UI.list:SetPoint("TOPRIGHT", button or UIParent, "BOTTOMRIGHT", 8, -6)
+    if button and button.dweDUIBook then
+        -- Livre de DialogueUI : juste au-dessus de ses boutons.
+        UI.list:SetPoint("BOTTOMRIGHT", button, "TOPRIGHT", 8, 6)
+    else
+        UI.list:SetPoint("TOPRIGHT", button or UIParent, "BOTTOMRIGHT", 8, -6)
+    end
     UI.list:Show()
     UI.Refresh()
 end
@@ -174,11 +179,15 @@ local function MakeButton(Actions, controls)
     b:SetScript("OnClick", function(self) UI.Toggle(self) end)
     b:SetScript("OnEnter", function()
         b.glyph:SetAlpha(1)
-        GameTooltip:SetOwner(b, "ANCHOR_TOP")
-        GameTooltip:SetText(DWE.L.SPOKEN_QUEUE)
-        GameTooltip:AddLine(DWE.L.SPOKEN_QUEUE_TIP, 1, 1, 1, true)
-        GameTooltip:Show()
+        -- Dans le livre de DialogueUI, l'infobulle du livre (celle du jeu peut etre cachee).
+        local tip = (b.dweTip and b.dweTip()) or GameTooltip
+        tip:SetOwner(b, "ANCHOR_TOP")
+        tip:SetText(DWE.L.SPOKEN_QUEUE)
+        tip:AddLine(DWE.L.SPOKEN_QUEUE_TIP, 1, 1, 1, true)
+        tip:Show()
+        b.dweTipShown = tip
     end)
+    b:HookScript("OnLeave", function() if b.dweTipShown then b.dweTipShown:Hide(); b.dweTipShown = nil end end)
     return b
 end
 
@@ -188,7 +197,9 @@ function UI.PadIsOpen() return UI.list ~= nil and UI.list:IsShown() end
 function UI.PadOpen()
     UI.list = UI.list or BuildList()
     local anchor
-    for _, b in pairs(UI.buttons) do if b:IsVisible() then anchor = b break end end
+    for _, b in pairs(UI.buttons) do
+        if b:IsVisible() and (not anchor or b.dweDUIBook) then anchor = b end
+    end
     if not UI.list:IsShown() then UI.Toggle(anchor) end
     UI.padIdx = 1
     UI.Refresh()
@@ -241,7 +252,50 @@ local function OnLayOutRow(controls, row, gap)
     UI.Refresh()
 end
 
+-- Livre de DialogueUI (Spoken Readables y pose Lecture / Passer / Signaler a gauche de la croix,
+-- et le bouton du Compendium) : notre bouton de file prend la place du Compendium, qui passe a
+-- sa gauche. De droite a gauche : Signaler, Passer, Lecture, File, Compendium.
+local function PlaceDUIBook(book)
+    local env = Env()
+    local Actions = env and env.Actions
+    local row = book.row
+    local view = rawget(_G, "DUIBookFrame")
+    if not (Actions and row and row.frame and view) then return false end
+    local b = UI.buttons[row.frame]
+    if not b then
+        b = MakeButton(Actions, row.frame)
+        b:SetFrameStrata("FULLSCREEN")
+        b.dweDUIBook = true
+        b.dweTip = row.tooltip
+        UI.buttons[row.frame] = b
+        UI.Refresh()
+    end
+    b:Show()
+    local list = {}
+    if row.report and row.report:IsShown() then list[#list + 1] = row.report end
+    if row.skip and row.skip:IsShown() then list[#list + 1] = row.skip end
+    if row.play and row.play:IsShown() then list[#list + 1] = row.play end
+    list[#list + 1] = b
+    if row.open and row.open:IsShown() then list[#list + 1] = row.open end
+    local close = view.CloseButton
+    row:Place(list, type(close) == "table" and close.GetObjectType and close or nil)
+    return true
+end
+function UI.HookDUIBook()
+    if UI.duiBookHooked then return end
+    local sr = rawget(_G, "SpokenReadables")
+    local book = type(sr) == "table" and sr.DialogueUIBook
+    if type(book) ~= "table" or type(book.Place) ~= "function" then return end
+    UI.duiBookHooked = true
+    local orig = book.Place
+    book.Place = function(self, ...)
+        local ok, done = pcall(PlaceDUIBook, self)
+        if not (ok and done) then return orig(self, ...) end
+    end
+end
+
 function UI.Install()
+    UI.HookDUIBook()
     if UI.installed then return end
     local env = Env()
     local Actions = env and env.Actions
@@ -337,6 +391,7 @@ do
         if acc < 0.3 then return end
         acc = 0
         if UI.installed then pcall(UI.UpdateNotice) end
+        if not UI.duiBookHooked then pcall(UI.HookDUIBook) end
     end)
     UI.noticeWatch = tick
 end

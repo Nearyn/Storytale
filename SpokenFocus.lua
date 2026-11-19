@@ -283,7 +283,13 @@ function Focus.ForeignSpeaking()
     if api.IsPaused and api:IsPaused() then return false end
     local now = queue.GetNowPlaying and queue:GetNowPlaying()
     if not now then return false end
-    if IsBook(now) then return not (DWE.BookOpenNow and DWE.BookOpenNow()) end
+    if IsBook(now) then
+        if not (DWE.BookOpenNow and DWE.BookOpenNow()) then return true end
+        -- Un autre livre que celui qui est ouvert : ce n'est pas un doublon, le lecteur reste.
+        local open = ItemTextGetItem and ItemTextGetItem()
+        if type(open) ~= "string" or open == "" or not DWE.BookKey then return false end
+        return DWE.BookKey(GroupKey(now):sub(6)) ~= DWE.BookKey(open)
+    end
     -- Dialogue en train de se fermer (plus de PNJ ouvert) : rien a doublonner, on ne cache pas
     -- (sinon le lecteur disparaissait un instant pendant le fondu de fermeture).
     local npc = UnitName and UnitName("npc")

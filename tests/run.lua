@@ -184,18 +184,43 @@ do -- manette : croix, A et B pris seulement si le mode manette est actif
         duiBook.IsGamePadStickEnabled = function() return stick end
         duiBook.EnableGamePadStick = function(_, v) stick = v end
         duiBook:Show()
+        local realBBA = DWE.BookByAddon
+        DWE.BookByAddon = function() return false end
+        DWE.padCatcher._scripts.OnUpdate(DWE.padCatcher, 0.2)
+        check(stick == true, "DialogueUI's own book (its theme) keeps the right stick")
+        DWE.BookByAddon = function() return true end
         DWE.padCatcher._scripts.OnUpdate(DWE.padCatcher, 0.2)
         check(stick == false, "DialogueUI's hidden book gives the right stick back")
+        DWE.BookByAddon = realBBA
         duiBook:Hide(); _G.DUIBookFrame = prevBook
         _G.IsGamePadFreelookEnabled, _G.SetGamePadFreeLook = nil, nil
         DWE.padCatcher._scripts.OnUpdate(DWE.padCatcher, 0.2) -- API absente : sans erreur
     end
+    DialogueWheelE_PadTips = nil
+    local tipShown0 = DWE.SpokenPlayerShown
+    DWE.SpokenPlayerShown = function() return false end
+    DWE.PadTipCheck()
+    check(not DialogueWheelE_PadTipSeen, "gamepad tip: not shown while the keyboard and mouse are in use")
+    DWE.padUsed = true
+    DWE.PadTipCheck()
     check(DialogueWheelE_PadTipSeen == true and DWE.padTip and DWE.padTip:IsShown(), "gamepad tip shown the first time")
     check(DWE.padTip.text:GetText() == DWE.L.PAD_TIP, "gamepad tip text")
     DWE.padTip._scripts.OnUpdate(DWE.padTip, 13)
     check(not DWE.padTip:IsShown(), "gamepad tip fades away")
-    DWE.RefreshBindings()
+    DWE.PadTipCheck()
     check(not DWE.padTip:IsShown(), "gamepad tip shown only once")
+    do -- astuces du livre et du lecteur Spoken
+        DWE.bookMode = true; DWE.PadTipCheck()
+        check(DWE.padTip:IsShown() and DWE.padTip.text:GetText() == DWE.L.PAD_TIP_BOOK, "gamepad tip for books")
+        DWE.padTip._scripts.OnUpdate(DWE.padTip, 13); DWE.bookMode = nil
+        DWE.SpokenPlayerShown = function() return true end
+        DWE.PadTipCheck()
+        check(DWE.padTip:IsShown() and DWE.padTip.text:GetText() == DWE.L.PAD_TIP_SPOKEN, "gamepad tip for Spoken's player")
+        DWE.padTip._scripts.OnUpdate(DWE.padTip, 13)
+        DWE.PadTipCheck()
+        check(not DWE.padTip:IsShown(), "each gamepad tip only once")
+        DWE.SpokenPlayerShown = tipShown0
+    end
     DialogueWheelE_GamePad = false
     DWE.RefreshBindings()
     check(M.bindings.PAD1 == nil and M.bindings.PADDUP == nil, "gamepad option off releases the pad buttons")
@@ -209,32 +234,26 @@ do -- manette : croix, A et B pris seulement si le mode manette est actif
         h(DWE.padCatcher, "PADDDOWN")
         check(DWE.selectedIndex ~= before, "catcher: d-pad down moves the selection")
         h(DWE.padCatcher, "PADLSTICKUP") -- not ours: passes through, no error
-        -- Y en conversation : petit menu du lecteur Spoken (si Spoken est la).
-        local realShown = DWE.SpokenPlayerShown
-        DWE.SpokenPlayerShown = function() return false end
-        h(DWE.padCatcher, "PAD4")
-        check(not DWE.PadMenuOpen(), "no Spoken menu while Spoken's player is not on screen")
-        DWE.SpokenPlayerShown = function() return true end
-        if true then
+        do -- Share pendant une conversation : le lecteur Spoken garde ses boutons
             local sent = {}
             _G.SlashCmdList = _G.SlashCmdList or {}
-            local old = SlashCmdList.SPOKEN
+            local oldS = SlashCmdList.SPOKEN
             SlashCmdList.SPOKEN = function(m) sent[#sent + 1] = m end
-            h(DWE.padCatcher, "PAD4")
-            check(DWE.PadMenuOpen(), "gamepad Y opens the Spoken menu in a conversation")
-            local sel = DWE.selectedIndex
-            h(DWE.padCatcher, "PAD1")
-            h(DWE.padCatcher, "PADDRIGHT"); h(DWE.padCatcher, "PAD1")
-            check(table.concat(sent, ",") == "play,skip", "Spoken menu: pause then skip (" .. table.concat(sent, ",") .. ")")
-            check(DWE.selectedIndex == sel and DWE.choiceBox:IsShown(), "Spoken menu keeps the wheel as it was")
-            h(DWE.padCatcher, "PAD2")
-            check(not DWE.PadMenuOpen() and DWE.choiceBox:IsShown(), "B closes the Spoken menu, not the conversation")
-            SlashCmdList.SPOKEN = old
-            h(DWE.padCatcher, "PAD4")
-            DWE.SpokenPlayerShown = function() return false end
-            DWE.padMenu._scripts.OnUpdate(DWE.padMenu, 1)
-            check(not DWE.PadMenuOpen(), "Spoken menu closes when the player goes away")
+            local realShown = DWE.SpokenPlayerShown
+            DWE.SpokenPlayerShown = function() return true end
+            h(DWE.padCatcher, "PADSOCIAL")
+            DWE.padCatcher._scripts.OnGamePadButtonUp(DWE.padCatcher, "PADSOCIAL")
+            check(sent[1] == "play" and DWE.choiceBox:IsShown(), "Share pauses Spoken during a conversation")
+            DWE.SpokenPlayerShown = realShown
+            SlashCmdList.SPOKEN = oldS
         end
+        -- Y en conversation : laisse au jeu, meme avec le lecteur Spoken a l'ecran.
+        local realShown = DWE.SpokenPlayerShown
+        DWE.SpokenPlayerShown = function() return true end
+        check(not DWE.PadMenuAvailable(), "Y is left to the game in a conversation")
+        h(DWE.padCatcher, "PAD4")
+        check(DWE.choiceBox:IsShown(), "Y in a conversation does not close it")
+        DWE.SpokenPlayerShown = realShown
         -- Share / Vue hors dialogue : court = pause, long = passer (seulement lecteur affiche)
         do
             local sent = {}
@@ -1628,6 +1647,7 @@ do -- livre de l'addon referme : le parchemin de DialogueUI reste cache pendant 
     end
 end
 do -- place par defaut des lecteurs de Spoken
+    DWE.padUsed = false
     local layout = {}
     local oldEnv = rawget(_G, "SpokenEnv")
     local restored
@@ -1653,13 +1673,60 @@ do -- place par defaut des lecteurs de Spoken
         DWE.SpokenPlayersPlace()
         check(y and math.abs(y - H * DWE.SPOKEN_MINI_Y.kbm) < 0.01, "spoken mini player: keyboard default place")
         M.cvars.GamePadEnable = "1"; DWE.SpokenPlayersPlace()
+        check(y and math.abs(y - H * DWE.SPOKEN_MINI_Y.kbm) < 0.01, "spoken mini player: gamepad mode on but keyboard in use")
+        DWE.padUsed = true; DWE.SpokenPlayersPlace()
         check(y and math.abs(y - H * DWE.SPOKEN_MINI_Y.pad) < 0.01, "spoken mini player: gamepad default place")
-        M.cvars.GamePadEnable = nil
+        M.cvars.GamePadEnable = nil; DWE.padUsed = false
         layout.Minimal = { left = 1, top = 2 }; y = nil; DWE.SpokenPlayersPlace()
         check(y == nil, "spoken mini player: a place the player chose is kept")
         _G.SpokenMinimalPlayerFrame = nil
     end
     _G.SpokenEnv = oldEnv
+end
+do -- livre de DialogueUI : la manette appuie sur ses propres boutons (l'icone suit)
+    local clicked = {}
+    local holder = CreateFrame("Frame", nil, UIParent)
+    local play = CreateFrame("Button", nil, holder); play:SetScript("OnClick", function(_, m) clicked[#clicked + 1] = "play:" .. tostring(m) end)
+    local skip = CreateFrame("Button", nil, holder); skip:SetScript("OnClick", function() clicked[#clicked + 1] = "skip" end)
+    holder:Show(); play:Show(); skip:Show()
+    local oldSR = rawget(_G, "SpokenReadables")
+    _G.SpokenReadables = { DialogueUIBook = { row = { frame = holder, play = play, skip = skip } } }
+    DWE.SpokenPadPress("play"); DWE.SpokenPadPress("skip")
+    check(clicked[1] == "play:LeftButton" and clicked[2] == "skip", "gamepad presses DialogueUI book's own Play / Skip")
+    _G.SpokenReadables = oldSR
+end
+do -- livre de DialogueUI (Spoken Readables) : bouton de file et manette sur ses boutons
+    local env = rawget(_G, "SpokenEnv")
+    local holder = CreateFrame("Frame", nil, UIParent)
+    local clicks, placed = {}, nil
+    local function Round(name)
+        local b = CreateFrame("Button", nil, holder)
+        b:SetScript("OnClick", function() clicks[#clicks + 1] = name end)
+        return b
+    end
+    local row = { frame = holder, play = Round("play"), skip = Round("skip"), open = Round("open"),
+        tooltip = function() return GameTooltip end }
+    row.Place = function(_, list) placed = list end
+    local view = CreateFrame("Frame", nil, UIParent)
+    view.CloseButton = CreateFrame("Button", nil, view)
+    local oldBook = rawget(_G, "DUIBookFrame")
+    _G.DUIBookFrame = view
+    local book = { row = row }
+    book.Place = function() placed = "orig" end
+    _G.SpokenReadables = { DialogueUIBook = book }
+    local hadActions = env and env.Actions
+    if env and hadActions then
+        DWE.SpokenQueueUI.duiBookHooked = nil
+        DWE.SpokenQueueUI.HookDUIBook()
+        book:Place()
+        local qb = DWE.SpokenQueueUI.buttons[holder]
+        check(type(placed) == "table" and qb and placed[#placed - 1] == qb and placed[#placed] == row.open,
+            "DialogueUI book: queue button where the Compendium was, Compendium on its left")
+    end
+    DWE.SpokenPadPress("play"); DWE.SpokenPadPress("skip")
+    check(clicks[1] == "play" and clicks[2] == "skip", "DialogueUI book: Share uses its own Play / Skip (icon follows)")
+    holder:Hide()
+    _G.SpokenReadables = nil; _G.DUIBookFrame = oldBook
 end
 -- Livres lus / commences
 DialogueWheelE_ReadBooks = nil

@@ -1053,9 +1053,20 @@ function DWE.BookOpenNow()
     end
     return false
 end
+-- Habillage retenu par livre (son titre) : les pages suivantes, mises en file plus tard, gardent
+-- celui du livre (papier, plaque...) au lieu de prendre le theme du moment.
+DWE.bookStamps = {}
+function DWE.StampKey(clip)
+    local F = DWE.SpokenFocus
+    return F and F.GroupKey and F.GroupKey(clip) or nil
+end
 function DWE.SpokenStamp()
     local clip = spokenSkinRef and spokenSkinRef.clip
-    if type(clip) ~= "table" or not clip.dweStamp or DWE.BookOpenNow() then return nil end
+    if type(clip) ~= "table" or DWE.BookOpenNow() then return nil end
+    if not clip.dweStamp then
+        local key = DWE.StampKey(clip)
+        clip.dweStamp = key and DWE.bookStamps[key] or nil
+    end
     return clip.dweStamp
 end
 -- Mot lu par Spoken sur une plaque de l'addon : couleur propre a la matiere (neutre, aucun camp).
@@ -1076,17 +1087,31 @@ function DWE.SpokenPlaceSkin()
     if v == "dui" and not DWE.DUI_ON then v = nil end
     return v or "theme"
 end
+-- La ligne que montre le lecteur Spoken est-elle un livre ? (sinon un PNJ, un lieu...)
+function DWE.SpokenClipBook()
+    local clip = spokenSkinRef and spokenSkinRef.clip
+    local p = type(clip) == "table" and clip.present
+    return type(p) == "table" and (p.material ~= nil or p.bullet == "book") or false
+end
+-- Theme des conversations, meme pendant un livre (le livre impose le sien a l'ecran).
+function DWE.SpokenConvTheme()
+    local t = DialogueWheelE_Theme or "bubble"
+    if (t == "dui_brown" or t == "dui_dark") and not DWE.DUI_ON then t = "bubble" end
+    return t
+end
 function DWE.SpokenThemeOverride()
     local st = DWE.SpokenStamp()
     if st then return st.override end
     local place = DWE.SpokenPlaceSkin()
     if place == "dui" then return nil end
     if place == "paper" then return 1 end
-    -- Livre affiche par l'addon : le petit lecteur Spoken prend toujours le theme du livre.
-    if DWE.BookByAddon() then return 1 end
+    -- Livre affiche par l'addon : le petit lecteur Spoken prend le theme du livre quand il lit
+    -- un livre ; une autre voix (un PNJ) garde le theme des conversations.
+    local addonBook = DWE.BookByAddon()
+    if addonBook and DWE.SpokenClipBook() then return 1 end
     if DialogueWheelE_SpokenTheme ~= true then return nil end
-    if SpokenBookLeftAlone() then return nil end
-    return SPOKEN_PALETTE_OF[CurrentTheme()] or 2
+    if not addonBook and SpokenBookLeftAlone() then return nil end
+    return SPOKEN_PALETTE_OF[addonBook and DWE.SpokenConvTheme() or CurrentTheme()] or 2
 end
 
 -- Pour la fenetre Spoken, les bulles empruntent le style d'un theme "bloc".
@@ -1095,7 +1120,7 @@ local function SpokenStyle()
     local st = DWE.SpokenStamp()
     if st then return st.style end
     if DWE.SpokenPlaceSkin() == "paper" then return "bookpaper" end
-    if DWE.BookByAddon() then
+    if DWE.BookByAddon() and DWE.SpokenClipBook() then
         -- Plaque : sa propre matiere, en petite taille (texture S a moitie, marges divisees par 2).
         local mat = DWE.BookLook() == "note" and DWE.PlateMaterial()
         local pl = mat and DWE.PLATES[mat]
@@ -1112,7 +1137,7 @@ local function SpokenStyle()
         end
         return id
     end
-    local t = CurrentTheme()
+    local t = DWE.BookByAddon() and DWE.SpokenConvTheme() or CurrentTheme()
     return SPOKEN_STYLE_ALIAS[t] or t
 end
 
@@ -1148,6 +1173,8 @@ local function PaintSpoken(skin)
             plate = (DWE.RawPlate() or DWE.lastPlate) and true or nil,
             mat = DWE.BookByAddon() and DWE.PlateMaterial() or nil,
         }
+        local key = DWE.StampKey(clip)
+        if key then DWE.bookStamps[key] = clip.dweStamp end
     end
     local parts = skin.dweParts
     if not parts then
@@ -1212,7 +1239,7 @@ function DWE.SpokenPlayersPlace()
     if fr.IsDragging and fr:IsDragging() then return end
     local rel = (fr.GetEffectiveScale and UIParent.GetEffectiveScale and fr:GetEffectiveScale() / UIParent:GetEffectiveScale()) or 1
     if not rel or rel <= 0 then rel = 1 end
-    local key = (DWE.GamePadOn and DWE.GamePadOn()) and "pad" or "kbm"
+    local key = (DWE.PadInUse and DWE.PadInUse()) and "pad" or "kbm"
     local y = DWE.SPOKEN_MINI_Y[key] * H / rel
     local p, to, rp, ox, oy = fr:GetPoint(1)
     if p == "BOTTOM" and to == UIParent and rp == "BOTTOM" and math.abs((ox or 0)) < 1 and math.abs((oy or 0) - y) < 1 then return end
@@ -1221,7 +1248,22 @@ function DWE.SpokenPlayersPlace()
 end
 
 -- Manette : boutons du lecteur Spoken ("play" = arreter/relancer, "skip" = passer).
+-- Rangee de Spoken (Spoken Readables) dans le livre de DialogueUI, quand elle est a l'ecran.
+function DWE.DUIBookRow()
+    local sr = rawget(_G, "SpokenReadables")
+    local book = type(sr) == "table" and sr.DialogueUIBook
+    local row = type(book) == "table" and book.row
+    if type(row) ~= "table" or type(row.frame) ~= "table" or not row.frame:IsVisible() then return nil end
+    return row, book
+end
 function DWE.SpokenPadPress(which)
+    -- Livre de DialogueUI : ses propres boutons, comme a la souris (l'icone Lecture / Stop suit).
+    local row = DWE.DUIBookRow()
+    local b = row and row[which == "play" and "play" or "skip"]
+    if type(b) == "table" and b.IsShown and b:IsShown() and (not b.IsEnabled or b:IsEnabled() ~= false) then
+        local fn = b:GetScript("OnClick")
+        if fn then return pcall(fn, b, "LeftButton") and true or false end
+    end
     -- La voie publique de Spoken (celle de ses raccourcis clavier) : /spoken play, /spoken skip.
     local cmd = type(SlashCmdList) == "table" and SlashCmdList.SPOKEN
     if type(cmd) == "function" then
@@ -1248,6 +1290,38 @@ function DWE.HookSpoken()
         GuardSpokenFrame(self.shadow)
         GuardSpokenFrame(self.card)
         GuardSpokenFrame(self.ripple)
+    end
+    -- Le lecteur se cache quand une fenetre de DialogueUI le couvre. Le livre de DialogueUI reste
+    -- ouvert (invisible) derriere un livre de Storytale : il ne couvre rien, le lecteur d'une autre
+    -- voix (un PNJ, un autre livre) reste donc visible, comme en conversation.
+    if type(skin.Covered) == "function" then
+        local origCovered = skin.Covered
+        skin.Covered = function(self, ...)
+            if not origCovered(self, ...) then return false end
+            if not DWE.BookByAddon() then return true end
+            local book = rawget(_G, "DUIBookFrame")
+            for _, dialog in ipairs(self.dialogs or {}) do
+                if dialog ~= book and dialog:IsShown() and self.frame:GetParent() ~= dialog then return true end
+            end
+            return false
+        end
+    end
+    -- Livre de Storytale referme : le livre de DialogueUI (invisible derriere) se ferme aussi, et
+    -- Spoken ferait glisser son lecteur depuis sa page, avec le parchemin de DialogueUI. Ce
+    -- parchemin n'a jamais ete a l'ecran : le lecteur se met directement a sa place.
+    if type(skin.Settle) == "function" then
+        local origSettle = skin.Settle
+        skin.Settle = function(self, dialog, ...)
+            local book = rawget(_G, "DUIBookFrame")
+            local held = DWE.duiHoldUntil and GetTime and GetTime() < DWE.duiHoldUntil
+            if dialog ~= nil and dialog == book and (DWE.BookByAddon() or held) then
+                self.justClosed = nil
+                if type(self.PlaceHome) == "function" then pcall(self.PlaceHome, self) end
+                if type(self.Update) == "function" then return self:Update() end
+                return
+            end
+            return origSettle(self, dialog, ...)
+        end
     end
     if type(skin.ShadowUnder) == "function" then hooksecurefunc(skin, "ShadowUnder", GuardAll) end
     if type(skin.TuckFrames) == "function" then hooksecurefunc(skin, "TuckFrames", GuardAll) end
@@ -1620,7 +1694,35 @@ local function BookPosition()
         return
     end
     local sc = DWE.BookScaleWanted()
-    textBox:SetPoint("RIGHT", UIParent, "RIGHT", -(uw * 0.2) / sc, 63 / sc)
+    -- Le lecteur Spoken d'une autre voix a l'ecran (a droite) : le livre se pousse a sa gauche
+    -- pour ne pas le recouvrir.
+    local gap = uw * 0.2
+    local fr = DWE.SpokenSideFrame and DWE.SpokenSideFrame()
+    local l = fr and fr:GetLeft()
+    if l then
+        l = l * fr:GetEffectiveScale() / UIParent:GetEffectiveScale()
+        local artRight = (BOOK_W - BOOK_LEFT - (textBox:GetWidth() or 380)) * sc -- le livre deborde a droite
+        local want = uw - l + 24 + math.max(0, artRight)
+        -- Seulement un lecteur sur la moitie droite, et sans pousser le livre hors de l'ecran.
+        if l > uw * 0.5 and want > gap then gap = math.min(want, uw * 0.45) end
+    end
+    DWE.bookAvoided = fr and true or false
+    textBox:SetPoint("RIGHT", UIParent, "RIGHT", -gap / sc, 63 / sc)
+end
+DWE.BookPosition = BookPosition
+-- Lecteur Spoken visible a cote d'un livre de l'addon (place par defaut seulement).
+function DWE.SpokenSideFrame()
+    for _, n in ipairs({ "SpokenDialogueUIPlayerFrame", "SpokenMinimalPlayerFrame" }) do
+        local f = rawget(_G, n)
+        if DWE.PlayerFrameShown and DWE.PlayerFrameShown(f) then return f end
+    end
+end
+-- Appele regulierement : replace le livre quand le lecteur apparait ou s'en va.
+function DWE.BookAvoidSpoken()
+    if not (DWE.bookMode and DWE.BookByAddon() and textBox:IsShown()) or textBox.dweBook == "note" then return end
+    if type(DialogueWheelE_BookPos) == "table" and DialogueWheelE_BookPos.x then return end
+    local now = DWE.SpokenSideFrame() and true or false
+    if now ~= (DWE.bookAvoided or false) then BookPosition() end
 end
 
 -- Echelle du livre ouvert (poignee du coin). Le coin haut-gauche reste en place.
@@ -2448,6 +2550,14 @@ do
         bar.t = math.max(bar.t or 0, FADE + (bar.count or 1) * STAGGER * 0.4)
         rib.open = nil
     end
+    -- Livre ferme avec le ruban ouvert : il se replie tout de suite.
+    rib:HookScript("OnHide", function()
+        if rib.open or bar:IsShown() then
+            Close()
+            bar.closing = nil
+            bar:Hide()
+        end
+    end)
     DWE.RibbonClose = Close
 
     -- Manette : Y ouvre le menu du ruban, la croix choisit un reglage (surligne comme au
@@ -2460,7 +2570,9 @@ do
         end
     end
     function DWE.RibbonPadOpen()
-        return rib.open and bar:IsShown() and (bar.count or 0) > 0 or false
+        -- Visible pour de vrai (livre ouvert) : un ruban reste "ouvert" quand on ferme le livre
+        -- sans le replier, et la croix ne doit pas lui rester acquise dans les conversations.
+        return rib.open and bar:IsVisible() and not bar.closing and (bar.count or 0) > 0 or false
     end
     function DWE.RibbonPadToggle()
         if not rib:IsShown() then return false end

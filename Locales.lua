@@ -714,6 +714,25 @@ for loc, list in pairs(OPT_SEARCH) do
     if dest then for k, v in pairs(list) do dest[k] = v end end
 end
 
+-- Astuces manette : livre et lecteur Spoken.
+local PAD_TIPS2 = {
+    enUS = { PAD_TIP_BOOK = "D-pad left/right: turn pages  ·  Y: bookmark ribbon menu  ·  B: close", PAD_TIP_SPOKEN = "Spoken's player  —  Share: tap to pause, hold to skip  ·  hold Share + Y: reading queue" },
+    frFR = { PAD_TIP_BOOK = "Croix gauche/droite : tourner les pages  ·  Y : menu du ruban  ·  B : fermer", PAD_TIP_SPOKEN = "Lecteur Spoken  —  Share : appui court pour la pause, appui long pour passer  ·  Share maintenu + Y : file de lecture" },
+    deDE = { PAD_TIP_BOOK = "Steuerkreuz links/rechts: blättern  ·  Y: Menü des Lesebands  ·  B: schließen", PAD_TIP_SPOKEN = "Spoken-Player  —  Share: kurz für Pause, lang zum Überspringen  ·  Share halten + Y: Warteschlange" },
+    esES = { PAD_TIP_BOOK = "Cruceta izquierda/derecha: pasar páginas  ·  Y: menú de la cinta  ·  B: cerrar", PAD_TIP_SPOKEN = "Reproductor de Spoken  —  Share: pulsar para pausar, mantener para saltar  ·  mantener Share + Y: cola" },
+    itIT = { PAD_TIP_BOOK = "Croce sinistra/destra: gira le pagine  ·  Y: menu del nastro  ·  B: chiudi", PAD_TIP_SPOKEN = "Lettore di Spoken  —  Share: premi per la pausa, tieni premuto per saltare  ·  Share + Y: coda" },
+    ptBR = { PAD_TIP_BOOK = "Direcional esquerda/direita: virar páginas  ·  Y: menu da fita  ·  B: fechar", PAD_TIP_SPOKEN = "Player do Spoken  —  Share: toque para pausar, segure para pular  ·  segure Share + Y: fila" },
+    ruRU = { PAD_TIP_BOOK = "Крестовина влево/вправо: листать  ·  Y: меню закладки  ·  B: закрыть", PAD_TIP_SPOKEN = "Плеер Spoken  —  Share: нажать — пауза, удерживать — пропуск  ·  Share + Y: очередь" },
+    koKR = { PAD_TIP_BOOK = "방향키 좌/우: 페이지 넘기기  ·  Y: 책갈피 메뉴  ·  B: 닫기", PAD_TIP_SPOKEN = "Spoken 플레이어  —  Share: 짧게 일시정지, 길게 건너뛰기  ·  Share + Y: 대기열" },
+    zhCN = { PAD_TIP_BOOK = "方向键左/右：翻页  ·  Y：书签菜单  ·  B：关闭", PAD_TIP_SPOKEN = "Spoken 播放器 —— Share：短按暂停，长按跳过  ·  按住 Share + Y：队列" },
+    zhTW = { PAD_TIP_BOOK = "方向鍵左/右：翻頁  ·  Y：書籤選單  ·  B：關閉", PAD_TIP_SPOKEN = "Spoken 播放器 —— Share：短按暫停，長按跳過  ·  按住 Share + Y：佇列" },
+}
+PAD_TIPS2.esMX = PAD_TIPS2.esES
+for loc, list in pairs(PAD_TIPS2) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then for k, v in pairs(list) do dest[k] = v end end
+end
+
 local own = T[LOCALE] or {}
 DWE.L = setmetatable({}, { __index = function(_, k)
     return GAME[k] or own[k] or enUS[k]
