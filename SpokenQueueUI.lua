@@ -294,8 +294,52 @@ function UI.HookDUIBook()
     end
 end
 
+-- Parchemin des conversations de DialogueUI (Spoken Quests y pose Lecture / Passer) : notre
+-- bouton de file se met a cote, et la liste s'ouvre juste au-dessus d'eux.
+local function AdoptDUIQuestRow(row)
+    local env = Env()
+    local Actions = env and env.Actions
+    if not (Actions and type(row) == "table" and row.frame and type(row.Place) == "function") then return end
+    local b = UI.buttons[row.frame]
+    if not b then
+        b = MakeButton(Actions, row.frame)
+        b:SetFrameStrata("FULLSCREEN")
+        b.dweDUIBook = true
+        UI.buttons[row.frame] = b
+    end
+    UI.duiQuestRow = row
+    local orig = row.Place
+    row.Place = function(self, list, ...)
+        if type(list) == "table" then
+            local at = #list + 1
+            for i, w in ipairs(list) do
+                if w == b then at = nil break end
+                if w == self.play then at = i + 1 end
+            end
+            if at then table.insert(list, at, b) end
+            b:Show()
+        end
+        return orig(self, list, ...)
+    end
+    pcall(UI.Refresh)
+end
+function UI.HookDUIQuest()
+    if UI.duiQuestHooked then return end
+    local sp = rawget(_G, "Spoken")
+    if type(sp) ~= "table" or type(sp.CreateDialogueUIRow) ~= "function" then return end
+    UI.duiQuestHooked = true
+    local orig = sp.CreateDialogueUIRow
+    sp.CreateDialogueUIRow = function(self, dialog, ...)
+        local row = orig(self, dialog, ...)
+        if dialog ~= nil and dialog == rawget(_G, "DUIQuestFrame") then pcall(AdoptDUIQuestRow, row) end
+        return row
+    end
+end
+UI.HookDUIQuest()
+
 function UI.Install()
     UI.HookDUIBook()
+    UI.HookDUIQuest()
     if UI.installed then return end
     local env = Env()
     local Actions = env and env.Actions

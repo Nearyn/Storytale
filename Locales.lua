@@ -733,6 +733,25 @@ for loc, list in pairs(PAD_TIPS2) do
     if dest then for k, v in pairs(list) do dest[k] = v end end
 end
 
+-- Theme DialogueUI : sa vraie interface.
+local THEME_DUI_L = {
+    enUS = { THEME_DUI = "DialogueUI (its own interface)" },
+    frFR = { THEME_DUI = "DialogueUI (sa propre interface)" },
+    deDE = { THEME_DUI = "DialogueUI (eigene Oberfläche)" },
+    esES = { THEME_DUI = "DialogueUI (su propia interfaz)" },
+    itIT = { THEME_DUI = "DialogueUI (la sua interfaccia)" },
+    ptBR = { THEME_DUI = "DialogueUI (interface própria)" },
+    ruRU = { THEME_DUI = "DialogueUI (собственный интерфейс)" },
+    koKR = { THEME_DUI = "DialogueUI (자체 인터페이스)" },
+    zhCN = { THEME_DUI = "DialogueUI（其自身界面）" },
+    zhTW = { THEME_DUI = "DialogueUI（其自身介面）" },
+}
+THEME_DUI_L.esMX = THEME_DUI_L.esES
+for loc, list in pairs(THEME_DUI_L) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then for k, v in pairs(list) do dest[k] = v end end
+end
+
 local own = T[LOCALE] or {}
 DWE.L = setmetatable({}, { __index = function(_, k)
     return GAME[k] or own[k] or enUS[k]

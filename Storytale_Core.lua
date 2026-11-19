@@ -459,10 +459,16 @@ local BOOK_THEMES = {
 local function CurrentTheme()
     if DialogueWheelE_Theme == "scroll" then DialogueWheelE_Theme = "parchment" end -- theme retire
     local t = DialogueWheelE_Theme or "bubble"
+    -- Theme DialogueUI : le parchemin vient de DialogueUI, la roue de choix reste sans cadre.
+    if t == "dui" then
+        t = (DWE.ConvToDUI and DWE.ConvToDUI() and not DWE.bookMode) and "transparent" or "dui_brown"
+    end
     if (t == "dui_brown" or t == "dui_dark") and not DWE.DUI_ON then t = "bubble" end
     if DWE.bookMode and not BOOK_THEMES[t] then return "velin" end
     return t
 end
+
+DWE.CurrentThemeId = CurrentTheme
 
 -- Lecture d'un livre ou non : change le theme affiche si besoin.
 function DWE.SetBookMode(on)
@@ -870,6 +876,8 @@ function DWE.BookByAddon()
 end
 function DWE.TextWanted()
     if DWE.BookByAddon() then return not DWE.bookSpokenView end
+    -- Theme DialogueUI : le texte du PNJ est sur le parchemin de DialogueUI.
+    if DWE.ConvToDUI and DWE.ConvToDUI() then return false end
     return DialogueWheelE_ShowText == true
 end
 
@@ -901,16 +909,50 @@ local function ShouldHide(alwaysWithWheel, frame)
     return DWE.TextWanted()
 end
 
+-- Une fenetre de DialogueUI cachee par transparence attrape encore la souris (son livre, au
+-- premier plan, empechait de deplacer le notre) : on la rend traversable le temps qu'elle est
+-- cachee, enfants compris.
+function DWE.CutMouse(frame, cut)
+    if (frame.dweMouseCut or false) == cut then return end
+    frame.dweMouseCut = cut
+    local function Walk(f)
+        if (f.IsForbidden and f:IsForbidden()) or (f.IsProtected and f:IsProtected()) then return end
+        if cut then
+            if f.IsMouseEnabled and f:IsMouseEnabled() then f.dweMouseWas = true; f:EnableMouse(false) end
+            if f.IsMouseWheelEnabled and f:IsMouseWheelEnabled() then f.dweWheelWas = true; f:EnableMouseWheel(false) end
+        else
+            if f.dweMouseWas then f.dweMouseWas = nil; f:EnableMouse(true) end
+            if f.dweWheelWas then f.dweWheelWas = nil; f:EnableMouseWheel(true) end
+        end
+        if f.GetChildren then
+            for _, c in ipairs({ f:GetChildren() }) do pcall(Walk, c) end
+        end
+    end
+    pcall(Walk, frame)
+end
+function DWE.IsDUIFrame(frame)
+    if frame.dweIsDUI == nil then
+        local ok, name = pcall(frame.GetName, frame)
+        frame.dweIsDUI = (ok and type(name) == "string" and name:find("^DUI")) and true or false
+    end
+    return frame.dweIsDUI
+end
 local function ApplyAlpha(frame, alwaysWithWheel)
     if not IsSafeFrame(frame) then return end
     local a = ShouldHide(alwaysWithWheel, frame) and 0 or 1
     if frame:GetAlpha() ~= a then frame:SetAlpha(a) end
+    if DWE.IsDUIFrame(frame) then DWE.CutMouse(frame, a == 0) end
 end
 local function WatchFrame(frame, alwaysWithWheel)
     if not IsSafeFrame(frame) or hookedFrames[frame] then return end
     hookedFrames[frame] = true
     hooksecurefunc(frame, "SetAlpha", DWE.Prof("masquage DialogueUI/Spoken", function(s, a)
-        if a > 0 and ShouldHide(alwaysWithWheel, s) then s:SetAlpha(0) end
+        if a > 0 and ShouldHide(alwaysWithWheel, s) then
+            s:SetAlpha(0)
+            if DWE.IsDUIFrame(s) then DWE.CutMouse(s, true) end
+        elseif a > 0 and s.dweMouseCut then
+            DWE.CutMouse(s, false)
+        end
     end))
     if frame.HookScript then
         frame:HookScript("OnShow", function(s) ApplyAlpha(s, alwaysWithWheel) end)
@@ -1096,8 +1138,16 @@ end
 -- Theme des conversations, meme pendant un livre (le livre impose le sien a l'ecran).
 function DWE.SpokenConvTheme()
     local t = DialogueWheelE_Theme or "bubble"
+    -- Theme DialogueUI : seule la roue est sans cadre ; le lecteur Spoken garde le parchemin.
+    if t == "dui" then t = "dui_brown" end
     if (t == "dui_brown" or t == "dui_dark") and not DWE.DUI_ON then t = "bubble" end
     return t
+end
+-- Theme de base du lecteur Spoken. Theme DialogueUI : le parchemin (la roue seule est sans cadre).
+function DWE.SpokenBaseTheme()
+    if DWE.BookByAddon() then return DWE.SpokenConvTheme() end
+    if DialogueWheelE_Theme == "dui" and not DWE.bookMode then return DWE.SpokenConvTheme() end
+    return CurrentTheme()
 end
 function DWE.SpokenThemeOverride()
     local st = DWE.SpokenStamp()
@@ -1111,7 +1161,7 @@ function DWE.SpokenThemeOverride()
     if addonBook and DWE.SpokenClipBook() then return 1 end
     if DialogueWheelE_SpokenTheme ~= true then return nil end
     if not addonBook and SpokenBookLeftAlone() then return nil end
-    return SPOKEN_PALETTE_OF[addonBook and DWE.SpokenConvTheme() or CurrentTheme()] or 2
+    return SPOKEN_PALETTE_OF[DWE.SpokenBaseTheme()] or 2
 end
 
 -- Pour la fenetre Spoken, les bulles empruntent le style d'un theme "bloc".
@@ -1137,7 +1187,7 @@ local function SpokenStyle()
         end
         return id
     end
-    local t = DWE.BookByAddon() and DWE.SpokenConvTheme() or CurrentTheme()
+    local t = DWE.SpokenBaseTheme()
     return SPOKEN_STYLE_ALIAS[t] or t
 end
 
@@ -3332,6 +3382,8 @@ end
 function DWE.ResetNPCOffset()
     DialogueWheelE_NPCOffset = nil
     DialogueWheelE_BookPos = nil
+    DialogueWheelE_DUIPos = nil
+    if DWE.DUIToLeft then DWE.DUIToLeft() end
     DialogueWheelE_BookScale, DialogueWheelE_NoteScale = nil, nil
     DialogueWheelE_QuestWidth = nil
     DialogueWheelE_TextW, DialogueWheelE_TextH = nil, nil
@@ -4658,6 +4710,7 @@ choiceBox:HookScript("OnHide", function() DWE.SetQuestSharer(nil) end)
 
 -- Apres un changement de theme, d'opacite ou de l'option : popup, Spoken et roue.
 function DWE.OnThemeChanged()
+    if DWE.ApplyDUIConv then DWE.ApplyDUIConv() end
     DWE.ApplyTextTheme()
     DWE.ApplyFont()
     DWE.RefreshSpoken()
@@ -4704,8 +4757,8 @@ local THEME_LIST = {
 }
 -- Themes DialogueUI : seulement avec DialogueUI installe (images lues dans son dossier).
 if DWE.DUI_ON then
-    THEME_LIST[#THEME_LIST + 1] = { id = "dui_brown", key = "THEME_DUI_BROWN", thumbTex = DWE.DUI_ART .. "Theme_Brown\\Parchment.png", thumbCoord = { 0.22, 0.78, 0.14, 0.34 } }
-    THEME_LIST[#THEME_LIST + 1] = { id = "dui_dark", key = "THEME_DUI_DARK", thumbTex = DWE.DUI_ART .. "Theme_Dark\\Parchment.png", thumbCoord = { 0.22, 0.78, 0.14, 0.34 } }
+    -- La vraie interface de DialogueUI (brun ou sombre selon ses propres options).
+    THEME_LIST[#THEME_LIST + 1] = { id = "dui", key = "THEME_DUI", thumbTex = DWE.DUI_ART .. "Theme_Brown\\Parchment.png", thumbCoord = { 0.22, 0.78, 0.14, 0.34 } }
 end
 DWE.THEME_LIST = THEME_LIST
 

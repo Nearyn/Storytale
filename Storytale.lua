@@ -48,12 +48,146 @@ local function IsDialogueUIVignette(frm)
     return type(frm.owners) == "table" and type(frm.TryShow) == "function" and type(frm.AddOwner) == "function"
 end
 
+-- Theme "DialogueUI" : les conversations sont laissees a la vraie interface de DialogueUI.
+DWE.duiListeners = {}
+function DWE.ConvToDUI()
+    local t = DialogueWheelE_Theme
+    return (t == "dui" or t == "dui_brown" or t == "dui_dark") and IsAddOnLoadedCompat("DialogueUI") and true or false
+end
+-- Rallume / eteint l'ecoute des conversations de DialogueUI selon le theme choisi.
+function DWE.ApplyDUIConv()
+    local on = DWE.ConvToDUI()
+    for _, frm in ipairs(DWE.duiListeners) do
+        frm.dweSet = true
+        pcall(frm.ListenEvents, frm, on)
+        frm.dweSet = nil
+    end
+end
+-- Theme DialogueUI : le parchemin de DialogueUI garde le texte du PNJ, les objectifs et les
+-- recompenses ; les choix (sujets, quetes, accepter, terminer...) passent dans la roue.
+DWE.DUI_WHEEL_EVENTS = { GOSSIP_SHOW = true, QUEST_GREETING = true,
+    QUEST_DETAIL = true, QUEST_PROGRESS = true, QUEST_COMPLETE = true }
+local DUI_WHEEL_TYPES = { gossip = true, availableQuest = true, activeQuest = true,
+    accept = true, decline = true, continue = true, complete = true, cancel = true }
+function DWE.DUIKeyboard(q)
+    if DWE.duiKC then return DWE.duiKC end
+    for _, c in ipairs({ q:GetChildren() }) do
+        if type(c.actions) == "table" and type(c.SetParentFrame) == "function" and c.combatFrame then
+            DWE.duiKC = c
+            return c
+        end
+    end
+end
+-- Cache les boutons de choix du parchemin et les retire du clavier / de la manette.
+function DWE.DUIStripOptions(q)
+    if not (DWE.ConvToDUI() and q and q.optionButtonPool and q.optionButtonPool.ProcessActiveObjects) then return end
+    local gone = {}
+    q.optionButtonPool:ProcessActiveObjects(function(b)
+        if DUI_WHEEL_TYPES[b.type] then b:Hide(); gone[b] = true end
+    end)
+    -- "Au revoir", "Accepter", "Terminer" : aussi dans la roue.
+    for _, b in ipairs({ q.ExitButton, q.AcceptButton }) do
+        if type(b) == "table" and b.Hide then b:Hide(); gone[b] = true end
+    end
+    if type(q.gamepadObjects) == "table" then
+        local keep = {}
+        for _, o in ipairs(q.gamepadObjects) do
+            if not gone[o] then keep[#keep + 1] = o; o.gamepadIndex = #keep end
+        end
+        q.gamepadObjects, q.gamepadMaxIndex = keep, #keep
+        q.gamepadFocusIndex, q.gamepadFocus = nil, nil
+    end
+    local kc = DWE.DUIKeyboard(q)
+    if kc and type(kc.actions) == "table" then
+        for k, v in pairs(kc.actions) do
+            if type(v) == "table" and gone[v.obj] then kc.actions[k] = nil end
+        end
+    end
+end
+function DWE.HookDUIFrame()
+    local q = rawget(_G, "DUIQuestFrame")
+    if DWE.duiFrameHooked or type(q) ~= "table" or type(q.ShowUI) ~= "function" then return end
+    DWE.duiFrameHooked = true
+    for _, h in ipairs({ "HandleGossip", "HandleQuestGreeting", "HandleQuestDetail",
+        "HandleQuestProgress", "HandleQuestComplete" }) do
+        if type(q[h]) == "function" then
+            hooksecurefunc(q, h, function(self) pcall(DWE.DUIStripOptions, self) end)
+        end
+    end
+    -- Le parchemin se place a gauche de l'ecran (la roue est a droite), sans toucher au reglage
+    -- de DialogueUI. Interface deverrouillee : il se deplace a la souris (place retenue).
+    local function ToLeft(self)
+        if not DWE.ConvToDUI() or self.dweMoving then return end
+        local p = DialogueWheelE_DUIPos
+        local x, y = tonumber(self.frameOffsetX), 0
+        if type(p) == "table" and tonumber(p.x) and tonumber(p.y) then
+            x, y = tonumber(p.x), tonumber(p.y)
+        elseif x and x > 0 then
+            x = -x
+        end
+        if not x then return end
+        self.frameOffsetX = x -- son animation d'ouverture part aussi de la
+        self:ClearAllPoints()
+        self:SetPoint("CENTER", nil, "CENTER", x, y)
+    end
+    DWE.DUIToLeft = function() pcall(ToLeft, q) end
+    if type(q.UpdateFrameBaseOffset) == "function" then
+        hooksecurefunc(q, "UpdateFrameBaseOffset", function(self) pcall(ToLeft, self) end)
+    end
+    if q.SetMovable and q.RegisterForDrag and q.HookScript then
+        q:SetMovable(true)
+        q:RegisterForDrag("LeftButton", "RightButton")
+        q:HookScript("OnDragStart", function(self)
+            if not DWE.ConvToDUI() or DWE.IsLocked() then return end
+            self.dweMoving = pcall(self.StartMoving, self)
+        end)
+        q:HookScript("OnDragStop", function(self)
+            if not self.dweMoving then return end
+            self.dweMoving = nil
+            pcall(self.StopMovingOrSizing, self)
+            local okC, cx, cy = pcall(self.GetCenter, self)
+            local okU, ux, uy = pcall(UIParent.GetCenter, UIParent)
+            if okC and okU and cx and ux then
+                local k = UIParent:GetEffectiveScale() / self:GetEffectiveScale()
+                DialogueWheelE_DUIPos = { x = cx - ux * k, y = cy - uy * k }
+            end
+            pcall(ToLeft, self)
+        end)
+    end
+    -- Recompense cliquee sur le parchemin : la roue la retient ("Terminer" devient possible).
+    if type(q.SelectRewardChoice) == "function" then
+        hooksecurefunc(q, "SelectRewardChoice", function(self, choiceID)
+            if not (DWE.ConvToDUI() and choiceID and self.chooseItems) then return end
+            if self.AcceptButton and self.AcceptButton.Hide then self.AcceptButton:Hide() end
+            if DWE.selectedRewardIndex ~= choiceID then
+                DWE.selectedRewardIndex = choiceID
+                if DWE.OnRewardSelected then pcall(DWE.OnRewardSelected) end
+            end
+        end)
+    end
+    -- Le clavier / la manette de DialogueUI se coupe pendant la roue (elle a ses propres touches)
+    -- et revient pour les pages de quete.
+    hooksecurefunc(q, "ShowUI", function(self, event)
+        pcall(ToLeft, self)
+        -- Une animation d'ouverture remet la hauteur a zero : on repasse apres.
+        if C_Timer and C_Timer.After then C_Timer.After(0.5, DWE.DUIToLeft) end
+        local kc = DWE.DUIKeyboard(self)
+        if not kc then return end
+        if DWE.ConvToDUI() and DWE.DUI_WHEEL_EVENTS[event] then
+            if kc:IsShown() then kc:Hide() end
+        elseif self:IsShown() and not kc:IsShown() then
+            pcall(kc.SetParentFrame, kc, self)
+        end
+    end)
+end
+
 local function SetupDialogueUI()
     if not IsAddOnLoadedCompat("DialogueUI") then return end
 
     -- DialogueUI peut cacher toute l'interface du jeu pendant les dialogues, la roue avec.
     -- Ce reglage doit rester desactive pour que la roue soit visible.
     if type(DialogueUI_DB) == "table" then DialogueUI_DB.HideUI = false end
+    DWE.HookDUIFrame()
 
     local frm = EnumerateFrames()
     while frm do
@@ -61,14 +195,21 @@ local function SetupDialogueUI()
             local okL, isListener = pcall(IsDialogueUIListener, frm)
             local okV, isVignette = pcall(IsDialogueUIVignette, frm)
             if okL and isListener then
-                frm:ListenEvents(false)
-                -- DialogueUI le reactive en changeant de zone : on le recoupe aussitot.
+                DWE.duiListeners[#DWE.duiListeners + 1] = frm
+                frm.dweSet = true
+                frm:ListenEvents(DWE.ConvToDUI())
+                frm.dweSet = nil
+                -- DialogueUI le reactive en changeant de zone : on le recoupe aussitot (sauf avec
+                -- le theme DialogueUI, ou c'est lui qui affiche les conversations).
                 hooksecurefunc(frm, "ListenEvents", function(self, state)
-                    if state then self:ListenEvents(false) end
+                    if self.dweSet then return end
+                    if state and not DWE.ConvToDUI() then
+                        self.dweSet = true; self:ListenEvents(false); self.dweSet = nil
+                    end
                 end)
             elseif okV and isVignette then
                 hooksecurefunc(frm, "Show", function(s)
-                    if DialogueWheelE_ShowText == true then s:Hide() end
+                    if DialogueWheelE_ShowText == true and not DWE.ConvToDUI() then s:Hide() end
                 end)
             end
         end
@@ -486,7 +627,8 @@ local function UpdatePreview(event)
     DWE.objLine:SetText("")
     DWE.rewLine:SetText("")
     DWE.HideRewardButtons()
-    if not QUEST_EVENTS[event] then
+    -- Theme DialogueUI : objectifs et recompenses sont deja sur le parchemin.
+    if not QUEST_EVENTS[event] or DWE.ConvToDUI() then
         DWE.wheelBottom = DWE.choiceBox
         DWE.PaintWheelTheme()
         return
@@ -1085,7 +1227,7 @@ function BuildOptions(event, keepSelection)
     if not (spokenChoice or (hasSpoken and DWE.GetToggleKey())) and DialogueWheelE_ShowText ~= true then
         DialogueWheelE_ShowText = true
     end
-    if not isBook and spokenChoice then
+    if not isBook and spokenChoice and not DWE.ConvToDUI() then
         AddOption({
             isDialogueToggle = true,
             icon = GOSSIP_ICONS.gossip,
@@ -1106,6 +1248,7 @@ function BuildOptions(event, keepSelection)
             -- Plusieurs recompenses au choix : "Continuer" reste grise tant qu'aucune n'est choisie.
             local logData = GetQuestID and GetQuestLogDataForProgress(GetQuestID())
             local needsPick = logData and #logData.choices > 1 and not DWE.selectedRewardIndex
+                and not DWE.ConvToDUI() -- theme DialogueUI : le choix se fait sur l'ecran final
             -- "Terminer la quete" directement : la recompense choisie ici est donnee des que le
             -- jeu ouvre l'ecran final (pas de deuxieme etape a valider).
             AddOption({
@@ -1129,6 +1272,24 @@ function BuildOptions(event, keepSelection)
         end
         local numChoices = GetNumQuestChoices and GetNumQuestChoices() or 0
         local needsPick = numChoices > 1 and not DWE.selectedRewardIndex
+        -- Theme DialogueUI : les recompenses se choisissent sur le parchemin (souris). A la
+        -- manette, le parchemin n'est pas atteignable : elles sont aussi dans la roue.
+        if DWE.ConvToDUI() and numChoices > 1 and DWE.GamePadOn and DWE.GamePadOn() then
+            for i = 1, numChoices do
+                local name, tex = GetQuestItemInfo("choice", i)
+                AddOption({
+                    icon = tex or ICON_QUEST_ACTIVE,
+                    rewardIdx = i, rewardName = name or ("#" .. i),
+                    rawLabel = (DWE.selectedRewardIndex == i and "> " or "") .. (name or ("#" .. i)),
+                    action = function()
+                        DWE.selectedRewardIndex = i
+                        local q = rawget(_G, "DUIQuestFrame")
+                        if q and q.SelectRewardChoice then pcall(q.SelectRewardChoice, q, i) end
+                        if DWE.OnRewardSelected then DWE.OnRewardSelected() end
+                    end,
+                })
+            end
+        end
         AddOption({
             isCompleteBtn = true,
             icon = needsPick and ICON_QUEST_INCOMPLETE or ICON_QUEST_ACTIVE,
@@ -1206,6 +1367,11 @@ function DWE.OnRewardSelected()
     -- Retenu pour l'ecran final de la meme quete (meme ordre des recompenses).
     DWE.rewardMemory = { questID = GetQuestID and GetQuestID() or 0, index = DWE.selectedRewardIndex }
     DWE.RefreshRewardSelection()
+    for _, opt in ipairs(DWE.currentOptions) do
+        if opt.rewardIdx then
+            opt.rawLabel = (opt.rewardIdx == DWE.selectedRewardIndex and "> " or "") .. opt.rewardName
+        end
+    end
     for i, opt in ipairs(DWE.currentOptions) do
         if opt.isCompleteBtn then
             opt.disabled = false
@@ -1337,6 +1503,9 @@ end
 -- boutons Stop / Passer dans l'en-tete du livre).
 function DWE.SpokenControlsShown()
     if DWE.SpokenPlayerShown and DWE.SpokenPlayerShown() then return true end
+    -- Theme DialogueUI : les boutons de Spoken sont poses sur le parchemin des conversations.
+    if DWE.ConvToDUI() and rawget(_G, "SpokenEnv") ~= nil and DWE.PlayerFrameShown
+        and DWE.PlayerFrameShown(rawget(_G, "DUIQuestFrame")) then return true end
     local book = rawget(_G, "DUIBookFrame")
     return rawget(_G, "SpokenEnv") ~= nil and DWE.PlayerFrameShown ~= nil and DWE.PlayerFrameShown(book)
 end
@@ -1795,6 +1964,11 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
             .. " pause=" .. tostring(env and env.Spoken and env.Spoken.IsPaused and env.Spoken:IsPaused()))
         Out("mini=" .. fa(mini) .. " dui=" .. fa(rawget(_G, "SpokenDialogueUIPlayerFrame")) .. " roue=" .. tostring(DWE.choiceBox and DWE.choiceBox:IsShown())
             .. " cacheEnAttente=" .. tostring(DWE.spokenHeldHide) .. " attente=" .. tostring(F and F.HeldOnly and F.HeldOnly()))
+        local kc, dq = DWE.duiKC, rawget(_G, "DUIQuestFrame")
+        Out("controles=" .. tostring(DWE.SpokenControlsShown and DWE.SpokenControlsShown()) .. " shareActif=" .. tostring(DWE.PadPlayerActive and DWE.PadPlayerActive())
+            .. " capteur=" .. tostring(DWE.padCatcher and DWE.padCatcher:IsShown()) .. " parchemin=" .. fa(dq)
+            .. " clavierDUI=" .. tostring(kc and kc:IsShown()) .. " share=" .. tostring(GetBindingAction and GetBindingAction("PADSOCIAL", true))
+            .. "/" .. tostring(GetBindingAction and GetBindingAction("PADBACK", true)))
     elseif msg:match("spoken") then
         if DWE.SpokenFocus then DWE.SpokenFocus.Install(); DWE.SpokenFocus.Report() end
     elseif msg:match("^%s*plate") then
@@ -1900,6 +2074,8 @@ f:SetScript("OnEvent", function(_, event)
             local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
             if isLoaded and isLoaded("Spoken") then DialogueWheelE_SpokenTheme = true end
         end
+        -- (1.5.3) Les deux themes "parchemin DialogueUI" deviennent le theme DialogueUI (sa vraie interface).
+        if DialogueWheelE_Theme == "dui_brown" or DialogueWheelE_Theme == "dui_dark" then DialogueWheelE_Theme = "dui" end
         SetupDialogueUI()
         DWE.HookSpoken()
         DWE.RestorePosition()
@@ -1961,6 +2137,25 @@ f:SetScript("OnEvent", function(_, event)
     end
     if BOOK_EVENTS[event] and DWE.BookStyleNow() ~= "addon" then
         if DWE.BookStyleNow() == "blizzard" then DWE.ForceBlizzBook(event) end
+        return
+    end
+    -- Theme DialogueUI : la conversation est affichee par DialogueUI lui-meme. Spoken suit
+    -- quand meme le PNJ (file de lecture, salutations) ; la roue de l'addon ne s'ouvre pas.
+    if not BOOK_EVENTS[event] and DWE.ConvToDUI() and not DWE.DUI_WHEEL_EVENTS[event] then
+        if DWE.SpokenFocus then
+            DWE.SpokenFocus.Install()
+            DWE.SpokenFocus.SetNPC(true)
+            if event == "GOSSIP_SHOW" then
+                DWE.SpokenFocus.gossipPage = (DWE.SpokenFocus.gossipPage or 0) + 1
+                if DWE.SpokenFocus.WatchPage then DWE.SpokenFocus.WatchPage() end
+            elseif QUEST_EVENTS and QUEST_EVENTS[event] then
+                DWE.SpokenFocus.gossipPage = 0
+                if DWE.SpokenFocus.WatchPage then DWE.SpokenFocus.WatchPage(event) end
+            elseif event == "QUEST_GREETING" then
+                if DWE.SpokenFocus.WatchPage then DWE.SpokenFocus.WatchPage(event) end
+            end
+        end
+        if DWE.choiceBox:IsShown() then DWE.choiceBox:Hide() end
         return
     end
     DWE.SetBookMode(BOOK_EVENTS[event] and true or false)

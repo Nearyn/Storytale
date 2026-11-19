@@ -1577,6 +1577,128 @@ for _, t in ipairs(tilesFound) do
     check(t.label:GetText() and t.label:GetText() ~= "" and not t.label:GetText():find("^THEME_"), "tile has a proper name: " .. tostring(t.label:GetText()))
 end
 -- Themes enlumines avec la roue habillee et le popup
+if withDUI then -- theme DialogueUI : la conversation est laissee a DialogueUI
+    DialogueWheelE_Theme = "dui"
+    M.FireEvent("GOSSIP_CLOSED")
+    M.FireEvent("GOSSIP_SHOW")
+    check(DWE.choiceBox:IsShown(), "DialogueUI theme: conversation choices go to the wheel")
+    check(DWE.CurrentThemeId() == "transparent", "DialogueUI theme: frameless wheel")
+    check(DWE.SpokenBaseTheme() == "dui_brown", "DialogueUI theme: the Spoken player keeps the DialogueUI parchment")
+    check(not DWE.textBox:IsShown() and not DWE.TextWanted(), "DialogueUI theme: NPC text stays on the parchment")
+    for _, o in ipairs(DWE.currentOptions) do
+        check(not o.isDialogueToggle, "DialogueUI theme: no text toggle in the wheel")
+    end
+    M.FireEvent("GOSSIP_CLOSED")
+    M.FireEvent("QUEST_DETAIL")
+    check(DWE.choiceBox:IsShown() and not DWE.textBox:IsShown(), "DialogueUI theme: quest page choices go to the wheel, text stays on the parchment")
+    check(DWE.objLine:GetText() == "" and DWE.rewLine:GetText() == "", "DialogueUI theme: no quest preview under the wheel (it is on the parchment)")
+    M.FireEvent("QUEST_FINISHED")
+    do -- recompenses au choix : dans la roue, "Terminer" se debloque une fois choisie
+        local oldN = M.numChoices
+        M.numChoices = 3
+        DWE.selectedRewardIndex, DWE.rewardMemory = nil, nil
+        local oldPad = DWE.GamePadOn
+        DWE.GamePadOn = function() return false end
+        M.FireEvent("QUEST_COMPLETE")
+        local mouseOpts, mouseDone = 0, nil
+        for _, o in ipairs(DWE.currentOptions) do
+            mouseOpts = mouseOpts + 1
+            if o.rewardIdx then mouseDone = "reward in wheel" end
+        end
+        check(mouseDone == nil and mouseOpts == 2, "DialogueUI theme, mouse: only complete + goodbye in the wheel, rewards on the parchment")
+        M.FireEvent("QUEST_FINISHED")
+        DWE.GamePadOn = function() return true end
+        M.FireEvent("QUEST_COMPLETE")
+        local picks, done = {}, nil
+        for _, o in ipairs(DWE.currentOptions) do
+            if o.rewardIdx then picks[#picks + 1] = o end
+            if o.isCompleteBtn then done = o end
+        end
+        check(#picks == 3 and done and done.disabled, "DialogueUI theme: reward choices in the wheel, complete waits")
+        picks[2].action()
+        check(DWE.selectedRewardIndex == 2 and not done.disabled and picks[2].rawLabel:find("^> "), "DialogueUI theme: picking a reward in the wheel unlocks complete")
+        M.FireEvent("QUEST_FINISHED")
+        DWE.GamePadOn = oldPad
+        M.numChoices = oldN
+        DWE.selectedRewardIndex, DWE.rewardMemory = nil, nil
+    end
+    -- Boutons du parchemin : les choix sont caches et retires du clavier / de la manette.
+    do
+        local function Btn(t)
+            local b = CreateFrame("Button"); b.type = t; b:Show(); return b
+        end
+        local g, aq, bye = Btn("gossip"), Btn("availableQuest"), Btn("goodbye")
+        local exitB, acc = Btn("goodbye"), Btn("accept")
+        local kc = CreateFrame("Frame")
+        kc.actions = { Option1 = { obj = g }, Option2 = { obj = aq }, Exit = { obj = bye } }
+        kc.SetParentFrame = function() end
+        kc.combatFrame = CreateFrame("Frame")
+        local q = CreateFrame("Frame")
+        q.ExitButton = exitB
+        q.AcceptButton = acc
+        q.GetChildren = function() return kc end
+        q.optionButtonPool = { ProcessActiveObjects = function(_, fn) fn(g); fn(aq); fn(bye) end }
+        q.gamepadObjects = { g, aq, bye }
+        q.gamepadMaxIndex = 3
+        local oldKC = DWE.duiKC; DWE.duiKC = nil
+        DWE.DUIStripOptions(q)
+        check(not g:IsShown() and not aq:IsShown() and bye:IsShown(), "DialogueUI theme: parchment choices hidden, goodbye kept")
+        check(kc.actions.Option1 == nil and kc.actions.Option2 == nil and kc.actions.Exit, "DialogueUI theme: hidden choices lose their keys")
+        check(q.gamepadMaxIndex == 1 and q.gamepadObjects[1] == bye, "DialogueUI theme: gamepad only walks what is left")
+        check(not exitB:IsShown(), "DialogueUI theme: parchment goodbye hidden (it is in the wheel)")
+        check(not acc:IsShown(), "DialogueUI theme: parchment accept / complete hidden (it is in the wheel)")
+        -- Fenetre DialogueUI cachee par transparence : traversable par la souris, puis rendue.
+        local parent, child = CreateFrame("Frame"), CreateFrame("Button")
+        for _, f in ipairs({ parent, child }) do
+            f.dweM = true
+            f.IsMouseEnabled = function(x) return x.dweM end
+            f.EnableMouse = function(x, v) x.dweM = v end
+        end
+        parent.GetChildren = function() return child end
+        DWE.CutMouse(parent, true)
+        check(not parent.dweM and not child.dweM, "hidden DialogueUI frame lets the mouse through (children too)")
+        DWE.CutMouse(parent, false)
+        check(parent.dweM and child.dweM, "DialogueUI frame catches the mouse again once shown")
+        -- Boutons de Spoken sur le parchemin : Share les pilote.
+        if rawget(_G, "SpokenEnv") then
+            local old = rawget(_G, "DUIQuestFrame")
+            local dq = CreateFrame("Frame"); dq:Show()
+            dq.IsVisible = function() return true end
+            DUIQuestFrame = dq
+            check(DWE.SpokenControlsShown(), "DialogueUI theme: Spoken buttons on the parchment count for Share")
+            -- File de lecture : bouton a cote de Lecture / Passer du parchemin, liste au-dessus.
+            local ui, env = DWE.SpokenQueueUI, SpokenEnv
+            local oldSp, oldActions = rawget(_G, "Spoken"), env.Actions
+            local oldRB = oldActions and oldActions.RoundButton
+            env.Actions = env.Actions or {}
+            env.Actions.RoundButton = function(parent)
+                local rb = CreateFrame("Button", nil, parent)
+                rb.glyph = rb:CreateTexture()
+                return rb
+            end
+            local placed
+            Spoken = { CreateDialogueUIRow = function(_, dialog)
+                local row = { frame = CreateFrame("Frame", nil, dialog), play = CreateFrame("Button"), skip = CreateFrame("Button") }
+                row.Place = function(_, list) placed = list end
+                return row
+            end }
+            ui.duiQuestHooked = nil
+            ui.HookDUIQuest()
+            local row = Spoken:CreateDialogueUIRow(dq)
+            row:Place({ row.skip, row.play })
+            local qb = ui.buttons[row.frame]
+            check(qb and placed and placed[3] == qb, "DialogueUI theme: queue button placed next to Spoken's parchment buttons")
+            check(qb and qb.dweDUIBook, "DialogueUI theme: the queue list opens above the parchment buttons")
+            ui.buttons[row.frame] = nil
+            Spoken = oldSp
+            env.Actions.RoundButton = oldRB
+            env.Actions = oldActions
+            DUIQuestFrame = old
+        end
+        DWE.duiKC = oldKC
+    end
+end
+DialogueWheelE_Theme = "velin"
 DialogueWheelE_WheelTheme = true
 DialogueWheelE_ShowText = true
 M.FireEvent("GOSSIP_SHOW")

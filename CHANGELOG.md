@@ -1,5 +1,39 @@
 # Changelog / Journal des versions
 
+## 1.5.3
+
+**English**
+
+### New
+- **DialogueUI theme, with DialogueUI's real window**: the two DialogueUI look-alike themes are replaced by one theme that uses DialogueUI's own parchment. The parchment keeps the NPC's text, the quest's objectives and rewards; every choice (topics, quests, Accept, Complete, Goodbye) moves to Storytale's wheel, frameless next to the NPC. The parchment opens on the left of the screen and can be dragged when the interface is unlocked (the position reset button puts it back).
+- On the final quest page, pick your reward on the parchment, then Complete in the wheel. With a gamepad, the rewards are also in the wheel and the chosen one lights up on the parchment.
+- Spoken's buttons on the parchment work with a gamepad (Share), and Storytale's reading-queue button sits next to them, the queue opening just above.
+
+### Improved
+- In the DialogueUI theme, Spoken's small player keeps DialogueUI's parchment look.
+
+### Fixed
+- Storytale's books could not be moved with the interface unlocked: DialogueUI's book, hidden behind them, was catching the mouse.
+
+Note: the game needs a restart after this update (a /reload is not enough).
+
+---
+
+**Français**
+
+### Nouveautés
+- **Thème DialogueUI, avec la vraie fenêtre de DialogueUI** : les deux thèmes qui imitaient DialogueUI sont remplacés par un seul thème qui utilise le parchemin de DialogueUI lui-même. Le parchemin garde le texte du PNJ, les objectifs et les récompenses ; tous les choix (sujets, quêtes, Accepter, Terminer, Au revoir) passent dans la roue de Storytale, sans cadre, à côté du PNJ. Le parchemin s'ouvre à gauche de l'écran et se déplace à la souris quand l'interface est déverrouillée (le bouton de réinitialisation des positions le remet en place).
+- Sur l'écran final d'une quête, choisissez la récompense sur le parchemin, puis Terminer dans la roue. À la manette, les récompenses sont aussi dans la roue et celle choisie s'éclaire sur le parchemin.
+- Les boutons de Spoken sur le parchemin marchent à la manette (Share), et le bouton de file de lecture de Storytale se place à côté, la file s'ouvrant juste au-dessus.
+
+### Améliorations
+- Avec le thème DialogueUI, le petit lecteur de Spoken garde l'habillage parchemin de DialogueUI.
+
+### Corrections
+- Les livres de Storytale ne se déplaçaient plus avec l'interface déverrouillée : le livre de DialogueUI, caché derrière, attrapait la souris.
+
+Note : il faut relancer le jeu après cette mise à jour (un /reload ne suffit pas).
+
 ## 1.5.2
 
 **English**
