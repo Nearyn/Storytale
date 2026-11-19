@@ -201,7 +201,10 @@ do -- manette : croix, A et B pris seulement si le mode manette est actif
     DWE.SpokenPlayerShown = function() return false end
     DWE.PadTipCheck()
     check(not DialogueWheelE_PadTipSeen, "gamepad tip: not shown while the keyboard and mouse are in use")
-    DWE.padUsed = true
+    DWE.padUsed, DWE.padUsedAt = true, GetTime and GetTime() or 0
+    M.cvars.GamePadEnable = "0"; DWE.PadTipCheck()
+    check(not DialogueWheelE_PadTipSeen, "gamepad tip: never with the game's gamepad mode off")
+    M.cvars.GamePadEnable = "1"
     DWE.PadTipCheck()
     check(DialogueWheelE_PadTipSeen == true and DWE.padTip and DWE.padTip:IsShown(), "gamepad tip shown the first time")
     check(DWE.padTip.text:GetText() == DWE.L.PAD_TIP, "gamepad tip text")
@@ -1674,7 +1677,7 @@ do -- place par defaut des lecteurs de Spoken
         check(y and math.abs(y - H * DWE.SPOKEN_MINI_Y.kbm) < 0.01, "spoken mini player: keyboard default place")
         M.cvars.GamePadEnable = "1"; DWE.SpokenPlayersPlace()
         check(y and math.abs(y - H * DWE.SPOKEN_MINI_Y.kbm) < 0.01, "spoken mini player: gamepad mode on but keyboard in use")
-        DWE.padUsed = true; DWE.SpokenPlayersPlace()
+        DWE.padUsed, DWE.padUsedAt = true, GetTime and GetTime() or 0; DWE.SpokenPlayersPlace()
         check(y and math.abs(y - H * DWE.SPOKEN_MINI_Y.pad) < 0.01, "spoken mini player: gamepad default place")
         M.cvars.GamePadEnable = nil; DWE.padUsed = false
         layout.Minimal = { left = 1, top = 2 }; y = nil; DWE.SpokenPlayersPlace()

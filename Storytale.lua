@@ -1289,7 +1289,7 @@ if DWE.padCatcher.EnableGamePadButton then
     DWE.padCatcher:RegisterEvent("PLAYER_REGEN_DISABLED")
     DWE.padCatcher:SetScript("OnEvent", function(self) self:Hide() end)
     DWE.padCatcher:SetScript("OnGamePadButtonDown", function(self, button)
-        DWE.padUsed = true
+        DWE.padUsed, DWE.padUsedAt = true, GetTime and GetTime() or 0
         -- Le lecteur Spoken garde ses boutons pendant une conversation ou un livre : Share (pause,
         -- passer) et, Share tenu ou file ouverte, sa liste (croix, A, Y, B).
         if DWE.PAD_PLAYER_KEYS[button] and DWE.PadPlayerActive() then
@@ -1511,6 +1511,13 @@ end
 -- Mode manette du jeu actif (option du jeu ou /console GamePadEnable 1).
 function DWE.GamePadOn()
     if DialogueWheelE_GamePad == false then return false end
+    -- Aucune manette branchee : pas de mode manette, quel que soit le reglage.
+    if C_GamePad and C_GamePad.GetAllDeviceIDs then
+        local ok, ids = pcall(C_GamePad.GetAllDeviceIDs)
+        if ok and type(ids) == "table" and #ids == 0 then return false end
+    end
+    local cv0 = GetCVar and GetCVar("GamePadEnable")
+    if cv0 ~= nil and tostring(cv0) == "0" then return false end
     if C_GamePad and C_GamePad.IsEnabled then
         local ok, on = pcall(C_GamePad.IsEnabled)
         if ok and on then return true end
@@ -1524,7 +1531,9 @@ end
 -- signale aussi lui-meme (GAME_PAD_ACTIVE_CHANGED) quand il bascule entre les deux.
 DWE.padUsed = false
 function DWE.PadInUse()
-    return DWE.GamePadOn() and DWE.padUsed == true
+    -- Un bouton de manette appuye il y a moins de 2 minutes, et rien au clavier ou a la souris depuis.
+    if not (DWE.GamePadOn() and DWE.padUsed == true and DWE.padUsedAt) then return false end
+    return not GetTime or (GetTime() - DWE.padUsedAt) < 120
 end
 do
     local sense = CreateFrame("Frame", "DWE_PadSense", UIParent)
@@ -1533,17 +1542,25 @@ do
     if sense.EnableGamePadButton then
         sense:EnableGamePadButton(true)
         if sense.SetPropagateGamePadInput then pcall(sense.SetPropagateGamePadInput, sense, true) end
-        sense:SetScript("OnGamePadButtonDown", function() DWE.padUsed = true end)
+        sense:SetScript("OnGamePadButtonDown", function() DWE.padUsed, DWE.padUsedAt = true, GetTime and GetTime() or 0 end)
     end
     if sense.EnableKeyboard then
         sense:EnableKeyboard(true)
         if sense.SetPropagateKeyboardInput then pcall(sense.SetPropagateKeyboardInput, sense, true) end
         sense:SetScript("OnKeyDown", function(_, key)
             DWE.padUsed = type(key) == "string" and key:find("^PAD") ~= nil
+            if DWE.padUsed then DWE.padUsedAt = GetTime and GetTime() or 0 end
         end)
     end
     pcall(sense.RegisterEvent, sense, "GAME_PAD_ACTIVE_CHANGED")
-    sense:SetScript("OnEvent", function(_, _, active) DWE.padUsed = active and true or false end)
+    pcall(sense.RegisterEvent, sense, "GAME_PAD_DISCONNECTED")
+    pcall(sense.RegisterEvent, sense, "GLOBAL_MOUSE_DOWN")
+    sense:SetScript("OnEvent", function(_, event, active)
+        if event == "GAME_PAD_ACTIVE_CHANGED" then
+            DWE.padUsed = active and true or false
+            if active then DWE.padUsedAt = GetTime and GetTime() or 0 end
+        else DWE.padUsed = false end -- un clic de souris, ou la manette debranchee
+    end)
 end
 
 -- Touche d'interaction du jeu active : option "Touche d'interaction" activee (CVar
