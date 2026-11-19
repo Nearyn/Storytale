@@ -161,6 +161,46 @@ local function Wake()
     if type(queue.Advance) == "function" then pcall(queue.Advance, queue) end
 end
 
+-- Ligne "coupee" par nos regles : au lieu de disparaitre, elle reste dans la file, en attente
+-- manuelle. Elle ne se lance plus toute seule ; on peut la choisir (elle passe devant) ou la
+-- fermer dans la file de lecture. Celle qui parle s'arrete et reste en tete, retenue.
+-- Seule exception : une salutation generique deja ecoutee en entier ne sert plus a rien,
+-- elle quitte la file (une salutation jamais entendue, elle, reste en attente).
+local function Keep(clip)
+    return not (IsGreeting(clip) and Focus.Heard(clip))
+end
+Focus.Keep = Keep
+local function Hold(queue, clip, why)
+    if type(clip) ~= "table" then return end
+    if not Keep(clip) then
+        Log("greeting already heard, dropped (" .. tostring(why) .. "): " .. tostring(SpeakerOf(clip)))
+        if queue and type(queue.RemoveSoundFromQueue) == "function" then
+            for _, c in ipairs(queue.sounds or {}) do
+                if c == clip then pcall(queue.RemoveSoundFromQueue, queue, clip) break end
+            end
+        end
+        return false
+    end
+    clip.dweManual = true
+    if clip.priority == "low" then
+        clip.dweOrigPriority = clip.dweOrigPriority or "low"
+        clip.priority = "normal" -- une ligne basse attendant serait jetee par Spoken
+    end
+    Log("held for manual play (" .. tostring(why) .. "): " .. tostring(GroupKey(clip)))
+    local head = queue and queue.GetCurrentSound and queue:GetCurrentSound()
+    if head == clip and clip.source and type(queue.RecheckGates) == "function" then
+        pcall(queue.RecheckGates, queue, clip.source)
+    end
+    return true
+end
+Focus.Hold = Hold
+-- Livre lu en entier (marque "deja lu").
+local function BookFinished(clip)
+    if not (IsBook(clip) and DWE.BookState) then return false end
+    local key = GroupKey(clip)
+    return key ~= nil and DWE.BookState(key:sub(6)) == 2
+end
+
 -- Repliques deja ecoutees en entier (cle de la ligne Spoken), sauvegardees.
 local HEARD_MAX = 3000
 function Focus.Heard(clip)
@@ -203,7 +243,7 @@ function Focus.CutGreeting()
     if type(npc) == "string" and type(who) == "string" and not (issecretvalue and (issecretvalue(npc) or issecretvalue(who)))
         and who ~= npc then return end
     Log("greeting cut on quest click: " .. tostring(who))
-    pcall(queue.RemoveSoundFromQueue, queue, head)
+    Hold(queue, head, "quest click")
 end
 -- Un livre est en train d'etre lu a voix haute (pas en pause, pas retenu).
 function Focus.BookSpeaking()
@@ -315,10 +355,21 @@ function Focus.Install()
             end
             Focus.forced = nil
         end
+        -- Mise de cote par nos regles : seulement si on la choisit dans la file.
+        if clip.dweManual then return DWE.L.SPOKEN_HELD end
         -- Les PNJ ne se retiennent pas entre eux : chacun parle a son tour (ordre d'arrivee).
         if not IsBook(clip) then return nil end
         if Focus.bookMuted then return DWE.L.SPOKEN_MUTED end
         if not Focus.Smart() then return nil end
+        -- Livre deja lu en entier : face a une conversation, il ne reprend plus tout seul.
+        if BookFinished(clip) then
+            local _, q = Env()
+            if Focus.npc or (q and NpcLineWaiting(q)) then
+                clip.dweManual = true
+                Log("finished book held for manual play: " .. tostring(GroupKey(clip)))
+                return DWE.L.SPOKEN_HELD
+            end
+        end
         -- Jamais ecoute en entier : le livre garde la priorite, le PNJ attend son tour.
         if not Focus.Heard(clip) then return nil end
         local _, queue = Env()
@@ -349,9 +400,9 @@ function Focus.Install()
                 local afterClose = sq and sq.db and sq.db.profile and sq.db.profile.Audio
                     and sq.db.profile.Audio.ReadAfterClose
                 if now and now ~= Focus.leftName and not afterClose then
-                    Log("left before read, skipped: " .. tostring(Focus.leftName))
                     Focus.lineSeq = (Focus.lineSeq or 0) + 1
-                    return nil, "left"
+                    if not Hold(self, clip, "left") then return nil, "left" end
+                    return origAdd(self, clip, source, front)
                 end
             end
             -- Salutation generique (priorite basse) : jamais mise en attente. Elle ne passe que si
@@ -380,9 +431,14 @@ function Focus.Install()
                         clip.dweWaitGreeting = true
                         Log("greeting waits for quest line: " .. tostring(name))
                     elseif not cuttable then
-                        Log("greeting not queued: " .. tostring(SpeakerOf(clip)))
                         Focus.lineSeq = (Focus.lineSeq or 0) + 1
-                        return nil, "busy"
+                        if not Hold(self, clip, "busy") then return nil, "busy" end
+                        local limit = type(source) == "table" and source.queueLimit
+                        if limit then source.queueLimit = nil end
+                        local okA, a1, a2 = pcall(origAdd, self, clip, source, front)
+                        if limit then source.queueLimit = limit end
+                        if not okA then error(a1, 0) end
+                        return a1, a2
                     end
                 end
             end
@@ -447,8 +503,7 @@ function Focus.Install()
                     for i = #(q.sounds or {}), 1, -1 do
                         local c = q.sounds[i]
                         if c and c ~= clip and IsBook(c) and GroupKey(c) ~= key and Focus.Heard(c) then
-                            Log("book already heard, dropped: " .. tostring(GroupKey(c)))
-                            pcall(q.RemoveSoundFromQueue, q, c)
+                            Hold(q, c, "new book")
                         end
                     end
                 end
@@ -476,12 +531,12 @@ function Focus.Install()
                 -- Le meme PNJ passe de sa salutation (repetee a chaque visite, priorite basse) a un
                 -- texte de quete (dit une fois) : la salutation s'arrete, la quete parle tout de suite.
                 Log("greeting cut for quest text: " .. tostring(who))
-                pcall(queue.RemoveSoundFromQueue, queue, head)
+                Hold(queue, head, "quest text")
             elseif talking and head and head ~= clip and not Focus.SameSpeaker(head, clip)
                 and IsGreeting(clip) and IsGreeting(head) then
                 -- Nouvelle salutation : celle d'un autre PNJ s'arrete (on parle a quelqu'un d'autre).
                 Log("greeting switched: " .. tostring(SpeakerOf(head)) .. " -> " .. tostring(who))
-                pcall(queue.RemoveSoundFromQueue, queue, head)
+                Hold(queue, head, "other NPC")
             elseif talking and head and head ~= clip and SpeakerOf(head) ~= who and Focus.Heard(head)
                 and IsGreeting(head) then
                 -- (Seule une salutation deja ecoutee peut etre coupee. Une ligne de quete ne l'est
@@ -489,7 +544,7 @@ function Focus.Install()
                 -- Le PNJ qui parle redit une replique deja ecoutee en entier : on la coupe et elle
                 -- ne revient pas dans la file. Une replique jamais entendue, elle, finit d'abord.
                 Log("already heard, cut: " .. tostring(SpeakerOf(head)))
-                pcall(queue.RemoveSoundFromQueue, queue, head)
+                Hold(queue, head, "already heard")
             end
         end)
         -- Repliques ecoutees jusqu'au bout : retenues d'une session a l'autre.
@@ -598,8 +653,8 @@ function Focus.SetNPC(on)
             for i = #(queue.sounds or {}), 1, -1 do
                 local c = queue.sounds[i]
                 if c and c ~= cur and c.dweWaitGreeting then
-                    Log("waiting greeting dropped: " .. tostring(SpeakerOf(c)))
-                    pcall(queue.RemoveSoundFromQueue, queue, c)
+                    c.dweWaitGreeting = nil
+                    Hold(queue, c, "window closed")
                 end
             end
         end
@@ -668,6 +723,21 @@ function Focus.StopBooks()
     end
 end
 
+-- Plus rien ne parle et tout ce qui attend est "a la demande" : le lecteur de Spoken n'a rien
+-- a montrer (Storytale le cache et affiche a la place un petit bouton discret).
+function Focus.HeldOnly()
+    local _, queue = Env()
+    if not queue then return 0 end
+    local now = queue.GetNowPlaying and queue:GetNowPlaying()
+    if now then return 0 end
+    local n = 0
+    for _, c in ipairs(queue.sounds or {}) do
+        if not c.dweManual then return 0 end
+        n = n + 1
+    end
+    return n
+end
+
 -- File de lecture (petit lecteur de Spoken) ------------------------------------------------
 -- Les groupes en attente, dans l'ordre de lecture : { key, label, book, count, current }.
 function Focus.Groups()
@@ -684,11 +754,12 @@ function Focus.Groups()
                 if IsBook(c) and DialogueWheelE_ReadMarks ~= false and DWE.BookState and DWE.BookState(key:sub(6)) == 2 then
                     label = DWE.READ_ICON .. " " .. tostring(label)
                 end
-                g = { key = key, label = tostring(label or "?"), book = IsBook(c), count = 0, current = false }
+                g = { key = key, label = tostring(label or "?"), book = IsBook(c), count = 0, current = false, manual = true }
                 byKey[key] = g
                 list[#list + 1] = g
             end
             g.count = g.count + 1
+            if not c.dweManual then g.manual = false end
             if i == 1 and queue.IsPlaying and queue:IsPlaying() then g.current = true end
         end
     end

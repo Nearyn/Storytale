@@ -230,11 +230,22 @@ function M.Install(locale)
     end
     _G.C_Timer = { After = function(_, fn) table.insert(M.timers, fn) end }
     _G.InCombatLockdown = function() return M.inCombat or false end
+    M.bindOwner = {}
     _G.SetOverrideBindingClick = function(owner, prio, key, btn)
         assert(type(key) == "string" and key ~= "", "bad key " .. tostring(key))
         M.bindings[key] = btn
+        M.bindOwner[key] = owner
     end
-    _G.ClearOverrideBindings = function() M.bindings = {} end
+    _G.SetOverrideBinding = function(owner, prio, key, cmd)
+        assert(type(key) == "string" and key ~= "", "bad key " .. tostring(key))
+        M.bindings[key] = cmd
+        M.bindOwner[key] = cmd and owner or nil
+    end
+    _G.ClearOverrideBindings = function(owner)
+        for k in pairs(M.bindings) do
+            if M.bindOwner[k] == nil or M.bindOwner[k] == owner then M.bindings[k] = nil; M.bindOwner[k] = nil end
+        end
+    end
     _G.GetBindingKey = function(a) return a == "INTERACTTARGET" and "E" or nil end
     _G.IsMouseButtonDown = function() return false end
     _G.CameraZoomIn = noop

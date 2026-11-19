@@ -865,6 +865,12 @@ function DWE.TextWanted()
 end
 
 local function ShouldHide(alwaysWithWheel, frame)
+    -- Lecteur de Spoken qui n'aurait a montrer qu'une ligne a la demande : cache (un petit
+    -- bouton de Storytale le remplace).
+    if DWE.spokenHeldHide and frame and frame.GetName then
+        local okN, name = pcall(frame.GetName, frame)
+        if okN and type(name) == "string" and name:find("^Spoken.*Player") then return true end
+    end
     if not (choiceBox:IsShown() or fadeHold) then return false end
     -- Un livre lu a voix haute sans son livre a l'ecran : le lecteur Spoken reste toujours visible.
     if not alwaysWithWheel and DWE.SpokenFocus and DWE.SpokenFocus.ForeignSpeaking
@@ -887,9 +893,6 @@ local function ApplyAlpha(frame, alwaysWithWheel)
     local a = ShouldHide(alwaysWithWheel, frame) and 0 or 1
     if frame:GetAlpha() ~= a then frame:SetAlpha(a) end
 end
-
--- Surveille une fenetre : si son addon remet son alpha au-dessus de 0 alors qu'elle doit
--- etre cachee, on la recache aussitot.
 local function WatchFrame(frame, alwaysWithWheel)
     if not IsSafeFrame(frame) or hookedFrames[frame] then return end
     hookedFrames[frame] = true
@@ -901,6 +904,22 @@ local function WatchFrame(frame, alwaysWithWheel)
     end
 end
 
+-- Cache / remontre les lecteurs de Spoken (bascule "rien que des lignes a la demande").
+function DWE.SetSpokenHeldHide(on)
+    on = on and true or nil
+    if DWE.spokenHeldHide == on then return end
+    DWE.spokenHeldHide = on
+    for _, n in ipairs({ "SpokenMinimalPlayerFrame", "SpokenDialogueUIPlayerFrame" }) do
+        local fr = rawget(_G, n)
+        if IsSafeFrame(fr) then
+            WatchFrame(fr, false)
+            ApplyAlpha(fr, false)
+        end
+    end
+end
+
+-- Surveille une fenetre : si son addon remet son alpha au-dessus de 0 alors qu'elle doit
+-- etre cachee, on la recache aussitot.
 local BLIZZ_FRAMES = { "GossipFrame", "QuestFrame", "ItemTextFrame" }
 local addonFrames = {}
 local scanned = {}
@@ -1130,6 +1149,33 @@ local function PaintSpoken(skin)
     else
         ClearThemeParts(parts)
     end
+end
+
+-- Lecteur miniature de Spoken a l'ecran (il lit autre chose que la conversation en cours).
+-- (Le petit lecteur "minimal" ou le lecteur facon DialogueUI, selon le reglage de Spoken.)
+function DWE.PlayerFrameShown(fr)
+    if type(fr) ~= "table" or not fr.IsVisible or not fr:IsVisible() then return false end
+    return (fr.GetEffectiveAlpha and fr:GetEffectiveAlpha() or fr:GetAlpha() or 1) > 0.05
+end
+function DWE.SpokenPlayerShown()
+    if DWE.PlayerFrameShown(rawget(_G, "SpokenMinimalPlayerFrame")) then return true end
+    if DWE.PlayerFrameShown(rawget(_G, "SpokenDialogueUIPlayerFrame")) then return true end
+    return DWE.PlayerFrameShown(type(spokenSkinRef) == "table" and spokenSkinRef.frame)
+end
+
+-- Manette : boutons du lecteur Spoken ("play" = arreter/relancer, "skip" = passer).
+function DWE.SpokenPadPress(which)
+    -- La voie publique de Spoken (celle de ses raccourcis clavier) : /spoken play, /spoken skip.
+    local cmd = type(SlashCmdList) == "table" and SlashCmdList.SPOKEN
+    if type(cmd) == "function" then
+        return pcall(cmd, which) and true or false
+    end
+    local skin = spokenSkinRef
+    local b = type(skin) == "table" and skin[which]
+    if type(b) ~= "table" or not b.Click then return false end
+    if b.IsVisible and not b:IsVisible() then return false end
+    if b.IsEnabled and not b:IsEnabled() then return false end
+    return pcall(b.Click, b) and true or false
 end
 
 local spokenHooked = false
@@ -2237,8 +2283,12 @@ do
         end
         if b.icon.SetDesaturated then b.icon:SetDesaturated(dim and true or false) end
         b.text:SetText(item.label)
+        -- Choix a la manette : le reglage choisi s'allume, meme eteint (a la souris, un reglage
+        -- eteint reste grise au survol, comme avant).
         if item.off then
-            b.text:SetTextColor(0.45, 0.45, 0.45)
+            b.text:SetTextColor(b.padHover and 0.7 or 0.45, b.padHover and 0.7 or 0.45, b.padHover and 0.7 or 0.45)
+        elseif b.padHover then
+            b.text:SetTextColor(1, 0.85, 0.2)
         elseif item.on then
             b.text:SetTextColor(b.hover and 1 or 0.95, b.hover and 0.85 or 0.92, b.hover and 0.2 or 0.85)
         else
@@ -2334,12 +2384,54 @@ do
         rib.open = true
     end
     local function Close()
+        bar.padIdx = nil
+        for _, b in ipairs(bar.items) do b.padHover = nil end
         if not bar:IsShown() then return end
         bar.closing, bar.idle = true, nil
         bar.t = math.max(bar.t or 0, FADE + (bar.count or 1) * STAGGER * 0.4)
         rib.open = nil
     end
     DWE.RibbonClose = Close
+
+    -- Manette : Y ouvre le menu du ruban, la croix choisit un reglage (surligne comme au
+    -- survol), A l'active, B ou Y referme le menu.
+    local function PadPaint()
+        for i = 1, bar.count or 0 do
+            local b = bar.items[i]
+            b.padHover = (i == bar.padIdx) or nil
+            if b.item then Paint(b, b.item) end
+        end
+    end
+    function DWE.RibbonPadOpen()
+        return rib.open and bar:IsShown() and (bar.count or 0) > 0 or false
+    end
+    function DWE.RibbonPadToggle()
+        if not rib:IsShown() then return false end
+        rib.pulse = nil
+        DialogueWheelE_RibbonSeen = true
+        if rib.open then
+            bar.padIdx = nil
+            PadPaint()
+            Close()
+        else
+            Open()
+            bar.padIdx = 1
+            PadPaint()
+        end
+        return true
+    end
+    function DWE.RibbonPadMove(d)
+        local n = bar.count or 0
+        if n == 0 then return end
+        bar.padIdx = ((bar.padIdx or 1) - 1 + d) % n + 1
+        PadPaint()
+    end
+    function DWE.RibbonPadClick()
+        local b = bar.items[bar.padIdx or 1]
+        local fn = b and b:IsShown() and b:GetScript("OnClick")
+        if fn then fn(b) end
+        PadPaint()
+    end
 
     rib:SetScript("OnClick", function()
         rib.pulse = nil

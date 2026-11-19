@@ -1,5 +1,41 @@
 # Changelog / Journal des versions
 
+## 1.5.0
+
+**English**
+
+### New
+- **Gamepad support** (the game's gamepad mode), with any controller the game supports:
+  - In a conversation or a book: D-pad up/down to pick a choice, A to confirm, B to close.
+  - In a book: D-pad left/right turns the pages (the page button lights up), Y opens the bookmark ribbon's menu (D-pad to pick, A to toggle, B or Y to close).
+  - The buttons are only taken while a conversation or a book is open, and never in combat.
+- **Spoken's player with a gamepad**: while the player is on screen, **Share** (Create on PS5, View on Xbox One): tap to pause or resume, hold to skip, hold Share + Y to open the reading queue (D-pad to pick, A to play, Y to remove, B or Share to close). In a conversation, Y opens a small menu (pause/resume, skip) when Spoken is reading something else.
+- **On-demand lines in the reading queue**: what Storytale used to cut or skip (the quest line of an NPC you just left, a greeting interrupted by another NPC or by a quest, a book replaced by a new one) now stays in the queue, marked "on demand". These lines no longer play by themselves: pick one in the queue to hear it, or remove it. Generic greetings you have already heard are still skipped.
+- **Books read to the end** no longer resume by themselves after a conversation: they wait in the queue, on demand.
+- When only on-demand lines remain, Spoken's player hides and a small, discreet button takes its place. Click it to open the queue.
+
+### Improved
+- Every key bound to "Interact with target", keyboard and gamepad, now confirms a choice (not only the first one).
+- The reading queue closes by itself once it is empty.
+
+---
+
+**Français**
+
+### Nouveautés
+- **Prise en charge de la manette** (mode manette du jeu), avec toutes les manettes que le jeu accepte :
+  - En conversation ou dans un livre : croix haut/bas pour choisir, A pour valider, B pour fermer.
+  - Dans un livre : croix gauche/droite pour tourner les pages (le bouton de page s'allume), Y ouvre le menu du ruban (croix pour choisir, A pour activer, B ou Y pour refermer).
+  - Les boutons ne sont pris que pendant une conversation ou un livre, et jamais en combat.
+- **Le lecteur de Spoken à la manette** : tant que le lecteur est à l'écran, **Share** (Create sur PS5, Vue sur Xbox One) : appui court pour mettre en pause ou relancer, appui long pour passer, Share maintenu + Y pour ouvrir la file de lecture (croix pour choisir, A pour écouter, Y pour retirer, B ou Share pour refermer). En conversation, Y ouvre un petit menu (pause/reprise, passer) quand Spoken lit autre chose.
+- **Lignes à la demande dans la file de lecture** : ce que Storytale coupait ou ignorait (la réplique de quête d'un PNJ que vous venez de quitter, une salutation interrompue par un autre PNJ ou par une quête, un livre remplacé par un nouveau) reste maintenant dans la file, marqué « à la demande ». Ces lignes ne se lancent plus toutes seules : choisissez-en une dans la file pour l'écouter, ou retirez-la. Les salutations génériques déjà écoutées restent ignorées.
+- **Les livres lus jusqu'au bout** ne reprennent plus tout seuls après une conversation : ils attendent dans la file, à la demande.
+- Quand il ne reste que des lignes à la demande, le lecteur de Spoken se cache et un petit bouton discret prend sa place. Cliquez dessus pour ouvrir la file.
+
+### Améliorations
+- Toutes les touches liées à « Interagir avec la cible », clavier et manette, valident maintenant un choix (pas seulement la première).
+- La file de lecture se ferme d'elle-même quand elle est vide.
+
 ## 1.4.0
 
 **English**

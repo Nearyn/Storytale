@@ -154,6 +154,104 @@ check(DWE.textBody:GetText() == "Even within cold, stone walls...", "gossip text
 check(M.bindings.E == "DWE_SelectBtn", "interact key bound")
 check(M.bindings.T == nil, "no toggle key by default")
 check(M.bindings.MOUSEWHEELUP == "DWE_WheelUpBtn", "wheel bound")
+check(M.bindings.PAD1 == nil and M.bindings.PADDUP == nil, "no gamepad keys without gamepad mode")
+do -- manette : croix, A et B pris seulement si le mode manette est actif
+    local oldKey = _G.GetBindingKey
+    _G.GetBindingKey = function(a) if a == "INTERACTTARGET" then return "E", "PADRSHOULDER" end end
+    M.cvars.GamePadEnable = "1"
+    DWE.RefreshBindings()
+    check(M.bindings.PADDUP == "DWE_WheelUpBtn" and M.bindings.PADDDOWN == "DWE_WheelDownBtn", "gamepad d-pad moves the selection")
+    check(M.bindings.PAD1 == "DWE_SelectBtn" and M.bindings.PAD2 == "DWE_PadCloseBtn", "gamepad A selects, B closes")
+    check(M.bindings.PADDLEFT == "DWE_PadPrevBtn" and M.bindings.PADDRIGHT == "DWE_PadNextBtn", "gamepad left/right turn pages")
+    check(M.bindings.E == "DWE_SelectBtn" and M.bindings.PADRSHOULDER == "DWE_SelectBtn", "every interact key is bound")
+    _G.DWE_PadPrevBtn._scripts.OnClick(); _G.DWE_PadNextBtn._scripts.OnClick()
+    local h = DWE.padCatcher._scripts and DWE.padCatcher._scripts.OnGamePadButtonDown
+    if h then
+        check(DWE.padCatcher:IsShown(), "gamepad catcher shown during a conversation")
+        local before = DWE.selectedIndex
+        h(DWE.padCatcher, "PADDDOWN")
+        check(DWE.selectedIndex ~= before, "catcher: d-pad down moves the selection")
+        h(DWE.padCatcher, "PADLSTICKUP") -- not ours: passes through, no error
+        -- Y en conversation : petit menu du lecteur Spoken (si Spoken est la).
+        local realShown = DWE.SpokenPlayerShown
+        DWE.SpokenPlayerShown = function() return false end
+        h(DWE.padCatcher, "PAD4")
+        check(not DWE.PadMenuOpen(), "no Spoken menu while Spoken's player is not on screen")
+        DWE.SpokenPlayerShown = function() return true end
+        if true then
+            local sent = {}
+            _G.SlashCmdList = _G.SlashCmdList or {}
+            local old = SlashCmdList.SPOKEN
+            SlashCmdList.SPOKEN = function(m) sent[#sent + 1] = m end
+            h(DWE.padCatcher, "PAD4")
+            check(DWE.PadMenuOpen(), "gamepad Y opens the Spoken menu in a conversation")
+            local sel = DWE.selectedIndex
+            h(DWE.padCatcher, "PAD1")
+            h(DWE.padCatcher, "PADDRIGHT"); h(DWE.padCatcher, "PAD1")
+            check(table.concat(sent, ",") == "play,skip", "Spoken menu: pause then skip (" .. table.concat(sent, ",") .. ")")
+            check(DWE.selectedIndex == sel and DWE.choiceBox:IsShown(), "Spoken menu keeps the wheel as it was")
+            h(DWE.padCatcher, "PAD2")
+            check(not DWE.PadMenuOpen() and DWE.choiceBox:IsShown(), "B closes the Spoken menu, not the conversation")
+            SlashCmdList.SPOKEN = old
+            h(DWE.padCatcher, "PAD4")
+            DWE.SpokenPlayerShown = function() return false end
+            DWE.padMenu._scripts.OnUpdate(DWE.padMenu, 1)
+            check(not DWE.PadMenuOpen(), "Spoken menu closes when the player goes away")
+        end
+        -- Share / Vue hors dialogue : court = pause, long = passer (seulement lecteur affiche)
+        do
+            local sent = {}
+            local oldS = SlashCmdList.SPOKEN
+            SlashCmdList.SPOKEN = function(m) sent[#sent + 1] = m end
+            M.cvars.GamePadEnable = "1"
+            DWE.SpokenPlayerShown = function() return true end
+            DWE.padPlayerWatch._scripts.OnUpdate(DWE.padPlayerWatch, 1)
+            check(M.bindings.PADSOCIAL == "DWE_PadShare" and M.bindings.PADBACK == "DWE_PadShare",
+                "share button bound while Spoken's player is on screen")
+            local function press(name, down) local b = _G[name]; b._scripts.OnClick(b, "LeftButton", down) end
+            local oldT, t0 = GetTime, 50
+            GetTime = function() return t0 end
+            press("DWE_PadShare", true); press("DWE_PadShare", false)
+            press("DWE_PadShare", true); t0 = t0 + 1; press("DWE_PadShare", false)
+            check(table.concat(sent, ",") == "play,skip", "share: tap pauses, hold skips (" .. table.concat(sent, ",") .. ")")
+            local function mine(k) return M.bindOwner[k] == DWE.padPlayer end
+            check(not mine("PAD1") and not mine("PAD4") and not mine("PADDUP"), "share: no other button taken")
+            -- Share maintenu + Y : liste ; la croix, A, Y, B la pilotent, puis sont rendus.
+            local ui, log, open = DWE.SpokenQueueUI, {}, false
+            local saved = { ui.PadIsOpen, ui.PadOpen, ui.PadMove, ui.PadPlay, ui.PadRemove, ui.PadClose }
+            ui.PadIsOpen = function() return open end
+            ui.PadOpen = function() open = true; log[#log + 1] = "open" end
+            ui.PadMove = function(d) log[#log + 1] = "move" .. d end
+            ui.PadPlay = function() log[#log + 1] = "play" end
+            ui.PadRemove = function() log[#log + 1] = "remove" end
+            ui.PadClose = function() open = false; log[#log + 1] = "close" end
+            sent = {}
+            local pl = DWE.padList._scripts.OnGamePadButtonDown
+            check(not DWE.padList:IsShown(), "no button capture while share is not held")
+            press("DWE_PadShare", true)
+            check(DWE.padList:IsShown(), "share held: Y listened to")
+            pl(DWE.padList, "PAD4"); press("DWE_PadShare", false)
+            check(DWE.padList:IsShown(), "list open: d-pad, A, Y, B listened to")
+            pl(DWE.padList, "PADDDOWN"); pl(DWE.padList, "PAD1"); pl(DWE.padList, "PAD4")
+            press("DWE_PadShare", true); press("DWE_PadShare", false)
+            check(table.concat(log, ",") == "open,move1,play,remove,close" and #sent == 0,
+                "queue list with the gamepad: " .. table.concat(log, ",") .. " / sent " .. #sent)
+            check(not DWE.padList:IsShown(), "list closed: buttons back to the game")
+            ui.PadIsOpen, ui.PadOpen, ui.PadMove, ui.PadPlay, ui.PadRemove, ui.PadClose = unpack(saved)
+            GetTime = oldT
+            DWE.SpokenPlayerShown = function() return false end
+            DWE.padPlayerWatch._scripts.OnUpdate(DWE.padPlayerWatch, 1)
+            check(M.bindings.PADSOCIAL == nil and not DWE.padPlayer:IsShown(), "share button released when the player goes away")
+            SlashCmdList.SPOKEN = oldS
+        end
+        DWE.SpokenPlayerShown = realShown
+    end
+    M.cvars.GamePadEnable = nil
+    _G.GetBindingKey = oldKey
+    DWE.RefreshBindings()
+    check(M.bindings.PAD1 == nil and M.bindings.PADRSHOULDER == nil, "gamepad keys released when gamepad mode is off")
+    check(not DWE.padCatcher:IsShown(), "gamepad catcher hidden when gamepad mode is off")
+end
 _G.DWE_WheelDownBtn._scripts.OnClick()
 _G.DWE_SelectBtn._scripts.OnClick()
 check(#M.log > 0, "select runs an action: " .. tostring(M.log[#M.log]))
@@ -683,6 +781,41 @@ M.FireEvent("ITEM_TEXT_READY")
 check(DWE.textBody:GetText() == "p1", "book page 1 shown")
 local function labels() local t = {} for i, o in ipairs(DWE.currentOptions) do t[i] = o.rawLabel end return table.concat(t, ",") end
 check(labels():find(DWE.L.NEXT_PAGE, 1, true), "next page offered on page 1: " .. labels())
+do -- manette dans un livre : bindings actifs, croix droite tourne la page
+    M.cvars.GamePadEnable = "1"; DWE.RefreshBindings()
+    check(M.bindings.PADDRIGHT == "DWE_PadNextBtn", "gamepad bound while a book is open")
+    do -- croix gauche/droite : le bouton de page utilise passe en surbrillance
+        local function sel() local o = DWE.currentOptions[DWE.selectedIndex]; return o and o.rawLabel end
+        DWE.bookWheelAt = nil
+        _G.DWE_PadNextBtn._scripts.OnClick(); M.FlushPending()
+        DWE.bookWheelAt = nil
+        _G.DWE_PadNextBtn._scripts.OnClick(); M.FlushPending()
+        if DWE.textBody:GetText() == "p3" then
+            check(sel() == DWE.L.NEXT_PAGE, "d-pad right: Next Page highlighted")
+            DWE.bookWheelAt = nil
+            _G.DWE_PadPrevBtn._scripts.OnClick(); M.FlushPending()
+            check(sel() == DWE.L.PREV_PAGE and DWE.textBody:GetText() == "p2", "d-pad left: Previous Page highlighted (" .. tostring(sel()) .. ")")
+            DWE.bookWheelAt = nil
+            _G.DWE_PadPrevBtn._scripts.OnClick(); M.FlushPending()
+            DWE.bookWheelAt = nil
+        end
+    end
+    check(M.bindings.PAD4 == nil and M.bindings.PAD3 == nil and M.bindings.PADRSHOULDER == nil, "gamepad Y = ribbon; X and RB left to the game")
+    local h = DWE.padCatcher._scripts and DWE.padCatcher._scripts.OnGamePadButtonDown
+    if h and DWE.ribbon:IsShown() then
+        h(DWE.padCatcher, "PAD4")
+        check(DWE.RibbonPadOpen(), "gamepad Y opens the ribbon menu")
+        local page = DWE.textBody:GetText()
+        h(DWE.padCatcher, "PADDRIGHT")
+        check(DWE.textBody:GetText() == page, "d-pad moves in the ribbon menu, not the pages")
+        h(DWE.padCatcher, "PAD1")
+        h(DWE.padCatcher, "PAD1") -- toggle back
+        h(DWE.padCatcher, "PAD2")
+        check(not DWE.ribbon.open, "gamepad B closes the ribbon menu")
+        check(DWE.textBox:IsShown(), "B on the ribbon menu keeps the book open")
+    end
+    M.cvars.GamePadEnable = nil; DWE.RefreshBindings()
+end
 if withDUI then
     -- DialogueUI caches the whole book then turns back to page 1
     for p = 2, 4 do M.bookPage = p; M.FireEvent("ITEM_TEXT_READY") end
@@ -1130,6 +1263,53 @@ if withSpoken then
         "mute: book lines dropped when the book closes, voice stays off for the next book")
     DWE.SpokenFocus.SetBookMuted(false)
     check(not DWE.SpokenFocus.bookMuted and DialogueWheelE_BookVoiceOff == nil, "unmute: voice back on and remembered")
+    -- File : ce que nos regles coupaient reste dans la file, en attente manuelle.
+    do
+        local heardGreet = { priority = "low", present = { bullet = "gossip", header = "Old NPC" }, key = "g:heard" }
+        DWE.SpokenFocus.MarkHeard(heardGreet)
+        check(DWE.SpokenFocus.Hold(queue, heardGreet, "test") == false and not heardGreet.dweManual,
+            "greeting already heard: dropped, not queued")
+        local greet = { priority = "low", present = { bullet = "gossip", header = "Old NPC" }, key = "g:1" }
+        DWE.SpokenFocus.Hold(queue, greet, "test")
+        check(greet.dweManual and greet.priority == "normal", "manual hold: line kept, not dropped as low priority")
+        check(gates[1](greet) == DWE.L.SPOKEN_HELD, "manual hold: never plays on its own")
+        queue.sounds = { greet }
+        DWE.SpokenFocus.PlayGroup("npc:Old NPC")
+        check(gates[1](greet) == nil, "manual hold: plays when chosen in the queue")
+        DWE.SpokenFocus.forced = nil
+        local groups = DWE.SpokenFocus.Groups()
+        check(groups[1] and groups[1].manual == true, "manual hold: marked in the queue list")
+        -- Livre lu en entier : face a un PNJ, il ne reprend plus tout seul.
+        local done = { present = { bullet = "book", label = "Finished Tome" }, key = "b:fin" }
+        DialogueWheelE_ReadBooks = nil
+        DWE.MarkBook("Finished Tome", true)
+        DWE.SpokenFocus.npc = true
+        check(gates[1](done) == DWE.L.SPOKEN_HELD and done.dweManual, "finished book: held for manual play during a conversation")
+        DWE.SpokenFocus.npc = false
+        check(gates[1](done) == DWE.L.SPOKEN_HELD, "finished book: stays manual after the conversation")
+        local fresh = { present = { bullet = "book", label = "Fresh Tome" }, key = "b:fresh" }
+        DWE.SpokenFocus.npc = true
+        check(gates[1](fresh) == nil, "unread book: unchanged (keeps its priority)")
+        DWE.SpokenFocus.npc = false
+        -- Rien ne parle et tout est a la demande : lecteur cache, petit bouton a la place.
+        local ui = DWE.SpokenQueueUI
+        if ui and ui.UpdateNotice then
+            local oldNow = queue.GetNowPlaying
+            function queue:GetNowPlaying() return nil end
+            queue.sounds = { done }
+            ui.UpdateNotice()
+            check(ui.NoticeShown() and DWE.spokenHeldHide, "held only: Spoken's player hidden, discreet button shown")
+            queue.sounds = { done, fresh }
+            ui.UpdateNotice()
+            check(not ui.NoticeShown() and not DWE.spokenHeldHide, "something to play: player back, button gone")
+            queue.sounds = {}
+            ui.UpdateNotice()
+            check(not ui.NoticeShown(), "empty queue: no button")
+            queue.GetNowPlaying = oldNow
+        end
+        DialogueWheelE_ReadBooks = nil
+        queue.sounds = { book }
+    end
     env.Spoken, env.SoundQueue = oldApi, oldQueue
     if not hadEnv then _G.SpokenEnv = nil end
     DWE.SpokenFocus.installed = nil

@@ -1242,6 +1242,326 @@ btnSelect:SetScript("OnClick", function()
 end)
 btnToggleText:SetScript("OnClick", function() DWE.ToggleDialogueText() end)
 
+-- Manette : boutons dedies (fermer, page precedente/suivante). Croix haut/bas et A
+-- reutilisent les boutons de la molette et de la selection ci-dessus.
+DWE.padClose = CreateFrame("Button", "DWE_PadCloseBtn", UIParent)
+DWE.padClose:SetScript("OnClick", function() DWE.CloseAllDialogue() end)
+DWE.padPrev = CreateFrame("Button", "DWE_PadPrevBtn", UIParent)
+-- La croix gauche/droite surligne aussi le bouton de page utilise (comme un clic dessus).
+function DWE.PadSelectLabel(label)
+    for i, opt in ipairs(DWE.currentOptions or {}) do
+        if opt.rawLabel == label and not opt.disabled then
+            if DWE.selectedIndex ~= i then DWE.selectedIndex = i; DWE.UpdateVisuals() end
+            return
+        end
+    end
+end
+DWE.padPrev:SetScript("OnClick", function()
+    if not (DWE.bookMode and DWE.BookWheelTurn) then return end
+    DWE.PadSelectLabel(L.PREV_PAGE)
+    DWE.BookWheelTurn(1)
+end)
+DWE.padNext = CreateFrame("Button", "DWE_PadNextBtn", UIParent)
+DWE.padNext:SetScript("OnClick", function()
+    if not (DWE.bookMode and DWE.BookWheelTurn) then return end
+    DWE.PadSelectLabel(L.NEXT_PAGE)
+    DWE.BookWheelTurn(-1)
+end)
+
+-- Les fenetres du jeu restent ouvertes (invisibles) sous la roue et le livre : la navigation
+-- manette du jeu peut alors prendre la croix et A pour elles. Un cadre qui recoit les boutons
+-- de la manette en premier les garde pour l'addon ; les autres boutons passent au jeu.
+DWE.PAD_ACTIONS = {
+    PADDUP = "DWE_WheelUpBtn", PADDDOWN = "DWE_WheelDownBtn", PAD1 = "DWE_SelectBtn",
+    PAD2 = "DWE_PadCloseBtn", PADDLEFT = "DWE_PadPrevBtn", PADDRIGHT = "DWE_PadNextBtn",
+    PAD4 = "DWE_PadRibbonBtn",
+}
+-- Menu du ruban ouvert : la croix, A et B servent au menu.
+DWE.PAD_RIBBON = { PADDLEFT = -1, PADDUP = -1, PADDRIGHT = 1, PADDDOWN = 1 }
+DWE.padCatcher = CreateFrame("Frame", "DWE_PadCatcher", UIParent)
+DWE.padCatcher:SetFrameStrata("FULLSCREEN_DIALOG")
+DWE.padCatcher:SetSize(1, 1)
+DWE.padCatcher:SetPoint("TOPLEFT")
+DWE.padCatcher:Hide()
+if DWE.padCatcher.EnableGamePadButton then
+    DWE.padCatcher:EnableGamePadButton(true)
+    -- En combat, on ne peut plus choisir quels boutons laisser passer : on se retire.
+    DWE.padCatcher:RegisterEvent("PLAYER_REGEN_DISABLED")
+    DWE.padCatcher:SetScript("OnEvent", function(self) self:Hide() end)
+    DWE.padCatcher:SetScript("OnGamePadButtonDown", function(self, button)
+        if DWE.RibbonPadOpen and DWE.RibbonPadOpen() then
+            local d = DWE.PAD_RIBBON[button]
+            local mine = d or button == "PAD1" or button == "PAD2" or button == "PAD4"
+            if self.SetPropagateGamePadInput and not InCombatLockdown() then
+                self:SetPropagateGamePadInput(not mine)
+            end
+            if d then DWE.RibbonPadMove(d)
+            elseif button == "PAD1" then DWE.RibbonPadClick()
+            elseif button == "PAD2" or button == "PAD4" then DWE.RibbonPadToggle() end
+            return
+        end
+        if DWE.PadMenuOpen() then
+            local d = DWE.PAD_RIBBON[button]
+            local mine = d or button == "PAD1" or button == "PAD2" or button == "PAD4"
+            if self.SetPropagateGamePadInput and not InCombatLockdown() then
+                self:SetPropagateGamePadInput(not mine)
+            end
+            if d then DWE.PadMenuMove(d)
+            elseif button == "PAD1" then DWE.PadMenuClick()
+            elseif button == "PAD2" or button == "PAD4" then DWE.padMenu:Hide() end
+            return
+        end
+        local target = (DWE.padInteract and DWE.padInteract[button]) and "DWE_SelectBtn" or DWE.PAD_ACTIONS[button]
+        if button == "PAD4" and not DWE.PadMenuAvailable() then target = nil end -- Y reste au jeu
+        local btn = target and rawget(_G, target)
+        if self.SetPropagateGamePadInput and not InCombatLockdown() then
+            self:SetPropagateGamePadInput(not btn)
+        end
+        if btn then
+            local fn = btn:GetScript("OnClick")
+            if fn then fn(btn) end
+        end
+    end)
+end
+
+-- Petit menu du bouton Y en conversation (dans un livre, Y ouvre le ruban) : le lecteur
+-- Spoken (pause / reprise, passer). Meme allure que le ruban : icone, nom, surligne au choix.
+DWE.padMenu = CreateFrame("Frame", "DWE_PadMenu", UIParent)
+DWE.padMenu:SetFrameStrata("FULLSCREEN_DIALOG")
+DWE.padMenu:SetSize(10, 30)
+DWE.padMenu:Hide()
+DWE.padMenu.items = {}
+function DWE.PadMenuItems()
+    if not (DWE.SpokenPlayerShown and DWE.SpokenPlayerShown()) then return {} end
+    return {
+        { label = DWE.L.PAD_SPOKEN_PAUSE, icon = "Interface\\Icons\\INV_Misc_PocketWatch_01", which = "play" },
+        { label = DWE.L.PAD_SPOKEN_SKIP, icon = "Interface\\Icons\\Ability_Rogue_Sprint", which = "skip" },
+    }
+end
+function DWE.PadMenuPaint()
+    local m = DWE.padMenu
+    for i, b in ipairs(m.items) do
+        local on = i == m.idx
+        b.text:SetTextColor(on and 1 or 0.85, on and 0.85 or 0.82, on and 0.2 or 0.75)
+        b.line:SetShown(on)
+    end
+end
+function DWE.PadMenuOpen() return DWE.padMenu:IsShown() end
+-- Le lecteur Spoken disparait (lecture finie) : le menu s'en va avec lui.
+DWE.padMenu:SetScript("OnUpdate", function(self, elapsed)
+    self.check = (self.check or 0) + elapsed
+    if self.check < 0.25 then return end
+    self.check = 0
+    if not (DWE.SpokenPlayerShown and DWE.SpokenPlayerShown()) then self:Hide() end
+end)
+-- Y sert-il a l'addon maintenant ? (ruban d'un livre, ou lecteur Spoken a l'ecran)
+function DWE.PadMenuAvailable()
+    if DWE.ribbon and DWE.ribbon:IsVisible() then return true end
+    return DWE.SpokenPlayerShown and DWE.SpokenPlayerShown() or false
+end
+function DWE.PadMenuToggle()
+    local m = DWE.padMenu
+    if m:IsShown() then m:Hide() return true end
+    local list = DWE.PadMenuItems()
+    if #list == 0 then return false end
+    local x = 0
+    for i, item in ipairs(list) do
+        local b = m.items[i]
+        if not b then
+            b = CreateFrame("Frame", nil, m)
+            b:SetHeight(26)
+            b.icon = b:CreateTexture(nil, "ARTWORK")
+            b.icon:SetSize(16, 16)
+            b.icon:SetPoint("CENTER", b, "LEFT", 8, 0)
+            b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+            b.text:SetPoint("LEFT", b, "LEFT", 22, 0)
+            b.text:SetShadowColor(0, 0, 0, 1)
+            b.text:SetShadowOffset(1, -1)
+            b.line = b:CreateTexture(nil, "ARTWORK")
+            b.line:SetColorTexture(0.85, 0.68, 0.30, 0.8)
+            b.line:SetHeight(1)
+            b.line:SetPoint("BOTTOMLEFT", b.text, "BOTTOMLEFT", 0, -3)
+            b.line:SetPoint("BOTTOMRIGHT", b.text, "BOTTOMRIGHT", 0, -3)
+            m.items[i] = b
+        end
+        b.item = item
+        b.icon:SetTexture(item.icon)
+        b.text:SetText(item.label)
+        local w = ((b.text.GetStringWidth and b.text:GetStringWidth()) or 90) + 26
+        b:SetWidth(w)
+        b:ClearAllPoints()
+        b:SetPoint("LEFT", m, "LEFT", x, 0)
+        b:Show()
+        x = x + w + 24
+    end
+    for i = #list + 1, #m.items do m.items[i]:Hide(); m.items[i].item = nil end
+    m.count = #list
+    m:SetWidth(math.max(10, x - 24))
+    m:ClearAllPoints()
+    if DWE.choiceBox and DWE.choiceBox:IsShown() then
+        m:SetPoint("BOTTOM", DWE.choiceBox, "TOP", 0, 10)
+    else
+        m:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+    end
+    m.idx = 1
+    DWE.PadMenuPaint()
+    m:Show()
+    return true
+end
+function DWE.PadMenuMove(d)
+    local m = DWE.padMenu
+    local n = m.count or 0
+    if n == 0 then return end
+    m.idx = ((m.idx or 1) - 1 + d) % n + 1
+    DWE.PadMenuPaint()
+end
+function DWE.PadMenuClick()
+    local m = DWE.padMenu
+    local b = m.items[m.idx or 1]
+    if b and b.item and DWE.SpokenPadPress then DWE.SpokenPadPress(b.item.which) end
+end
+-- Y : le ruban dans un livre, sinon le petit menu.
+function DWE.PadMenuButton()
+    if DWE.RibbonPadOpen and DWE.RibbonPadOpen() then return DWE.RibbonPadToggle() end
+    if DWE.ribbon and DWE.ribbon:IsVisible() and DWE.RibbonPadToggle then return DWE.RibbonPadToggle() end
+    return DWE.PadMenuToggle()
+end
+
+DWE.padRibbon = CreateFrame("Button", "DWE_PadRibbonBtn", UIParent)
+DWE.padRibbon:SetScript("OnClick", function() DWE.PadMenuButton() end)
+DWE.padSpoken = CreateFrame("Button", "DWE_PadSpokenBtn", UIParent)
+DWE.padSpoken:SetScript("OnClick", function() if DWE.SpokenPadPress then DWE.SpokenPadPress("play") end end)
+DWE.padSkip = CreateFrame("Button", "DWE_PadSkipBtn", UIParent)
+DWE.padSkip:SetScript("OnClick", function() if DWE.SpokenPadPress then DWE.SpokenPadPress("skip") end end)
+
+-- Lecteur miniature de Spoken a l'ecran, hors de tout dialogue : le bouton Share (PADSOCIAL :
+-- Share PS4/Xbox Series, Create PS5) ou Vue / Back (PADBACK, Xbox One) le pilote.
+-- Appui court : pause / reprise ; appui long : passer ; Share maintenu + Y : liste de la file.
+-- Par des raccourcis temporaires sur ces seuls boutons (pas de cadre qui ecoute la manette :
+-- le jeu garde la main sur tout le reste, interagir avec un livre ou un PNJ compris).
+DWE.PAD_HOLD = 0.5
+DWE.PAD_PLAYER_KEYS = { PADSOCIAL = true, PADBACK = true }
+DWE.padPlayer = CreateFrame("Frame", "DWE_PadPlayer", UIParent) -- proprietaire des raccourcis
+DWE.padPlayer:Hide()
+local function PadBtn(name, fn)
+    local b = CreateFrame("Button", name, UIParent)
+    b:RegisterForClicks("AnyDown", "AnyUp")
+    b:SetScript("OnClick", fn)
+    return b
+end
+-- Pendant que Share est maintenu ou que la liste est ouverte (et seulement la), un cadre recoit
+-- les boutons de la manette avant le jeu : Y (avec Share) ouvre la liste ; liste ouverte, la
+-- croix choisit, A fait lire, Y retire, B referme. Tout le reste passe au jeu.
+local function ListOpen()
+    local ui = DWE.SpokenQueueUI
+    return ui and ui.PadIsOpen and ui.PadIsOpen() or false
+end
+DWE.padList = CreateFrame("Frame", "DWE_PadList", UIParent)
+DWE.padList:SetFrameStrata("FULLSCREEN_DIALOG")
+DWE.padList:SetSize(1, 1)
+DWE.padList:SetPoint("TOPLEFT")
+DWE.padList:Hide()
+function DWE.PadListRefresh()
+    local want = (DWE.padPlayer.downAt or ListOpen()) and not InCombatLockdown()
+    if want then DWE.padList:Show() else DWE.padList:Hide() end
+end
+function DWE.PadListClosed() DWE.PadListRefresh() end
+if DWE.padList.EnableGamePadButton then
+    DWE.padList:EnableGamePadButton(true)
+    DWE.padList:SetScript("OnGamePadButtonDown", function(self, button)
+        local ui = DWE.SpokenQueueUI
+        local mine = false
+        if ListOpen() and ui then
+            mine = true
+            if button == "PADDUP" then ui.PadMove(-1)
+            elseif button == "PADDDOWN" then ui.PadMove(1)
+            elseif button == "PAD1" then ui.PadPlay()
+            elseif button == "PAD4" then ui.PadRemove()
+            elseif button == "PAD2" then ui.PadClose()
+            else mine = false end
+        elseif DWE.padPlayer.downAt and button == "PAD4" and ui and ui.PadOpen then
+            mine = true
+            DWE.padPlayer.chord = true
+            ui.PadOpen()
+        end
+        if DWE.PAD_PLAYER_KEYS[button] then mine = false end -- Share reste a son raccourci
+        if self.SetPropagateGamePadInput and not InCombatLockdown() then self:SetPropagateGamePadInput(not mine) end
+        DWE.PadListRefresh()
+    end)
+end
+PadBtn("DWE_PadShare", function(_, _, down)
+    local p = DWE.padPlayer
+    if down ~= false then
+        DWE.padLastButton = "share"
+        p.downAt, p.chord = GetTime and GetTime() or 0, nil
+        p.listAtDown = ListOpen()
+        DWE.PadListRefresh()
+        return
+    end
+    if not p.downAt then return end
+    local held = (GetTime and GetTime() or 0) - p.downAt
+    local chord, wasOpen = p.chord, p.listAtDown
+    p.downAt, p.chord, p.listAtDown = nil, nil, nil
+    DWE.PadListRefresh()
+    if chord then return end
+    if wasOpen then
+        if DWE.SpokenQueueUI then DWE.SpokenQueueUI.PadClose() end
+        DWE.PadListRefresh()
+        return
+    end
+    -- Plus que des lignes a la demande (petit bouton a la place du lecteur) : Share ouvre la file.
+    local ui = DWE.SpokenQueueUI
+    if not (DWE.SpokenPlayerShown and DWE.SpokenPlayerShown()) and ui and ui.NoticeShown and ui.NoticeShown() then
+        ui.PadOpen()
+        DWE.PadListRefresh()
+        return
+    end
+    if DWE.SpokenPadPress then DWE.SpokenPadPress(held >= DWE.PAD_HOLD and "skip" or "play") end
+end)
+do
+    local watch = CreateFrame("Frame", "DWE_PadPlayerWatch")
+    local acc = 0
+    watch:RegisterEvent("PLAYER_REGEN_DISABLED")
+    watch:SetScript("OnEvent", function()
+        -- Entree en combat : tous les raccourcis du lecteur sont rendus tout de suite.
+        ClearOverrideBindings(DWE.padPlayer)
+        DWE.padPlayer:Hide()
+        DWE.padPlayer.downAt = nil
+        DWE.padList:Hide()
+    end)
+    watch:SetScript("OnUpdate", function(_, elapsed)
+        acc = acc + elapsed
+        if acc < 0.25 then return end
+        acc = 0
+        if InCombatLockdown() then return end
+        local p = DWE.padPlayer
+        DWE.PadListRefresh()
+        local ui = DWE.SpokenQueueUI
+        local want = DWE.GamePadOn and DWE.GamePadOn() and ((DWE.SpokenPlayerShown and DWE.SpokenPlayerShown())
+            or (ui and ui.NoticeShown and ui.NoticeShown()))
+        if want and not p:IsShown() then
+            p:Show()
+            for key in pairs(DWE.PAD_PLAYER_KEYS) do SetOverrideBindingClick(p, true, key, "DWE_PadShare") end
+        elseif not want and p:IsShown() and not ListOpen() then
+            ClearOverrideBindings(p)
+            p.downAt = nil
+            p:Hide()
+        end
+    end)
+    DWE.padPlayerWatch = watch
+end
+
+-- Mode manette du jeu actif (option du jeu ou /console GamePadEnable 1).
+function DWE.GamePadOn()
+    if DialogueWheelE_GamePad == false then return false end
+    if C_GamePad and C_GamePad.IsEnabled then
+        local ok, on = pcall(C_GamePad.IsEnabled)
+        if ok and on then return true end
+    end
+    local cv = GetCVar and GetCVar("GamePadEnable")
+    return cv ~= nil and tostring(cv) == "1"
+end
+
 -- Touche d'interaction du jeu active : option "Touche d'interaction" activee (CVar
 -- SoftTargetInteract) et une touche reglee pour "Interagir avec la cible".
 function DWE.BlizzInteractOn()
@@ -1304,18 +1624,40 @@ local function EnableKeys()
     if toggle then SetOverrideBindingClick(f, true, toggle, "DWE_ToggleTextKeyBtn") end
     local interact = DWE.GetEffectiveInteractKey()
     if interact then SetOverrideBindingClick(f, true, interact, "DWE_SelectBtn") end
+    -- Toutes les touches liees a "Interagir avec la cible" (clavier et manette), pas
+    -- seulement la premiere.
+    DWE.padInteract = {}
+    if interact then DWE.padInteract[interact] = true end
+    if DialogueWheelE_UseBlizzKey ~= false and GetBindingKey then
+        for _, k in ipairs({ GetBindingKey("INTERACTTARGET") }) do
+            if k then DWE.padInteract[k] = true end
+            if k and k ~= interact then SetOverrideBindingClick(f, true, k, "DWE_SelectBtn") end
+        end
+    end
+    if DWE.GamePadOn() then
+        SetOverrideBindingClick(f, true, "PADDUP", "DWE_WheelUpBtn")
+        SetOverrideBindingClick(f, true, "PADDDOWN", "DWE_WheelDownBtn")
+        SetOverrideBindingClick(f, true, "PAD1", "DWE_SelectBtn")
+        SetOverrideBindingClick(f, true, "PAD2", "DWE_PadCloseBtn")
+        SetOverrideBindingClick(f, true, "PADDLEFT", "DWE_PadPrevBtn")
+        SetOverrideBindingClick(f, true, "PADDRIGHT", "DWE_PadNextBtn")
+        if DWE.padCatcher.EnableGamePadButton then DWE.padCatcher:Show() end
+    end
 end
 
 -- Applique tout de suite un changement de touche fait dans les options.
 function DWE.RefreshBindings()
     if not keysEnabled or InCombatLockdown() then return end
     ClearOverrideBindings(f)
+    DWE.padCatcher:Hide()
     keysEnabled = false
     EnableKeys()
 end
 
 function DisableKeys()
     DisarmEscape()
+    DWE.padCatcher:Hide()
+    DWE.padMenu:Hide()
     keysEnabled = false
     DWE.lastQuestEvent = nil
     ResetBook(false)
@@ -1378,6 +1720,10 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
     elseif msg:match("forget") then
         local n = DWE.SpokenFocus and DWE.SpokenFocus.ForgetOpenBook and DWE.SpokenFocus.ForgetOpenBook() or 0
         Out("livre ouvert considere comme jamais ecoute (" .. n .. " ligne(s) oubliee(s)).")
+    elseif msg:match("^%s*pad") then
+        -- Diagnostic manette : ce que Storytale voit (a taper avec le lecteur Spoken affiche).
+        Out("manette=" .. tostring(DWE.GamePadOn and DWE.GamePadOn()) .. " lecteurSpoken=" .. tostring(DWE.SpokenPlayerShown and DWE.SpokenPlayerShown())
+            .. " ecoute=" .. tostring(DWE.padPlayer and DWE.padPlayer:IsShown()) .. " dernierBouton=" .. tostring(DWE.padLastButton))
     elseif msg:match("spoken") then
         if DWE.SpokenFocus then DWE.SpokenFocus.Install(); DWE.SpokenFocus.Report() end
     elseif msg:match("^%s*plate") then

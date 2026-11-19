@@ -617,6 +617,25 @@ for loc, list in pairs(OPTS3) do
     if T[loc] then for k, v in pairs(list) do T[loc][k] = v end end
 end
 
+-- Lecteur Spoken depuis la manette (menu du bouton Y).
+local SPOKEN_PAD = {
+    enUS = { SPOKEN_NOTICE_TIP = "%d waiting: click to choose", SPOKEN_HELD = "waiting: pick it in the queue", SPOKEN_HELD_TAG = "paused", PAD_SPOKEN_PAUSE = "Pause / Resume", PAD_SPOKEN_SKIP = "Skip" },
+    frFR = { SPOKEN_NOTICE_TIP = "%d en attente : clique pour choisir", SPOKEN_HELD = "en attente : choisis-la dans la file", SPOKEN_HELD_TAG = "à la demande", PAD_SPOKEN_PAUSE = "Pause / Reprise", PAD_SPOKEN_SKIP = "Passer" },
+    deDE = { SPOKEN_NOTICE_TIP = "%d wartend: klicken zum Auswählen", SPOKEN_HELD = "wartet: in der Warteschlange auswählen", SPOKEN_HELD_TAG = "auf Abruf", PAD_SPOKEN_PAUSE = "Pause / Weiter", PAD_SPOKEN_SKIP = "Überspringen" },
+    esES = { SPOKEN_NOTICE_TIP = "%d en espera: haz clic para elegir", SPOKEN_HELD = "en espera: elígela en la cola", SPOKEN_HELD_TAG = "a demanda", PAD_SPOKEN_PAUSE = "Pausa / Reanudar", PAD_SPOKEN_SKIP = "Saltar" },
+    itIT = { SPOKEN_NOTICE_TIP = "%d in attesa: clicca per scegliere", SPOKEN_HELD = "in attesa: sceglila nella coda", SPOKEN_HELD_TAG = "a richiesta", PAD_SPOKEN_PAUSE = "Pausa / Riprendi", PAD_SPOKEN_SKIP = "Salta" },
+    ptBR = { SPOKEN_NOTICE_TIP = "%d aguardando: clique para escolher", SPOKEN_HELD = "aguardando: escolha-a na fila", SPOKEN_HELD_TAG = "sob demanda", PAD_SPOKEN_PAUSE = "Pausar / Retomar", PAD_SPOKEN_SKIP = "Pular" },
+    ruRU = { SPOKEN_NOTICE_TIP = "%d в ожидании: нажмите, чтобы выбрать", SPOKEN_HELD = "ждёт: выберите в очереди", SPOKEN_HELD_TAG = "по запросу", PAD_SPOKEN_PAUSE = "Пауза / Продолжить", PAD_SPOKEN_SKIP = "Пропустить" },
+    koKR = { SPOKEN_NOTICE_TIP = "%d개 대기 중: 클릭하여 선택", SPOKEN_HELD = "대기 중: 대기열에서 선택하세요", SPOKEN_HELD_TAG = "수동", PAD_SPOKEN_PAUSE = "일시정지 / 재개", PAD_SPOKEN_SKIP = "건너뛰기" },
+    zhCN = { SPOKEN_NOTICE_TIP = "%d 个等待中：点击选择", SPOKEN_HELD = "等待中：在队列中选择", SPOKEN_HELD_TAG = "手动", PAD_SPOKEN_PAUSE = "暂停 / 继续", PAD_SPOKEN_SKIP = "跳过" },
+    zhTW = { SPOKEN_NOTICE_TIP = "%d 個等待中：點擊選擇", SPOKEN_HELD = "等待中：在佇列中選擇", SPOKEN_HELD_TAG = "手動", PAD_SPOKEN_PAUSE = "暫停 / 繼續", PAD_SPOKEN_SKIP = "跳過" },
+}
+SPOKEN_PAD.esMX = SPOKEN_PAD.esES
+for loc, list in pairs(SPOKEN_PAD) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then for k, v in pairs(list) do dest[k] = v end end
+end
+
 local own = T[LOCALE] or {}
 DWE.L = setmetatable({}, { __index = function(_, k)
     return GAME[k] or own[k] or enUS[k]
