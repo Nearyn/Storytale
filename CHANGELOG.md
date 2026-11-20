@@ -1,5 +1,25 @@
 # Changelog / Journal des versions
 
+## 1.5.6
+
+**English**
+
+- New: Storytale now has its own icon in the AddOns list.
+- Fixed: "Reset all options" now also resets the Spoken player style and the book and plaque skins.
+- Code cleanup: removed two unused saved settings and old fallbacks for game functions that no longer exist.
+
+Note: the game needs a restart after this update (a /reload is not enough).
+
+---
+
+**Français**
+
+- Nouveau : Storytale a maintenant sa propre icône dans la liste des AddOns.
+- Correction : « Réinitialiser toutes les options » remet aussi à zéro le style du lecteur Spoken et l'habillage des livres et des plaques.
+- Nettoyage du code : deux anciens réglages inutilisés retirés, ainsi que d'anciennes solutions de repli pour des fonctions du jeu qui n'existent plus.
+
+Note : il faut relancer le jeu après cette mise à jour (un /reload ne suffit pas).
+
 ## 1.5.5
 
 **English**

@@ -32,8 +32,7 @@ end
 -- livres reste actif (c'est le grand parchemin que l'on bascule avec "Dialogue").
 
 local function IsAddOnLoadedCompat(name)
-    if C_AddOns and C_AddOns.IsAddOnLoaded then return C_AddOns.IsAddOnLoaded(name) end
-    return IsAddOnLoaded and IsAddOnLoaded(name)
+    return C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(name) or false
 end
 
 -- Le cadre d'evenements de DialogueUI (Code/Core.lua) se reconnait a ses methodes.
@@ -517,8 +516,6 @@ local function DarkmoonTicketName()
     local name
     if C_Item and C_Item.GetItemNameByID then
         name = C_Item.GetItemNameByID(19182)
-    elseif GetItemInfo then
-        name = GetItemInfo(19182)
     end
     return NonEmpty(name) or L.DM_TICKET
 end

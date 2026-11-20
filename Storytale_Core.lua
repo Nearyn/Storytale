@@ -5564,7 +5564,7 @@ DWE.THEME_LIST = THEME_LIST
 -- deja entendus avec Spoken (ce n'est pas un reglage).
 -- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
 DWE.OPTION_VARS = {}
-for k in ("Pos TextPos Theme Font FontSize Scale Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenChoice SpokenButton SpokenSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart DefaultsV"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
+for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart DefaultsV"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
@@ -5795,8 +5795,7 @@ function DWE.InitOptionsPanel()
     end, 1, 160)
     Tip(bookStyleBoxes[1], L.BOOK_ADDON_TIP)
     -- DialogueUI : seulement si l'addon DialogueUI est actif.
-    local duiOn = (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DialogueUI"))
-        or (IsAddOnLoaded and IsAddOnLoaded("DialogueUI"))
+    local duiOn = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DialogueUI")
     local function GreyDUI(boxes)
         if not duiOn and boxes[2] then
             boxes[2]:Disable()
@@ -6304,8 +6303,6 @@ function DWE.InitOptionsPanel()
     if Settings and Settings.RegisterCanvasLayoutCategory then
         local cat = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
         Settings.RegisterAddOnCategory(cat)
-    elseif InterfaceOptions_AddCategory then
-        InterfaceOptions_AddCategory(panel)
     end
 end
 
