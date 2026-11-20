@@ -6,3 +6,5 @@ for g in 0 1; do for ng in 0 1; do for nb in 0 1; do
 out=$(GLOBALS=$g NOGRADIENT=$ng NOBUBBLEART=$nb texlua run.lua $loc $dui $sp $D 2>&1 | tail -1); n=$((n+1))
 echo "$out" | grep -q " 0 failed, 0 runtime" || { bad=$((bad+1)); echo "$loc dui=$dui spoken=$sp G=$g NG=$ng NB=$nb: $out"; }
 done; done; done; done; done; done; echo "runs=$n failed=$bad"
+# Limites de Lua 5.1 (le jeu) plus strictes que texlua : pile du chunk < 250, 200 variables locales.
+cd "$D"; for f in *.lua; do texluac -l -p "$f" | awk -v f="$f" '/slots/ { for (i = 1; i <= NF; i++) if ($i == "slots,") if ($(i-1) + 0 >= 240) { print "Lua 5.1 stack too close to its limit in " f ": " $0; bad = 1 } } END { exit bad }' || echo "runs=check failed=1"; done

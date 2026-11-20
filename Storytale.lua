@@ -1221,20 +1221,14 @@ function BuildOptions(event, keepSelection)
     local isBook = BOOK_EVENTS[event] and DWE.BookByAddon()
     -- Bouton "Spoken" : bascule entre le texte de l'addon et la fenetre de Spoken. Sans Spoken,
     -- pas de bouton (et le texte de l'addon reste affiche).
+    -- (1.5.5) Plus de choix "Spoken" dans la roue : un petit bouton dans son coin (option).
     local hasSpoken = DWE.SpokenFocus and DWE.SpokenFocus.Available()
-    local spokenChoice = hasSpoken and DialogueWheelE_SpokenChoice == true
-    -- Sans moyen de revenir (ni choix "Spoken" ni touche), le texte de l'addon reste affiche.
-    if not (spokenChoice or (hasSpoken and DWE.GetToggleKey())) and DialogueWheelE_ShowText ~= true then
-        DialogueWheelE_ShowText = true
-    end
-    if not isBook and spokenChoice and not DWE.ConvToDUI() then
-        AddOption({
-            isDialogueToggle = true,
-            icon = GOSSIP_ICONS.gossip,
-            rawLabel = L.TEXT_BTN,
-            action = DWE.ToggleDialogueText,
-        })
-    end
+    local spokenButton = hasSpoken and DialogueWheelE_SpokenButton == true
+    -- Le dernier choix (bulle ou lecteur Spoken) est garde, meme bouton cache : on peut garder
+    -- la roue + le lecteur Spoken en permanence, sans bouton a l'ecran. Sans Spoken, la bulle.
+    if not hasSpoken and DialogueWheelE_ShowText ~= true then DialogueWheelE_ShowText = true end
+    DWE.spokenToggleWanted = spokenButton and not isBook and not DWE.ConvToDUI() or false
+    if DWE.UpdateSpokenToggle then DWE.UpdateSpokenToggle() end
 
     if event == "GOSSIP_SHOW" then
         BuildGossipOptions()
@@ -1408,8 +1402,68 @@ btnSelect:SetScript("OnClick", function()
 end)
 btnToggleText:SetScript("OnClick", function() DWE.ToggleDialogueText() end)
 
+-- Bouton de bascule bulle / lecteur Spoken : toujours au meme endroit, le coin haut droit de la
+-- roue (elle reste a l'ecran dans les deux cas). Discret au repos, net au survol.
+do
+    local b = CreateFrame("Button", "StorytaleSpokenToggle", DWE.choiceBox)
+    b:SetSize(22, 22)
+    b:SetFrameStrata(DWE.choiceBox:GetFrameStrata())
+    b:SetFrameLevel(DWE.choiceBox:GetFrameLevel() + 10)
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetAllPoints()
+    b.ring = b:CreateTexture(nil, "OVERLAY")
+    b.ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    b.ring:SetSize(40, 40)
+    b.ring:SetPoint("TOPLEFT", -2, 2)
+    b:Hide()
+    local function Paint()
+        -- Bulle a l'ecran : l'icone de Spoken (haut-parleur) ; lecteur Spoken : l'icone de la bulle.
+        if DialogueWheelE_ShowText == true then
+            b.icon:SetTexture("Interface\\Common\\VoiceChat-Speaker")
+        else
+            b.icon:SetTexture(GOSSIP_ICONS.gossip)
+        end
+        -- (pas IsMouseOver : la roue suit une plaque de nom, zone protegee du jeu)
+        b:SetAlpha(b.dweHover and 1 or 0.6)
+    end
+    function DWE.UpdateSpokenToggle()
+        local want = DWE.spokenToggleWanted and DWE.choiceBox:IsShown()
+        if not want then b:Hide() return end
+        b:ClearAllPoints()
+        b:SetPoint("BOTTOMRIGHT", DWE.choiceBox, "TOPRIGHT", 0, 4)
+        Paint()
+        b:Show()
+    end
+    b:SetScript("OnClick", function()
+        DWE.ToggleDialogueText()
+        Paint()
+    end)
+    b:SetScript("OnEnter", function(self)
+        self.dweHover = true
+        self:SetAlpha(1)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(L.TEXT_BTN)
+        local key = DWE.GetToggleKey and DWE.GetToggleKey()
+        if key then GameTooltip:AddLine(L.KEY_TOGGLE .. " " .. key, 1, 1, 1, true) end
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function(self) self.dweHover = nil; self:SetAlpha(0.6); GameTooltip:Hide() end)
+    DWE.spokenToggle = b
+    -- La roue s'affiche apres avoir ete construite : le bouton suit.
+    DWE.choiceBox:HookScript("OnShow", function() DWE.UpdateSpokenToggle() end)
+    if hooksecurefunc then hooksecurefunc(DWE, "ToggleDialogueText", function() if b:IsShown() then Paint() end end) end
+end
+
 -- Manette : boutons dedies (fermer, page precedente/suivante). Croix haut/bas et A
 -- reutilisent les boutons de la molette et de la selection ci-dessus.
+-- Croix haut/bas : comme la molette, mais au bout de la liste on repart directement a l'autre
+-- bout (pas de "butee" : elle sert a la molette, qui a de l'elan).
+local function PadStep(d)
+    if DWE.NoteScrollBy(-d) then return end
+    DWE.StepSelection(d)
+end
+CreateFrame("Button", "DWE_PadUpBtn", UIParent):SetScript("OnClick", function() PadStep(-1) end)
+CreateFrame("Button", "DWE_PadDownBtn", UIParent):SetScript("OnClick", function() PadStep(1) end)
 DWE.padClose = CreateFrame("Button", "DWE_PadCloseBtn", UIParent)
 DWE.padClose:SetScript("OnClick", function() DWE.CloseAllDialogue() end)
 DWE.padPrev = CreateFrame("Button", "DWE_PadPrevBtn", UIParent)
@@ -1438,7 +1492,7 @@ end)
 -- manette du jeu peut alors prendre la croix et A pour elles. Un cadre qui recoit les boutons
 -- de la manette en premier les garde pour l'addon ; les autres boutons passent au jeu.
 DWE.PAD_ACTIONS = {
-    PADDUP = "DWE_WheelUpBtn", PADDDOWN = "DWE_WheelDownBtn", PAD1 = "DWE_SelectBtn",
+    PADDUP = "DWE_PadUpBtn", PADDDOWN = "DWE_PadDownBtn", PAD1 = "DWE_SelectBtn",
     PAD2 = "DWE_PadCloseBtn", PADDLEFT = "DWE_PadPrevBtn", PADDRIGHT = "DWE_PadNextBtn",
     PAD4 = "DWE_PadRibbonBtn",
 }
@@ -1483,6 +1537,7 @@ if DWE.padCatcher.EnableGamePadButton then
         end
         local target = (DWE.padInteract and DWE.padInteract[button]) and "DWE_SelectBtn" or DWE.PAD_ACTIONS[button]
         if button == "PAD4" and not DWE.PadMenuAvailable() then target = nil end -- Y reste au jeu
+        if (button == "PADDLEFT" or button == "PADDRIGHT") and not DWE.bookMode then target = nil end
         local btn = target and rawget(_G, target)
         if self.SetPropagateGamePadInput and not InCombatLockdown() then
             self:SetPropagateGamePadInput(not btn)
@@ -1495,8 +1550,12 @@ if DWE.padCatcher.EnableGamePadButton then
 end
 
 if DWE.padCatcher.EnableGamePadButton then
-    DWE.padCatcher:SetScript("OnGamePadButtonUp", function(_, button)
+    DWE.padCatcher:SetScript("OnGamePadButtonUp", function(self, button)
         if DWE.PAD_PLAYER_KEYS[button] and DWE.padPlayer.downAt then DWE.PadShareFire(false) end
+        -- Un bouton garde pour Storytale coupait la manette au jeu jusqu'au bouton suivant : le
+        -- stick droit (camera) restait sans effet dans la conversation ou le livre. Relache, on
+        -- rend la manette au jeu.
+        if self.SetPropagateGamePadInput and not InCombatLockdown() then self:SetPropagateGamePadInput(true) end
     end)
 end
 -- Les boutons de Spoken a l'ecran : son lecteur, ou le livre de DialogueUI (Spoken y pose ses
@@ -1521,6 +1580,260 @@ function DWE.PadShareFire(down)
     if fn then fn(b, "LeftButton", down) end
 end
 
+-- Stick droit des fenetres du jeu cachees sous Storytale (texte qui defile au stick).
+local stickTaken = {}
+local STICK_FRAMES = { "GossipFrame", "QuestFrame", "ItemTextFrame" }
+function DWE.PadStickTake()
+    local function Walk(f, depth)
+        if depth > 8 or (f.IsForbidden and f:IsForbidden()) then return end
+        local on = f.IsGamePadStickEnabled and f:IsGamePadStickEnabled()
+        local sec = rawget(_G, "issecretvalue")
+        if sec and sec(on) then on = false end
+        if on then
+            if pcall(f.EnableGamePadStick, f, false) then stickTaken[f] = true end
+        end
+        if f.GetChildren then
+            for _, c in ipairs({ f:GetChildren() }) do pcall(Walk, c, depth + 1) end
+        end
+    end
+    for _, n in ipairs(STICK_FRAMES) do
+        local f = rawget(_G, n)
+        -- seulement cachees par Storytale (une fenetre du jeu affichee garde son defilement)
+        if type(f) == "table" and f.IsShown and f:IsShown() and (f:GetAlpha() or 1) < 0.05 then pcall(Walk, f, 0) end
+    end
+end
+-- Interface manette du jeu : a l'ouverture d'un PNJ ou d'un livre, elle selectionne d'office la
+-- fenetre du jeu et donne le stick droit a sa barre de defilement. Cachee sous Storytale, cette
+-- fenetre gardait le stick (camera bloquee) : on rend la main au joueur, comme le fait la souris.
+function DWE.PadFCM()
+    local gm = rawget(_G, "GamepadMode")
+    local m = type(gm) == "table" and gm.FrameControlsManager
+    return type(m) == "table" and m or nil
+end
+function DWE.PadActiveFrame()
+    local m = DWE.PadFCM()
+    if not m or type(m.GetActiveFrame) ~= "function" then return nil end
+    local ok, af = pcall(m.GetActiveFrame, m)
+    local sec = rawget(_G, "issecretvalue")
+    if not ok or type(af) ~= "table" or (sec and sec(af)) then return nil end
+    return af
+end
+function DWE.PadUnfocusHidden()
+    local m, af = DWE.PadFCM(), DWE.PadActiveFrame()
+    if not (m and af) or InCombatLockdown() then return end
+    -- Conversation ou livre montres par DialogueUI : il pilote lui-meme la manette, on n'y touche pas.
+    if DWE.ConvToDUI() and not DWE.BookByAddon() then return end
+    -- Fenetre selectionnee par le jeu mais invisible (cachee par Storytale) : on rend la main.
+    -- Fenetres de PNJ ou de livre : on la rend des leur ouverture, avant meme que Storytale ne les
+    -- cache (sinon un geste du stick commence entre-temps reste a la fenetre tant qu'on le tient).
+    local okA, a = pcall(af.GetEffectiveAlpha, af)
+    local sec = rawget(_G, "issecretvalue")
+    local early = false
+    for _, n in ipairs(STICK_FRAMES) do if rawget(_G, n) == af then early = true end end
+    if early then DWE.padEarly = { f = af, t = GetTime and GetTime() or 0 } end
+    if early or (okA and not (sec and sec(a)) and (a or 1) < 0.05) then
+        -- On dit au gestionnaire que la fenetre est cachee (il la retire de sa selection), puis on
+        -- rend la main au joueur.
+        -- On ne retire jamais la fenetre du suivi du jeu (FrameHidden) : a sa vraie fermeture, le jeu
+        -- se perdait et la fenetre suivante (un marchand) n'etait plus pilotable a la manette.
+        -- On rend seulement la main au joueur, et seulement si l'interface l'a prise.
+        local focused = rawget(m, "isUIFocused")
+        if sec and sec(focused) then focused = true end
+        if focused == false and not (okA and not (sec and sec(a)) and (a or 1) < 0.05) then return end
+        -- Fenetre vraiment cachee : on la retire de la liste du jeu (sinon il la reprend et bloque la
+        -- camera). A sa vraie fermeture, la fenetre suivante (un marchand) est reselectionnee : voir
+        -- DWE.PadRefocusAfterClose.
+        local hidden = okA and not (sec and sec(a)) and (a or 1) < 0.05
+        -- Une seule fois par ouverture, tant que le jeu ne la reselectionne pas.
+        DWE.padCycled = DWE.padCycled or {}
+        if hidden and focused == false and DWE.padCycled[af] then return end
+        if hidden then
+            DWE.padCycled[af] = true
+            DWE.padHideHooked = DWE.padHideHooked or {}
+            if not DWE.padHideHooked[af] and af.HookScript then
+                DWE.padHideHooked[af] = true
+                af:HookScript("OnHide", function(fr) DWE.padCycled[fr] = nil end)
+            end
+        end
+        if hidden and m.FrameHidden then
+            pcall(m.FrameHidden, m, af)
+            DWE.padUntracked = DWE.padUntracked or {}
+            DWE.padUntracked[af] = true
+        end
+        if m.ReturnToPlayerControl then pcall(m.ReturnToPlayerControl, m) end
+        -- Puis on la remet dans la liste du jeu, sans la selectionner : il la connait encore a sa
+        -- vraie fermeture (le marchand qui suit reste pilotable).
+        if hidden and m.FrameShown and C_Timer then
+            C_Timer.After(0, function()
+                if InCombatLockdown() then return end
+                local okS, shown = pcall(af.IsShown, af)
+                if not (okS and shown) then return end
+                pcall(m.FrameShown, m, af, false, false)
+                if DWE.padUntracked then DWE.padUntracked[af] = nil end
+                local now = DWE.PadActiveFrame()
+                local f2 = rawget(m, "isUIFocused")
+                if now == af and f2 ~= false and m.ReturnToPlayerControl then pcall(m.ReturnToPlayerControl, m) end
+            end)
+        end
+        DWE.padUnfocusN = (DWE.padUnfocusN or 0) + 1
+        local okN, n = pcall(af.GetName, af)
+        DWE.padUnfocusLast = okN and not (sec and sec(n)) and n or "?"
+        local after = DWE.PadActiveFrame()
+        local okM, an = pcall(function() return after and after:GetName() end)
+        DWE.padUnfocusAfter = after and (okM and not (sec and sec(an)) and an or "?") or "aucune"
+    end
+end
+-- Surveillance independante de la roue : le jeu selectionne la fenetre des l'ouverture du PNJ,
+-- avant que la roue (et son capteur manette) ne s'affiche. On reagit aussi tout de suite quand le
+-- gestionnaire change de selection.
+DWE.padFocusWatch = CreateFrame("Frame", "DWE_PadFocusWatch")
+DWE.padFocusWatch:SetScript("OnUpdate", function(self, el)
+    self.t = (self.t or 0) + el
+    if self.t < 0.1 then return end
+    self.t = 0
+    if DWE.GamePadOn and DWE.GamePadOn() then
+        DWE.PadUnfocusHidden()
+        DWE.PadRefocusAfterClose()
+        -- Fenetre du jeu relachee d'avance mais que Storytale n'a finalement pas prise (elle reste
+        -- visible, sans roue) : on la rend a la selection du jeu pour la piloter a la manette.
+        local e = DWE.padEarly
+        if e and GetTime and GetTime() - e.t > 0.6 then
+            DWE.padEarly = nil
+            local okS, shown = pcall(e.f.IsVisible, e.f)
+            local okA, a = pcall(e.f.GetEffectiveAlpha, e.f)
+            local sec = rawget(_G, "issecretvalue")
+            local m = DWE.PadFCM()
+            if m and m.FocusFrame and okS and okA and not (sec and (sec(shown) or sec(a))) and shown and (a or 0) > 0.5
+                and not (DWE.choiceBox and DWE.choiceBox:IsShown()) and not InCombatLockdown() then
+                pcall(m.FocusFrame, m, e.f)
+            end
+        end
+        DWE.PadLogSample()
+        local m = DWE.PadFCM()
+        if m and not DWE.padFCMHooked then
+            DWE.padFCMHooked = true
+            -- Jamais pendant le traitement du jeu (il continue avec la fenetre) : a l'image suivante.
+            local function Soon()
+                if C_Timer then C_Timer.After(0, DWE.PadUnfocusHidden) end
+            end
+            for _, k in ipairs({ "FocusFrame", "FrameShown", "RefreshFocus", "FocusFirstFrameShown" }) do
+                if type(m[k]) == "function" then pcall(hooksecurefunc, m, k, Soon) end
+            end
+        end
+    end
+end)
+-- Journal de l'etat manette (diagnostic du blocage de camera) : une ligne a chaque changement.
+DWE.padLog = {}
+function DWE.PadLogSample()
+    local sec = rawget(_G, "issecretvalue")
+    local function nm(o)
+        if type(o) ~= "table" or not o.GetName then return tostring(o) end
+        local ok, n = pcall(o.GetName, o)
+        return (ok and not (sec and sec(n)) and n) or "?"
+    end
+    local m, af = DWE.PadFCM(), DWE.PadActiveFrame()
+    local parts = {}
+    if af then
+        local okA, a = pcall(af.GetEffectiveAlpha, af)
+        parts[#parts + 1] = "actif=" .. nm(af) .. ((okA and not (sec and sec(a))) and string.format("(%.2f)", a or 1) or "")
+    else
+        parts[#parts + 1] = "actif=nil"
+    end
+    local cc, fl = rawget(_G, "IsGamePadCursorControlEnabled"), rawget(_G, "IsGamePadFreelookEnabled")
+    local okC, c = pcall(function() return cc and cc() end)
+    local okF, fv = pcall(function() return fl and fl() end)
+    parts[#parts + 1] = "curseur=" .. tostring(okC and not (sec and sec(c)) and c) .. " libre=" .. tostring(okF and not (sec and sec(fv)) and fv)
+    if m then
+        if m.GetSuspendedFrame then
+            local okS, sf = pcall(m.GetSuspendedFrame, m)
+            if okS and sf then parts[#parts + 1] = "suspendu=" .. nm(sf) end
+        end
+        local keys = {}
+        for k, v in pairs(m) do
+            local tv = type(v)
+            if type(k) == "string" and (tv == "boolean" or tv == "number" or tv == "string") and not (sec and sec(v)) then
+                keys[#keys + 1] = k .. "=" .. tostring(v)
+            elseif type(k) == "string" and tv == "table" and v.GetName and not (sec and sec(v)) then
+                keys[#keys + 1] = k .. "=" .. nm(v)
+            end
+        end
+        table.sort(keys)
+        parts[#parts + 1] = table.concat(keys, " ")
+    end
+    -- Indicateur "R" de defilement au stick droit : a qui il est attache.
+    local h = rawget(_G, "GamepadScrollBarHint")
+    if type(h) == "table" and h.IsShown then
+        local okH, hs = pcall(h.IsShown, h)
+        local hk = { "hint=" .. tostring(okH and not (sec and sec(hs)) and hs) }
+        for k, v in pairs(h) do
+            if type(k) == "string" and type(v) == "table" and v.GetName and not (sec and sec(v)) then
+                local okE, ea = pcall(v.GetEffectiveAlpha, v)
+                hk[#hk + 1] = k .. "=" .. nm(v) .. ((okE and not (sec and sec(ea))) and string.format("(%.2f)", ea or 1) or "")
+            elseif type(k) == "string" and (type(v) == "boolean" or type(v) == "number") and not (sec and sec(v)) then
+                hk[#hk + 1] = k .. "=" .. tostring(v)
+            end
+        end
+        table.sort(hk)
+        parts[#parts + 1] = table.concat(hk, " ")
+    end
+    parts[#parts + 1] = "roue=" .. tostring(DWE.choiceBox and DWE.choiceBox:IsShown()) .. " capteur=" .. tostring(DWE.padCatcher:IsShown())
+        .. " rendus=" .. tostring(DWE.padUnfocusN or 0)
+    local line = table.concat(parts, " | ")
+    local log = DWE.padLog
+    if log[#log] and log[#log].line == line then return end
+    log[#log + 1] = { t = GetTime and GetTime() or 0, line = line }
+    if #log > 120 then table.remove(log, 1) end
+end
+-- Une fenetre retiree de la liste du jeu vient de se fermer pour de bon : si une autre fenetre du
+-- jeu est ouverte (marchand, banque...) et que Storytale n'affiche rien, on la reselectionne pour
+-- qu'elle reste pilotable a la manette.
+function DWE.PadRefocusAfterClose()
+    local u = DWE.padUntracked
+    if not u then return end
+    local closed = false
+    for f in pairs(u) do
+        local ok, shown = pcall(f.IsShown, f)
+        if ok and not shown then u[f] = nil; closed = true end
+    end
+    if not closed or InCombatLockdown() then return end
+    if C_Timer then C_Timer.After(0.15, function()
+        if InCombatLockdown() or (DWE.choiceBox and DWE.choiceBox:IsShown()) or DWE.bookMode then return end
+        local m = DWE.PadFCM()
+        if not (m and m.GetShownFrameCount and m.FocusFirstFrameShown) then return end
+        local okC, n = pcall(m.GetShownFrameCount, m)
+        local sec = rawget(_G, "issecretvalue")
+        if okC and not (sec and sec(n)) and (n or 0) > 0 then pcall(m.FocusFirstFrameShown, m) end
+    end) end
+end
+function DWE.PadShowText(text)
+    local box = DWE.padScanBox
+    if not box then
+        box = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+        box:SetSize(760, 440); box:SetPoint("CENTER"); box:SetFrameStrata("DIALOG")
+        box:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8" }); box:SetBackdropColor(0, 0, 0, 0.9)
+        local sf = CreateFrame("ScrollFrame", nil, box, "UIPanelScrollFrameTemplate")
+        sf:SetPoint("TOPLEFT", 10, -10); sf:SetPoint("BOTTOMRIGHT", -30, 36)
+        local eb = CreateFrame("EditBox", nil, sf)
+        eb:SetMultiLine(true); eb:SetFontObject(ChatFontNormal); eb:SetWidth(710); eb:SetAutoFocus(false)
+        eb:SetScript("OnEscapePressed", function() box:Hide() end)
+        sf:SetScrollChild(eb)
+        local close = CreateFrame("Button", nil, box, "UIPanelButtonTemplate")
+        close:SetSize(100, 22); close:SetPoint("BOTTOM", 0, 8); close:SetText(CLOSE or "Close")
+        close:SetScript("OnClick", function() box:Hide() end)
+        box.eb = eb
+        DWE.padScanBox = box
+    end
+    box.eb:SetText(text)
+    box:Show(); box.eb:SetFocus(); box.eb:HighlightText()
+end
+function DWE.PadStickMark(f) stickTaken[f] = true end
+function DWE.PadStickRestore()
+    if InCombatLockdown() then return end
+    for f in pairs(stickTaken) do pcall(f.EnableGamePadStick, f, true) end
+    wipe(stickTaken)
+end
+DWE.padCatcher:HookScript("OnHide", function() DWE.PadStickRestore() end)
+
 -- Camera au stick droit : avec une fenetre ouverte, le jeu donne le stick droit au curseur
 -- virtuel des que le personnage s'arrete. Conversations et livres se pilotent a la croix,
 -- donc on garde la camera libre tant que Storytale tient la manette.
@@ -1528,28 +1841,53 @@ DWE.padCatcher:SetScript("OnUpdate", function(self, el)
     self.lookT = (self.lookT or 0) + el
     if self.lookT < 0.1 then return end
     self.lookT = 0
-    -- Le livre de DialogueUI, cache derriere celui de Storytale, garde le stick droit pour
-    -- faire defiler son texte (il ne le rend que si le stick gauche bouge) : on le lui retire.
-    local dui = rawget(_G, "DUIBookFrame")
-    -- Seulement quand c'est Storytale qui montre le livre (le livre de DialogueUI est alors cache) ;
-    -- avec le livre de DialogueUI a l'ecran, son defilement au stick lui reste.
-    if type(dui) == "table" and dui.IsShown and dui:IsShown() and not InCombatLockdown()
-        and DWE.BookByAddon and DWE.BookByAddon() then
-        if dui.IsGamePadStickEnabled and dui:IsGamePadStickEnabled() then pcall(dui.EnableGamePadStick, dui, false) end
-        if dui.SetPropagateKeyboardInput then pcall(dui.SetPropagateKeyboardInput, dui, true) end
+    -- Fenetres de DialogueUI (livre, parchemin) : elles font defiler leur texte au stick droit,
+    -- en meme temps que la camera. Avec Storytale, le stick droit reste a la camera partout ; le
+    -- texte defile a la croix. Le stick leur est rendu quand Storytale lache la manette.
+    if not InCombatLockdown() then
+        for _, n in ipairs({ "DUIBookFrame", "DUIQuestFrame" }) do
+            local dui = rawget(_G, n)
+            if type(dui) == "table" and dui.IsShown and dui:IsShown() and dui.IsGamePadStickEnabled then
+                local okS, on = pcall(dui.IsGamePadStickEnabled, dui)
+                local sec = rawget(_G, "issecretvalue")
+                if okS and not (sec and sec(on)) and on and pcall(dui.EnableGamePadStick, dui, false) then
+                    DWE.PadStickMark(dui)
+                end
+            end
+        end
     end
+    -- Livre de DialogueUI cache derriere celui de Storytale : le clavier passe au livre de Storytale.
+    local duiB = rawget(_G, "DUIBookFrame")
+    if type(duiB) == "table" and duiB.IsShown and duiB:IsShown() and not InCombatLockdown()
+        and DWE.BookByAddon and DWE.BookByAddon() and duiB.SetPropagateKeyboardInput then
+        pcall(duiB.SetPropagateKeyboardInput, duiB, true)
+    end
+    -- Les fenetres du jeu restent ouvertes (invisibles) sous la roue et le livre : celles qui font
+    -- defiler leur texte au stick droit le prenaient a la camera. On le leur retire tant que
+    -- Storytale tient la manette, et on le leur rend ensuite (DWE.PadStickRestore).
+    if not InCombatLockdown() then DWE.PadStickTake() end
     if DialogueWheelE_PadFreeLook == false then return end
     local isOn, setOn = rawget(_G, "IsGamePadFreelookEnabled"), rawget(_G, "SetGamePadFreeLook")
     if isOn and setOn and not isOn() then pcall(setOn, true) end
 end)
 
 -- Y : le menu du ruban d'un livre (en conversation, Y reste au jeu).
+-- Y : le menu du ruban dans un livre ; en conversation, la bascule bulle / lecteur Spoken
+-- (son bouton n'est jamais a l'ecran pendant un livre : pas de conflit).
+local function SpokenToggleOnScreen()
+    local b = DWE.spokenToggle
+    return b ~= nil and b:IsVisible() and true or false
+end
 function DWE.PadMenuAvailable()
-    return (DWE.ribbon and DWE.ribbon:IsVisible()) and true or false
+    return ((DWE.ribbon and DWE.ribbon:IsVisible()) or SpokenToggleOnScreen()) and true or false
 end
 function DWE.PadMenuButton()
-    if DWE.RibbonPadToggle and DWE.PadMenuAvailable() then return DWE.RibbonPadToggle() end
+    if DWE.RibbonPadToggle and DWE.ribbon and DWE.ribbon:IsVisible() then return DWE.RibbonPadToggle() end
     if DWE.RibbonPadOpen and DWE.RibbonPadOpen() then return DWE.RibbonPadToggle() end
+    if SpokenToggleOnScreen() then
+        DWE.ToggleDialogueText()
+        return true
+    end
     return false
 end
 
@@ -1590,6 +1928,10 @@ end
 function DWE.PadListClosed() DWE.PadListRefresh() end
 if DWE.padList.EnableGamePadButton then
     DWE.padList:EnableGamePadButton(true)
+    -- Relache : la manette retourne au jeu (camera au stick droit), comme pour la roue.
+    DWE.padList:HookScript("OnGamePadButtonUp", function(self)
+        if self.SetPropagateGamePadInput and not InCombatLockdown() then self:SetPropagateGamePadInput(true) end
+    end)
     DWE.padList:SetScript("OnGamePadButtonDown", function(self, button)
         local ui = DWE.SpokenQueueUI
         local mine = false
@@ -1711,7 +2053,9 @@ do
     if sense.EnableGamePadButton then
         sense:EnableGamePadButton(true)
         if sense.SetPropagateGamePadInput then pcall(sense.SetPropagateGamePadInput, sense, true) end
-        sense:SetScript("OnGamePadButtonDown", function() DWE.padUsed, DWE.padUsedAt = true, GetTime and GetTime() or 0 end)
+        sense:SetScript("OnGamePadButtonDown", function(_, button)
+            DWE.padUsed, DWE.padUsedAt = true, GetTime and GetTime() or 0
+        end)
     end
     if sense.EnableKeyboard then
         sense:EnableKeyboard(true)
@@ -1805,12 +2149,15 @@ local function EnableKeys()
         end
     end
     if DWE.GamePadOn() then
-        SetOverrideBindingClick(f, true, "PADDUP", "DWE_WheelUpBtn")
-        SetOverrideBindingClick(f, true, "PADDDOWN", "DWE_WheelDownBtn")
+        SetOverrideBindingClick(f, true, "PADDUP", "DWE_PadUpBtn")
+        SetOverrideBindingClick(f, true, "PADDDOWN", "DWE_PadDownBtn")
         SetOverrideBindingClick(f, true, "PAD1", "DWE_SelectBtn")
         SetOverrideBindingClick(f, true, "PAD2", "DWE_PadCloseBtn")
-        SetOverrideBindingClick(f, true, "PADDLEFT", "DWE_PadPrevBtn")
-        SetOverrideBindingClick(f, true, "PADDRIGHT", "DWE_PadNextBtn")
+        -- Gauche/droite tournent les pages d'un livre ; en conversation, ils restent au jeu.
+        if DWE.bookMode then
+            SetOverrideBindingClick(f, true, "PADDLEFT", "DWE_PadPrevBtn")
+            SetOverrideBindingClick(f, true, "PADDRIGHT", "DWE_PadNextBtn")
+        end
         if DWE.padCatcher.EnableGamePadButton then DWE.padCatcher:Show() end
     end
 end
@@ -1945,6 +2292,11 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
     elseif msg:match("forget") then
         local n = DWE.SpokenFocus and DWE.SpokenFocus.ForgetOpenBook and DWE.SpokenFocus.ForgetOpenBook() or 0
         Out("livre ouvert considere comme jamais ecoute (" .. n .. " ligne(s) oubliee(s)).")
+    elseif msg:match("^%s*padlog") then
+        local out, t0 = {}, GetTime and GetTime() or 0
+        for _, e in ipairs(DWE.padLog) do out[#out + 1] = string.format("%.1f ", e.t - t0) .. e.line end
+        DWE.PadShowText(table.concat(out, "\n"))
+        Out("padlog : Ctrl+C dans la fenetre (" .. #out .. " lignes).")
     elseif msg:match("^%s*pad") then
         -- Diagnostic manette : ce que Storytale voit (a taper avec le lecteur Spoken affiche).
         local fl = rawget(_G, "IsGamePadFreelookEnabled")
@@ -1969,6 +2321,48 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
             .. " capteur=" .. tostring(DWE.padCatcher and DWE.padCatcher:IsShown()) .. " parchemin=" .. fa(dq)
             .. " clavierDUI=" .. tostring(kc and kc:IsShown()) .. " share=" .. tostring(GetBindingAction and GetBindingAction("PADSOCIAL", true))
             .. "/" .. tostring(GetBindingAction and GetBindingAction("PADBACK", true)))
+        -- Qui tient le stick ou les boutons de la manette (cadres affiches).
+        local f, n, list = EnumerateFrames and EnumerateFrames(), 0, {}
+        while f and n < 20000 do
+            n = n + 1
+            local okS, st = pcall(function() return f.IsGamePadStickEnabled and f:IsGamePadStickEnabled() end)
+            local okB, bt = pcall(function() return f.IsGamePadButtonEnabled and f:IsGamePadButtonEnabled() end)
+            local sec = rawget(_G, "issecretvalue")
+            if sec and (sec(st) or sec(bt)) then
+                okS, okB = false, false -- cadres proteges : on note leur nom seulement s'ils sont affiches
+                local okV, vis = pcall(f.IsVisible, f)
+                if okV and not sec(vis) and vis then list[#list + 1] = tostring(f:GetName() or "?") .. "[secret]" end
+            end
+            if ((okS and st) or (okB and bt)) and f:IsVisible() then
+                local okP, pr = pcall(function() return f.GetPropagateGamePadInput and f:GetPropagateGamePadInput() end)
+                if sec and sec(pr) then okP = false end
+                list[#list + 1] = tostring(f:GetName() or "?") .. (st and "[stick]" or "") .. (bt and "[btn]" or "")
+                    .. (okP and pr ~= nil and ("p=" .. tostring(pr)) or "") .. string.format("a%.1f", f:GetEffectiveAlpha() or 1)
+            end
+            f = EnumerateFrames(f)
+        end
+        Out("manette tenue par: " .. (#list > 0 and table.concat(list, " ") or "aucun"))
+        local cv = {}
+        for _, k in ipairs({ "GamePadCursorAutoEnable", "GamePadCursorAutoDisableSticks", "GamePadCameraYawSpeed", "GamePadCameraPitchSpeed", "GamePadEnable" }) do
+            cv[#cv + 1] = k:gsub("GamePad", "") .. "=" .. tostring(GetCVar and GetCVar(k))
+        end
+        Out("cvars: " .. table.concat(cv, " "))
+        local af = DWE.PadActiveFrame()
+        Out("fenetreActive=" .. tostring(af and (af.GetName and af:GetName() or "?") or "nil")
+            .. (af and string.format(" alpha=%.2f", af:GetEffectiveAlpha() or 1) or "")
+            .. " gestionnaire=" .. tostring(DWE.PadFCM() ~= nil) .. " rendus=" .. tostring(DWE.padUnfocusN or 0)
+            .. " derniere=" .. tostring(DWE.padUnfocusLast) .. " apres=" .. tostring(DWE.padUnfocusAfter))
+        -- Systeme de selection de panneau a la manette du jeu : ses fonctions.
+        local api = {}
+        for k, v in pairs(_G) do
+            if type(k) == "string" and (k:find("GamePad") or k:find("Gamepad")) and (k:find("Focus") or k:find("Nav") or k:find("Panel") or k:find("Select") or k:find("Scroll")) then
+                api[#api + 1] = k .. ":" .. type(v)
+            end
+        end
+        local cg = rawget(_G, "C_GamePad")
+        if type(cg) == "table" then for k in pairs(cg) do api[#api + 1] = "C_GamePad." .. k end end
+        table.sort(api)
+        Out("api: " .. table.concat(api, " "))
     elseif msg:match("spoken") then
         if DWE.SpokenFocus then DWE.SpokenFocus.Install(); DWE.SpokenFocus.Report() end
     elseif msg:match("^%s*plate") then
@@ -2391,6 +2785,8 @@ if GameTooltip and GameTooltip.HookScript then
             -- Infobulle deja ouverte qui passe a un autre objet (pas de OnShow) : on re-evalue.
             local line = rawget(_G, "GameTooltipTextLeft1")
             local okT, t = pcall(line and line.GetText or function() end, line)
+            -- Texte "secret" du jeu (sorts en combat) : ni lu ni compare, l'infobulle n'est pas un livre.
+            if okT and issecretvalue and issecretvalue(t) then return end
             if okT and t ~= tt.dweSeen and DWE.TipEvaluate then
                 DWE.tipBusy = nil
                 DWE.TipEvaluate(tt)

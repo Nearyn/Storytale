@@ -210,6 +210,23 @@ local function Pad()
     return STYLES[styleName or "game"].pad
 end
 
+-- Opacite du fond (option "Opacite du fond") : le fond et la pointe de la bulle, jamais le texte.
+function DWE.ApplyBubbleOpacity()
+    local op = tonumber(DialogueWheelE_Opacity) or 1
+    for _, t in ipairs({ fantasy, fantasyTail, tail }) do t:SetAlpha(op) end
+    for _, t in pairs(split) do t:SetAlpha(op) end
+    if bubble.art then bubble.art:SetAlpha(op) end
+    if bubble.GetBackdrop and bubble:GetBackdrop() then
+        if gameArt == "fallback" then
+            bubble:SetBackdropColor(0.04, 0.04, 0.05, 0.8 * op)
+            bubble:SetBackdropBorderColor(0.85, 0.85, 0.85, 0.95 * op)
+        else
+            bubble:SetBackdropColor(1, 1, 1, op)
+            bubble:SetBackdropBorderColor(1, 1, 1, op)
+        end
+    end
+end
+
 local function ApplyStyle(name)
     if styleName == name then return end
     styleName = name
@@ -246,6 +263,7 @@ local function ApplyStyle(name)
         fantasyTail:Hide()
         ShowGameStyle()
     end
+    if DWE.ApplyBubbleOpacity then DWE.ApplyBubbleOpacity() end
     text:ClearAllPoints()
     text:SetPoint("TOPLEFT", bubble, "TOPLEFT", st.pad, -st.pad)
     text:SetTextColor(st.color[1], st.color[2], st.color[3])

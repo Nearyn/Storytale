@@ -157,9 +157,13 @@ function UI.Toggle(button)
     local mp = env and env.MinimalPlayer
     if mp and mp.menu then mp.menu:Hide() end
     UI.list:ClearAllPoints()
+    local sub = rawget(_G, "SpokenSubtitleFrame")
     if button and button.dweDUIBook then
         -- Livre de DialogueUI : juste au-dessus de ses boutons.
         UI.list:SetPoint("BOTTOMRIGHT", button, "TOPRIGHT", 8, 6)
+    elseif (button and button.dweSubtitle) or (not button and type(sub) == "table" and sub.IsVisible and sub:IsVisible()) then
+        -- Sous-titres (au milieu de l'ecran) : la liste centree juste dessous.
+        UI.list:SetPoint("TOP", button or sub, "BOTTOM", 0, -6)
     else
         UI.list:SetPoint("TOPRIGHT", button or UIParent, "BOTTOMRIGHT", 8, -6)
     end
@@ -337,9 +341,42 @@ function UI.HookDUIQuest()
 end
 UI.HookDUIQuest()
 
+-- Sous-titres de Spoken : ils ont leur propre rangee (Stop, Passer, Signaler), sans la mise en
+-- page commune des fenetres. Le bouton de file s'y ajoute en tete, et la rangee s'elargit.
+local SUB_SIZE, SUB_GAP = 24, 4
+local function OnSubtitleCorner(sub)
+    local controls, pause = sub.controls, sub.pause
+    local env = Env()
+    local Actions = env and env.Actions
+    if not (controls and pause and Actions and pause.ClearAllPoints) then return end
+    local b = UI.buttons[controls]
+    if not b then
+        b = MakeButton(Actions, controls)
+        b.dweSubtitle = true
+        UI.buttons[controls] = b
+    end
+    b:ClearAllPoints()
+    b:SetPoint("LEFT", controls, "LEFT", 0, 0)
+    pause:ClearAllPoints()
+    pause:SetPoint("LEFT", b, "RIGHT", SUB_GAP, 0)
+    b:Show()
+    local count = (sub.report and sub.report.IsShown and sub.report:IsShown()) and 4 or 3
+    controls:SetWidth(SUB_SIZE * count + SUB_GAP * (count - 1))
+    UI.Refresh()
+end
+function UI.HookSubtitle()
+    if UI.subHooked then return end
+    local env = Env()
+    local sub = env and rawget(env, "Subtitle")
+    if type(sub) ~= "table" or type(sub.Corner) ~= "function" then return end
+    UI.subHooked = true
+    hooksecurefunc(sub, "Corner", function(self) pcall(OnSubtitleCorner, self) end)
+end
+
 function UI.Install()
     UI.HookDUIBook()
     UI.HookDUIQuest()
+    UI.HookSubtitle()
     if UI.installed then return end
     local env = Env()
     local Actions = env and env.Actions

@@ -448,6 +448,14 @@ local THEME_STYLES = {
     },
 }
 DWE.THEME_STYLES = THEME_STYLES
+-- Couleur du mot lu par Spoken dans un theme : la sienne, sinon celle de son titre.
+function DWE.ThemeMark(cfg)
+    if type(cfg) ~= "table" then return nil end
+    if cfg.mark then return cfg.mark end
+    local c = cfg.hdr
+    if type(c) ~= "table" then return nil end
+    return string.format("|cff%02x%02x%02x", math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5), math.floor(c[3] * 255 + 0.5))
+end
 
 -- Themes qui conviennent a un livre ; les autres (bulles, sans cadre, voile) sont remplaces
 -- par le Velin dore pendant la lecture d'un livre.
@@ -485,6 +493,7 @@ function DWE.SetBookMode(on)
         end
     end
     DWE.bookMode = on
+    if DWE.RefreshBindings then DWE.RefreshBindings() end -- croix gauche/droite : pages ou jeu
     if not on then DWE.bookTurnLast = nil end -- livre ferme : le prochain s'ouvre sans bruit de page
     if Look() ~= before and DWE.OnThemeChanged then DWE.OnThemeChanged() end
     if DWE.RefreshSpoken then DWE.RefreshSpoken() end
@@ -549,6 +558,45 @@ DWE.HDR_PALETTE = {
     inkgold = setmetatable({ selected = { 1, 0.84, 0.47 } }, { __index = WHEEL_DEFAULT }),
 }
 local LIGHT_BACKGROUND = { parchment = true, folio = true, dui_brown = true, velin = true, arcane = true, sylvan = true }
+
+-- Habillage du lecteur Spoken pour les themes sans cadre "bloc" (bulles, Sans cadre, Cinematique) :
+-- chacun le sien, dans ses propres couleurs. Les bulles prennent leur image de bulle en cadre.
+do
+    local function RGB(hex)
+        local r, g, b = tostring(hex):match("|c%x%x(%x%x)(%x%x)(%x%x)")
+        if not r then return { 1, 1, 1 } end
+        return { tonumber(r, 16) / 255, tonumber(g, 16) / 255, tonumber(b, 16) / 255 }
+    end
+    local function Gem(art, hex)
+        local hdr = RGB(hex.hdr)
+        return {
+            tex = ADDON_PATH .. "Bubble" .. art .. ".png", slice = { 16, 16, 16, 16 }, pad = { 16, 14, 16, 14 },
+            tint = { 1, 1, 1, 1 }, div = { hdr[1], hdr[2], hdr[3], 0.35 },
+            hdr = hdr, body = RGB(hex.body), mark = hex.hdr, shadow = 1, matchBubble = true,
+        }
+    end
+    THEME_STYLES.spk_whisper = Gem("Whisper", WHEEL_WHISPER.hex)
+    for id, c in pairs(DWE.WHISPER_COLORS) do THEME_STYLES["spk_" .. id] = Gem(c.art, c.palette.hex) end
+    THEME_STYLES.spk_fantasy = {
+        tex = ADDON_PATH .. "BubbleFantasy.png", slice = { 24, 24, 24, 24 }, pad = { 22, 18, 22, 18 },
+        tint = { 1, 1, 1, 1 }, div = { 0.40, 0.22, 0.08, 0.45 },
+        hdr = { 0.40, 0.16, 0.04 }, body = { 0.18, 0.10, 0.04 }, mark = "|cff9c1a1a", shadow = 0, matchBubble = true,
+    }
+    -- Bulle d'Azeroth : la bulle de discussion du jeu.
+    THEME_STYLES.spk_bubble = {
+        chatbubble = true, hdr = { 1, 0.82, 0 }, body = { 1, 1, 1 }, mark = "|cffffd100", shadow = 1,
+    }
+    -- Sans cadre et Cinematique : un simple voile, sans bordure.
+    -- Sans cadre : comme les conversations, pas de fond, le texte et son ombre seulement.
+    THEME_STYLES.spk_transparent = {
+        none = true, hdr = { 1, 0.82, 0 }, body = { 1, 1, 1 }, mark = "|cffffd100", shadow = 1,
+    }
+    -- Cinematique : une bande noire de film, deux filets dores fins en haut et en bas.
+    THEME_STYLES.spk_cinema = {
+        bg = { 0, 0, 0, 0.92 }, noBorder = true, rules = { 0.85, 0.66, 0.32, 0.55 },
+        hdr = { 0.85, 0.66, 0.32 }, body = { 0.95, 0.91, 0.82 }, mark = "|cffd9a852", shadow = 1,
+    }
+end
 
 -- Themes en bulle : la replique du PNJ dans une bulle au-dessus de lui et, avec l'option
 -- "habiller la roue", chaque choix dans sa petite bulle. Les trois bulles d'origine le sont
@@ -654,6 +702,8 @@ end
 function PaintThemeParts(parts, content, divAnchor, id)
     parts.lastId, parts.lastDiv = id, divAnchor
     for _, r in ipairs(parts.list) do r:Hide() end
+    if parts.nine then parts.nine:Hide() end
+    parts.border:SetAlpha(1)
     local cfg = THEME_STYLES[id]
     if not cfg then return nil end
     if cfg.none then return cfg end
@@ -668,6 +718,22 @@ function PaintThemeParts(parts, content, divAnchor, id)
         bg:SetTexCoord(0, 1, 0, 1)
         bg:SetVertexColor(1, 1, 1, 1)
         bg:Show()
+        if cfg.rules then
+            -- filets fins sur les bords haut et bas (bande de film)
+            for _, t in ipairs({ top, bot }) do
+                t:ClearAllPoints()
+                t:SetHeight(1)
+                t:SetColorTexture(cfg.rules[1], cfg.rules[2], cfg.rules[3], cfg.rules[4] * op)
+                t:SetTexCoord(0, 1, 0, 1)
+                t:SetVertexColor(1, 1, 1, 1)
+            end
+            top:SetPoint("BOTTOMLEFT", bg, "TOPLEFT", 0, -1)
+            top:SetPoint("BOTTOMRIGHT", bg, "TOPRIGHT", 0, -1)
+            bot:SetPoint("TOPLEFT", bg, "BOTTOMLEFT", 0, 1)
+            bot:SetPoint("TOPRIGHT", bg, "BOTTOMRIGHT", 0, 1)
+            top:Show(); bot:Show()
+        end
+        if cfg.noBorder then return cfg end
         local border = parts.border
         border:ClearAllPoints()
         border:SetPoint("TOPLEFT", content, "TOPLEFT", -14, 14)
@@ -677,14 +743,73 @@ function PaintThemeParts(parts, content, divAnchor, id)
         border:Show()
         return cfg
     end
+    -- Bulle de discussion du jeu (theme Bulle d'Azeroth) : son cadre "ChatBubble" si le jeu l'a,
+    -- sinon ses anciennes images de bulle.
+    if cfg.chatbubble then
+        local border = parts.border
+        border:ClearAllPoints()
+        border:SetPoint("TOPLEFT", content, "TOPLEFT", -14, 14)
+        border:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", 14, -14)
+        border:SetAlpha(op)
+        local nine = rawget(_G, "NineSliceUtil")
+        local done = false
+        if nine and nine.ApplyLayoutByName and not parts.legacyBubble then
+            if not parts.nine then
+                parts.nine = CreateFrame("Frame", nil, border)
+                parts.nine:SetAllPoints(border)
+            end
+            done = pcall(nine.ApplyLayoutByName, parts.nine, "ChatBubble")
+            parts.legacyBubble = not done or nil
+        end
+        if parts.nine then parts.nine:SetShown(done) end
+        -- A la taille de la bulle de dialogue : le lecteur Spoken est dessine plus petit (son
+        -- echelle), son contour serait sinon plus fin et ses coins moins arrondis.
+        local k = 1
+        local okB, bs = pcall(function() return (DWE.bubble or UIParent):GetEffectiveScale() end)
+        local okO, os = pcall(border.GetEffectiveScale, border)
+        if okB and okO and type(bs) == "number" and type(os) == "number" and os > 0 then k = bs / os end
+        if done then
+            border:SetBackdrop(nil)
+            if parts.nine.SetScale then parts.nine:SetScale(k) end
+            parts.nine:ClearAllPoints()
+            parts.nine:SetAllPoints(border)
+        else
+            local e = 16 * k
+            border:SetBackdrop({ bgFile = "Interface\\Tooltips\\ChatBubble-Background",
+                edgeFile = "Interface\\Tooltips\\ChatBubble-Backdrop", tile = true, tileSize = e, edgeSize = e,
+                insets = { left = 6 * k, right = 6 * k, top = 6 * k, bottom = 6 * k } })
+        end
+        border:Show()
+        return cfg
+    end
 
     local r, g, b, a = cfg.tint[1], cfg.tint[2], cfg.tint[3], cfg.tint[4] * op
     if cfg.slice then
         local sl = parts.slice
         local pl, pt, pr, pb = unpack(cfg.pad)
+        -- Image de bulle : dessinee a la taille de la bulle de dialogue (meme epaisseur de contour,
+        -- memes coins), meme si la fenetre qui la porte est plus petite (lecteur Spoken).
+        local k = 1
+        if cfg.matchBubble then
+            if not parts.bholder then
+                local owner = parts.border:GetParent()
+                parts.bholder = CreateFrame("Frame", nil, owner)
+                parts.bholder:SetAllPoints(owner)
+                parts.bholder:SetFrameLevel(parts.border:GetFrameLevel())
+                parts.bholder:EnableMouse(false)
+                parts.bslice = parts.bholder:CreateTexture(nil, "BACKGROUND", nil, -6)
+                parts.list[#parts.list + 1] = parts.bslice
+            end
+            parts.bholder:SetScale(1)
+            local okB, bs = pcall(function() return (DWE.bubble or UIParent):GetEffectiveScale() end)
+            local okO, os = pcall(parts.bholder.GetEffectiveScale, parts.bholder)
+            if okB and okO and type(bs) == "number" and type(os) == "number" and os > 0 then k = bs / os end
+            parts.bholder:SetScale(k)
+            sl = parts.bslice
+        end
         sl:ClearAllPoints()
-        sl:SetPoint("TOPLEFT", content, "TOPLEFT", -pl, pt)
-        sl:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", pr, -pb)
+        sl:SetPoint("TOPLEFT", content, "TOPLEFT", -pl / k, pt / k)
+        sl:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", pr / k, -pb / k)
         sl:SetTexture(cfg.tex)
         sl:SetTexCoord(0, 1, 0, 1)
         if sl.SetTextureSliceMargins then
@@ -911,7 +1036,19 @@ function DWE.TextWanted()
     return DialogueWheelE_ShowText == true
 end
 
+-- La petite fenetre de Spoken (la carte) n'est pas cachee par transparence : Spoken la cache
+-- lui-meme (voir DWE.HookSpokenStyles, DialogCovers), boutons et portrait compris. Cachee par
+-- transparence, elle laissait des boutons invisibles, son portrait et attrapait le curseur.
 local function ShouldHide(alwaysWithWheel, frame)
+    if DWE.spokenCoversOwn and frame ~= nil and frame == rawget(_G, "SpokenMinimalPlayerFrame") then return false end
+    return DWE.ShouldHideCore(alwaysWithWheel, frame)
+end
+-- Spoken doit-il cacher sa petite fenetre ? (memes regles que les autres fenetres de Spoken)
+function DWE.SpokenMinimalHidden()
+    local f = rawget(_G, "SpokenMinimalPlayerFrame")
+    return DWE.ShouldHideCore(false, f) and true or false
+end
+function DWE.ShouldHideCore(alwaysWithWheel, frame)
     -- Lecteur de Spoken qui n'aurait a montrer qu'une ligne a la demande : cache (un petit
     -- bouton de Storytale le remplace).
     if DWE.spokenHeldHide and frame and frame.GetName then
@@ -967,11 +1104,52 @@ function DWE.IsDUIFrame(frame)
     end
     return frame.dweIsDUI
 end
+-- Fenetre de Spoken (ses lecteurs) : cachee par transparence, comme celles de DialogueUI.
+function DWE.IsSpokenFrame(frame)
+    if frame.dweIsSpoken == nil then
+        local ok, name = pcall(frame.GetName, frame)
+        frame.dweIsSpoken = (ok and type(name) == "string" and name:find("^Spoken")) and true or false
+    end
+    return frame.dweIsSpoken
+end
+-- Les portraits 3D (modeles) ne prennent pas la transparence de leur fenetre : un lecteur cache
+-- laissait son portrait flotter a l'ecran. On les cache avec lui.
+local MODEL_TYPES = { PlayerModel = true, Model = true, ModelScene = true, DressUpModel = true, CinematicModel = true }
+function DWE.HideModels(frame, hidden)
+    if (frame.dweModelsHidden or false) == hidden then return end
+    frame.dweModelsHidden = hidden
+    local function Walk(f, depth)
+        if depth > 6 or (f.IsForbidden and f:IsForbidden()) then return end
+        local okT, t = pcall(f.GetObjectType, f)
+        if okT and MODEL_TYPES[t] then
+            if hidden then
+                f.dweModelAlpha = f.dweModelAlpha or f:GetAlpha()
+                f:SetAlpha(0)
+            elseif f.dweModelAlpha then
+                f:SetAlpha(f.dweModelAlpha)
+                f.dweModelAlpha = nil
+            end
+        end
+        if f.GetChildren then
+            for _, c in ipairs({ f:GetChildren() }) do pcall(Walk, c, depth + 1) end
+        end
+    end
+    pcall(Walk, frame, 0)
+end
+-- Cachee : traversable par la souris (sinon des boutons invisibles attrapaient les clics et les
+-- infobulles) et sans portrait flottant ; remontree : tout revient.
+function DWE.HideExtras(frame, hidden)
+    if DWE.IsDUIFrame(frame) then DWE.CutMouse(frame, hidden) return end
+    if DWE.IsSpokenFrame(frame) then
+        DWE.CutMouse(frame, hidden)
+        DWE.HideModels(frame, hidden)
+    end
+end
 local function ApplyAlpha(frame, alwaysWithWheel)
     if not IsSafeFrame(frame) then return end
     local a = ShouldHide(alwaysWithWheel, frame) and 0 or 1
     if frame:GetAlpha() ~= a then frame:SetAlpha(a) end
-    if DWE.IsDUIFrame(frame) then DWE.CutMouse(frame, a == 0) end
+    DWE.HideExtras(frame, a == 0)
 end
 local function WatchFrame(frame, alwaysWithWheel)
     if not IsSafeFrame(frame) or hookedFrames[frame] then return end
@@ -979,9 +1157,9 @@ local function WatchFrame(frame, alwaysWithWheel)
     hooksecurefunc(frame, "SetAlpha", DWE.Prof("masquage DialogueUI/Spoken", function(s, a)
         if a > 0 and ShouldHide(alwaysWithWheel, s) then
             s:SetAlpha(0)
-            if DWE.IsDUIFrame(s) then DWE.CutMouse(s, true) end
-        elseif a > 0 and s.dweMouseCut then
-            DWE.CutMouse(s, false)
+            DWE.HideExtras(s, true)
+        elseif a > 0 and (s.dweMouseCut or s.dweModelsHidden) then
+            DWE.HideExtras(s, false)
         end
     end))
     if frame.HookScript then
@@ -1001,6 +1179,7 @@ function DWE.SetSpokenHeldHide(on)
             ApplyAlpha(fr, false)
         end
     end
+    if DWE.RefreshHiddenFrames then DWE.RefreshHiddenFrames() end
 end
 
 -- Surveille une fenetre : si son addon remet son alpha au-dessus de 0 alors qu'elle doit
@@ -1078,6 +1257,16 @@ local function RefreshHiddenFrames()
         end
     end
     for i = 1, #addonFrames do ApplyAlpha(addonFrames[i], false) end
+    -- La carte de Spoken se cache elle-meme : on la previent quand la regle change.
+    if DWE.spokenCoversOwn then
+        local hide = DWE.SpokenMinimalHidden()
+        if hide ~= DWE.spokenMiniHideWas then
+            DWE.spokenMiniHideWas = hide
+            local env = rawget(_G, "SpokenEnv")
+            local mp = type(env) == "table" and rawget(env, "MinimalPlayer")
+            if type(mp) == "table" and mp.frame and type(mp.Update) == "function" then pcall(mp.Update, mp) end
+        end
+    end
 end
 DWE.RefreshHiddenFrames = RefreshHiddenFrames
 
@@ -1104,13 +1293,27 @@ local SPOKEN_PALETTE_OF = {
 -- Ligne de livre (Spoken Readables) alors que les livres sont laisses a DialogueUI ou au jeu :
 -- le lecteur Spoken garde son propre habillage (celui de DialogueUI), comme le livre.
 local spokenSkinRef
+-- La ligne que montre Spoken, quel que soit son style : sous-titres, petite fenetre ou lecteur
+-- facon DialogueUI (celui-ci n'existe qu'avec DialogueUI installe).
+local function SpokenCurClip()
+    local env = rawget(_G, "SpokenEnv")
+    local addon = type(env) == "table" and rawget(env, "Addon")
+    if type(addon) == "table" and type(addon.DisplayStyle) == "function" and addon.db then
+        local ok, style = pcall(addon.DisplayStyle, addon)
+        local owner = ok and ((style == "subtitle" and rawget(env, "Subtitle"))
+            or (style == "minimal" and rawget(env, "MinimalPlayer"))) or nil
+        if type(owner) == "table" then return owner.clip end
+    end
+    return spokenSkinRef and spokenSkinRef.clip
+end
+DWE.SpokenCurClip = SpokenCurClip
 local function SpokenBookLeftAlone()
     -- Seul le livre DialogueUI garde l'habillage DialogueUI ; fenetre du jeu = theme Storytale.
     local style = (DWE.bookMode and DWE.BookStyleNow()) or DWE.lastBookStyle or DWE.BookStyleNow()
     if style ~= "dui" then return false end
     local duiBook = rawget(_G, "DUIBookFrame")
     if type(duiBook) == "table" and duiBook.IsShown and duiBook:IsShown() then return true end
-    local clip = spokenSkinRef and spokenSkinRef.clip
+    local clip = SpokenCurClip()
     local present = type(clip) == "table" and clip.present
     return type(present) == "table" and (present.material ~= nil or present.bullet == "book")
 end
@@ -1133,7 +1336,7 @@ function DWE.StampKey(clip)
     return F and F.GroupKey and F.GroupKey(clip) or nil
 end
 function DWE.SpokenStamp()
-    local clip = spokenSkinRef and spokenSkinRef.clip
+    local clip = SpokenCurClip()
     if type(clip) ~= "table" or DWE.BookOpenNow() then return nil end
     if not clip.dweStamp then
         local key = DWE.StampKey(clip)
@@ -1151,17 +1354,19 @@ function DWE.SpokenPlateMat()
 end
 -- Narration de zone (Spoken Places) : habillage choisi a part (theme, page, DialogueUI).
 function DWE.SpokenPlaceSkin()
-    local clip = spokenSkinRef and spokenSkinRef.clip
+    local clip = SpokenCurClip()
     local f = DWE.SpokenFocus
     if type(clip) ~= "table" or not (f and f.SourceName) then return nil end
     if not f.SourceName(clip):lower():find("place") then return nil end
     local v = DialogueWheelE_PlaceSkin
     if v == "dui" and not DWE.DUI_ON then v = nil end
+    -- Un theme choisi pour les narrations : "theme", et ce theme en second.
+    if v and v ~= "paper" and v ~= "dui" then return "theme", v end
     return v or "theme"
 end
 -- La ligne que montre le lecteur Spoken est-elle un livre ? (sinon un PNJ, un lieu...)
 function DWE.SpokenClipBook()
-    local clip = spokenSkinRef and spokenSkinRef.clip
+    local clip = SpokenCurClip()
     local p = type(clip) == "table" and clip.present
     return type(p) == "table" and (p.material ~= nil or p.bullet == "book") or false
 end
@@ -1174,7 +1379,28 @@ function DWE.SpokenConvTheme()
     return t
 end
 -- Theme de base du lecteur Spoken. Theme DialogueUI : le parchemin (la roue seule est sans cadre).
+-- Habillage choisi a part pour le lecteur Spoken (option), sinon nil : il suit le theme.
+local function ValidTheme(id)
+    if id == "dui" then return DWE.DUI_ON and "dui_brown" or nil end
+    for _, t in ipairs(DWE.THEME_LIST or {}) do if t.id == id then return id end end
+    return nil
+end
+function DWE.SpokenSkinPick()
+    -- Narration de zone avec son propre theme (option), sinon celui des voix.
+    local _, placeTheme = DWE.SpokenPlaceSkin()
+    if placeTheme then
+        local t = ValidTheme(placeTheme)
+        if t then return t end
+    end
+    local pick = rawget(_G, "DialogueWheelE_SpokenSkin")
+    if type(pick) ~= "string" then return nil end
+    if pick == "dui" then return DWE.DUI_ON and "dui_brown" or nil end
+    for _, t in ipairs(DWE.THEME_LIST or {}) do if t.id == pick then return pick end end
+    return nil
+end
 function DWE.SpokenBaseTheme()
+    local pick = DWE.SpokenSkinPick()
+    if pick then return pick end
     if DWE.BookByAddon() then return DWE.SpokenConvTheme() end
     if DialogueWheelE_Theme == "dui" and not DWE.bookMode then return DWE.SpokenConvTheme() end
     return CurrentTheme()
@@ -1188,38 +1414,102 @@ function DWE.SpokenThemeOverride()
     -- Livre affiche par l'addon : le petit lecteur Spoken prend le theme du livre quand il lit
     -- un livre ; une autre voix (un PNJ) garde le theme des conversations.
     local addonBook = DWE.BookByAddon()
-    if addonBook and DWE.SpokenClipBook() then return 1 end
+    local bookClip = DWE.SpokenClipBook()
+    local kind, val
+    if bookClip then kind, val = DWE.SpokenReadablePick() end
+    if addonBook and bookClip and kind ~= "theme" then return 1 end
     if DialogueWheelE_SpokenTheme ~= true then return nil end
     if not addonBook and SpokenBookLeftAlone() then return nil end
+    -- Ecrit : page de livre ou matiere (texte fonce), ou le theme choisi.
+    if bookClip then return kind == "theme" and (SPOKEN_PALETTE_OF[val] or 2) or 1 end
     return SPOKEN_PALETTE_OF[DWE.SpokenBaseTheme()] or 2
 end
 
 -- Pour la fenetre Spoken, les bulles empruntent le style d'un theme "bloc".
-local SPOKEN_STYLE_ALIAS = { bubble = "dark", bubble_fantasy = "parchment", whisper = "glass", cinema = "transparent",
-    emerald = "glass", ruby = "glass", sapphire = "glass", amber = "glass" }
-local function SpokenStyle()
-    local st = DWE.SpokenStamp()
-    if st then return st.style end
-    if DWE.SpokenPlaceSkin() == "paper" then return "bookpaper" end
-    if DWE.BookByAddon() and DWE.SpokenClipBook() then
-        -- Plaque : sa propre matiere, en petite taille (texture S a moitie, marges divisees par 2).
-        local mat = DWE.BookLook() == "note" and DWE.PlateMaterial()
-        local pl = mat and DWE.PLATES[mat]
-        if not pl then return "bookpaper" end
-        local id = "plate_" .. mat
+local SPOKEN_STYLE_ALIAS = { bubble = "spk_bubble", bubble_fantasy = "spk_fantasy", whisper = "spk_whisper",
+    emerald = "spk_emerald", ruby = "spk_ruby", sapphire = "spk_sapphire", amber = "spk_amber",
+    transparent = "spk_transparent", cinema = "spk_cinema" }
+-- Style "plaque" de la matiere `mat` (petite taille : texture S, marges divisees par 2).
+local function PlateStyle(mat)
+    local pl = mat and DWE.PLATES[mat]
+    if not pl then return nil end
+    local id = "plate_" .. mat
+    if not THEME_STYLES[id] then
+        local sl = pl.slice
+        local h = { math.floor(sl[1] / 2), math.floor(sl[2] / 2), math.floor(sl[3] / 2), math.floor(sl[4] / 2) }
+        THEME_STYLES[id] = {
+            tex = ADDON_PATH .. pl.tex .. "S.png", slice = h,
+            pad = { h[1] + 14, h[2] + 10, h[3] + 14, h[4] + 10 },
+            tint = { 1, 1, 1, 1 }, div = pl.rule, hdr = pl.hdr, body = pl.body, shadow = 0,
+        }
+    end
+    return id
+end
+-- Le style du lecteur Spoken pour le theme `t` : son cadre, son habillage propre (bulles, sans
+-- cadre...) ou sa bulle quand il s'affiche en bulle.
+local function ThemeSpokenStyle(t)
+    if SPOKEN_STYLE_ALIAS[t] then return SPOKEN_STYLE_ALIAS[t] end
+    -- Theme affiche en bulle (Voile d'ombre, Verre fume... sans "themes en cadre") : le lecteur
+    -- prend la meme bulle, dans les couleurs du theme.
+    local sk = DWE.ThemeIsBubble and DWE.ThemeIsBubble(t) and DWE.BUBBLE_SKINS and DWE.BUBBLE_SKINS[t]
+    local base = THEME_STYLES[t]
+    if sk and sk.art and base then
+        local id = "spkb_" .. t
         if not THEME_STYLES[id] then
-            local sl = pl.slice
-            local h = { math.floor(sl[1] / 2), math.floor(sl[2] / 2), math.floor(sl[3] / 2), math.floor(sl[4] / 2) }
             THEME_STYLES[id] = {
-                tex = ADDON_PATH .. pl.tex .. "S.png", slice = h,
-                pad = { h[1] + 14, h[2] + 10, h[3] + 14, h[4] + 10 },
-                tint = { 1, 1, 1, 1 }, div = pl.rule, hdr = pl.hdr, body = pl.body, shadow = 0,
+                tex = ADDON_PATH .. "Bubble" .. sk.art .. ".png", slice = { 16, 16, 16, 16 }, pad = { 16, 14, 16, 14 },
+                tint = { 1, 1, 1, 1 }, div = base.div, hdr = base.hdr, body = base.body, shadow = base.shadow,
+                mark = base.mark, matchBubble = true,
             }
         end
         return id
     end
-    local t = DWE.SpokenBaseTheme()
-    return SPOKEN_STYLE_ALIAS[t] or t
+    return t
+end
+-- Habillage choisi pour un ecrit (option Livres ou Plaques) : "paper", "mat:Pierre..." ou un
+-- theme. Renvoie le genre ("paper", "mat", "theme") et sa valeur, ou nil (reglage par defaut).
+local function ReadablePick(v)
+    if type(v) ~= "string" then return nil end
+    if v == "paper" then return "paper" end
+    local mat = v:match("^mat:(%a+)$")
+    if mat then return DWE.PLATES[mat] and "mat" or nil, mat end
+    if v == "dui" then return DWE.DUI_ON and "theme" or nil, "dui_brown" end
+    for _, t in ipairs(DWE.THEME_LIST or {}) do if t.id == v then return "theme", v end end
+    return nil
+end
+-- La ligne lue est-elle une plaque ? (et sa matiere : celle affichee, celle choisie pour toutes
+-- les plaques, sinon la sienne)
+local function PlateClip()
+    if DWE.BookByAddon() and DWE.BookLook() == "note" then
+        local m = DWE.PlateMaterial()
+        if m then return true, m end
+    end
+    local clip = SpokenCurClip()
+    local m = type(clip) == "table" and type(clip.present) == "table" and clip.present.material or nil
+    if not (m and DWE.PLATES[m]) then return false end
+    local pick = DialogueWheelE_PlateLook
+    if pick and DWE.PLATES[pick] then m = pick end
+    return true, m
+end
+-- Choix de l'option qui concerne la ligne lue (livre ou plaque).
+function DWE.SpokenReadablePick()
+    local isPlate = PlateClip()
+    return ReadablePick(isPlate and DialogueWheelE_PlateSkin or DialogueWheelE_BookSkin)
+end
+local function SpokenStyle()
+    local st = DWE.SpokenStamp()
+    if st then return st.style end
+    if DWE.SpokenPlaceSkin() == "paper" then return "bookpaper" end
+    if DWE.SpokenClipBook() then
+        local isPlate, mat = PlateClip()
+        local kind, val = ReadablePick(isPlate and DialogueWheelE_PlateSkin or DialogueWheelE_BookSkin)
+        if kind == "theme" then return ThemeSpokenStyle(val) end
+        if kind == "mat" then return PlateStyle(val) or "bookpaper" end
+        if kind == "paper" then return "bookpaper" end
+        -- Par defaut : un livre sur la page de livre, une plaque dans sa matiere.
+        return (isPlate and PlateStyle(mat)) or "bookpaper"
+    end
+    return ThemeSpokenStyle(DWE.SpokenBaseTheme())
 end
 
 local function SpokenTextShadow()
@@ -1282,6 +1572,7 @@ end
 function DWE.SpokenPlayerShown()
     if DWE.PlayerFrameShown(rawget(_G, "SpokenMinimalPlayerFrame")) then return true end
     if DWE.PlayerFrameShown(rawget(_G, "SpokenDialogueUIPlayerFrame")) then return true end
+    if DWE.PlayerFrameShown(rawget(_G, "SpokenSubtitleFrame")) then return true end
     return DWE.PlayerFrameShown(type(spokenSkinRef) == "table" and spokenSkinRef.frame)
 end
 
@@ -1316,10 +1607,21 @@ function DWE.SpokenPlayersPlace()
         return
     end
     local fr = rawget(_G, "SpokenMinimalPlayerFrame")
-    if type(fr) ~= "table" or not fr.ClearAllPoints or layout.Minimal then return end
+    if type(fr) ~= "table" or not fr.ClearAllPoints or (type(layout.Minimal) == "table" and layout.Minimal.left) then return end
     if fr.IsDragging and fr:IsDragging() then return end
     local rel = (fr.GetEffectiveScale and UIParent.GetEffectiveScale and fr:GetEffectiveScale() / UIParent:GetEffectiveScale()) or 1
     if not rel or rel <= 0 then rel = 1 end
+    -- Petite fenetre en carte (sans DialogueUI) : a la place du lecteur facon DialogueUI.
+    if DWE.SpokenCardOn and DWE.SpokenCardOn() then
+        -- (+9 / +3 : le cadre visible de la carte tombe sur celui du lecteur facon DialogueUI)
+        local left = (W - DWE.SPOKEN_DUI_POS.right * H) / rel - (fr:GetWidth() or DWE.SPOKEN_CARD.width) + 9
+        local top = DWE.SPOKEN_DUI_POS.top * H / rel + 3
+        local p, to, rp, ox, oy = fr:GetPoint(1)
+        if p == "TOPLEFT" and to == UIParent and rp == "BOTTOMLEFT" and math.abs((ox or 0) - left) < 1 and math.abs((oy or 0) - top) < 1 then return end
+        fr:ClearAllPoints()
+        fr:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+        return
+    end
     local key = (DWE.PadInUse and DWE.PadInUse()) and "pad" or "kbm"
     local y = DWE.SPOKEN_MINI_Y[key] * H / rel
     local p, to, rp, ox, oy = fr:GetPoint(1)
@@ -1414,14 +1716,22 @@ function DWE.HookSpoken()
         local origColors, cache = theme.Colors, {}
         theme.Colors = function(self, palette, ...)
             local c = origColors(self, palette, ...)
+            if type(c) ~= "table" then return c end
             local mat = DWE.SpokenPlateMat()
             local hex = mat and DWE.PLATE_MARK[mat]
-            if type(c) ~= "table" or not hex then return c end
-            local k = tostring(palette) .. mat
+            -- Lecteur habille par Storytale : les couleurs de son theme (titre, texte, mot lu).
+            local id, cfg = nil, nil
+            if DWE.SpokenOwnStyle then id, cfg = DWE.SpokenOwnStyle() end
+            if not hex and not id then return c end
+            local k = tostring(palette) .. (mat or "") .. (id or "")
             if not cache[k] then
                 local n = {}
                 for a, b in pairs(c) do n[a] = b end
-                n.highlight = hex
+                if cfg and cfg.hdr and cfg.body then
+                    n.title, n.paragraph = cfg.hdr, cfg.body
+                    n.highlight = DWE.ThemeMark(cfg) or n.highlight
+                end
+                if hex then n.highlight = hex end
                 cache[k] = n
             end
             return cache[k]
@@ -1504,28 +1814,446 @@ function DWE.RefreshSpoken()
     if skin and skin.frame and type(skin.RefreshConfig) == "function" then
         pcall(skin.RefreshConfig, skin)
     end
-    if DWE.PaintSpokenSubtitle then DWE.PaintSpokenSubtitle() end
+    if DWE.SpokenStyleSync then pcall(DWE.SpokenStyleSync) end
+    if DWE.PaintSpokenSubtitle then pcall(DWE.PaintSpokenSubtitle) end
+    if DWE.PaintSpokenMinimal then DWE.PaintSpokenMinimal() end
 end
 
--- Sous-titres de Spoken (style "sous-titres", sans DialogueUI) pendant un livre de l'addon :
--- une page de grimoire sombre derriere le texte (le texte de Spoken est clair).
-local subParts, subHooked
+-- Les autres styles de Spoken (sous-titres, petite fenetre) : ceux qu'il montre sans DialogueUI.
+-- Avec l'option "Adapter la fenetre Spoken au theme", ils prennent le fond et les couleurs du
+-- theme de Storytale ; sinon ils gardent leur look d'origine. Tout passe par des accroches
+-- protegees : si Spoken change sa fenetre, elle garde simplement son propre look.
+do
+local SPOKEN_GOLD = "|cffffd100"     -- mot lu, sur fond sombre (celui de Spoken)
+local SPOKEN_RED = "|cff9c1a1a"      -- mot lu, sur papier clair (celui de Spoken sur parchemin)
+
+-- Style du theme a dessiner derriere un lecteur Spoken, ou nil (look d'origine de Spoken).
+local function SpokenOwnStyle()
+    if DWE.SpokenThemeOverride() == nil then return nil end
+    local id = SpokenStyle()
+    local cfg = THEME_STYLES[id]
+    if not cfg or cfg.clear then return nil end -- themes DialogueUI : seulement sur son lecteur
+    return id, cfg
+end
+DWE.SpokenOwnStyle = SpokenOwnStyle
+
+-- Place prise par le dessin d'un theme autour du texte (gauche, haut, droite, bas).
+local function ThemeReach(cfg)
+    if cfg.bg then return 14, 14, 14, 14 end
+    if cfg.slice then return unpack(cfg.pad) end
+    if cfg.bands then
+        local il, it, ir, ib = unpack(cfg.inset)
+        return il, it + (cfg.cap or 0), ir, ib + (cfg.cap or 0)
+    end
+    return 14, 14, 14, 14
+end
+
+-- Couleur d'un texte de Spoken. L'opacite n'est jamais touchee : Spoken s'en sert pour ses
+-- fondus (le "(Arrete)" qui prend la place du titre, par exemple) ; `dim` eclaircit ou fonce
+-- la couleur vers le gris a la place.
+local function Ink(fs, c, dim, shadow)
+    if type(fs) ~= "table" or not fs.SetTextColor then return end
+    local r, g, b = c[1], c[2], c[3]
+    if dim and dim < 1 then
+        r, g, b = r * dim + 0.5 * (1 - dim), g * dim + 0.5 * (1 - dim), b * dim + 0.5 * (1 - dim)
+    end
+    local a = 1
+    if fs.GetTextColor then
+        local ok, _, _, _, ca = pcall(fs.GetTextColor, fs)
+        if ok and type(ca) == "number" then a = ca end
+    end
+    fs:SetTextColor(r, g, b, a)
+    if fs.SetShadowColor then fs:SetShadowColor(0, 0, 0, shadow and 1 or 0) end
+end
+
+---------------------------------------------------------------- Sous-titres
+local SUB_REACH, SUB_TOP, SUB_BOTTOM = 40, 12, 12 -- les marges des sous-titres de Spoken
+local SUB_INK = { title = { 1, 0.82, 0 }, grey = { 0.62, 0.62, 0.62 }, words = { 1, 1, 1 } }
+local subParts, subArea
+local subPaint = { id = nil }
+
+local function SubGreys(sub)
+    return { sub.dot, sub.label, sub.pausedLabel, sub.heldDot, sub.held, sub.moreDot, sub.more }
+end
+-- Couleurs du texte : celles du theme, ou celles de Spoken.
+local function InkSubtitle(sub, cfg)
+    local shadow = (not cfg) or cfg.shadow == 1
+    local hdr = cfg and cfg.hdr or SUB_INK.title
+    local body = cfg and cfg.body or SUB_INK.words
+    Ink(sub.title, hdr, 1, shadow)
+    for _, fs in ipairs(SubGreys(sub)) do
+        if cfg then Ink(fs, body, 0.7, shadow) else Ink(fs, SUB_INK.grey, 1, true) end
+    end
+    for _, line in ipairs(sub.lines or {}) do Ink(line, body, 1, shadow) end
+end
+-- Mot lu : rouge fonce sur un papier clair (l'or de Spoken s'y lit mal).
+local function SubHighlight(line, text)
+    if line.dweInking or type(text) ~= "string" then return end
+    local mark = subPaint.cfg and DWE.ThemeMark(subPaint.cfg)
+    if not mark or mark == SPOKEN_GOLD or not text:find(SPOKEN_GOLD, 1, true) then return end
+    line.dweInking = true
+    line:SetText((text:gsub(SPOKEN_GOLD, mark)))
+    line.dweInking = nil
+end
+local function HookSubLine(line)
+    if type(line) ~= "table" or line.dweInkHook or not line.SetText then return end
+    line.dweInkHook = true
+    hooksecurefunc(line, "SetText", SubHighlight)
+end
+
+-- Boutons de Spoken sous le texte : descendus sous le bas du cadre du theme.
+local function PlaceSubControls(sub, below)
+    local c = sub.controls
+    if type(c) ~= "table" or not c.ClearAllPoints then return end
+    c:ClearAllPoints()
+    c:SetPoint("TOP", sub.shadow, "BOTTOM", 0, -2 - (below or 0))
+end
+
 function DWE.PaintSpokenSubtitle()
     local env = rawget(_G, "SpokenEnv")
     local sub = type(env) == "table" and rawget(env, "Subtitle")
     local fr = type(sub) == "table" and sub.frame
     local anchor = type(sub) == "table" and sub.shadow
     if not (fr and anchor) then return end
-    if not subHooked and type(sub.Layout) == "function" then
-        subHooked = true
-        hooksecurefunc(sub, "Layout", function() DWE.PaintSpokenSubtitle() end)
-    end
     subParts = subParts or CreateThemeParts(fr, fr:GetFrameLevel())
-    if DWE.bookMode and DWE.BookStyleNow() == "addon" then
-        PaintThemeParts(subParts, anchor, nil, "bookpaper_dark")
-    else
-        ClearThemeParts(subParts)
+    -- La zone du texte : le bandeau de Spoken depasse de SUB_REACH de chaque cote.
+    if not subArea then
+        subArea = CreateFrame("Frame", nil, fr)
+        subArea:EnableMouse(false)
+        subArea:SetPoint("TOPLEFT", anchor, "TOPLEFT", SUB_REACH, -SUB_TOP)
+        subArea:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", -SUB_REACH, SUB_BOTTOM)
     end
+    local okB, base = pcall(function() return env.Addon:Profile("Transcript").SubtitleShadow end)
+    base = (okB and tonumber(base)) or 0.5
+    -- Livre de l'addon ouvert : une page de grimoire sombre (comme avant).
+    if DWE.bookMode and DWE.BookStyleNow() == "addon" then
+        subPaint.id, subPaint.cfg = nil, nil
+        PaintThemeParts(subParts, anchor, nil, "bookpaper_dark")
+        anchor:SetAlpha(base)
+        if subPaint.inked then subPaint.inked = nil; InkSubtitle(sub, nil); PlaceSubControls(sub, 0) end
+        return
+    end
+    local id, cfg = SpokenOwnStyle()
+    -- Sans cadre : pas de fond ni de bandeau, le texte et son ombre (comme les conversations).
+    if id then
+        subPaint.id, subPaint.cfg = id, cfg
+        PaintThemeParts(subParts, subArea, nil, id)
+        anchor:SetAlpha(0)
+        InkSubtitle(sub, cfg)
+        subPaint.inked = true
+        local _, _, _, pb = ThemeReach(cfg)
+        PlaceSubControls(sub, math.max(0, pb - SUB_BOTTOM) + 2)
+    else
+        subPaint.id, subPaint.cfg = nil, nil
+        ClearThemeParts(subParts)
+        anchor:SetAlpha(base)
+        -- Retour au look de Spoken (une seule fois : on ne touche plus a ses couleurs ensuite).
+        if subPaint.inked then subPaint.inked = nil; InkSubtitle(sub, nil); PlaceSubControls(sub, 0) end
+    end
+end
+
+---------------------------------------------------------------- Petite fenetre
+local miniParts, miniArea, miniPainted
+-- Petite fenetre de Spoken remise en page comme son lecteur facon DialogueUI (la "carte") :
+-- meme taille, petit portrait en haut a gauche, nom en petit, titre dessous, boutons en haut a
+-- droite, texte en dessous. Mesures de ce lecteur (Spoken, DialogueUIPlayer.lua) a la taille
+-- par defaut de DialogueUI ; l'echelle 0.65 est la sienne.
+local CARD = {
+    scale = 0.65 / 0.7,   -- son echelle, rapportee a "Taille de la fenetre" de Spoken (0.7 par defaut)
+    width = 580,          -- largeur de la fenetre (marges comprises)
+    side = 26,            -- marge de cote
+    inset = 18,           -- haut du contenu (marge de la petite fenetre)
+    face = 58, faceX = 47, faceY = 35,   -- portrait : diametre et centre (depuis le haut-gauche du contenu)
+    textX = 86, nameY = -1, titleY = -22,
+    nameSize = 16, titleSize = 23, wordsSize = 19, wordsGap = 7,
+    buttons = 1.5, buttonsY = -27, buttonsX = -1,
+    wordsY = -88,         -- haut du texte (Spoken : -44)
+    wordsPad = 37,        -- retrait du texte de chaque cote de la colonne
+    below = 69,           -- le cadre descend d'autant sous la fenetre de Spoken (texte plus bas)
+}
+DWE.SPOKEN_CARD = CARD
+local cardOn
+local function CardFont(fs, size)
+    if type(fs) ~= "table" or not fs.GetFont then return end
+    local face, _, flags = fs:GetFont()
+    if face then fs:SetFont(face, size, flags or "") end
+end
+local function CardScale(mp, env)
+    local okC, fs = pcall(function() return env.Addon:Profile("Frame").FrameScale end)
+    fs = (okC and tonumber(fs)) or 0.7
+    if mp.frame.SetScale then mp.frame:SetScale(fs * (cardOn and CARD.scale or 1)) end
+end
+-- Texte et barre de progression : Spoken les replace a chaque mise en page, on repasse apres.
+local function CardDock(mp, env)
+    if not cardOn then return end
+    local frame, content = mp.frame, mp.content
+    local inner = math.max(1, (frame:GetWidth() or CARD.width) - 2 * CARD.side)
+    local wl = CARD.wordsPad
+    local ww = math.max(1, inner - 2 * wl)
+    local tr = rawget(env, "Transcript")
+    local okH, words = pcall(tr.HeightForClip, tr, mp.clip)
+    words = (okH and tonumber(words)) or 0
+    -- Spoken mesure a sa taille de texte ; la carte ecrit plus grand : la hauteur de ses lignes.
+    if words > 0 then
+        local lines = 2
+        pcall(function() if env.Addon:Profile("Transcript").Lines == 1 then lines = 1 end end)
+        words = lines * (CARD.wordsSize + CARD.wordsGap) + 4
+    end
+    if type(tr) == "table" and type(tr.Dock) == "function" then
+        pcall(tr.Dock, tr, frame, content, "TOPLEFT", wl, CARD.wordsY, ww, words)
+    end
+    local track = mp.progress and mp.progress.track
+    if track and track.SetPoint then
+        -- Spoken la pose sous le texte (a -44 - mots - 6) : decalee comme le texte.
+        local barTop = 44 + words + 6
+        track:ClearAllPoints()
+        track:SetPoint("TOPLEFT", content, "TOPLEFT", wl, CARD.wordsY - (barTop - 44))
+        track:SetWidth(ww)
+    end
+end
+local function CardOn(mp, env, palette, shadow)
+    local frame, content = mp.frame, mp.content
+    local hidePortrait = false
+    pcall(function() hidePortrait = env.Addon:Profile("Frame").HidePortrait end)
+    cardOn = true
+    -- Largeur de la carte, tant que le joueur n'a pas elargi la fenetre lui-meme.
+    local saved
+    pcall(function() saved = env.Addon:Layout().Minimal end)
+    if not (type(saved) == "table" and saved.width) and math.abs((frame:GetWidth() or 0) - CARD.width) > 0.5 then
+        frame:SetWidth(CARD.width)
+    end
+    CardScale(mp, env)
+    content:ClearAllPoints()
+    content:SetPoint("TOPLEFT", frame, "TOPLEFT", CARD.side, -CARD.inset)
+    content:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -CARD.side, -CARD.inset)
+    local pt = mp.portrait
+    if pt and pt.SetScale then
+        local k = CARD.face / 90
+        pt:SetScale(k)
+        pt:ClearAllPoints()
+        pt:SetPoint("CENTER", content, "TOPLEFT", CARD.faceX / k, -CARD.faceY / k)
+        pt:SetShown(not hidePortrait)
+    end
+    local x = hidePortrait and 0 or CARD.textX
+    local ctl = mp.controls
+    if ctl and ctl.SetScale then
+        ctl:SetScale(CARD.buttons)
+        ctl:ClearAllPoints()
+        ctl:SetPoint("RIGHT", content, "TOPRIGHT", CARD.buttonsX / CARD.buttons, CARD.buttonsY / CARD.buttons)
+    end
+    if mp.name and ctl then
+        mp.name:ClearAllPoints()
+        mp.name:SetPoint("TOPLEFT", content, "TOPLEFT", x, CARD.nameY)
+        mp.name:SetPoint("RIGHT", ctl, "LEFT", -8, 0)
+        if mp.name.SetHeight then mp.name:SetHeight(CARD.nameSize + 4) end
+    end
+    if mp.title and mp.title.ClearAllPoints and ctl then
+        mp.title:ClearAllPoints()
+        mp.title:SetPoint("TOPLEFT", content, "TOPLEFT", x, CARD.titleY)
+        mp.title:SetPoint("RIGHT", ctl, "LEFT", -8, 0)
+        if mp.title.SetHeight then mp.title:SetHeight(CARD.titleSize + 6) end
+    end
+    CardFont(mp.name, CARD.nameSize)
+    CardFont(mp.title and mp.title.text, CARD.titleSize)
+    local cfg = palette
+    local ink = { title = cfg.hdr, name = cfg.body, words = cfg.body, highlight = DWE.ThemeMark(cfg) or SPOKEN_GOLD }
+    Ink(mp.name, ink.name, 0.8, shadow)
+    Ink(mp.title and mp.title.text, ink.title, 1, shadow)
+    for _, fs in ipairs({ mp.stopped, mp.count, mp.held }) do Ink(fs, ink.name, 0.7, shadow) end
+    local tr = rawget(env, "Transcript")
+    if type(tr) == "table" and type(tr.SetStyle) == "function" then
+        local lines = 2
+        pcall(function() if env.Addon:Profile("Transcript").Lines == 1 then lines = 1 end end)
+        pcall(tr.SetStyle, tr, { color = ink.words, shadow = shadow, highlight = ink.highlight, lines = lines, size = CARD.wordsSize, lineGap = CARD.wordsGap })
+    end
+    CardDock(mp, env)
+end
+-- Retour a la petite fenetre de Spoken telle qu'il la dessine.
+local function CardOff(mp, env)
+    if not cardOn then return end
+    cardOn = nil
+    local pt = mp.portrait
+    if pt and pt.SetScale then
+        pt:SetScale(1)
+        pt:ClearAllPoints()
+        pt:SetPoint("TOPLEFT", mp.frame, "TOPLEFT", 0, -4)
+    end
+    if mp.controls and mp.controls.SetScale then
+        mp.controls:SetScale(1)
+        mp.controls:ClearAllPoints()
+        mp.controls:SetPoint("RIGHT", mp.content, "TOPRIGHT", 0, -20)
+    end
+    if mp.name and mp.name.SetHeight then mp.name:SetHeight(21) end
+    if mp.title and mp.title.SetHeight then mp.title:SetHeight(19) end
+    if mp.name and mp.controls then
+        mp.name:ClearAllPoints()
+        mp.name:SetPoint("TOPLEFT", mp.content, "TOPLEFT", 0, 0)
+        mp.name:SetPoint("RIGHT", mp.controls, "LEFT", -8, 0)
+    end
+    if mp.title and mp.title.ClearAllPoints and mp.controls then
+        mp.title:ClearAllPoints()
+        mp.title:SetPoint("TOPLEFT", mp.content, "TOPLEFT", 0, -21)
+        mp.title:SetPoint("RIGHT", mp.controls, "LEFT", -8, 0)
+    end
+    CardFont(mp.name, 16)
+    CardFont(mp.title and mp.title.text, 12)
+    CardScale(mp, env)
+    local pf = rawget(env, "PlayerFrame")
+    if type(mp.RefreshConfig) == "function" and pf then pcall(mp.RefreshConfig, mp, pf) end
+end
+function DWE.SpokenCardOn() return cardOn and true or false end
+
+local function PaintMinimal()
+    local env = rawget(_G, "SpokenEnv")
+    local mp = type(env) == "table" and rawget(env, "MinimalPlayer")
+    local panel = type(mp) == "table" and mp.panel
+    if not (panel and mp.paper and mp.frame) then return end
+    miniParts = miniParts or CreateThemeParts(panel, panel:GetFrameLevel())
+    miniArea = miniArea or CreateFrame("Frame", nil, panel)
+    local id, cfg = SpokenOwnStyle()
+    -- Habillage EllesmereUI choisi dans Spoken : on le laisse.
+    if panel.spokenEllesmere == true then id = nil end
+    if id then
+        -- Le cadre du theme autour de la colonne de texte de la carte (comme sur le lecteur
+        -- facon DialogueUI, ou il entoure son contenu).
+        miniArea:ClearAllPoints()
+        miniArea:SetPoint("TOPLEFT", mp.frame, "TOPLEFT", CARD.side, -CARD.inset + 4)
+        miniArea:SetPoint("BOTTOMRIGHT", mp.frame, "BOTTOMRIGHT", -CARD.side, 14 - CARD.below)
+        PaintThemeParts(miniParts, miniArea, nil, id)
+        mp.paper:SetAlpha(0)
+        if panel.SetBackdropBorderColor then panel:SetBackdropBorderColor(1, 1, 1, 0) end
+        miniPainted = true
+        CardOn(mp, env, cfg, cfg.shadow == 1)
+    elseif miniPainted then
+        -- Retour au look de Spoken : il redessine lui-meme son papier, son cadre et ses couleurs.
+        miniPainted = nil
+        ClearThemeParts(miniParts)
+        CardOff(mp, env)
+        mp.paper:SetAlpha(1)
+        local bronze = rawget(env, "Actions") and env.Actions.Bronze and env.Actions.Bronze()
+        if panel.SetBackdropBorderColor then
+            if bronze then panel:SetBackdropBorderColor(bronze[1], bronze[2], bronze[3], 1)
+            else panel:SetBackdropBorderColor(1, 1, 1, 1) end
+        end
+        if type(mp.Dress) == "function" then pcall(mp.Dress, mp) end
+    end
+end
+local miniBusy
+function DWE.PaintSpokenMinimal()
+    if miniBusy then return end
+    miniBusy = true
+    pcall(PaintMinimal)
+    miniBusy = nil
+end
+
+-- Accroches posees une fois, des que Spoken est la (ses fenetres sont creees plus tard, a la
+-- premiere replique : on repasse a leur creation et a chaque mise en page).
+local stylesHooked = {}
+function DWE.HookSpokenStyles()
+    local env = rawget(_G, "SpokenEnv")
+    if type(env) ~= "table" then return end
+    local sub = rawget(env, "Subtitle")
+    if type(sub) == "table" and not stylesHooked.sub and type(sub.Layout) == "function" then
+        stylesHooked.sub = true
+        local function Paint() pcall(DWE.PaintSpokenSubtitle) end
+        if type(sub.Build) == "function" then hooksecurefunc(sub, "Build", Paint) end
+        hooksecurefunc(sub, "Layout", Paint)
+        -- Spoken remet l'opacite de son bandeau a chaque mise a jour.
+        if type(sub.Update) == "function" then
+            hooksecurefunc(sub, "Update", function(self)
+                if subPaint.id and type(self.shadow) == "table" then self.shadow:SetAlpha(0) end
+            end)
+        end
+        if type(sub.Line) == "function" then
+            hooksecurefunc(sub, "Line", function(self, index)
+                local line = self.lines and self.lines[index]
+                HookSubLine(line)
+                local cfg = subPaint.cfg
+                if cfg and line then Ink(line, cfg.body, 1, cfg.shadow == 1) end
+            end)
+        end
+        for _, line in ipairs(sub.lines or {}) do HookSubLine(line) end
+        Paint()
+    end
+    local mp = rawget(env, "MinimalPlayer")
+    if type(mp) == "table" and not stylesHooked.mini and type(mp.Dress) == "function" then
+        stylesHooked.mini = true
+        -- Dress : Spoken y remet son papier et ses couleurs ; on repasse juste apres.
+        hooksecurefunc(mp, "Dress", DWE.PaintSpokenMinimal)
+        if type(mp.RefreshConfig) == "function" then hooksecurefunc(mp, "RefreshConfig", DWE.PaintSpokenMinimal) end
+        if type(mp.Layout) == "function" then
+            hooksecurefunc(mp, "Layout", function(self)
+                -- Nouvelle ligne (un PNJ, puis un livre...) : son propre habillage.
+                if self.clip ~= self.dwePaintedClip then
+                    self.dwePaintedClip = self.clip
+                    DWE.PaintSpokenMinimal()
+                end
+                if cardOn then pcall(CardDock, self, env) end
+            end)
+        end
+        DWE.PaintSpokenMinimal()
+    end
+    -- Spoken cache sa petite fenetre tant qu'une fenetre de dialogue du jeu est ouverte. Storytale
+    -- garde celle-ci ouverte (invisible) sous la roue : quand le joueur choisit le lecteur Spoken
+    -- (bouton de bascule ou touche), la fenetre du jeu ne "couvre" plus rien.
+    local actions = rawget(env, "Actions")
+    if type(actions) == "table" and not stylesHooked.covers and type(actions.DialogCovers) == "function" then
+        stylesHooked.covers = true
+        local origCovers = actions.DialogCovers
+        actions.DialogCovers = function(...)
+            -- Storytale decide : cachee quand ses regles cachent les fenetres de Spoken (texte de
+            -- Storytale a l'ecran, lignes a la demande...), visible sinon pendant une conversation.
+            if DWE.choiceBox and DWE.choiceBox:IsShown() or DWE.spokenHeldHide then
+                return DWE.SpokenMinimalHidden()
+            end
+            return origCovers(...)
+        end
+        DWE.spokenCoversOwn = true
+        local f = rawget(_G, "SpokenMinimalPlayerFrame")
+        if f and f.dweMouseCut ~= nil then DWE.HideExtras(f, false) end
+    end
+    -- Sans DialogueUI, Spoken montre ses sous-titres par defaut : la carte les remplace, tant
+    -- que le joueur n'a pas choisi lui-meme un style dans Spoken (en memoire seulement, rien
+    -- n'est ecrit dans ses reglages).
+    local addon = rawget(env, "Addon")
+    if type(addon) == "table" and not stylesHooked.style and type(addon.PlayerStyle) == "function" then
+        stylesHooked.style = true
+        local origStyle = addon.PlayerStyle
+        addon.PlayerStyle = function(self, ...)
+            local style = origStyle(self, ...)
+            if style == "subtitle" and DWE.SpokenCardWanted() then return "minimal" end
+            return style
+        end
+        if type(addon.SetPlayerStyle) == "function" then
+            hooksecurefunc(addon, "SetPlayerStyle", function() DialogueWheelE_SpokenStyleChosen = true end)
+        end
+        DWE.SpokenStyleSync()
+        -- Les reglages par defaut de Storytale sont poses juste apres (meme connexion) : on repasse.
+        if C_Timer and C_Timer.After then C_Timer.After(1, DWE.SpokenStyleSync) end
+    end
+end
+-- Spoken redessine ses fenetres quand le style montre change (carte <-> sous-titres) : sinon
+-- la petite fenetre n'est jamais creee et rien ne s'affiche jusqu'au /reload suivant.
+local lastCard
+function DWE.SpokenStyleSync()
+    local want = DWE.SpokenCardWanted() and true or false
+    if want == lastCard then return end
+    lastCard = want
+    local env = rawget(_G, "SpokenEnv")
+    local pf = type(env) == "table" and rawget(env, "PlayerFrame")
+    if type(pf) == "table" and type(pf.RefreshConfig) == "function" then pcall(pf.RefreshConfig, pf) end
+    local tr = type(env) == "table" and rawget(env, "Transcript")
+    if type(tr) == "table" and type(tr.RefreshConfig) == "function" then pcall(tr.RefreshConfig, tr) end
+end
+function DWE.SpokenCardWanted()
+    if DWE.DUI_ON or DialogueWheelE_SpokenStyleChosen == true then return false end
+    return DialogueWheelE_SpokenTheme == true
+end
+do
+    local f = CreateFrame("Frame")
+    f:RegisterEvent("PLAYER_LOGIN")
+    f:SetScript("OnEvent", function() pcall(DWE.HookSpokenStyles) end)
+end
 end
 
 --------------------------------------------------------------------------------
@@ -1549,6 +2277,7 @@ cineBars:SetAllPoints(UIParent)
 cineBars:SetFrameStrata("BACKGROUND")
 cineBars:EnableMouse(false)
 cineBars:Hide()
+do -- (bloc : ses variables ne comptent pas dans la limite du fichier)
 local cineTop = cineBars:CreateTexture(nil, "BACKGROUND")
 cineTop:SetColorTexture(0, 0, 0, 1)
 cineTop:SetPoint("TOPLEFT")
@@ -1646,6 +2375,7 @@ function DWE.UpdateCinemaBars()
     end
 end
 textBox:HookScript("OnHide", function() DWE.UpdateCinemaBars() end)
+end
 
 --------------------------------------------------------------------------------
 -- Livres et lettres (option "Cet addon") : "Note" = le cadre du theme ; "Livre" = un livre
@@ -1733,13 +2463,15 @@ function DWE.BookStyleNow()
     return DialogueWheelE_BookStyle or "addon"
 end
 
--- "book" (livre ouvert), "note" (page seule), "frame" (cadre du theme) ou nil (pas un livre).
+-- "book" (livre ouvert), "note" (page seule) ou nil (pas un livre).
 -- Automatique : plusieurs pages = livre, une seule = note.
 function DWE.BookLook()
     if not DWE.BookByAddon() then return nil end
     if DWE.PlateMaterial() then return "note" end
     local pref = DialogueWheelE_BookLook or "auto"
-    if pref == "note" or pref == "book" or pref == "frame" then return pref end
+    -- (1.5.5) "Cadre du theme" retire : le livre ouvert et la page seule l'ont remplace.
+    if pref == "frame" then DialogueWheelE_BookLook, pref = nil, "auto" end
+    if pref == "note" or pref == "book" then return pref end
     local bi = DWE.bookInfo
     return (bi and ((bi.total or 1) > 1 or bi.hasNext)) and "book" or "note"
 end
@@ -2915,7 +3647,8 @@ function DWE.UpdateTextPanelVisuals()
         if cine then
             local okW, uw = pcall(UIParent.GetWidth, UIParent)
             uw = (okW and type(uw) == "number") and uw or 1600
-            maxW = math.max(380, math.min(900, uw * 0.6))
+            -- Largeur choisie avec la poignee, sinon 60 % de l'ecran.
+            maxW = tonumber(DialogueWheelE_TextW) or math.max(380, math.min(900, uw * 0.6))
         end
         textBox:SetWidth(maxW)
         textBox.dweW = maxW
@@ -2973,6 +3706,19 @@ function DWE.ToggleDialogueText()
     DialogueWheelE_ShowText = not (DialogueWheelE_ShowText == true)
     if DWE.OnToggleBookView then DWE.OnToggleBookView() end
     DWE.UpdateVisuals()
+    if DWE.UpdateSpokenPlayers then DWE.UpdateSpokenPlayers() end
+    if DWE.TextInRefresh then DWE.TextInRefresh() end
+end
+-- Spoken redessine ses lecteurs (apres une bascule bulle / lecteur, ils apparaissent ou partent).
+function DWE.UpdateSpokenPlayers()
+    local env = rawget(_G, "SpokenEnv")
+    if type(env) ~= "table" then return end
+    for _, name in ipairs({ "PlayerFrame", "MinimalPlayer", "DialogueUIPlayer", "Subtitle" }) do
+        local w = rawget(env, name)
+        if type(w) == "table" and type(w.Update) == "function" and (name ~= "MinimalPlayer" or w.frame) then
+            pcall(w.Update, w)
+        end
+    end
 end
 
 local function Trim(s)
@@ -3422,6 +4168,18 @@ function DWE.ResetNPCOffset()
     DWE.ApplyScale()
     if choiceBox:IsShown() then DWE.UpdateVisuals() end
     if DWE.Bubble then DWE.Bubble.Refit() end
+    if DWE.ResetSpokenPlace then DWE.ResetSpokenPlace() end
+end
+-- Le lecteur Spoken (carte, lecteur facon DialogueUI) retourne a la place par defaut de
+-- Storytale : on oublie la place que Spoken a retenue apres un deplacement.
+function DWE.ResetSpokenPlace()
+    local env = rawget(_G, "SpokenEnv")
+    local addon = type(env) == "table" and rawget(env, "Addon")
+    if type(addon) ~= "table" or type(addon.Layout) ~= "function" then return end
+    local ok, layout = pcall(addon.Layout, addon)
+    if not ok or type(layout) ~= "table" then return end
+    layout.Minimal, layout.DialogueUI = nil, nil
+    if DWE.SpokenPlayersPlace then pcall(DWE.SpokenPlayersPlace) end
 end
 
 --------------------------------------------------------------------------------
@@ -3836,6 +4594,8 @@ local function SkinPill(frame, style, selected, tail)
             t:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, -shape.bottom)
         end
     end
+    -- Opacite du fond (option) : la bulle du choix, pas son texte.
+    t:SetAlpha(tonumber(DialogueWheelE_Opacity) or 1)
     t:Show()
 end
 
@@ -4600,7 +5360,7 @@ function DWE.PaintWheelTheme()
         -- Plus sombre et plus discret que les choix : on voit que ce n'est pas un bouton.
         if previewPanel.dweTex then
             previewPanel.dweTex:SetVertexColor(0.62, 0.62, 0.62)
-            previewPanel.dweTex:SetAlpha(0.85)
+            previewPanel.dweTex:SetAlpha(0.85 * (tonumber(DialogueWheelE_Opacity) or 1))
         end
         previewPanel:ClearAllPoints()
         previewPanel:SetPoint("TOP", choiceBox, "BOTTOM", 0, -6)
@@ -4802,12 +5562,12 @@ DWE.THEME_LIST = THEME_LIST
 
 -- Options remises a zero : toutes les variables sauvegardees sauf la liste des livres/PNJ
 -- deja entendus avec Spoken (ce n'est pas un reglage).
-DWE.OPTION_VARS = { "Pos", "TextPos", "Theme", "Font", "FontSize", "Scale", "Opacity", "ShowText",
-    "UseBlizzKey", "InteractKey", "ToggleKey", "WheelScroll", "SpokenTheme", "AttachNPC", "NPCOffset",
-    "WheelWidth", "TextW", "TextH", "BubbleWidth", "Locked", "WheelTheme", "EscClose", "BookStyle",
-    "ThemeFrames", "BookLook", "BookPos", "BookScale", "NoteScale", "QuestWidth", "QuestAuto", "PlaceSkin", "SpokenChoice", "ChoiceSize", "WheelSide", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose", "BookVoiceOff", "SpokenSmart", "DefaultsV" }
+-- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
+DWE.OPTION_VARS = {}
+for k in ("Pos TextPos Theme Font FontSize Scale Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenChoice SpokenButton SpokenSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart DefaultsV"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
+    if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
     if ReloadUI then ReloadUI() end
 end
 function DWE.AskResetAll()
@@ -4978,6 +5738,8 @@ function DWE.InitOptionsPanel()
     AddSlider("DWESliderOpacity", L.OPACITY_LBL, 22, y - 50, 0.2, 1, 0.05, tonumber(DialogueWheelE_Opacity) or 1, "%.2f", function(v)
         DialogueWheelE_Opacity = v
         DWE.OnThemeChanged()
+        if DWE.ApplyBubbleOpacity then DWE.ApplyBubbleOpacity() end
+        if choiceBox:IsShown() and DWE.UpdateVisuals then DWE.UpdateVisuals() end
     end)
 
     ---------------------------------------------------------------- Texte
@@ -5047,8 +5809,7 @@ function DWE.InitOptionsPanel()
         { id = "auto", label = L.BOOK_LOOK_AUTO },
         { id = "note", label = L.BOOK_LOOK_NOTE },
         { id = "book", label = L.BOOK_LOOK_BOOK },
-        { id = "frame", label = L.BOOK_LOOK_FRAME },
-    }, 16, y - 118, 26, DialogueWheelE_BookLook or "auto", function(id)
+    }, 16, y - 118, 26, (DialogueWheelE_BookLook ~= "frame" and DialogueWheelE_BookLook) or "auto", function(id)
         DialogueWheelE_BookLook = id
         if DWE.bookMode and textBox:IsShown() then DWE.UpdateTextPanelVisuals() end
     end, 1, 150)
@@ -5189,34 +5950,162 @@ function DWE.InitOptionsPanel()
     if not spokenOn then AddText(L.SPOKEN_NEEDED, 200, y - 4, "GameFontDisableSmall") end
     local spokenThemeCheck = AddCheck(L.SPOKEN_THEME, 16, y - 32, DialogueWheelE_SpokenTheme == true, function(self)
         DialogueWheelE_SpokenTheme = self:GetChecked() and true or false
+        if DWE.spokenSkinShow then DWE.spokenSkinShow() end
         DWE.RefreshSpoken()
     end)
+    -- Habillage : une ligne pour les voix (PNJ, livres), une pour les narrations de zone. Chacune :
+    -- une case pour suivre (le theme actuel / les voix), sinon les fleches choisissent.
+    local skinRows = {}
+    local function SkinRow(rowY, label, followLabel, get, set, choices)
+        local lbl = AddText(label, 36, rowY - 4, "GameFontHighlightSmall")
+        local follow = AddCheck(followLabel, 240, rowY, get() == nil, nil)
+        local prev = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+        prev:SetSize(26, 22)
+        prev:SetPoint("TOPLEFT", p, "TOPLEFT", 400, rowY + 2)
+        prev:SetText("<")
+        local nxt = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+        nxt:SetSize(26, 22)
+        nxt:SetPoint("LEFT", prev, "RIGHT", 140, 0)
+        nxt:SetText(">")
+        local value = p:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        value:SetPoint("LEFT", prev, "RIGHT", 4, 0)
+        value:SetPoint("RIGHT", nxt, "LEFT", -4, 0)
+        value:SetJustifyH("CENTER")
+        local function Index(list, id)
+            for i, c in ipairs(list) do if c.id == id then return i end end
+            return 1
+        end
+        local row = {}
+        function row.Show(fallback)
+            local list = choices()
+            local pick = get()
+            local dressed = spokenOn and DialogueWheelE_SpokenTheme == true
+            local on = dressed and pick ~= nil
+            value:SetText(list[Index(list, pick or fallback())].label)
+            value:SetAlpha(on and 1 or 0.5)
+            Grey(prev, on); Grey(nxt, on)
+            follow:SetChecked(pick == nil)
+            Grey(follow, dressed)
+            if lbl.SetAlpha then lbl:SetAlpha(dressed and 1 or 0.5) end
+        end
+        local function Step(d)
+            if get() == nil then return end
+            local list = choices()
+            set(list[(Index(list, get()) - 1 + d) % #list + 1].id)
+            if DWE.spokenSkinShow then DWE.spokenSkinShow() end
+            DWE.RefreshSpoken()
+        end
+        prev:SetScript("OnClick", function() Step(-1) end)
+        nxt:SetScript("OnClick", function() Step(1) end)
+        row.follow, row.Step = follow, Step
+        skinRows[#skinRows + 1] = row
+        return row
+    end
+    local function ThemeChoices(extra)
+        local list = {}
+        for _, e in ipairs(extra or {}) do list[#list + 1] = e end
+        for _, t in ipairs(THEME_LIST) do list[#list + 1] = { id = t.id, label = L[t.key] or t.id } end
+        return list
+    end
+    local voiceRow = SkinRow(y - 58, L.SKIN_ROW_VOICE, L.SPOKEN_SKIN_FOLLOW,
+        function() return DialogueWheelE_SpokenSkin end,
+        function(v) DialogueWheelE_SpokenSkin = v end,
+        function() return ThemeChoices() end)
+    local function PlaceExtra()
+        local extra = { { id = "paper", label = L.SKIN_PAPER or L.PLACE_PAPER } }
+        if DWE.DUI_ON then extra[2] = { id = "dui", label = L.BOOK_DUI } end
+        return ThemeChoices(extra)
+    end
+    local paperChoice = { id = "paper", label = L.SKIN_PAPER or L.PLACE_PAPER }
+    local matChoices = {
+        { id = "mat:Stone", label = L.PLATE_STONE }, { id = "mat:Marble", label = L.PLATE_MARBLE },
+        { id = "mat:Bronze", label = L.PLATE_BRONZE }, { id = "mat:Silver", label = L.PLATE_SILVER },
+    }
+    local function With(first, rest)
+        local list = { first }
+        for _, e in ipairs(rest) do list[#list + 1] = e end
+        return list
+    end
+    local bookRow = SkinRow(y - 84, L.SKIN_ROW_BOOK, L.SKIN_PAPER or L.PLACE_PAPER,
+        function() return DialogueWheelE_BookSkin end,
+        function(v) DialogueWheelE_BookSkin = v end,
+        function() return ThemeChoices(With(paperChoice, matChoices)) end)
+    local plateRow = SkinRow(y - 110, L.SKIN_ROW_PLATE, L.PLATE_FOLLOW,
+        function() return DialogueWheelE_PlateSkin end,
+        function(v) DialogueWheelE_PlateSkin = v end,
+        function()
+            local list = {}
+            for _, e in ipairs(matChoices) do list[#list + 1] = e end
+            list[#list + 1] = paperChoice
+            return ThemeChoices(list)
+        end)
+    local function PlateDefault()
+        local m = DialogueWheelE_PlateLook
+        return "mat:" .. ((m and DWE.PLATES[m]) and m or "Stone")
+    end
+    local placeRow = SkinRow(y - 136, L.SKIN_ROW_PLACE, L.PLACE_FOLLOW,
+        function()
+            local v = DialogueWheelE_PlaceSkin
+            if v == "dui" and not DWE.DUI_ON then return nil end
+            return v
+        end,
+        function(v) DialogueWheelE_PlaceSkin = v end,
+        PlaceExtra)
+    local function VoiceTheme() return DialogueWheelE_SpokenSkin or CurrentTheme() end
+    function DWE.spokenSkinShow()
+        voiceRow.Show(function() return CurrentTheme() end)
+        bookRow.Show(function() return "paper" end)
+        plateRow.Show(PlateDefault)
+        placeRow.Show(VoiceTheme)
+    end
+    plateRow.follow:SetScript("OnClick", function(self)
+        DialogueWheelE_PlateSkin = (not self:GetChecked()) and PlateDefault() or nil
+        DWE.spokenSkinShow(); DWE.RefreshSpoken()
+    end)
+    bookRow.follow:SetScript("OnClick", function(self)
+        DialogueWheelE_BookSkin = (not self:GetChecked()) and "paper" or nil
+        DWE.spokenSkinShow(); DWE.RefreshSpoken()
+    end)
+    voiceRow.follow:SetScript("OnClick", function(self)
+        DialogueWheelE_SpokenSkin = (not self:GetChecked()) and CurrentTheme() or nil
+        DWE.spokenSkinShow(); DWE.RefreshSpoken()
+    end)
+    placeRow.follow:SetScript("OnClick", function(self)
+        DialogueWheelE_PlaceSkin = (not self:GetChecked()) and VoiceTheme() or nil
+        DWE.spokenSkinShow(); DWE.RefreshSpoken()
+    end)
+    DWE.spokenSkinStep = voiceRow.Step
+    DWE.spokenSkinShow()
+
     local toggleLbl, toggleBtn
-    -- Choix "Spoken" dans la roue (bascule bulle / lecteur de Spoken) : cache par defaut.
-    local spokenCheck = AddCheck(L.SPOKEN_CHOICE, 16, y - 60, DialogueWheelE_SpokenChoice == true, function(self)
-        DialogueWheelE_SpokenChoice = self:GetChecked() and true or false
+    -- Bouton de bascule bulle / lecteur de Spoken, dans le coin de la roue.
+    local spokenCheck = AddCheck(L.SPOKEN_BUTTON, 16, y - 170, DialogueWheelE_SpokenButton == true, function(self)
+        DialogueWheelE_SpokenButton = self:GetChecked() and true or false
         DWE.RefreshBindings()
     end)
-    toggleLbl = AddText(L.KEY_TOGGLE, 20, y - 94, "GameFontHighlightSmall")
+    -- Ou s'affiche la replique du PNJ : le texte de Storytale (bulle ou cadre) ou le lecteur Spoken.
+    -- Meme reglage que le bouton de la roue et la touche, choisi ici sans avoir a l'afficher.
+    local textInLbl = AddText(L.TEXT_IN, 36, y - 202, "GameFontHighlightSmall")
+    local textInBoxes = AddGroup({
+        { id = "storytale", label = L.TEXT_IN_STORYTALE },
+        { id = "spoken", label = L.TEXT_IN_SPOKEN },
+    }, 300, y - 198, 26, DialogueWheelE_ShowText == true and "storytale" or "spoken", function(id)
+        local want = id == "storytale"
+        if (DialogueWheelE_ShowText == true) ~= want then DWE.ToggleDialogueText() end
+    end, 1, 160)
+    function DWE.TextInRefresh()
+        local st = DialogueWheelE_ShowText == true
+        textInBoxes[1]:SetChecked(st)
+        textInBoxes[2]:SetChecked(not st)
+    end
+    for _, cb in ipairs(textInBoxes) do Grey(cb, spokenOn) end
+    if textInLbl.SetAlpha then textInLbl:SetAlpha(spokenOn and 1 or 0.5) end
+    toggleLbl = AddText(L.KEY_TOGGLE, 20, y - 230, "GameFontHighlightSmall")
     toggleBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     toggleBtn:SetPoint("TOPLEFT", toggleLbl, "BOTTOMLEFT", 0, -4)
     toggleBtn:SetSize(240, 24)
-    -- Fenetre de narration de zone : son propre habillage.
-    local placeLbl = AddText(L.PLACE_SKIN, 16, y - 154, "GameFontHighlightSmall")
-    local placeBoxes = AddGroup({
-        { id = "theme", label = L.PLACE_THEME },
-        { id = "paper", label = L.PLACE_PAPER },
-        { id = "dui", label = L.BOOK_DUI },
-    }, 16, y - 170, 26, DialogueWheelE_PlaceSkin or "theme", function(id)
-        DialogueWheelE_PlaceSkin = (id ~= "theme") and id or nil
-        DWE.RefreshSpoken()
-    end, 1, 170)
-    for i, cb in ipairs(placeBoxes) do
-        Grey(cb, spokenOn and (i ~= 3 or DWE.DUI_ON))
-    end
-    if placeLbl.SetAlpha then placeLbl:SetAlpha(spokenOn and 1 or 0.5) end
     -- File de lecture intelligente (decochee : Spoken gere seul sa file, sans nos regles).
-    local smartCheck = AddCheck(L.SPOKEN_SMART, 16, y - 204, DialogueWheelE_SpokenSmart ~= false, function(self)
+    local smartCheck = AddCheck(L.SPOKEN_SMART, 16, y - 292, DialogueWheelE_SpokenSmart ~= false, function(self)
         DialogueWheelE_SpokenSmart = self:GetChecked() and true or false
     end)
     smartCheck.tooltipText = L.SPOKEN_SMART_TIP
@@ -5229,11 +6118,11 @@ function DWE.InitOptionsPanel()
     smartCheck:HookScript("OnLeave", function() GameTooltip:Hide() end)
     Grey(smartCheck, spokenOn)
     -- Page tournee a la main dans un livre lu par Spoken : la voix reprend a cette page.
-    Grey(AddCheck(L.BOOK_VOICE_TURN, 16, y - 230, DialogueWheelE_BookVoiceTurn == true, function(self)
+    Grey(AddCheck(L.BOOK_VOICE_TURN, 16, y - 318, DialogueWheelE_BookVoiceTurn == true, function(self)
         DialogueWheelE_BookVoiceTurn = self:GetChecked() and true or nil
     end), spokenOn)
     -- Livre ferme : Spoken arrete de le lire (decoche par defaut : la lecture continue).
-    Grey(AddCheck(L.BOOK_STOP_CLOSE, 16, y - 256, DialogueWheelE_BookStopOnClose == true, function(self)
+    Grey(AddCheck(L.BOOK_STOP_CLOSE, 16, y - 344, DialogueWheelE_BookStopOnClose == true, function(self)
         DialogueWheelE_BookStopOnClose = self:GetChecked() and true or nil
     end), spokenOn)
     Grey(spokenThemeCheck, spokenOn)
@@ -5289,7 +6178,7 @@ function DWE.InitOptionsPanel()
         RefreshTiles()
     end)
     RefreshKeyButtons()
-    p:SetHeight(-(y - 284) + 30)
+    p:SetHeight(-(y - 372) + 30)
 
     ---------------------------------------------------------------- Recherche
     -- Une barre en haut du panneau (hors du defilement) : chaque frappe amene la vue sur la
@@ -5362,9 +6251,17 @@ function DWE.InitOptionsPanel()
             local range = scroll:GetVerticalScrollRange() or 0
             local want = math.max(0, math.min(range, pTop - top - 60))
             scroll:SetVerticalScroll(want)
+            -- Ajustee a l'option trouvee : sa case ou son bouton compris, jusqu'au bout de son texte.
             glow:ClearAllPoints()
-            glow:SetPoint("TOPLEFT", p, "TOPLEFT", 8, top - pTop + 6)
-            glow:SetPoint("TOPRIGHT", p, "TOPRIGHT", -8, top - pTop + 6)
+            local owner = e.fs:GetParent()
+            local isBox = owner and owner.GetObjectType and owner ~= p
+                and (owner:GetObjectType() == "CheckButton" or owner:GetObjectType() == "Button")
+            local pLeft = p:GetLeft() or 0
+            local left = (isBox and owner:GetLeft()) or e.fs:GetLeft() or (pLeft + 8)
+            local right = (e.fs:GetLeft() or left) + math.min(e.fs:GetStringWidth() or 0, e.fs:GetWidth() or 9999)
+            if isBox and owner:GetRight() then right = math.max(right, owner:GetRight()) end
+            glow:SetPoint("TOPLEFT", p, "TOPLEFT", left - pLeft - 6, top - pTop + 6)
+            glow:SetWidth(math.max(20, right - left + 12))
             glow:SetHeight((e.fs:GetHeight() or 14) + 12)
             glow:SetAlpha(1); glow:Show()
             fader.t = 0; fader:Show()

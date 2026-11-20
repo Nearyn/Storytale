@@ -60,8 +60,7 @@ else
     _G.C_AddOns = { IsAddOnLoaded = function() return false end }
 end
 
-if withSpoken then DialogueWheelE_SpokenChoice = true end
-OFF = withSpoken and 0 or -1 -- sans Spoken, pas de bouton "Spoken" en tete de roue
+OFF = -1 -- (1.5.5) plus de choix "Spoken" en tete de roue : un bouton dans son coin
 -- Fake Spoken ---------------------------------------------------------------
 local skin
 if withSpoken then
@@ -168,9 +167,12 @@ do -- manette : croix, A et B pris seulement si le mode manette est actif
     _G.GetBindingKey = function(a) if a == "INTERACTTARGET" then return "E", "PADRSHOULDER" end end
     M.cvars.GamePadEnable = "1"
     DWE.RefreshBindings()
-    check(M.bindings.PADDUP == "DWE_WheelUpBtn" and M.bindings.PADDDOWN == "DWE_WheelDownBtn", "gamepad d-pad moves the selection")
+    check(M.bindings.PADDUP == "DWE_PadUpBtn" and M.bindings.PADDDOWN == "DWE_PadDownBtn", "gamepad d-pad moves the selection")
     check(M.bindings.PAD1 == "DWE_SelectBtn" and M.bindings.PAD2 == "DWE_PadCloseBtn", "gamepad A selects, B closes")
-    check(M.bindings.PADDLEFT == "DWE_PadPrevBtn" and M.bindings.PADDRIGHT == "DWE_PadNextBtn", "gamepad left/right turn pages")
+    check(M.bindings.PADDLEFT == nil and M.bindings.PADDRIGHT == nil, "conversation: left/right stay with the game")
+    DWE.bookMode = true; DWE.RefreshBindings()
+    check(M.bindings.PADDLEFT == "DWE_PadPrevBtn" and M.bindings.PADDRIGHT == "DWE_PadNextBtn", "book: left/right turn pages")
+    DWE.bookMode = false; DWE.RefreshBindings()
     check(M.bindings.E == "DWE_SelectBtn" and M.bindings.PADRSHOULDER == "DWE_SelectBtn", "every interact key is bound")
     do -- camera libre forcee tant que le catcher est la
         local look = false
@@ -187,7 +189,7 @@ do -- manette : croix, A et B pris seulement si le mode manette est actif
         local realBBA = DWE.BookByAddon
         DWE.BookByAddon = function() return false end
         DWE.padCatcher._scripts.OnUpdate(DWE.padCatcher, 0.2)
-        check(stick == true, "DialogueUI's own book (its theme) keeps the right stick")
+        check(stick == false, "DialogueUI's own book: right stick goes to the camera (text scrolls with the d-pad)")
         DWE.BookByAddon = function() return true end
         DWE.padCatcher._scripts.OnUpdate(DWE.padCatcher, 0.2)
         check(stick == false, "DialogueUI's hidden book gives the right stick back")
@@ -253,7 +255,19 @@ do -- manette : croix, A et B pris seulement si le mode manette est actif
         -- Y en conversation : laisse au jeu, meme avec le lecteur Spoken a l'ecran.
         local realShown = DWE.SpokenPlayerShown
         DWE.SpokenPlayerShown = function() return true end
-        check(not DWE.PadMenuAvailable(), "Y is left to the game in a conversation")
+        -- (1.5.5) sauf si le bouton de bascule bulle / Spoken est la : Y le presse.
+        local tgl = DWE.spokenToggle
+        local tglShown = tgl and tgl:IsShown()
+        if tgl then tgl:Hide() end
+        check(not DWE.PadMenuAvailable(), "Y is left to the game in a conversation (no toggle button)")
+        if tgl then
+            tgl:Show()
+            local before = DialogueWheelE_ShowText == true
+            check(DWE.PadMenuAvailable() and DWE.PadMenuButton(), "Y presses the bubble / Spoken toggle in a conversation")
+            check((DialogueWheelE_ShowText == true) ~= before, "Y switched between the bubble and Spoken's player")
+            DWE.ToggleDialogueText()
+            tgl:SetShown(tglShown and true or false)
+        end
         h(DWE.padCatcher, "PAD4")
         check(DWE.choiceBox:IsShown(), "Y in a conversation does not close it")
         DWE.SpokenPlayerShown = realShown
@@ -1868,6 +1882,186 @@ do -- livre de DialogueUI (Spoken Readables) : bouton de file et manette sur ses
     check(clicks[1] == "play" and clicks[2] == "skip", "DialogueUI book: Share uses its own Play / Skip (icon follows)")
     holder:Hide()
     _G.SpokenReadables = nil; _G.DUIBookFrame = oldBook
+end
+-- Spoken sans DialogueUI : sous-titres et petite fenetre au theme de Storytale, file d'attente.
+if withSpoken then
+    local hadEnv = rawget(_G, "SpokenEnv")
+    _G.SpokenEnv = hadEnv or {}
+    local env = SpokenEnv
+    if DWE.choiceBox:IsShown() then M.FireEvent("GOSSIP_CLOSED") end
+    -- Bouton de bascule bulle / lecteur Spoken, dans le coin de la roue (plus de choix dans la roue).
+    if hadEnv and DWE.SpokenFocus and DWE.SpokenFocus.Available() then
+        -- Cache par defaut (pas de bouton a l'installation), affiche une fois coche.
+        DialogueWheelE_SpokenButton = nil
+        M.FireEvent("GOSSIP_SHOW")
+        check(not (DWE.spokenToggle and DWE.spokenToggle:IsShown()), "Spoken toggle button hidden by default")
+        DialogueWheelE_SpokenButton = true
+        M.FireEvent("GOSSIP_SHOW")
+        local tb = DWE.spokenToggle
+        check(tb and tb:IsShown(), "Spoken toggle button shown in the wheel's corner")
+        for _, o in ipairs(DWE.currentOptions) do check(not o.isDialogueToggle, "no Spoken choice in the wheel any more") end
+        local before = DialogueWheelE_ShowText == true
+        tb._scripts.OnClick(tb)
+        check((DialogueWheelE_ShowText == true) ~= before, "the button switches between the bubble and Spoken's player")
+        tb._scripts.OnClick(tb)
+        DialogueWheelE_SpokenButton = false
+        M.FireEvent("GOSSIP_SHOW")
+        check(not tb:IsShown(), "option off: no toggle button")
+        DialogueWheelE_SpokenButton = nil
+        M.FireEvent("GOSSIP_CLOSED")
+    end
+    local oldAddon, oldSub, oldMini, oldTr, oldActions = env.Addon, env.Subtitle, env.MinimalPlayer, env.Transcript, env.Actions
+    local style = "subtitle"
+    env.Addon = { db = {}, DisplayStyle = function() return style end,
+        Profile = function() return { SubtitleShadow = 0.5 } end, Layout = function() return {} end }
+    env.Actions = env.Actions or {}
+    local oldRB = env.Actions.RoundButton
+    env.Actions.RoundButton = function(parent)
+        local rb = CreateFrame("Button", nil, parent)
+        rb.glyph = rb:CreateTexture()
+        return rb
+    end
+    -- Sous-titres (forme de Spoken 3.10 : Build, Layout, Update, Line, Corner).
+    local sub = { lines = {} }
+    function sub:Build()
+        self.frame = CreateFrame("Frame", "SpokenSubtitleFrame", UIParent)
+        self.controls = CreateFrame("Frame", nil, self.frame)
+        self.pause = CreateFrame("Button", nil, self.controls)
+        self.skip = CreateFrame("Button", nil, self.controls)
+        self.shadow = self.frame:CreateTexture()
+        self.controls:SetPoint("TOP", self.shadow, "BOTTOM", 0, -2)
+        self.title = self.frame:CreateFontString()
+        self.title:SetTextColor(1, .82, 0)
+        for _, k in ipairs({ "dot", "label", "pausedLabel", "heldDot", "held", "moreDot", "more" }) do
+            self[k] = self.frame:CreateFontString()
+            self[k]:SetTextColor(.62, .62, .62)
+        end
+    end
+    function sub:Line(index)
+        local line = self.lines[index]
+        if line then return line end
+        line = self.frame:CreateFontString()
+        line:SetTextColor(1, 1, 1)
+        self.lines[index] = line
+        return line
+    end
+    function sub:Layout() self:Line(1) end
+    function sub:Update() self.shadow:SetAlpha(0.5) end
+    function sub:Corner() self.controls:SetWidth(24 * 2 + 4) end
+    env.Subtitle = sub
+    -- Petite fenetre.
+    local mini = {}
+    function mini:Initialize()
+        self.frame = CreateFrame("Frame", "SpokenMinimalPlayerFrame", UIParent)
+        self.panel = CreateFrame("Frame", nil, self.frame, "BackdropTemplate")
+        self.paper = self.panel:CreateTexture()
+        self.name = self.frame:CreateFontString()
+        self.title = { text = self.frame:CreateFontString() }
+        self.stopped, self.count, self.held = self.frame:CreateFontString(), self.frame:CreateFontString(), self.frame:CreateFontString()
+        self.content = CreateFrame("Frame", nil, self.frame)
+        self.controls = CreateFrame("Frame", nil, self.content)
+        self.portrait = CreateFrame("Frame", nil, self.frame)
+        self.progress = { track = CreateFrame("Frame", nil, self.content) }
+        self.frame:SetWidth(380)
+    end
+    function mini:Layout() self.laid = (self.laid or 0) + 1 end
+    function mini:Dress() self.paper:SetAlpha(1); self.name:SetTextColor(1, .82, 0); self.dressed = (self.dressed or 0) + 1 end
+    function mini:RefreshConfig() self:Dress() end
+    env.MinimalPlayer = mini
+    local trStyle
+    local docked
+    env.Transcript = { SetStyle = function(_, st) trStyle = st end, HeightForClip = function() return 40 end,
+        Dock = function(_, parent, anchor, point, x, y, w, h) docked = { x = x, w = w } end }
+    env.Addon.Profile = function() return { SubtitleShadow = 0.5, FrameScale = 0.7 } end
+    local chosen
+    env.Addon.PlayerStyle = function() return chosen or "subtitle" end
+    env.Addon.SetPlayerStyle = function(_, st) chosen = st end
+
+    local oldTheme, oldOpt = DialogueWheelE_Theme, DialogueWheelE_SpokenTheme
+    DialogueWheelE_Theme, DialogueWheelE_SpokenTheme = "velin", true
+    sub:Build(); mini:Initialize()
+    DWE.HookSpokenStyles()
+    sub.clip = { present = {} }
+    check(DWE.SpokenCurClip() == sub.clip, "Spoken without DialogueUI: the subtitle's line is the one followed")
+    sub:Layout(); sub:Update()
+    local velin = DWE.THEME_STYLES.velin
+    local want = string.format("%.2f,%.2f,%.2f", velin.hdr[1], velin.hdr[2], velin.hdr[3])
+    check(sub.shadow:GetAlpha() == 0, "subtitles: Spoken's band hidden under the theme")
+    check(sub.title._color == want, "subtitles: the name in the theme's colour")
+    local body = string.format("%.2f,%.2f,%.2f", velin.body[1], velin.body[2], velin.body[3])
+    check(sub.lines[1]._color == body, "subtitles: the words in the theme's colour")
+    sub:Line(2)
+    check(sub.lines[2]._color == body, "subtitles: a line made later takes the theme's colour too")
+    sub.lines[1]:SetText("The |cffffd100Scourge|r grows")
+    check(sub.lines[1]._text == "The " .. DWE.ThemeMark(velin) .. "Scourge|r grows", "subtitles: the read word in the theme's own colour")
+    local _, _, _, _, y = sub.controls:GetPoint(1)
+    check(type(y) == "number" and y < -2, "subtitles: Spoken's buttons moved under the theme's frame")
+    -- File d'attente : bouton en tete de la rangee des sous-titres.
+    local ui = DWE.SpokenQueueUI
+    ui.subHooked = nil
+    ui.HookSubtitle()
+    sub:Corner()
+    local qb = ui.buttons[sub.controls]
+    local p1, rel = sub.pause:GetPoint(1)
+    check(qb ~= nil and qb.dweSubtitle and rel == qb, "subtitles: queue button before Stop / Skip")
+    check(sub.controls:GetWidth() == 24 * 3 + 4 * 2, "subtitles: the button row widened for the queue button")
+    local origShown = DWE.PlayerFrameShown
+    DWE.PlayerFrameShown = function(f) return f == sub.frame end
+    check(DWE.SpokenPlayerShown(), "subtitles count as Spoken's player on screen (gamepad Share)")
+    DWE.PlayerFrameShown = origShown
+    -- Theme sans cadre : le look de Spoken revient.
+    DialogueWheelE_Theme = "transparent"; DWE.RefreshSpoken(); sub:Update()
+    check(sub.shadow:GetAlpha() == 0 and sub.title._color == "1.00,0.82,0.00", "subtitles: frameless theme has a veil of its own")
+    sub.lines[1]:SetText("The |cffffd100Scourge|r")
+    check(sub.lines[1]._text == "The |cffffd100Scourge|r", "subtitles: gold kept where it is the theme's colour")
+    -- Murmure en Emeraude : sa propre bulle, ses couleurs.
+    DialogueWheelE_Theme = "emerald"; DWE.RefreshSpoken()
+    local em = DWE.THEME_STYLES.spk_emerald
+    check(em and sub.title._color == string.format("%.2f,%.2f,%.2f", em.hdr[1], em.hdr[2], em.hdr[3]), "subtitles: Emerald has its own look and colours")
+    -- Habillage choisi a part.
+    DialogueWheelE_SpokenSkin = "velin"; DWE.RefreshSpoken()
+    check(sub.title._color == want, "Spoken look picked apart from the current theme")
+    DialogueWheelE_SpokenSkin = "nope"
+    check(DWE.SpokenSkinPick() == nil, "an unknown picked look falls back to the current theme")
+    DialogueWheelE_SpokenSkin = nil; DWE.RefreshSpoken()
+    -- Option coupee : rien de Storytale.
+    DialogueWheelE_Theme, DialogueWheelE_SpokenTheme = "glass", false
+    DWE.RefreshSpoken(); sub:Update()
+    check(sub.shadow:GetAlpha() == 0.5 and sub.title._color == "1.00,0.82,0.00", "subtitles: option off keeps Spoken's look")
+    -- Petite fenetre.
+    style = "minimal"
+    DialogueWheelE_Theme, DialogueWheelE_SpokenTheme = "parchment", true
+    mini:RefreshConfig()
+    local parch = DWE.THEME_STYLES.parchment
+    check(mini.paper:GetAlpha() == 0, "small window: Spoken's paper hidden under the theme")
+    check(mini.title.text._color == string.format("%.2f,%.2f,%.2f", parch.hdr[1], parch.hdr[2], parch.hdr[3]), "small window: title in the theme's colour")
+    check(trStyle and trStyle.highlight == DWE.ThemeMark(parch) and trStyle.shadow == false
+        and trStyle.color == parch.body, "small window: the theme's words and read-word colours")
+    check(DWE.SpokenCardOn() and mini.frame:GetWidth() == DWE.SPOKEN_CARD.width, "small window: laid out as the DialogueUI-style card (its width)")
+    check(math.abs((mini.frame._scale or 0) - 0.65) < 0.001, "small window: the card's scale (0.65 at Spoken's default size)")
+    check(math.abs((mini.portrait._scale or 0) - DWE.SPOKEN_CARD.face / 90) < 0.001, "small window: small portrait at the top left")
+    mini:Layout()
+    check(docked and docked.w == DWE.SPOKEN_CARD.width - 52 - 2 * DWE.SPOKEN_CARD.wordsPad, "small window: words docked in the card's column")
+    -- Sans DialogueUI, les sous-titres par defaut deviennent la carte, tant que le joueur n'a rien choisi.
+    if not DWE.DUI_ON then
+        DialogueWheelE_SpokenStyleChosen = nil
+        check(env.Addon:PlayerStyle() == "minimal", "no DialogueUI: Spoken's default subtitles become the card")
+        env.Addon:SetPlayerStyle("subtitle")
+        check(DialogueWheelE_SpokenStyleChosen == true and env.Addon:PlayerStyle() == "subtitle", "a style chosen in Spoken is kept")
+        DialogueWheelE_SpokenStyleChosen = nil
+    end
+    DialogueWheelE_SpokenTheme = false
+    DWE.RefreshSpoken()
+    check(mini.paper:GetAlpha() == 1 and mini.name._color == "1.00,0.82,0.00", "small window: option off gives Spoken's look back")
+    check(not DWE.SpokenCardOn() and mini.portrait._scale == 1, "small window: option off gives Spoken's layout back")
+    -- Remise en etat.
+    ui.buttons[sub.controls] = nil
+    DialogueWheelE_Theme, DialogueWheelE_SpokenTheme = oldTheme, oldOpt
+    env.Actions.RoundButton = oldRB
+    env.Addon, env.Subtitle, env.MinimalPlayer, env.Transcript, env.Actions = oldAddon, oldSub, oldMini, oldTr, oldActions
+    _G.SpokenSubtitleFrame, _G.SpokenMinimalPlayerFrame = nil, nil
+    if not hadEnv then _G.SpokenEnv = nil end
+    DWE.OnThemeChanged()
 end
 -- Livres lus / commences
 DialogueWheelE_ReadBooks = nil

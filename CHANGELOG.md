@@ -1,5 +1,63 @@
 # Changelog / Journal des versions
 
+## 1.5.5
+
+**English**
+
+### New
+- **No need for DialogueUI anymore**: without DialogueUI, Spoken's small player takes the look of a card next to the NPC, with the NPC's portrait, sized and placed like DialogueUI's. DialogueUI stays fully supported.
+- **Spoken's player follows your theme**: the bubble themes dress Spoken's player too. In the options, pick a look for each kind of line: NPC voices, books, plaques and zone narration. Each one can follow the current theme or use its own (book page, any theme), and plaques can be stone, marble, bronze or silver.
+- **Bubble or Spoken's player**: a new option chooses where the NPC's line is shown, in Storytale's bubble or in Spoken's player. An optional button above the wheel switches between the two during a conversation (Y on a gamepad when the button is shown).
+- The reading-queue button also sits next to Spoken's subtitles.
+
+### Improved
+- The opacity slider now applies to everything: bubbles, choices and the quest preview.
+- Searching the options highlights exactly the setting found.
+- The Cinematic theme follows the text width setting.
+- Spoken's options are regrouped and clearer. The "Theme frame" book look is removed (books use the automatic look), and "DialogueUI book" is now simply "DialogueUI".
+- The position reset also puts Spoken's player back in place.
+- **Gamepad**: up and down on the d-pad wrap around the list of choices. Left and right turn the pages of a book, and are left to the game during a conversation. In DialogueUI's windows, the right stick moves the camera and the d-pad scrolls the text, like everywhere else.
+
+### Fixed
+- **Camera stuck with a gamepad** in conversations and books: the game's new gamepad interface (still in beta) selected the hidden quest window and gave it the right stick.
+- A Lua error with some item tooltips.
+- Spoken's hidden players no longer leave invisible buttons or a floating portrait behind.
+- Spoken's stop label no longer overlaps the subtitle.
+
+### Known issue
+- With a gamepad, turning the camera at the very moment a conversation opens can keep it stuck until you release the right stick. This comes from the game's gamepad interface (still in beta).
+
+Note: the game needs a restart after this update (a /reload is not enough).
+
+---
+
+**Français**
+
+### Nouveautés
+- **DialogueUI n'est plus nécessaire** : sans DialogueUI, le petit lecteur de Spoken prend l'allure d'une carte à côté du PNJ, avec son portrait, à la taille et à la place de celle de DialogueUI. DialogueUI reste entièrement pris en charge.
+- **Le lecteur de Spoken suit votre thème** : les thèmes de bulle habillent aussi le lecteur de Spoken. Dans les options, choisissez un habillage pour chaque type de ligne : voix des PNJ, livres, plaques et narration des zones. Chacun peut suivre le thème actuel ou avoir le sien (page de livre, n'importe quel thème), et les plaques peuvent être en pierre, marbre, bronze ou argent.
+- **Bulle ou lecteur Spoken** : une nouvelle option choisit où s'affiche la réplique du PNJ, dans la bulle de Storytale ou dans le lecteur de Spoken. Un bouton facultatif au-dessus de la roue passe de l'un à l'autre pendant une conversation (Y à la manette quand le bouton est affiché).
+- Le bouton de file de lecture se place aussi à côté des sous-titres de Spoken.
+
+### Améliorations
+- Le curseur d'opacité s'applique maintenant à tout : bulles, choix et aperçu de quête.
+- La recherche dans les options met en évidence exactement le réglage trouvé.
+- Le thème Cinématique suit le réglage de largeur du texte.
+- Les options de Spoken sont regroupées et plus claires. L'apparence de livre « Cadre du thème » est retirée (les livres prennent l'apparence automatique), et « Livre DialogueUI » devient simplement « DialogueUI ».
+- La réinitialisation des positions remet aussi en place le lecteur de Spoken.
+- **Manette** : haut et bas de la croix font le tour de la liste des choix. Gauche et droite tournent les pages d'un livre, et sont laissés au jeu pendant une conversation. Dans les fenêtres de DialogueUI, le stick droit bouge la caméra et la croix fait défiler le texte, comme partout ailleurs.
+
+### Corrections
+- **Caméra bloquée à la manette** pendant les conversations et les livres : la nouvelle interface manette du jeu (encore en bêta) sélectionnait la fenêtre de quête cachée et lui donnait le stick droit.
+- Une erreur Lua avec certaines infobulles d'objets.
+- Les lecteurs de Spoken cachés ne laissent plus de boutons invisibles ni de portrait flottant.
+- La mention d'arrêt de Spoken ne chevauche plus le sous-titre.
+
+### Problème connu
+- À la manette, tourner la caméra au moment précis où une conversation s'ouvre peut la laisser bloquée jusqu'à ce que vous relâchiez le stick droit. Cela vient de l'interface manette du jeu (encore en bêta).
+
+Note : il faut relancer le jeu après cette mise à jour (un /reload ne suffit pas).
+
 ## 1.5.4
 
 **English**
