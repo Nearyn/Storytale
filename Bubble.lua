@@ -38,6 +38,10 @@ for id, sk in pairs(DWE.BUBBLE_SKINS) do
             art = "Bubble" .. sk.art, slice = 16, optFont = true, split = SPLIT[sk.art] }
     end
 end
+-- Murmure en d'autres couleurs.
+for id, c in pairs(DWE.WHISPER_COLORS or {}) do
+    STYLES[id] = { pad = 14, color = c.text, shadow = false, art = "Bubble" .. c.art, slice = 16, split = true }
+end
 
 local textBox = DWE.textBox
 

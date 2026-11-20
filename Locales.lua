@@ -504,6 +504,22 @@ for loc, list in pairs(NEW_THEMES) do
     if dest then dest.THEME_WHISPER, dest.THEME_GLASS = list[1], list[2] end
 end
 
+-- Noms des couleurs de Murmure : Emeraude, Rubis, Saphir, Ambre.
+local GEM_THEMES = {
+    enUS = { "Emerald", "Ruby", "Sapphire", "Amber" }, frFR = { "Émeraude", "Rubis", "Saphir", "Ambre" },
+    deDE = { "Smaragd", "Rubin", "Saphir", "Bernstein" }, esES = { "Esmeralda", "Rubí", "Zafiro", "Ámbar" },
+    esMX = { "Esmeralda", "Rubí", "Zafiro", "Ámbar" }, itIT = { "Smeraldo", "Rubino", "Zaffiro", "Ambra" },
+    ptBR = { "Esmeralda", "Rubi", "Safira", "Âmbar" }, ruRU = { "Изумруд", "Рубин", "Сапфир", "Янтарь" },
+    koKR = { "에메랄드", "루비", "사파이어", "호박" }, zhCN = { "翡翠", "红宝石", "蓝宝石", "琥珀" },
+    zhTW = { "翡翠", "紅寶石", "藍寶石", "琥珀" },
+}
+for loc, list in pairs(GEM_THEMES) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then
+        dest.THEME_EMERALD, dest.THEME_RUBY, dest.THEME_SAPPHIRE, dest.THEME_AMBER = list[1], list[2], list[3], list[4]
+    end
+end
+
 -- Noms des themes Halo d'ombre, Encre et or, Cinematique.
 local EXP_THEMES = {
     enUS = { "Shadow Halo", "Ink & Gold", "Cinematic", "experimental" },

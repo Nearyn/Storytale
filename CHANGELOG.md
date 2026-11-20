@@ -1,5 +1,23 @@
 # Changelog / Journal des versions
 
+## 1.5.4
+
+**English**
+
+### New
+- **Four gem themes**: Emerald, Ruby, Sapphire and Amber. They are the Whisper theme in four colors, for the conversation bubble, the choices and Spoken's small player.
+
+Note: the game needs a restart after this update (a /reload is not enough).
+
+---
+
+**Français**
+
+### Nouveautés
+- **Quatre thèmes pierres précieuses** : Émeraude, Rubis, Saphir et Ambre. C'est le thème Murmure en quatre couleurs, pour la bulle de dialogue, les choix et le petit lecteur de Spoken.
+
+Note : il faut relancer le jeu après cette mise à jour (un /reload ne suffit pas).
+
 ## 1.5.3
 
 **English**

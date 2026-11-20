@@ -516,6 +516,33 @@ local WHEEL_WHISPER = {
     common = nil, shadow = 1,
     hex = { hdr = "|cffff9cff", body = "|cfff5e6f8", num = "|cffffffff", rep = "|cffc0a0ff", ok = "|cffb0ff9c", bad = "|cffff6080" },
 }
+-- Murmure en d'autres couleurs (Emeraude, Rubis, Saphir, Ambre) : memes formes, autre teinte.
+DWE.WHISPER_COLORS = {
+    emerald = { art = "Emerald", text = { 0.66, 1, 0.76 }, palette = {
+        normal = { 0.88, 0.98, 0.89 }, selected = { 0.62, 1, 0.73 }, disabled = { 0.48, 0.58, 0.48 },
+        goodbye = { 0.66, 0.78, 0.67 }, goodbyeSel = { 1, 0.45, 0.45 }, dim = { 0.74, 0.86, 0.74 },
+        common = nil, shadow = 1,
+        hex = { hdr = "|cff9cffba", body = "|cffe6f7e8", num = "|cffffffff", rep = "|cffc2ffa1", ok = "|cffb0ff9c", bad = "|cffff6080" },
+    } },
+    ruby = { art = "Ruby", text = { 1, 0.66, 0.67 }, palette = {
+        normal = { 0.98, 0.88, 0.9 }, selected = { 1, 0.62, 0.64 }, disabled = { 0.58, 0.48, 0.51 },
+        goodbye = { 0.78, 0.66, 0.69 }, goodbyeSel = { 1, 0.45, 0.45 }, dim = { 0.86, 0.74, 0.78 },
+        common = nil, shadow = 1,
+        hex = { hdr = "|cffff9ca1", body = "|cfff7e6eb", num = "|cffffffff", rep = "|cffffa1e3", ok = "|cffb0ff9c", bad = "|cffff6080" },
+    } },
+    sapphire = { art = "Sapphire", text = { 0.66, 0.79, 1 }, palette = {
+        normal = { 0.88, 0.94, 0.98 }, selected = { 0.62, 0.76, 1 }, disabled = { 0.48, 0.55, 0.58 },
+        goodbye = { 0.66, 0.74, 0.78 }, goodbyeSel = { 1, 0.45, 0.45 }, dim = { 0.74, 0.83, 0.86 },
+        common = nil, shadow = 1,
+        hex = { hdr = "|cff9cc2ff", body = "|cffe6f0f7", num = "|cffffffff", rep = "|cffa1fffa", ok = "|cffb0ff9c", bad = "|cffff6080" },
+    } },
+    amber = { art = "Amber", text = { 1, 0.87, 0.66 }, palette = {
+        normal = { 0.98, 0.92, 0.88 }, selected = { 1, 0.86, 0.62 }, disabled = { 0.58, 0.51, 0.48 },
+        goodbye = { 0.78, 0.7, 0.66 }, goodbyeSel = { 1, 0.45, 0.45 }, dim = { 0.86, 0.77, 0.74 },
+        common = nil, shadow = 1,
+        hex = { hdr = "|cffffd99c", body = "|cfff7ede6", num = "|cffffffff", rep = "|cffffa1a3", ok = "|cffb0ff9c", bad = "|cffff6080" },
+    } },
+}
 -- Verre fume, Encre et or : palette par defaut, mais surbrillance or pale (couleur du nom du PNJ).
 DWE.HDR_PALETTE = {
     glass = setmetatable({ selected = { 1, 0.84, 0.50 } }, { __index = WHEEL_DEFAULT }),
@@ -533,6 +560,9 @@ local BUBBLE_SKINS = {
     bubble_fantasy = { bubble = "fantasy", pill = "fantasy", palette = WHEEL_INK, always = true, optFont = true },
     whisper = { bubble = "whisper", pill = "whisper", palette = WHEEL_WHISPER, always = true },
 }
+for id, c in pairs(DWE.WHISPER_COLORS) do
+    BUBBLE_SKINS[id] = { bubble = id, pill = id, palette = c.palette, always = true }
+end
 local BUBBLE_ART = {
     dark = "Veil", glass = "Glass", halo = "Halo", inkgold = "Ink", velin = "Velin", arcane = "Arcane",
     sylvan = "Sylvan", starry = "Starry", parchment = "Parch", parchment_dark = "ParchDark",
@@ -1067,7 +1097,7 @@ end
 -- Couleur du texte Spoken pour chaque theme de DWE : 2 = texte clair, 1 = texte fonce.
 local SPOKEN_PALETTE_OF = {
     transparent = 2, dark = 2, parchment_dark = 2, dui_dark = 2, folio_dark = 2, bubble = 2, bubble_fantasy = 1,
-    whisper = 2, glass = 2, halo = 2, inkgold = 2, cinema = 2,
+    whisper = 2, emerald = 2, ruby = 2, sapphire = 2, amber = 2, glass = 2, halo = 2, inkgold = 2, cinema = 2,
     parchment = 1, dui_brown = 1, folio = 1, velin = 1, arcane = 1, sylvan = 1, starry = 2,
 }
 
@@ -1165,7 +1195,8 @@ function DWE.SpokenThemeOverride()
 end
 
 -- Pour la fenetre Spoken, les bulles empruntent le style d'un theme "bloc".
-local SPOKEN_STYLE_ALIAS = { bubble = "dark", bubble_fantasy = "parchment", whisper = "glass", cinema = "transparent" }
+local SPOKEN_STYLE_ALIAS = { bubble = "dark", bubble_fantasy = "parchment", whisper = "glass", cinema = "transparent",
+    emerald = "glass", ruby = "glass", sapphire = "glass", amber = "glass" }
 local function SpokenStyle()
     local st = DWE.SpokenStamp()
     if st then return st.style end
@@ -3754,6 +3785,9 @@ local PILL_TEX = {
 for _, sk in pairs(BUBBLE_SKINS) do
     if sk.art then PILL_TEX[sk.pill] = { normal = "Pill" .. sk.art, selected = "Pill" .. sk.art .. "Sel" } end
 end
+for id, c in pairs(DWE.WHISPER_COLORS) do
+    PILL_TEX[id] = { normal = "Pill" .. c.art, selected = "Pill" .. c.art .. "Sel" }
+end
 
 -- Habille un cadre en bulle. L'encoche fait partie de l'image de la bulle (meme contour,
 -- raccord arrondi) ; l'image deborde du cadre a gauche (et en bas pour l'encoche du bas).
@@ -4740,6 +4774,10 @@ local THEME_LIST = {
     { id = "bubble", key = "THEME_BUBBLE", thumb = "Bubble" },
     { id = "bubble_fantasy", key = "THEME_BUBBLE_FANTASY", thumb = "BubbleFantasy" },
     { id = "whisper", key = "THEME_WHISPER", thumb = "Whisper" },
+    { id = "emerald", key = "THEME_EMERALD", thumb = "Emerald" },
+    { id = "ruby", key = "THEME_RUBY", thumb = "Ruby" },
+    { id = "sapphire", key = "THEME_SAPPHIRE", thumb = "Sapphire" },
+    { id = "amber", key = "THEME_AMBER", thumb = "Amber" },
     { id = "transparent", key = "THEME_TRANS", thumb = "Transparent" },
     { id = "dark", key = "THEME_DARK", thumb = "Dark" },
     { id = "glass", key = "THEME_GLASS", thumb = "Glass" },

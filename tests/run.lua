@@ -1659,6 +1659,22 @@ if withDUI then -- theme DialogueUI : la conversation est laissee a DialogueUI
         check(not parent.dweM and not child.dweM, "hidden DialogueUI frame lets the mouse through (children too)")
         DWE.CutMouse(parent, false)
         check(parent.dweM and child.dweM, "DialogueUI frame catches the mouse again once shown")
+        -- Couleurs de Murmure : themes en bulle, images presentes, nom traduit.
+        for id, c in pairs(DWE.WHISPER_COLORS) do
+            check(DWE.ThemeIsBubble(id), id .. " is a bubble theme")
+            for _, f in ipairs({ "Bubble" .. c.art, "Bubble" .. c.art .. "Tail", "Pill" .. c.art, "Pill" .. c.art .. "SelTailDownR", "Thumbs/" .. c.art }) do
+                local h = io.open("../" .. f .. ".png", "rb")
+                check(h ~= nil, id .. ": image " .. f)
+                if h then h:close() end
+            end
+            check(DWE.L["THEME_" .. id:upper()] ~= nil, id .. ": translated name")
+        end
+        local oldT = DialogueWheelE_Theme
+        DialogueWheelE_Theme = "emerald"; DWE.OnThemeChanged()
+        M.FireEvent("GOSSIP_SHOW")
+        check(DWE.choiceBox:IsShown(), "emerald theme: wheel opens")
+        M.FireEvent("GOSSIP_CLOSED")
+        DialogueWheelE_Theme = oldT; DWE.OnThemeChanged()
         -- Boutons de Spoken sur le parchemin : Share les pilote.
         if rawget(_G, "SpokenEnv") then
             local old = rawget(_G, "DUIQuestFrame")
