@@ -5366,24 +5366,34 @@ end
 local ShowRewardTooltipUnsafe
 
 -- Protege : la roue peut etre accrochee a une plaque de nom, ou le jeu limite les mesures.
-function DWE.ShowRewardTooltip(btn)
-    if btn then pcall(ShowRewardTooltipUnsafe, btn) end
+-- tip : la fiche a remplir (GameTooltip par defaut ; la manette a la sienne).
+-- offscreen : fiche remplie hors de l'ecran, sans l'accrocher au bouton (lecture seule). La roue
+-- peut suivre une plaque de nom : tout ce qui s'y accroche ne peut plus etre mesure, et la
+-- comparaison du jeu (qui mesure sa fiche) echouait.
+function DWE.ShowRewardTooltip(btn, tip, offscreen)
+    if btn then pcall(ShowRewardTooltipUnsafe, btn, tip or GameTooltip, offscreen) end
 end
 
-function ShowRewardTooltipUnsafe(btn)
-    GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
+function ShowRewardTooltipUnsafe(btn, tip, offscreen)
+    if offscreen then
+        tip:SetOwner(UIParent, "ANCHOR_NONE")
+        tip:ClearAllPoints()
+        tip:SetPoint("TOPLEFT", UIParent, "BOTTOMRIGHT", 200, -200)
+    else
+        tip:SetOwner(btn, "ANCHOR_RIGHT")
+    end
     if btn.isDarkmoonTicket then
-        if GameTooltip.SetCurrencyByID then
-            GameTooltip:SetCurrencyByID(515)
+        if tip.SetCurrencyByID then
+            tip:SetCurrencyByID(515)
         else
-            GameTooltip:SetHyperlink("currency:515")
+            tip:SetHyperlink("currency:515")
         end
     elseif btn.itemType and btn.itemIndex then
-        GameTooltip:SetQuestItem(btn.itemType, btn.itemIndex)
+        tip:SetQuestItem(btn.itemType, btn.itemIndex)
     elseif btn.itemLink then
-        GameTooltip:SetHyperlink(btn.itemLink)
+        tip:SetHyperlink(btn.itemLink)
     end
-    GameTooltip:Show()
+    tip:Show()
 end
 
 local function IsModified(kind)
@@ -6326,14 +6336,15 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_GamePad = self:GetChecked() and true or false
         DWE.RefreshBindings()
     end)
-    for i, key in ipairs({ "PAD_HELP1", "PAD_HELP2", "PAD_HELP3" }) do
-        local fs = AddText(L[key], 20, y - 44 - i * 18, "GameFontHighlightSmall")
+    -- Lignes d'aide a positions fixes (les deux dernieres peuvent passer sur deux lignes).
+    for _, h in ipairs({ { "PAD_HELP1", 62 }, { "PAD_HELP2", 80 }, { "PAD_HELP4", 98 }, { "PAD_HELP3", 130 } }) do
+        local fs = AddText(L[h[1]], 20, y - h[2], "GameFontHighlightSmall")
         fs:SetWidth(560)
         fs:SetJustifyH("LEFT")
     end
 
     ---------------------------------------------------------------- Spoken
-    y = y - 134
+    y = y - 170
     AddSection(L.SEC_SPOKEN, y)
     local spokenOn = DWE.SpokenFocus and DWE.SpokenFocus.Available()
     local function Grey(w, on)

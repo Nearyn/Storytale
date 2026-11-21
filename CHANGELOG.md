@@ -1,5 +1,23 @@
 # Changelog / Journal des versions
 
+## 1.6.3
+
+**English**
+
+### Improved
+- **Gamepad: quest items and rewards.** In a quest, D-pad left/right now goes through the required items and the rewards. The selected item shows its full tooltip (with the lines other addons add), next to the item you have equipped and the stat changes, just like with the mouse. On a quest with several rewards to choose from, the selected reward is picked and "Complete Quest" unlocks. Thanks to the player who reported it!
+- Up/down brings you back to the choices and closes the item tooltip.
+- The gamepad help in the options lists the new controls.
+
+---
+
+**Français**
+
+### Améliorations
+- **Manette : objets et récompenses des quêtes.** Dans une quête, la croix gauche/droite parcourt les objets demandés et les récompenses. L'objet sélectionné affiche sa fiche complète (avec les lignes ajoutées par les autres addons), à côté de l'objet que vous portez et des changements de stats, comme à la souris. Sur une quête avec plusieurs récompenses au choix, la récompense sélectionnée est choisie et "Terminer la quête" se débloque. Merci au joueur qui l'a signalé !
+- Haut/bas revient aux choix et ferme la fiche de l'objet.
+- L'aide manette des options présente les nouvelles commandes.
+
 ## 1.6.2
 
 **English**

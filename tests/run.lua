@@ -889,7 +889,19 @@ M.FireEvent("QUEST_FINISHED")
 M.questID = 556
 M.FireEvent("QUEST_COMPLETE")
 check(DWE.currentOptions[2 + OFF].disabled == true, "other quest: no remembered choice, complete greyed")
+-- Manette : croix gauche/droite parcourt les recompenses et choisit celle visee.
+check(#DWE.PadRewardButtons() >= 3, "gamepad: reward buttons reachable (" .. #DWE.PadRewardButtons() .. ")")
+check(DWE.PadRewardStep(1) == true, "d-pad right steps into the rewards")
+local padB = DWE.padRewardBtn
+check(padB and DWE.hoveredRewardBtn == padB, "d-pad: focused reward shows its details like a hover")
+check(padB and padB.canChoose and DWE.selectedRewardIndex == padB.itemIndex, "d-pad: focused reward is picked")
+check(DWE.currentOptions[2 + OFF].disabled == false, "d-pad pick enables Complete")
+DWE.PadRewardStep(-1)
+check(DWE.padRewardBtn ~= padB, "d-pad left moves to another reward")
+DWE.PadRewardStep(1)
+check(DWE.padRewardBtn == padB, "d-pad right comes back")
 M.FireEvent("QUEST_FINISHED")
+check(DWE.padRewardBtn == nil, "gamepad reward focus cleared when the quest closes")
 GetQuestLogIndexByID, SelectQuestLogEntry, GetQuestLogSelection, GetNumQuestLogChoices, GetQuestLogChoiceInfo, GetNumQuestLogRewards = nil, nil, nil, nil, nil, nil
 M.questID = 7894
 M.FireEvent("QUEST_GREETING")

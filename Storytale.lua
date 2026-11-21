@@ -462,6 +462,7 @@ local function FillItemButton(btn, info, isBestSell, suffix)
     local isPending = not info.name or info.name == ""
     local displayName = (info.name and info.name ~= "") and info.name or L.LOADING
     btn.itemLink = info.link
+    btn.itemID = tonumber(info.itemID)
     btn.itemCount = info.numItems or 1
     btn.isDarkmoonTicket = false
     btn.icon:SetTexture(info.texture or "Interface\\Icons\\INV_Misc_QuestionMark")
@@ -478,7 +479,7 @@ end
 -- Objet de la fenetre de quete ouverte ("required", "reward" ou "choice").
 local function AddQuestItemButton(btnIndex, itemType, itemIndex, anchorFrame, offsetY, isBestSell, canChoose)
     if not GetQuestItemInfo then return false end
-    local name, texture, numItems, quality = GetQuestItemInfo(itemType, itemIndex)
+    local name, texture, numItems, quality, _, itemID = GetQuestItemInfo(itemType, itemIndex)
     if not texture and not name then return false end
     local link = GetQuestItemLink and GetQuestItemLink(itemType, itemIndex)
 
@@ -493,7 +494,7 @@ local function AddQuestItemButton(btnIndex, itemType, itemIndex, anchorFrame, of
         local hex = DWE.WheelPalette().hex
         suffix = " " .. ((have >= need) and hex.ok or hex.bad) .. "(" .. have .. "/" .. need .. ")|r"
     end
-    local pending = FillItemButton(btn, { name = name, texture = texture, numItems = numItems, quality = quality, link = link }, isBestSell, suffix)
+    local pending = FillItemButton(btn, { name = name, texture = texture, numItems = numItems, quality = quality, link = link, itemID = tonumber(itemID) }, isBestSell, suffix)
     AnchorButton(btn, anchorFrame, offsetY)
     return true, pending, btn
 end
@@ -1502,6 +1503,8 @@ end
 -- Croix haut/bas : comme la molette, mais au bout de la liste on repart directement a l'autre
 -- bout (pas de "butee" : elle sert a la molette, qui a de l'elan).
 local function PadStep(d)
+    -- Haut/bas reviennent a la roue : la fiche de l'objet vise a gauche/droite se ferme.
+    if DWE.PadRewardClear then DWE.PadRewardClear() end
     if DWE.NoteScrollBy(-d) then return end
     DWE.StepSelection(d)
 end
@@ -1530,6 +1533,317 @@ DWE.padNext:SetScript("OnClick", function()
     DWE.PadSelectLabel(L.NEXT_PAGE)
     DWE.BookWheelTurn(-1)
 end)
+
+-- Croix gauche/droite dans une quete : parcourt les objets de l'apercu (requis et recompenses).
+-- L'objet vise montre sa fiche, comme au survol ; une recompense au choix est choisie.
+function DWE.PadRewardButtons()
+    local list = {}
+    for _, b in ipairs(DWE.rewardButtonsList or {}) do
+        if b:IsShown() and b:IsVisible() then list[#list + 1] = b end
+    end
+    return list
+end
+function DWE.PadRewardClear()
+    local b = DWE.padRewardBtn
+    DWE.padRewardBtn = nil
+    if b then
+        if b.UnlockHighlight then b:UnlockHighlight() end
+        if DWE.padRewardTip then DWE.padRewardTip:Hide() end
+        if DWE.hoveredRewardBtn == b then DWE.hoveredRewardBtn = nil end
+    end
+end
+function DWE.PadRewardStep(d)
+    local list = DWE.PadRewardButtons()
+    if #list == 0 then return false end
+    local cur
+    for i, b in ipairs(list) do if b == DWE.padRewardBtn then cur = i end end
+    if not cur then
+        -- Premier appui : la recompense deja choisie, sinon la premiere (ou derniere) au choix,
+        -- sinon le premier (ou dernier) objet.
+        local first, last
+        for i, b in ipairs(list) do
+            if b.canChoose then first = first or i; last = i end
+            if b.canChoose and b.itemIndex == DWE.selectedRewardIndex then cur = i - d end
+        end
+        if not cur and first then cur = (d > 0 and first or last) - d end
+        cur = cur or (d > 0 and 0 or #list + 1)
+    end
+    local nxt = ((cur + d - 1) % #list) + 1
+    DWE.PadRewardClear()
+    local b = list[nxt]
+    DWE.padRewardBtn = b
+    if b.LockHighlight then b:LockHighlight() end
+    DWE.hoveredRewardBtn = b
+    DWE.PadRewardFill(b)
+    -- Les autres addons ajoutent parfois leurs lignes un peu apres (objet pas encore connu).
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.3, function() if DWE.padRewardBtn == b then DWE.PadRewardFill(b) end end)
+    end
+    if b.canChoose and b.itemIndex and DWE.selectedRewardIndex ~= b.itemIndex then
+        DWE.selectedRewardIndex = b.itemIndex
+        if DWE.OnRewardSelected then DWE.OnRewardSelected() end
+    end
+    return true
+end
+-- Infos d'objet : C_Item.GetItemInfo sur les clients recents, GetItemInfo sinon.
+local function ItemInfo(item)
+    local fn = (C_Item and C_Item.GetItemInfo) or rawget(_G, "GetItemInfo")
+    if not fn or item == nil then return nil end
+    local r = { pcall(fn, item) }
+    if not r[1] then return nil end
+    return select(2, unpack(r))
+end
+DWE.ItemInfo = ItemInfo
+-- Lignes de la fiche du jeu (GameTooltip), avec celles des autres addons (Questie, prix de
+-- vente, comparaisons...). Lues aussitot, avant que le jeu ne cache sa fiche. nil si illisibles.
+local function TipText(fs)
+    if not fs or not fs.GetText then return nil end
+    local ok, t = pcall(fs.GetText, fs)
+    if not ok or type(t) ~= "string" then return nil end
+    local sec = rawget(_G, "issecretvalue")
+    if sec and sec(t) then return false end
+    return t
+end
+function DWE.PadRewardCapture(b)
+    DWE.ShowRewardTooltip(b, GameTooltip, true)
+    local lines, n = {}, (GameTooltip.NumLines and GameTooltip:NumLines()) or 0
+    local sell = SELL_PRICE and (SELL_PRICE .. ":")
+    for i = 1, n do
+        local lf, rf = rawget(_G, "GameTooltipTextLeft" .. i), rawget(_G, "GameTooltipTextRight" .. i)
+        local l, r = TipText(lf), TipText(rf)
+        if l == false or r == false then lines = nil break end
+        if l and l ~= "" then
+            local line = { l = l, r = (rf and rf:IsShown() and r ~= "") and r or nil }
+            line.lc = { lf:GetTextColor() }
+            if line.r then line.rc = { rf:GetTextColor() } end
+            -- Prix de vente : la somme est dessinee a part par le jeu, on la remet en texte.
+            if sell and l:find(sell, 1, true) == 1 and not l:find("|T", 1, true) and b.itemLink
+                and GetCoinTextureString then
+                local price = select(11, ItemInfo(b.itemLink))
+                if price and price > 0 then line.l = sell .. " " .. GetCoinTextureString(price) end
+            end
+            lines[#lines + 1] = line
+        end
+    end
+    GameTooltip:Hide()
+    return lines and #lines > 0 and lines or nil
+end
+-- Lien de l'objet affiche dans une fiche : plusieurs moyens selon ce que le jeu fournit, puis,
+-- en dernier recours, le nom en tete de fiche (l'objet est alors connu du jeu).
+function DWE.PadTipItemLink(tip, lines)
+    local function Str(v) return type(v) == "string" and v ~= "" and v or nil end
+    if tip.GetItem then
+        local ok, _, l = pcall(tip.GetItem, tip)
+        if ok and Str(l) then return l end
+    end
+    local tu = rawget(_G, "TooltipUtil")
+    if type(tu) == "table" and type(tu.GetDisplayedItem) == "function" then
+        local ok, _, l = pcall(tu.GetDisplayedItem, tip)
+        if ok and Str(l) then return l end
+    end
+    for _, fn in ipairs({ "GetPrimaryTooltipData", "GetTooltipData" }) do
+        if type(tip[fn]) == "function" then
+            local ok, data = pcall(tip[fn], tip)
+            local id = ok and type(data) == "table" and tonumber(data.id)
+            if id then
+                local _, l = ItemInfo(id)
+                if Str(l) then return l end
+                return "item:" .. id
+            end
+        end
+    end
+    local name = lines and lines[1] and lines[1].l
+    if Str(name) then
+        name = name:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        local _, l = ItemInfo(name)
+        if Str(l) then return l end
+    end
+    return nil
+end
+function DWE.PadRewardFill(b)
+    local lines = DWE.PadRewardCapture(b)
+    local tip = DWE.PadRewardTip()
+    -- Meme taille que la fiche du jeu (certains joueurs ou addons l'agrandissent).
+    local sc = GameTooltip.GetScale and GameTooltip:GetScale()
+    if type(sc) == "number" and sc > 0 then
+        tip:SetScale(sc)
+        if DWE.padCompareTip then DWE.padCompareTip:SetScale(sc) end
+    end
+    DWE.ShowRewardTooltip(b, tip)
+    -- Lien de l'objet : celui du bouton, sinon celui que la fiche vient de recevoir du jeu
+    -- (certains objets de quete n'ont pas de lien direct).
+    local link = b.itemLink
+    if not link and b.itemID then
+        link = select(2, ItemInfo(b.itemID)) or ("item:" .. b.itemID)
+    end
+    link = link or DWE.PadTipItemLink(tip, lines)
+    if lines then
+        tip:ClearLines()
+        for i, line in ipairs(lines) do
+            local c = line.lc
+            if line.r then
+                local d = line.rc
+                tip:AddDoubleLine(line.l, line.r, c[1], c[2], c[3], d[1], d[2], d[3])
+            else
+                tip:AddLine(line.l, c[1], c[2], c[3], i > 1)
+            end
+        end
+        tip:Show()
+    end
+    DWE.PadRewardCompare(tip, link)
+end
+if hooksecurefunc then hooksecurefunc(DWE, "HideRewardButtons", function() DWE.PadRewardClear() end) end
+-- Fiche a part pour la manette : sans souris dessus, le jeu fait disparaitre GameTooltip
+-- presque aussitot. Celle-ci ne depend que de Storytale.
+function DWE.PadRewardTip()
+    if not DWE.padRewardTip then
+        local tip = CreateFrame("GameTooltip", "StorytalePadTooltip", UIParent, "GameTooltipTemplate")
+        if tip.SetFrameStrata then tip:SetFrameStrata("TOOLTIP") end
+        local cmp = CreateFrame("GameTooltip", "StorytalePadCompare", UIParent, "GameTooltipTemplate")
+        if cmp.SetFrameStrata then cmp:SetFrameStrata("TOOLTIP") end
+        tip:HookScript("OnHide", function() cmp:Hide() end)
+        DWE.padRewardTip, DWE.padCompareTip = tip, cmp
+    end
+    return DWE.padRewardTip
+end
+-- Objet porte a la place de la recompense, a cote de sa fiche (comme la comparaison du jeu,
+-- mais sans mesure : la comparaison du jeu echoue quand la roue suit une plaque de nom).
+local SLOT_OF = {
+    INVTYPE_HEAD = 1, INVTYPE_NECK = 2, INVTYPE_SHOULDER = 3, INVTYPE_BODY = 4, INVTYPE_CHEST = 5,
+    INVTYPE_ROBE = 5, INVTYPE_WAIST = 6, INVTYPE_LEGS = 7, INVTYPE_FEET = 8, INVTYPE_WRIST = 9,
+    INVTYPE_HAND = 10, INVTYPE_FINGER = 11, INVTYPE_TRINKET = 13, INVTYPE_CLOAK = 15,
+    INVTYPE_WEAPON = 16, INVTYPE_2HWEAPON = 16, INVTYPE_WEAPONMAINHAND = 16, INVTYPE_SHIELD = 17,
+    INVTYPE_WEAPONOFFHAND = 17, INVTYPE_HOLDABLE = 17, INVTYPE_RANGED = 18, INVTYPE_THROWN = 18,
+    INVTYPE_RANGEDRIGHT = 18, INVTYPE_RELIC = 18,
+}
+-- Onglet "Equipe" au-dessus de la fiche de l'objet porte (comme celui du jeu).
+function DWE.PadCompareHeader(cmp)
+    local h = DWE.padCompareHdr
+    if not h then
+        -- Meme bordure que les fiches du jeu si le modele existe, sinon un cadre simple.
+        local ok, f = pcall(CreateFrame, "Frame", nil, cmp, "TooltipBackdropTemplate")
+        if not ok or not f then
+            f = CreateFrame("Frame", nil, cmp, BackdropTemplateMixin and "BackdropTemplate" or nil)
+            if f.SetBackdrop then
+                f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+                    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12,
+                    insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+                f:SetBackdropColor(0.09, 0.09, 0.19, 0.95)
+                f:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+            end
+        end
+        h = f
+        h.text = h:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        h.text:SetPoint("CENTER", 0, 0)
+        h.text:SetText(rawget(_G, "EQUIPPED") or rawget(_G, "CURRENTLY_EQUIPPED") or "Equipped")
+        h:SetPoint("BOTTOMLEFT", cmp, "TOPLEFT", 0, -1)
+        DWE.padCompareHdr = h
+    end
+    local w = h.text.GetStringWidth and h.text:GetStringWidth() or 60
+    h:SetSize(math.max(60, (tonumber(w) or 60) + 22), 22)
+    h:Show()
+end
+-- Comme la comparaison du jeu : sans la ligne d'apparence ("Transmogrifie en :" et le nom),
+-- qui ne change rien aux stats comparees.
+function DWE.PadDropTransmog(cmp)
+    local hdr = rawget(_G, "TRANSMOGRIFIED_HEADER")
+    if type(hdr) ~= "string" or hdr == "" then return end
+    local name = cmp.GetName and cmp:GetName()
+    if not name then return end
+    local n = cmp:NumLines() or 0
+    local lines, skip, found = {}, 0, false
+    for i = 1, n do
+        local lf, rf = rawget(_G, name .. "TextLeft" .. i), rawget(_G, name .. "TextRight" .. i)
+        local l = lf and lf:GetText()
+        local r = rf and rf:IsShown() and rf:GetText() or nil
+        local sec = rawget(_G, "issecretvalue")
+        if sec and (sec(l) or sec(r)) then return end
+        if skip > 0 then
+            skip = skip - 1
+        elseif type(l) == "string" and l:find(hdr, 1, true) == 1 then
+            found, skip = true, 1
+        elseif type(l) == "string" then
+            lines[#lines + 1] = { l = l, r = (r ~= "" and r or nil), lc = { lf:GetTextColor() },
+                rc = rf and { rf:GetTextColor() } }
+        end
+    end
+    if not found then return end
+    cmp:ClearLines()
+    for i, line in ipairs(lines) do
+        local c = line.lc
+        if line.r then
+            local d = line.rc
+            cmp:AddDoubleLine(line.l, line.r, c[1], c[2], c[3], d[1], d[2], d[3])
+        else
+            cmp:AddLine(line.l, c[1], c[2], c[3], i > 1)
+        end
+    end
+end
+function DWE.PadRewardCompare(tip, link)
+    local cmp = DWE.padCompareTip
+    if not cmp then return end
+    cmp:Hide()
+    local function Why(msg) if DWE.padCompareDebug then print("|cff88ccffStorytale compare:|r " .. msg) end end
+    if not link then return Why("no link (" .. tostring(tip and tip.GetName and tip:GetName()) .. ")") end
+    local loc = select(9, ItemInfo(link))
+    local slot = SLOT_OF[loc or ""]
+    if not slot then return Why("no slot for " .. tostring(loc)) end
+    local worn = GetInventoryItemLink and GetInventoryItemLink("player", slot)
+    if not worn then return Why("nothing worn in slot " .. slot) end
+    cmp:SetOwner(UIParent, "ANCHOR_NONE")
+    cmp:ClearAllPoints()
+    cmp:SetPoint("TOPLEFT", tip, "TOPRIGHT", 2, 0)
+    -- L'objet porte lui-meme (lie, durabilite, enchantement), sinon sa fiche generique.
+    local ok = pcall(cmp.SetInventoryItem, cmp, "player", slot) and (cmp:NumLines() or 0) > 0
+    if not ok then
+        local ok2, err = pcall(cmp.SetHyperlink, cmp, worn)
+        if not ok2 then cmp:Hide() return Why("SetHyperlink failed: " .. tostring(err)) end
+    end
+    DWE.PadDropTransmog(cmp)
+    -- Changements de stats si l'on remplace l'objet porte (comme la comparaison du jeu).
+    local deltaFn = (C_Item and C_Item.GetItemStatDelta) or rawget(_G, "GetItemStatDelta")
+    if deltaFn then
+        local okD, delta = pcall(deltaFn, link, worn)
+        if okD and type(delta) == "table" and next(delta) then
+            local rows = {}
+            for key, v in pairs(delta) do
+                local label = type(key) == "string" and rawget(_G, key)
+                if type(v) == "number" and v ~= 0 and type(label) == "string" then
+                    rows[#rows + 1] = { label = label, v = v, key = key }
+                end
+            end
+            -- Meme ordre que la comparaison du jeu : degats par seconde, puis stats principales.
+            local ORDER = { DAMAGE_PER_SECOND = 1, STRENGTH = 2, AGILITY = 3, INTELLECT = 4, SPIRIT = 5,
+                STAMINA = 6, ARMOR = 7 }
+            local function Rank(r)
+                for k, n in pairs(ORDER) do if r.key:find(k, 1, true) then return n end end
+                return 99
+            end
+            table.sort(rows, function(x, y)
+                local a, b = Rank(x), Rank(y)
+                if a ~= b then return a < b end
+                return x.label < y.label
+            end)
+            if #rows > 0 then
+                cmp:AddLine(" ")
+                cmp:AddLine(rawget(_G, "ITEM_DELTA_DESCRIPTION") or "If you replace this item:", 1, 0.82, 0, true)
+                for _, r in ipairs(rows) do
+                    local num
+                    if r.key:find("DAMAGE_PER_SECOND", 1, true) then
+                        num = string.format("%+.1f", r.v)
+                    else
+                        num = string.format("%+d", r.v >= 0 and math.floor(r.v + 0.5) or -math.floor(-r.v + 0.5))
+                    end
+                    local txt = num .. " " .. r.label
+                    if r.v > 0 then cmp:AddLine(txt, 0.1, 1, 0.1) else cmp:AddLine(txt, 1, 0.1, 0.1) end
+                end
+            end
+        end
+    end
+    cmp:Show()
+    DWE.PadCompareHeader(cmp)
+    Why("shown (" .. tostring(cmp:IsShown()) .. ")")
+end
 
 -- Les fenetres du jeu restent ouvertes (invisibles) sous la roue et le livre : la navigation
 -- manette du jeu peut alors prendre la croix et A pour elles. Un cadre qui recoit les boutons
@@ -1580,7 +1894,14 @@ if DWE.padCatcher.EnableGamePadButton then
         end
         local target = (DWE.padInteract and DWE.padInteract[button]) and "DWE_SelectBtn" or DWE.PAD_ACTIONS[button]
         if button == "PAD4" and not DWE.PadMenuAvailable() then target = nil end -- Y reste au jeu
-        if (button == "PADDLEFT" or button == "PADDRIGHT") and not DWE.bookMode then target = nil end
+        if (button == "PADDLEFT" or button == "PADDRIGHT") and not DWE.bookMode then
+            target = nil
+            -- Quete : la croix parcourt les objets de l'apercu (fiche, choix de la recompense).
+            if DWE.PadRewardStep(button == "PADDLEFT" and -1 or 1) then
+                if self.SetPropagateGamePadInput and not InCombatLockdown() then self:SetPropagateGamePadInput(false) end
+                return
+            end
+        end
         local btn = target and rawget(_G, target)
         if self.SetPropagateGamePadInput and not InCombatLockdown() then
             self:SetPropagateGamePadInput(not btn)
@@ -2371,6 +2692,9 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
     elseif msg:match("forget") then
         local n = DWE.SpokenFocus and DWE.SpokenFocus.ForgetOpenBook and DWE.SpokenFocus.ForgetOpenBook() or 0
         Out("livre ouvert considere comme jamais ecoute (" .. n .. " ligne(s) oubliee(s)).")
+    elseif msg:match("^%s*compare") then
+        DWE.padCompareDebug = not DWE.padCompareDebug
+        Out("comparaison manette : diagnostic " .. (DWE.padCompareDebug and "active" or "coupe") .. ".")
     elseif msg:match("^%s*lag") then
         local log = DWE.lagLog or {}
         DWE.PadShowText(#log > 0 and table.concat(log, "\n") or "(aucun clic mesure)")
