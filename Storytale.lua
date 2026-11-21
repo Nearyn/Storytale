@@ -1673,6 +1673,15 @@ function DWE.PadUnfocusHidden()
     local sec = rawget(_G, "issecretvalue")
     local early = false
     for _, n in ipairs(STICK_FRAMES) do if rawget(_G, n) == af then early = true end end
+    -- Seules les fenetres que Storytale cache sont concernees. Les autres fenetres du jeu (le
+    -- butin, en fondu a l'ouverture) passent un instant par une transparence presque nulle : on
+    -- leur retirait la manette, et le butin ne se ramassait plus.
+    if not early then
+        local ours = false
+        for _, n in ipairs({ "DUIBookFrame", "DUIQuestFrame" }) do if rawget(_G, n) == af then ours = true end end
+        local busy = (DWE.choiceBox and DWE.choiceBox:IsShown()) or DWE.bookMode
+        if not (ours and busy) then return end
+    end
     if early then DWE.padEarly = { f = af, t = GetTime and GetTime() or 0 } end
     if early or (okA and not (sec and sec(a)) and (a or 1) < 0.05) then
         -- On dit au gestionnaire que la fenetre est cachee (il la retire de sa selection), puis on

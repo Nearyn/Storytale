@@ -1,5 +1,19 @@
 # Changelog / Journal des versions
 
+## 1.6.1
+
+**English**
+
+### Fixed
+- **Gamepad: looting works again.** The loot window lost the gamepad right after opening (its buttons vanished and items could not be looted). Storytale mistook the window's fade-in for one of the dialogue windows it hides. It now only handles the windows it hides itself.
+
+---
+
+**Français**
+
+### Corrections
+- **Manette : le butin se ramasse de nouveau.** La fenêtre de butin perdait la manette juste après son ouverture (ses boutons disparaissaient et on ne pouvait plus rien ramasser). Storytale prenait son apparition en fondu pour l'une des fenêtres de dialogue qu'il cache. Il ne s'occupe plus que des fenêtres qu'il cache lui-même.
+
 ## 1.6.0
 
 **English**

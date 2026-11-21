@@ -2151,6 +2151,33 @@ DWE.MarkBook("The Old Tome", false)
 check(DWE.BookState("The Old Tome (1/5)") == 2, "read books: finished stays finished")
 check(DWE.BookState("Another Book") == nil, "read books: unknown book has no mark")
 DialogueWheelE_ReadBooks = nil
+-- Manette : une fenetre du jeu en fondu d'ouverture (le butin) garde la manette ; une fenetre de
+-- PNJ cachee par Storytale la rend au joueur.
+do
+    local released = 0
+    local fcm = { isUIFocused = true }
+    function fcm:GetActiveFrame() return self.active end
+    function fcm:ReturnToPlayerControl() released = released + 1 end
+    function fcm:FrameHidden() end
+    function fcm:FrameShown() end
+    local oldGM = rawget(_G, "GamepadMode")
+    _G.GamepadMode = { FrameControlsManager = fcm }
+    local loot = CreateFrame("Frame", "LootFrame", UIParent)
+    loot:Show(); loot:SetAlpha(0.01)
+    loot.GetEffectiveAlpha = function(self) return self:GetAlpha() end
+    fcm.active = loot
+    DWE.PadUnfocusHidden()
+    check(released == 0, "gamepad: the loot window (fading in) keeps the gamepad")
+    local gf = rawget(_G, "GossipFrame")
+    if gf then
+        gf.GetEffectiveAlpha = gf.GetEffectiveAlpha or function(self) return self:GetAlpha() end
+        fcm.active = gf
+        DWE.PadUnfocusHidden()
+        check(released >= 1, "gamepad: the NPC window hidden by Storytale gives the gamepad back")
+    end
+    DWE.padEarly = nil
+    _G.GamepadMode = oldGM
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end
