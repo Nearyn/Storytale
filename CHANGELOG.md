@@ -1,5 +1,19 @@
 # Changelog / Journal des versions
 
+## 1.6.2
+
+**English**
+
+### New
+- **Hide the game interface during conversations and books** (new option, off by default). Action bars, unit frames, minimap and the rest of the interface fade out while you talk to an NPC or read a book, and come back right after. Works with every theme, without the black bars of the Cinematic theme. Storytale, Spoken, DialogueUI, menus, tooltips and confirmation popups stay visible, and nothing is hidden in combat. Thanks to jamesdiato23 for the idea!
+
+---
+
+**Français**
+
+### Nouveautés
+- **Cacher l'interface du jeu pendant les dialogues et les livres** (nouvelle option, désactivée par défaut). Les barres d'action, les cadres, la mini-carte et le reste de l'interface s'effacent en fondu quand vous parlez à un PNJ ou lisez un livre, puis reviennent juste après. Fonctionne avec tous les thèmes, sans les bandes noires du thème Cinématique. Storytale, Spoken, DialogueUI, les menus, les infobulles et les fenêtres de confirmation restent visibles, et rien n'est caché en combat. Merci à jamesdiato23 pour l'idée !
+
 ## 1.6.1
 
 **English**

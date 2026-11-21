@@ -646,6 +646,25 @@ for loc, list in pairs(CUSTOM_THEME) do
     end
 end
 
+-- Option : cacher l'interface du jeu pendant les conversations et les livres.
+local HIDE_UI = {
+    enUS = "Hide the game interface during conversations and books",
+    frFR = "Cacher l'interface du jeu pendant les dialogues et les livres",
+    deDE = "Spieloberfläche während Gesprächen und Büchern ausblenden",
+    esES = "Ocultar la interfaz del juego en conversaciones y libros",
+    esMX = "Ocultar la interfaz del juego en conversaciones y libros",
+    itIT = "Nascondi l'interfaccia di gioco durante dialoghi e libri",
+    ptBR = "Ocultar a interface do jogo em conversas e livros",
+    ruRU = "Скрывать интерфейс игры во время разговоров и чтения книг",
+    koKR = "대화 및 책을 읽는 동안 게임 인터페이스 숨기기",
+    zhCN = "对话和阅读书籍时隐藏游戏界面",
+    zhTW = "對話和閱讀書籍時隱藏遊戲介面",
+}
+for loc, text in pairs(HIDE_UI) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.HIDE_UI = text end
+end
+
 -- Themes Personnalises enregistres : Enregistrer, liste, nom, suppression, liste vide, Supprimer.
 local CUSTOM_PRESETS = {
     enUS = { "Save", "Saved themes", "Name of this theme:", "Delete the theme \"%s\"?", "No saved theme yet", "Delete" },

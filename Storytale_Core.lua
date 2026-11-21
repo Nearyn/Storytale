@@ -2504,9 +2504,20 @@ function DWE.PlaceCinema(textH)
     textBox:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, math.floor((barH - textH) / 2))
 end
 
+-- Option "Cacher l'interface" : le meme fondu que le theme Cinematique (sans ses bandes noires),
+-- avec n'importe quel theme, pendant une conversation ou un livre. Jamais en combat.
+function DWE.HideUIOn() return DialogueWheelE_HideUI == true end
 function DWE.UpdateCinemaBars()
-    local want = DWE.IsCinema() and textBox:IsShown() and true or false
+    local talking = textBox:IsShown() or choiceBox:IsShown() or (DWE.bubble and DWE.bubble:IsShown())
+    local cinema = DWE.IsCinema() and textBox:IsShown()
+    local hideUI = DWE.HideUIOn() and talking and not (InCombatLockdown and InCombatLockdown())
+    local want = (cinema or hideUI) and true or false
     cineBars.want = want
+    -- Bandes noires : seulement avec le theme Cinematique (gardees pendant leur fondu de sortie).
+    if want then
+        cineTop:SetShown(cinema and true or false)
+        cineBot:SetShown(cinema and true or false)
+    end
     if want then CollectUI() end
     if want and not cineBars:IsShown() then
         cineTop:SetHeight(ScreenHeight() * 0.09)
@@ -2517,6 +2528,21 @@ function DWE.UpdateCinemaBars()
     end
 end
 textBox:HookScript("OnHide", function() DWE.UpdateCinemaBars() end)
+choiceBox:HookScript("OnShow", function() DWE.UpdateCinemaBars() end)
+choiceBox:HookScript("OnHide", function() if C_Timer then C_Timer.After(0, DWE.UpdateCinemaBars) else DWE.UpdateCinemaBars() end end)
+do
+    local combat = CreateFrame("Frame")
+    combat:RegisterEvent("PLAYER_REGEN_DISABLED")
+    combat:RegisterEvent("PLAYER_REGEN_ENABLED")
+    combat:SetScript("OnEvent", function(_, event)
+        if event == "PLAYER_REGEN_DISABLED" then
+            -- Entree en combat : l'interface revient tout de suite.
+            if DWE.HideUIOn() and not DWE.IsCinema() then cineBars.want = false end
+        else
+            DWE.UpdateCinemaBars()
+        end
+    end)
+end
 end
 
 --------------------------------------------------------------------------------
@@ -5733,7 +5759,7 @@ DWE.THEME_LIST = THEME_LIST
 -- deja entendus avec Spoken (ce n'est pas un reglage).
 -- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
 DWE.OPTION_VARS = {}
-for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart CustomColors DefaultsV"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
+for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart CustomColors HideUI DefaultsV"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
@@ -5903,6 +5929,10 @@ function DWE.InitOptionsPanel()
     AddCheck(L.WHEEL_THEME, 16, y, DialogueWheelE_WheelTheme == true, function(self)
         DialogueWheelE_WheelTheme = self:GetChecked() and true or false
         DWE.OnThemeChanged()
+    end)
+    y = y - 30
+    AddCheck(L.HIDE_UI, 16, y, DialogueWheelE_HideUI == true, function(self)
+        DialogueWheelE_HideUI = self:GetChecked() and true or false
     end)
     AddSlider("DWESliderOpacity", L.OPACITY_LBL, 22, y - 50, 0.2, 1, 0.05, tonumber(DialogueWheelE_Opacity) or 1, "%.2f", function(v)
         DialogueWheelE_Opacity = v

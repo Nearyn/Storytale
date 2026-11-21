@@ -410,6 +410,32 @@ do -- l'interface s'efface pendant la cinematique et revient ensuite
     for _ = 1, 40 do DWE.cineBars._scripts.OnUpdate(DWE.cineBars, 0.05) end
     check(bar:GetAlpha() > 0.7, "cinema: interface left alone in combat")
     M.inCombat = false
+    -- Option "Cacher l'interface" avec un autre theme : meme fondu, sans bandes noires.
+    DialogueWheelE_Theme = "whisper"; DWE.OnThemeChanged()
+    for _ = 1, 40 do if DWE.cineBars:IsShown() then DWE.cineBars._scripts.OnUpdate(DWE.cineBars, 0.05) end end
+    check(math.abs(bar:GetAlpha() - 0.8) < 0.001, "hide UI: interface visible while the option is off")
+    DialogueWheelE_HideUI = true
+    DWE.UpdateTextPanelVisuals()
+    DWE.UpdateCinemaBars()
+    for _ = 1, 40 do DWE.cineBars._scripts.OnUpdate(DWE.cineBars, 0.05) end
+    check(bar:GetAlpha() < 0.01, "hide UI: interface faded out with another theme")
+    local barsShown = false
+    for _, r in ipairs({ DWE.cineBars:GetRegions() }) do if r:IsShown() then barsShown = true end end
+    check(not barsShown, "hide UI: no letterbox bars outside the Cinematic theme")
+    DialogueWheelE_HideUI = false
+    DWE.UpdateCinemaBars()
+    for _ = 1, 40 do if DWE.cineBars:IsShown() then DWE.cineBars._scripts.OnUpdate(DWE.cineBars, 0.05) end end
+    check(math.abs(bar:GetAlpha() - 0.8) < 0.001, "hide UI: interface back when the option is turned off")
+    DialogueWheelE_HideUI = true
+    M.inCombat = true
+    DWE.UpdateCinemaBars()
+    for _ = 1, 40 do if DWE.cineBars:IsShown() then DWE.cineBars._scripts.OnUpdate(DWE.cineBars, 0.05) end end
+    check(bar:GetAlpha() > 0.7, "hide UI: interface left alone in combat")
+    M.inCombat = false
+    DialogueWheelE_HideUI = nil
+    DWE.UpdateCinemaBars()
+    for _ = 1, 40 do if DWE.cineBars:IsShown() then DWE.cineBars._scripts.OnUpdate(DWE.cineBars, 0.05) end end
+    DialogueWheelE_Theme = "cinema"; DWE.OnThemeChanged()
     bar:Hide()
 end
 DialogueWheelE_Font = "lora"; DWE.ApplyFont()
