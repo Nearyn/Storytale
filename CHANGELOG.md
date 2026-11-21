@@ -1,5 +1,43 @@
 # Changelog / Journal des versions
 
+## 1.6.0
+
+**English**
+
+### New
+- **Custom theme**: pick your own four colors (background, border, text, highlight) with the game's color picker. The bubble, the choices and Spoken's player all follow them.
+- **Saved custom themes**: save your color sets under a name, switch between them in one click, delete the ones you don't need. They are kept apart from the options, so "Reset all options" no longer erases them, and they are shared by all your characters.
+- "Copy colors from the selected theme": starts your custom theme from the colors of any other theme.
+- `/storytale lag`: measures, for each choice you click, how long the server takes to answer and how long Storytale takes to show the next page. Handy to tell a slow server from an addon problem.
+
+### Improved
+- The button that switches between the bubble and Spoken's player now shows a book instead of a speaker, so it can't be mistaken for Spoken's "mute this NPC" button.
+- Spoken Quests (3.10.1) adds "Listen" and "Mute this NPC" buttons to the game's dialogue window. Storytale hides that window, so these buttons are now hidden too while the wheel is on screen, instead of floating over nothing.
+
+### Fixed
+- **Some settings were never saved**: the game only reads the first 1023 characters of an addon's list of saved settings, and Storytale's list had grown longer. Everything past that point was forgotten at each logout: the gamepad mode, the Spoken player style and button, the book and plaque skins, several book options and the custom colors. They are now all saved. Settings that were lost before this update have to be set once more.
+
+Note: the game needs a restart after this update (a /reload is not enough).
+
+---
+
+**Français**
+
+### Nouveautés
+- **Thème Personnalisé** : choisissez vos quatre couleurs (fond, contour, texte, surbrillance) avec le sélecteur de couleur du jeu. La bulle, les choix et le lecteur Spoken les suivent.
+- **Thèmes personnalisés enregistrés** : enregistrez vos jeux de couleurs sous un nom, passez de l'un à l'autre en un clic, supprimez ceux qui ne servent plus. Ils sont rangés à part des options : « Réinitialiser toutes les options » ne les efface plus, et ils sont partagés par tous vos personnages.
+- « Copier les couleurs du thème sélectionné » : démarre votre thème personnalisé avec les couleurs de n'importe quel autre thème.
+- `/storytale lag` : mesure, pour chaque choix cliqué, le temps de réponse du serveur et le temps que met Storytale à afficher la page suivante. Pratique pour distinguer un serveur lent d'un problème d'addon.
+
+### Améliorations
+- Le bouton qui bascule entre la bulle et le lecteur Spoken affiche maintenant un livre au lieu d'un haut-parleur, pour ne plus le confondre avec le bouton « couper ce PNJ » de Spoken.
+- Spoken Quests (3.10.1) ajoute des boutons « Écouter » et « Couper ce PNJ » à la fenêtre de dialogue du jeu. Storytale masque cette fenêtre : ces boutons sont maintenant masqués eux aussi tant que la roue est affichée, au lieu de flotter dans le vide.
+
+### Corrections
+- **Certains réglages n'étaient jamais sauvegardés** : le jeu ne lit que les 1023 premiers caractères de la liste des réglages sauvegardés d'un addon, et celle de Storytale était devenue plus longue. Tout ce qui dépassait était oublié à chaque déconnexion : le mode manette, le style et le bouton du lecteur Spoken, l'habillage des livres et des plaques, plusieurs options des livres et les couleurs personnalisées. Ils sont maintenant tous sauvegardés. Les réglages perdus avant cette mise à jour sont à refaire une fois.
+
+Note : il faut relancer le jeu après cette mise à jour (un /reload ne suffit pas).
+
 ## 1.5.6
 
 **English**

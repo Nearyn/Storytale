@@ -110,9 +110,34 @@ DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) table.insert(chat, m) end }
 for _, file in ipairs({ "Locales.lua", "Storytale_Core.lua", "Bubble.lua", "SpokenFocus.lua", "SpokenQueueUI.lua", "Storytale.lua" }) do
     local chunk, err = loadfile(dir .. "/" .. file)
     check(chunk ~= nil, "compile " .. file .. ": " .. tostring(err))
-    local ok, rerr = pcall(chunk)
+    local ok, rerr = pcall(chunk, "Storytale", {})
     check(ok, "load " .. file .. ": " .. tostring(rerr))
 end
+-- Reglages sauvegardes : ligne SavedVariables du .toc lue en entier par le jeu (1023 caracteres
+-- au plus), et les autres reglages rendus par DialogueWheelE_Extra.
+do
+    local toc = io.open(dir .. "/Storytale.toc", "r")
+    local listed = {}
+    for line in toc:lines() do
+        line = line:gsub("\r$", "")
+        check(#line <= 1023, "toc line fits the game's 1023-character limit (" .. #line .. ")")
+        local sv = line:match("^## SavedVariables:%s*(.*)$")
+        if sv then for n in sv:gmatch("DialogueWheelE_(%w+)") do listed[n] = true end end
+    end
+    toc:close()
+    check(listed.Extra, "toc: DialogueWheelE_Extra saved")
+    for _, k in ipairs(DWE.EXTRA_VARS) do check(not listed[k], "toc: " .. k .. " travels in Extra only") end
+    local inExtra = {}
+    for _, k in ipairs(DWE.EXTRA_VARS) do inExtra[k] = true end
+    for _, k in ipairs(DWE.OPTION_VARS) do check(listed[k] or inExtra[k], "option " .. k .. " is saved") end
+end
+DialogueWheelE_Extra = { CustomPresets = { { name = "Saved" } }, GamePad = true }
+M.FireEvent("ADDON_LOADED", "Storytale")
+check(type(DialogueWheelE_CustomPresets) == "table" and DialogueWheelE_CustomPresets[1].name == "Saved" and DialogueWheelE_GamePad == true, "Extra: settings restored at load")
+DialogueWheelE_CustomColors = { bg = { 0.1, 0.2, 0.3 } }
+M.FireEvent("PLAYER_LOGOUT")
+check(DialogueWheelE_Extra.CustomColors and DialogueWheelE_Extra.CustomColors.bg[3] == 0.3 and DialogueWheelE_Extra.CustomPresets[1].name == "Saved", "Extra: settings stored at logout")
+DialogueWheelE_CustomColors, DialogueWheelE_CustomPresets, DialogueWheelE_GamePad, DialogueWheelE_Extra = nil, nil, nil, nil
 M.FireEvent("PLAYER_LOGIN")
 check(DialogueWheelE_Theme == "bubble" and DialogueWheelE_ShowText == true, "fresh install: Azeroth bubble theme, text shown")
 -- la suite des tests part de l'ancien reglage (popup cache, theme sans cadre)
@@ -1102,6 +1127,60 @@ check(DWE.GetRow(2 + OFF).text._color == "0.55,0.20,0.00", "fantasy bubbles: dar
 local pp
 for _, c in ipairs(DWE.choiceBox._children) do if rawget(c, "dweTexPath") and c:IsShown() then pp = c end end
 check(pp ~= nil, "quest preview inside a bubble")
+
+-- Theme Personnalise : couleurs choisies, contour du choix surligne, depart d'un autre theme.
+do
+    local saveC = DialogueWheelE_CustomColors
+    DialogueWheelE_CustomColors = { bg = { 0.1, 0.2, 0.3 }, border = { 0.4, 0.5, 0.6 }, text = { 1, 1, 1 }, sel = { 1, 0, 0 } }
+    DWE.CustomRefresh()
+    local f = CreateFrame("Frame")
+    DWE.SkinPill(f, "custom", true, nil)
+    check(f.dweEdge and tostring(f.dweEdge._texture):find("PillCustomSelEdge") ~= nil, "custom: selected choice gets the highlight edge")
+    local g = CreateFrame("Frame")
+    DWE.SkinPill(g, "custom", false, nil)
+    check(tostring(g.dweEdge._texture):find("PillCustomEdge") ~= nil and tostring(g.dweTex._texture):find("PillCustomFill") ~= nil, "custom: normal choice = fill + border layers")
+    DWE.SkinPill(g, "game", false, nil)
+    check(not g.dweEdge:IsShown(), "custom: border layer hidden again for other themes")
+    check(DWE.CUSTOM_PALETTE.selected[1] == 1 and DWE.CUSTOM_PALETTE.selected[2] == 0, "custom: highlight color used for the selected choice")
+    check(DWE.THEME_STYLES.custom.bg[3] == 0.3, "custom: frame background follows the chosen color")
+    DWE.CustomFromTheme("ruby")
+    local c = DialogueWheelE_CustomColors
+    check(c.bg[1] > c.bg[2] and c.sel[1] > c.sel[3], "custom: starting from Ruby gives red colors")
+    -- Themes enregistres : a part des options, survivent a un reset.
+    local saveP = DialogueWheelE_CustomPresets
+    DialogueWheelE_CustomPresets = nil
+    check(DWE.CustomPresetSave("  Rubis  ") == 1 and DWE.CustomPresets()[1].name == "Rubis", "presets: saved under a trimmed name")
+    check(DWE.CustomPresetSave("") == nil, "presets: empty name refused")
+    DialogueWheelE_CustomColors = { bg = { 0, 0, 1 } }
+    check(DWE.CustomPresetSave("rubis") == 1 and #DWE.CustomPresets() == 1, "presets: same name replaces")
+    DWE.CustomPresetSave("Autre")
+    local isOpt = false
+    for _, k in ipairs(DWE.OPTION_VARS) do if k == "CustomPresets" then isOpt = true end end
+    check(not isOpt, "presets: not wiped by resetting the options")
+    check(DWE.CustomPresetApply(1) and DialogueWheelE_CustomColors.bg[3] == 1 and DWE.THEME_STYLES.custom.bg[3] == 1, "presets: applying restores the colors")
+    check(DWE.CustomPresetDelete(1) and #DWE.CustomPresets() == 1 and DWE.CustomPresets()[1].name == "Autre", "presets: delete")
+    check(not DWE.CustomPresetApply(5), "presets: missing preset ignored")
+    DialogueWheelE_CustomPresets = saveP
+    -- Opacite : les choix de la roue la suivent aussi (theme Personnalise et autres).
+    local saveFrames = DialogueWheelE_ThemeFrames
+    DialogueWheelE_ThemeFrames = nil
+    for _, th in ipairs({ "custom", "whisper", "dark" }) do
+        DialogueWheelE_Theme, DialogueWheelE_WheelTheme, DialogueWheelE_Opacity = th, true, 0.4
+        DWE.OnThemeChanged()
+        if DWE.UpdateVisuals then DWE.UpdateVisuals() end
+        local probe
+        for i = 1, 12 do
+            local r = DWE.GetRow(i)
+            if r and r.pill and r.pill:IsShown() then probe = r.pill break end
+        end
+        local want = th == "custom" and DWE.CUSTOM_FILL_ALPHA * 0.4 or 0.4
+        check(not probe or (math.abs(probe.dweTex._alpha - want) < 1e-6 and (not probe.dweEdge or not probe.dweEdge:IsShown() or probe.dweEdge._alpha == 0.4)),
+            "opacity applies to the wheel choices (" .. th .. "): " .. tostring(probe and probe.dweTex._alpha))
+    end
+    DialogueWheelE_Opacity, DialogueWheelE_ThemeFrames = nil, saveFrames
+    DialogueWheelE_CustomColors = saveC
+    DWE.CustomRefresh()
+end
 DialogueWheelE_Theme = "bubble"
 DWE.OnThemeChanged()
 check(pillsShown() == #DWE.currentOptions and DWE.GetRow(2 + OFF).text._color == "1.00,0.88,0.15", "game bubbles: usual light colors")

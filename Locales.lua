@@ -624,6 +624,50 @@ for loc, text in pairs(PLACE_FOLLOW) do
     if dest then dest.PLACE_FOLLOW = text end
 end
 
+-- Theme Personnalise : nom, ligne des couleurs, les 4 couleurs, bouton "partir du theme actuel".
+local CUSTOM_THEME = {
+    enUS = { "Custom", "Custom theme colors:", "Background", "Border", "Text", "Highlight", "Copy colors from the selected theme" },
+    frFR = { "Personnalisé", "Couleurs du thème Personnalisé :", "Fond", "Contour", "Texte", "Surbrillance", "Copier les couleurs du thème sélectionné" },
+    deDE = { "Eigenes", "Farben des eigenen Themas:", "Hintergrund", "Rand", "Text", "Hervorhebung", "Farben des gewählten Themas kopieren" },
+    esES = { "Personalizado", "Colores del tema personalizado:", "Fondo", "Borde", "Texto", "Resaltado", "Copiar los colores del tema seleccionado" },
+    esMX = { "Personalizado", "Colores del tema personalizado:", "Fondo", "Borde", "Texto", "Resaltado", "Copiar los colores del tema seleccionado" },
+    itIT = { "Personalizzato", "Colori del tema personalizzato:", "Sfondo", "Bordo", "Testo", "Evidenziazione", "Copia i colori del tema selezionato" },
+    ptBR = { "Personalizado", "Cores do tema personalizado:", "Fundo", "Borda", "Texto", "Destaque", "Copiar as cores do tema selecionado" },
+    ruRU = { "Свой", "Цвета своей темы:", "Фон", "Рамка", "Текст", "Выделение", "Скопировать цвета выбранной темы" },
+    koKR = { "사용자 지정", "사용자 지정 테마 색상:", "배경", "테두리", "글자", "강조", "선택한 테마의 색상 복사" },
+    zhCN = { "自定义", "自定义主题颜色：", "背景", "边框", "文字", "高亮", "复制所选主题的颜色" },
+    zhTW = { "自訂", "自訂主題顏色：", "背景", "邊框", "文字", "高亮", "複製所選主題的顏色" },
+}
+for loc, list in pairs(CUSTOM_THEME) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then
+        dest.THEME_CUSTOM, dest.CUSTOM_COLORS, dest.CUSTOM_BG, dest.CUSTOM_BORDER = list[1], list[2], list[3], list[4]
+        dest.CUSTOM_TEXT, dest.CUSTOM_SEL, dest.CUSTOM_FROM_THEME = list[5], list[6], list[7]
+    end
+end
+
+-- Themes Personnalises enregistres : Enregistrer, liste, nom, suppression, liste vide, Supprimer.
+local CUSTOM_PRESETS = {
+    enUS = { "Save", "Saved themes", "Name of this theme:", "Delete the theme \"%s\"?", "No saved theme yet", "Delete" },
+    frFR = { "Enregistrer", "Thèmes enregistrés", "Nom de ce thème :", "Supprimer le thème \"%s\" ?", "Aucun thème enregistré", "Supprimer" },
+    deDE = { "Speichern", "Gespeicherte Themen", "Name dieses Themas:", "Das Thema \"%s\" löschen?", "Noch kein gespeichertes Thema", "Löschen" },
+    esES = { "Guardar", "Temas guardados", "Nombre de este tema:", "¿Borrar el tema \"%s\"?", "Aún no hay temas guardados", "Borrar" },
+    esMX = { "Guardar", "Temas guardados", "Nombre de este tema:", "¿Borrar el tema \"%s\"?", "Aún no hay temas guardados", "Borrar" },
+    itIT = { "Salva", "Temi salvati", "Nome di questo tema:", "Eliminare il tema \"%s\"?", "Nessun tema salvato", "Elimina" },
+    ptBR = { "Salvar", "Temas salvos", "Nome deste tema:", "Excluir o tema \"%s\"?", "Nenhum tema salvo ainda", "Excluir" },
+    ruRU = { "Сохранить", "Сохранённые темы", "Название темы:", "Удалить тему \"%s\"?", "Сохранённых тем пока нет", "Удалить" },
+    koKR = { "저장", "저장된 테마", "테마 이름:", "\"%s\" 테마를 삭제할까요?", "저장된 테마가 없습니다", "삭제" },
+    zhCN = { "保存", "已保存的主题", "主题名称：", "删除主题“%s”？", "还没有保存的主题", "删除" },
+    zhTW = { "儲存", "已儲存的主題", "主題名稱：", "刪除主題「%s」？", "尚無已儲存的主題", "刪除" },
+}
+for loc, list in pairs(CUSTOM_PRESETS) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then
+        dest.PRESET_SAVE, dest.PRESET_LIST, dest.PRESET_NAME = list[1], list[2], list[3]
+        dest.PRESET_DELETE_ASK, dest.PRESET_EMPTY, dest.PRESET_DELETE = list[4], list[5], list[6]
+    end
+end
+
 -- Noms des themes Halo d'ombre, Encre et or, Cinematique.
 local EXP_THEMES = {
     enUS = { "Shadow Halo", "Ink & Gold", "Cinematic", "experimental" },

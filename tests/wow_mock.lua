@@ -50,6 +50,8 @@ function Object:IsVisible()
 end
 function Object:SetAlpha(a) assert(type(a) == "number", "SetAlpha expects number"); self._alpha = a end
 function Object:GetAlpha() return self._alpha end
+-- Comme dans le jeu : l'alpha d'une texture et celui de sa couleur de sommet sont la meme valeur.
+function Object:SetVertexColor(r, g, b, a) self._vc = { r, g, b, a or 1 }; self._alpha = a or 1 end
 function Object:SetScript(ev, fn) self._scripts[ev] = fn end
 function Object:GetScript(ev) return self._scripts[ev] end
 function Object:HookScript(ev, fn)

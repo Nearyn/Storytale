@@ -3,6 +3,37 @@
 -- des quetes, raccourcis clavier et compatibilite DialogueUI.
 
 local L = DWE.L
+
+-- Le jeu ne lit que les 1023 premiers caracteres de la ligne SavedVariables du .toc : les
+-- reglages au-dela n'etaient jamais sauvegardes. Ceux-ci voyagent donc dans un seul tableau,
+-- DialogueWheelE_Extra, recopie dans leurs variables au chargement et rempli a la deconnexion.
+-- (Tout nouveau reglage sauvegarde s'ajoute ici, pas dans le .toc.)
+do
+    local EXTRA = { "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose",
+        "BookVoiceOff", "RibbonSeen", "GamePad", "PadTipSeen", "PadTips", "DUIPos", "SpokenStyleChosen",
+        "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "DefaultsV" }
+    DWE.EXTRA_VARS = EXTRA
+    local me = ...
+    local saver = CreateFrame("Frame")
+    saver:RegisterEvent("ADDON_LOADED")
+    saver:RegisterEvent("PLAYER_LOGOUT")
+    saver:SetScript("OnEvent", function(_, event, name)
+        if event == "ADDON_LOADED" then
+            if name ~= me then return end
+            local t = rawget(_G, "DialogueWheelE_Extra")
+            if type(t) == "table" then
+                for _, k in ipairs(EXTRA) do
+                    if t[k] ~= nil and rawget(_G, "DialogueWheelE_" .. k) == nil then _G["DialogueWheelE_" .. k] = t[k] end
+                end
+            end
+        else
+            local t = {}
+            for _, k in ipairs(EXTRA) do t[k] = rawget(_G, "DialogueWheelE_" .. k) end
+            DialogueWheelE_Extra = t
+        end
+    end)
+end
+
 local f = CreateFrame("Frame")
 for _, event in ipairs({
     "PLAYER_LOGIN", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED",
@@ -1395,7 +1426,10 @@ btnDown:SetScript("OnClick", function()
 end)
 btnSelect:SetScript("OnClick", function()
     local opt = DWE.currentOptions[DWE.selectedIndex]
-    if opt and not opt.disabled and opt.action then opt.action() end
+    if opt and not opt.disabled and opt.action then
+        if DWE.LagMark then DWE.LagMark(opt.rawLabel or opt.label) end
+        opt.action()
+    end
 end)
 btnToggleText:SetScript("OnClick", function() DWE.ToggleDialogueText() end)
 
@@ -1406,19 +1440,31 @@ do
     b:SetSize(22, 22)
     b:SetFrameStrata(DWE.choiceBox:GetFrameStrata())
     b:SetFrameLevel(DWE.choiceBox:GetFrameLevel() + 10)
+    -- Icone dans le cercle de l'anneau (comme le bouton de file d'attente Spoken), rognee en rond :
+    -- une icone d'objet carree deborderait de l'anneau.
     b.icon = b:CreateTexture(nil, "ARTWORK")
-    b.icon:SetAllPoints()
+    b.icon:SetSize(16, 16)
+    b.icon:SetPoint("CENTER", 0, 1)
+    if b.CreateMaskTexture then
+        local mask = b:CreateMaskTexture()
+        mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        mask:SetAllPoints(b.icon)
+        b.icon:AddMaskTexture(mask)
+    end
     b.ring = b:CreateTexture(nil, "OVERLAY")
     b.ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
     b.ring:SetSize(40, 40)
     b.ring:SetPoint("TOPLEFT", -2, 2)
     b:Hide()
     local function Paint()
-        -- Bulle a l'ecran : l'icone de Spoken (haut-parleur) ; lecteur Spoken : l'icone de la bulle.
+        -- Bulle a l'ecran : un livre (ouvre le lecteur Spoken, comme sa file d'attente) ; lecteur
+        -- Spoken : l'icone de la bulle. Pas de haut-parleur : c'est le bouton "couper ce PNJ" de Spoken.
         if DialogueWheelE_ShowText == true then
-            b.icon:SetTexture("Interface\\Common\\VoiceChat-Speaker")
+            b.icon:SetTexture("Interface\\Icons\\INV_Misc_Book_09")
+            b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) -- icone d'objet : on rogne son cadre
         else
             b.icon:SetTexture(GOSSIP_ICONS.gossip)
+            b.icon:SetTexCoord(0, 1, 0, 1)
         end
         -- (pas IsMouseOver : la roue suit une plaque de nom, zone protegee du jeu)
         b:SetAlpha(b.dweHover and 1 or 0.6)
@@ -1801,6 +1847,33 @@ function DWE.PadRefocusAfterClose()
         local sec = rawget(_G, "issecretvalue")
         if okC and not (sec and sec(n)) and (n or 0) > 0 then pcall(m.FocusFirstFrameShown, m) end
     end) end
+end
+-- Spoken Quests (3.10.1) pose un bouton "Ecouter" et un bouton "Couper ce PNJ" au coin de la
+-- fenetre de dialogue ou de quete du jeu. Storytale cache cette fenetre : les deux boutons
+-- flotteraient sur rien. On les cache tant que Storytale affiche la conversation.
+function DWE.HideSpokenQuestButtons()
+    local vo = rawget(_G, "VoiceOver")
+    local dp = type(vo) == "table" and rawget(vo, "DialogPlayButton")
+    if type(dp) ~= "table" then return end
+    if not (DWE.choiceBox and DWE.choiceBox:IsShown()) then return end
+    for _, b in ipairs({ rawget(dp, "button"), rawget(dp, "muteButton") }) do
+        if type(b) == "table" and b.Hide and not InCombatLockdown() then pcall(b.Hide, b) end
+    end
+end
+function DWE.HookSpokenQuestButtons()
+    local vo = rawget(_G, "VoiceOver")
+    local dp = type(vo) == "table" and rawget(vo, "DialogPlayButton")
+    if type(dp) ~= "table" or DWE.spokenQuestHooked then return end
+    DWE.spokenQuestHooked = true
+    if DWE.choiceBox and DWE.choiceBox.HookScript then
+        DWE.choiceBox:HookScript("OnShow", function()
+            DWE.HideSpokenQuestButtons()
+            if C_Timer then C_Timer.After(0.25, DWE.HideSpokenQuestButtons) end
+        end)
+    end
+    for _, k in ipairs({ "Refresh", "RefreshMute", "Position", "PositionMute", "Relabel" }) do
+        if type(dp[k]) == "function" then pcall(hooksecurefunc, dp, k, DWE.HideSpokenQuestButtons) end
+    end
 end
 function DWE.PadShowText(text)
     local box = DWE.padScanBox
@@ -2289,6 +2362,10 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
     elseif msg:match("forget") then
         local n = DWE.SpokenFocus and DWE.SpokenFocus.ForgetOpenBook and DWE.SpokenFocus.ForgetOpenBook() or 0
         Out("livre ouvert considere comme jamais ecoute (" .. n .. " ligne(s) oubliee(s)).")
+    elseif msg:match("^%s*lag") then
+        local log = DWE.lagLog or {}
+        DWE.PadShowText(#log > 0 and table.concat(log, "\n") or "(aucun clic mesure)")
+        Out("lag : " .. #log .. " clic(s) mesure(s). Ctrl+C dans la fenetre.")
     elseif msg:match("^%s*padlog") then
         local out, t0 = {}, GetTime and GetTime() or 0
         for _, e in ipairs(DWE.padLog) do out[#out + 1] = string.format("%.1f ", e.t - t0) .. e.line end
@@ -2467,6 +2544,8 @@ f:SetScript("OnEvent", function(_, event)
         end
         -- (1.5.3) Les deux themes "parchemin DialogueUI" deviennent le theme DialogueUI (sa vraie interface).
         if DialogueWheelE_Theme == "dui_brown" or DialogueWheelE_Theme == "dui_dark" then DialogueWheelE_Theme = "dui" end
+        if DWE.CustomRefresh then DWE.CustomRefresh() end -- couleurs du theme Personnalise sauvegardees
+        DWE.HookSpokenQuestButtons()
         SetupDialogueUI()
         DWE.HookSpoken()
         DWE.RestorePosition()
@@ -2627,6 +2706,51 @@ f:SetScript("OnEvent", function(_, event)
         DisableKeys()
     end
 end)
+
+-- Diagnostic de latence (/storytale lag) : pour chaque choix clique, le temps jusqu'a la
+-- reponse du jeu (evenement suivant), le temps passe dans Storytale, et la duree de l'image
+-- suivante (tous les addons compris). Rien n'est mesure tant que personne ne clique.
+do
+    local clock = rawget(_G, "debugprofilestop")
+    local log, pending = {}, nil
+    DWE.lagLog = log
+    local function Now() return clock and clock() or ((GetTime and GetTime() or 0) * 1000) end
+    local function Add(line)
+        log[#log + 1] = line
+        if #log > 40 then table.remove(log, 1) end
+    end
+    function DWE.LagMark(label)
+        local l = type(label) == "string" and not (issecretvalue and issecretvalue(label)) and label or "?"
+        pending = { t = Now(), label = (l:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")):sub(1, 40) }
+    end
+    local watch = CreateFrame("Frame", nil, UIParent)
+    watch:Hide()
+    local orig = f:GetScript("OnEvent")
+    f:SetScript("OnEvent", function(self, event, ...)
+        local p = pending
+        if not p then return orig(self, event, ...) end
+        local t0 = Now()
+        orig(self, event, ...)
+        local t1 = Now()
+        if not p.event then
+            p.event, p.reply, p.ours = event, t0 - p.t, t1 - t0
+            p.frameFrom = t1
+            watch:Show()
+        else
+            p.ours = p.ours + (t1 - t0)
+            p.more = (p.more or 0) + 1
+        end
+    end)
+    watch:SetScript("OnUpdate", function(self)
+        self:Hide()
+        local p = pending
+        if not p or not p.event then return end
+        pending = nil
+        Add(string.format("[%s] %s -> %s : jeu %d ms | Storytale %d ms | image %d ms%s",
+            date and date("%H:%M:%S") or "", p.label, p.event, p.reply, p.ours, Now() - p.frameFrom,
+            p.more and (" (+" .. p.more .. " evt)") or ""))
+    end)
+end
 
 -- "Fenetre du jeu" alors que DialogueUI remplace les livres : on coupe son module de livre le
 -- temps de ce texte, la fenetre du jeu reprend ses evenements, puis on le rallume.

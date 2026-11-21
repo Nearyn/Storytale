@@ -622,6 +622,126 @@ for id, art in pairs(BUBBLE_ART) do
 end
 DWE.BUBBLE_SKINS = BUBBLE_SKINS
 
+-- Theme Personnalise : quatre couleurs au choix du joueur (fond, contour, texte, choix surligne).
+-- Ses images sont blanches, en deux calques (remplissage, contour) teintes en jeu.
+do
+    DWE.CUSTOM_DEFAULT = {
+        bg = { 0.07, 0.07, 0.09 }, border = { 0.45, 0.45, 0.50 }, text = { 0.95, 0.92, 0.85 }, sel = { 1, 0.85, 0.25 },
+    }
+    DWE.CUSTOM_FILL_ALPHA = 0.86
+    local function Hex(c)
+        return string.format("|cff%02x%02x%02x", math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5), math.floor(c[3] * 255 + 0.5))
+    end
+    local function Mix(a, b, t) return { a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t } end
+    local function Valid(c)
+        return type(c) == "table" and type(c[1]) == "number" and type(c[2]) == "number" and type(c[3]) == "number"
+    end
+    -- Couleur `key` du theme Personnalise (reglage du joueur, sinon celle par defaut).
+    function DWE.CustomColor(key)
+        local saved = type(DialogueWheelE_CustomColors) == "table" and DialogueWheelE_CustomColors[key]
+        local c = Valid(saved) and saved or DWE.CUSTOM_DEFAULT[key]
+        return { c[1], c[2], c[3] }
+    end
+    THEME_STYLES.custom = { bg = { 0, 0, 0, 0.86 }, border = { 1, 1, 1, 1 }, hdr = { 1, 1, 1 }, body = { 1, 1, 1 }, shadow = 1 }
+    -- Lecteur Spoken quand le theme Personnalise est en bulle : la meme bulle (remplissage et
+    -- contour blancs, teintes aux couleurs choisies).
+    THEME_STYLES.spk_custom = {
+        tex = ADDON_PATH .. "BubbleCustomFill.png", edgeTex = ADDON_PATH .. "BubbleCustomEdge.png",
+        slice = { 16, 16, 16, 16 }, pad = { 16, 14, 16, 14 }, tint = { 0, 0, 0, 0.86 }, edgeTint = { 1, 1, 1, 1 },
+        div = { 1, 1, 1, 0.45 }, hdr = { 1, 1, 1 }, body = { 1, 1, 1 }, shadow = 1, matchBubble = true,
+    }
+    DWE.CUSTOM_PALETTE = { common = nil, shadow = 1, hex = {} }
+    BUBBLE_SKINS.custom = { bubble = "custom", pill = "custom", palette = DWE.CUSTOM_PALETTE, optFont = true, custom = true }
+    -- Recalcule le theme, la palette des choix et la bulle a partir des couleurs choisies.
+    function DWE.CustomRefresh()
+        local bg, bd, tx, sl = DWE.CustomColor("bg"), DWE.CustomColor("border"), DWE.CustomColor("text"), DWE.CustomColor("sel")
+        local st = THEME_STYLES.custom
+        st.bg = { bg[1], bg[2], bg[3], DWE.CUSTOM_FILL_ALPHA }
+        st.border = { bd[1], bd[2], bd[3], 1 }
+        st.div = { bd[1], bd[2], bd[3], 0.45 }
+        st.hdr, st.body, st.mark = sl, tx, Hex(sl)
+        local sp = THEME_STYLES.spk_custom
+        sp.tint = { bg[1], bg[2], bg[3], DWE.CUSTOM_FILL_ALPHA }
+        sp.edgeTint = { bd[1], bd[2], bd[3], 1 }
+        sp.div, sp.hdr, sp.body, sp.mark = st.div, sl, tx, Hex(sl)
+        local pal = DWE.CUSTOM_PALETTE
+        pal.normal, pal.selected = tx, sl
+        pal.disabled = Mix(tx, bg, 0.5)
+        pal.goodbye, pal.dim = Mix(tx, bg, 0.25), Mix(tx, bg, 0.2)
+        pal.goodbyeSel = { 1, 0.35, 0.35 }
+        pal.hex = { hdr = Hex(sl), body = Hex(tx), num = Hex(tx), rep = Hex(Mix(sl, tx, 0.5)), ok = "|cff80ff80", bad = "|cffff6060" }
+        if DWE.Bubble and DWE.Bubble.RefreshCustom then DWE.Bubble.RefreshCustom() end
+    end
+    DWE.CustomRefresh()
+    -- Themes Personnalises enregistres (DialogueWheelE_CustomPresets) : a part des options, un
+    -- "Reinitialiser les options" ne les efface pas. Liste de { name, bg, border, text, sel }.
+    local PRESET_KEYS = { "bg", "border", "text", "sel" }
+    function DWE.CustomPresets()
+        if type(DialogueWheelE_CustomPresets) ~= "table" then DialogueWheelE_CustomPresets = {} end
+        local list = DialogueWheelE_CustomPresets
+        for i = #list, 1, -1 do
+            local pr = list[i]
+            if type(pr) ~= "table" or type(pr.name) ~= "string" then table.remove(list, i) end
+        end
+        return list
+    end
+    -- Enregistre les couleurs actuelles sous `name` (remplace un theme du meme nom). Renvoie son rang.
+    function DWE.CustomPresetSave(name)
+        name = type(name) == "string" and name:gsub("^%s+", ""):gsub("%s+$", "") or ""
+        if name == "" then return nil end
+        name = name:sub(1, 40)
+        local list = DWE.CustomPresets()
+        local pr = { name = name }
+        for _, k in ipairs(PRESET_KEYS) do pr[k] = DWE.CustomColor(k) end
+        for i, old in ipairs(list) do
+            if old.name:lower() == name:lower() then list[i] = pr return i end
+        end
+        list[#list + 1] = pr
+        return #list
+    end
+    -- Applique le theme enregistre n. i (les couleurs manquantes reprennent celles par defaut).
+    function DWE.CustomPresetApply(i)
+        local pr = DWE.CustomPresets()[i]
+        if not pr then return false end
+        local c = {}
+        for _, k in ipairs(PRESET_KEYS) do
+            local v = pr[k]
+            if Valid(v) then c[k] = { v[1], v[2], v[3] } end
+        end
+        DialogueWheelE_CustomColors = c
+        DWE.CustomRefresh()
+        return true
+    end
+    function DWE.CustomPresetDelete(i)
+        local list = DWE.CustomPresets()
+        if list[i] then table.remove(list, i) return true end
+        return false
+    end
+    -- Couleurs de depart prises sur un autre theme (bouton "Partir du theme actuel").
+    local FROM = {
+        dark = { { 0.06, 0.06, 0.07 }, { 0.39, 0.39, 0.43 } }, glass = { { 0.06, 0.07, 0.08 }, { 0.73, 0.61, 0.38 } },
+        halo = { { 0, 0, 0 }, { 0.2, 0.2, 0.2 } }, inkgold = { { 0.03, 0.03, 0.02 }, { 0.59, 0.48, 0.22 } },
+        velin = { { 0.93, 0.84, 0.64 }, { 0.68, 0.51, 0.19 } }, arcane = { { 0.97, 0.92, 0.79 }, { 0.33, 0.44, 0.75 } },
+        sylvan = { { 0.95, 0.90, 0.72 }, { 0.37, 0.46, 0.18 } }, starry = { { 0.17, 0.16, 0.30 }, { 0.80, 0.64, 0.29 } },
+        parchment = { { 0.91, 0.77, 0.57 }, { 0.48, 0.33, 0.17 } }, parchment_dark = { { 0.27, 0.29, 0.30 }, { 0.53, 0.55, 0.60 } },
+        folio = { { 0.81, 0.66, 0.49 }, { 0.56, 0.40, 0.26 } }, folio_dark = { { 0.03, 0.03, 0.04 }, { 0.50, 0.50, 0.55 } },
+        whisper = { { 0.15, 0.06, 0.18 }, { 0.82, 0.53, 0.88 } }, emerald = { { 0.06, 0.18, 0.07 }, { 0.53, 0.88, 0.57 } },
+        ruby = { { 0.18, 0.06, 0.09 }, { 0.88, 0.53, 0.60 } }, sapphire = { { 0.06, 0.13, 0.18 }, { 0.53, 0.72, 0.88 } },
+        amber = { { 0.18, 0.11, 0.06 }, { 0.88, 0.69, 0.53 } }, bubble_fantasy = { { 0.87, 0.77, 0.58 }, { 0.30, 0.18, 0.08 } },
+    }
+    function DWE.CustomFromTheme(id)
+        local f = FROM[id]
+        local sk = BUBBLE_SKINS[id]
+        local pal = (sk and sk.palette) or (LIGHT_BACKGROUND[id] and WHEEL_INK) or DWE.HDR_PALETTE[id] or WHEEL_DEFAULT
+        if id == "custom" then return end
+        DialogueWheelE_CustomColors = {
+            bg = f and f[1] or DWE.CUSTOM_DEFAULT.bg, border = f and f[2] or DWE.CUSTOM_DEFAULT.border,
+            text = { pal.normal[1], pal.normal[2], pal.normal[3] }, sel = { pal.selected[1], pal.selected[2], pal.selected[3] },
+        }
+        DWE.CustomRefresh()
+    end
+end
+
 -- Le theme `id` s'affiche-t-il en bulle ? (sans tenir compte d'un livre ouvert)
 function DWE.ThemeIsBubble(id)
     local sk = BUBBLE_SKINS[id]
@@ -818,6 +938,27 @@ function PaintThemeParts(parts, content, divAnchor, id)
         end
         sl:SetVertexColor(r, g, b, a)
         sl:Show()
+        -- Second calque (contour) teint a part : theme Personnalise.
+        if cfg.edgeTex then
+            parts.edges = parts.edges or {}
+            local eg = parts.edges[sl]
+            if not eg then
+                eg = sl:GetParent():CreateTexture(nil, "BACKGROUND", nil, -5)
+                parts.edges[sl] = eg
+                parts.list[#parts.list + 1] = eg
+            end
+            eg:ClearAllPoints()
+            eg:SetAllPoints(sl)
+            eg:SetTexture(cfg.edgeTex)
+            eg:SetTexCoord(0, 1, 0, 1)
+            if eg.SetTextureSliceMargins then
+                pcall(eg.SetTextureSliceMargins, eg, unpack(cfg.slice))
+                if eg.SetTextureSliceMode then pcall(eg.SetTextureSliceMode, eg, 0) end
+            end
+            local e = cfg.edgeTint or { 1, 1, 1, 1 }
+            eg:SetVertexColor(e[1], e[2], e[3], (e[4] or 1) * op)
+            eg:Show()
+        end
         if cfg.decor then
             local okW, cw = pcall(content.GetWidth, content)
             local okH, ch = pcall(content.GetHeight, content)
@@ -1449,6 +1590,7 @@ end
 -- cadre...) ou sa bulle quand il s'affiche en bulle.
 local function ThemeSpokenStyle(t)
     if SPOKEN_STYLE_ALIAS[t] then return SPOKEN_STYLE_ALIAS[t] end
+    if t == "custom" and DWE.ThemeIsBubble and DWE.ThemeIsBubble("custom") then return "spk_custom" end
     -- Theme affiche en bulle (Voile d'ombre, Verre fume... sans "themes en cadre") : le lecteur
     -- prend la meme bulle, dans les couleurs du theme.
     local sk = DWE.ThemeIsBubble and DWE.ThemeIsBubble(t) and DWE.BUBBLE_SKINS and DWE.BUBBLE_SKINS[t]
@@ -3578,6 +3720,7 @@ function DWE.UpdateBookBar()
                 local o = DWE.currentOptions[i]
                 if o and not o.disabled and o.action then
                     DWE.selectedIndex = i
+                    if DWE.LagMark then DWE.LagMark(o.rawLabel or o.label) end
                     o.action()
                 end
             end)
@@ -4546,6 +4689,8 @@ end
 for id, c in pairs(DWE.WHISPER_COLORS) do
     PILL_TEX[id] = { normal = "Pill" .. c.art, selected = "Pill" .. c.art .. "Sel" }
 end
+-- Personnalise : remplissage teinte + contour teinte (calque au-dessus).
+PILL_TEX.custom = { normal = "PillCustomFill", selected = "PillCustomFill", edge = "PillCustomEdge", edgeSel = "PillCustomSelEdge" }
 
 -- Habille un cadre en bulle. L'encoche fait partie de l'image de la bulle (meme contour,
 -- raccord arrondi) ; l'image deborde du cadre a gauche (et en bas pour l'encoche du bas).
@@ -4567,36 +4712,56 @@ local function SkinPill(frame, style, selected, tail)
     local shape = PILL_SHAPES[shapeId]
     -- Roue a gauche du PNJ : encoches tournees vers la droite (images en miroir, suffixe R).
     local mirror = shapeId ~= "none" and DWE.WheelLeft()
-    local name = PILL_TEX[style][selected and "selected" or "normal"] .. shape.suffix .. (mirror and "R" or "")
-    local t = frame.dweTex
-    if frame.dweTexPath ~= name then
-        frame.dweTexPath = name
-        t:SetTexture(ADDON_PATH .. name .. ".png")
-        if t.SetTextureSliceMargins then
-            local sl = shape.slice
-            if mirror then
-                pcall(t.SetTextureSliceMargins, t, sl[3], sl[2], sl[1], sl[4])
-            else
-                pcall(t.SetTextureSliceMargins, t, unpack(sl))
+    local tex = PILL_TEX[style]
+    local suffix = shape.suffix .. (mirror and "R" or "")
+    local function Place(t, name)
+        if t.dweTexPath ~= name then
+            t.dweTexPath = name
+            t:SetTexture(ADDON_PATH .. name .. ".png")
+            if t.SetTextureSliceMargins then
+                local sl = shape.slice
+                if mirror then
+                    pcall(t.SetTextureSliceMargins, t, sl[3], sl[2], sl[1], sl[4])
+                else
+                    pcall(t.SetTextureSliceMargins, t, unpack(sl))
+                end
+                if t.SetTextureSliceMode then pcall(t.SetTextureSliceMode, t, 0) end
             end
-            if t.SetTextureSliceMode then pcall(t.SetTextureSliceMode, t, 0) end
         end
-    end
-    local shapeKey = shapeId .. (mirror and "R" or "")
-    if frame.dweShape ~= shapeKey then
-        frame.dweShape = shapeKey
-        t:ClearAllPoints()
-        if mirror then
-            t:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
-            t:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", shape.left, -shape.bottom)
-        else
-            t:SetPoint("TOPLEFT", frame, "TOPLEFT", -shape.left, 0)
-            t:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, -shape.bottom)
+        local shapeKey = shapeId .. (mirror and "R" or "")
+        if t.dweShape ~= shapeKey then
+            t.dweShape = shapeKey
+            t:ClearAllPoints()
+            if mirror then
+                t:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+                t:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", shape.left, -shape.bottom)
+            else
+                t:SetPoint("TOPLEFT", frame, "TOPLEFT", -shape.left, 0)
+                t:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, -shape.bottom)
+            end
         end
+        -- Opacite du fond (option) : la bulle du choix, pas son texte.
+        t:SetAlpha(tonumber(DialogueWheelE_Opacity) or 1)
+        t:Show()
     end
-    -- Opacite du fond (option) : la bulle du choix, pas son texte.
-    t:SetAlpha(tonumber(DialogueWheelE_Opacity) or 1)
-    t:Show()
+    local t = frame.dweTex
+    Place(t, tex[selected and "selected" or "normal"] .. suffix)
+    frame.dweTexPath, frame.dweShape = t.dweTexPath, t.dweShape
+    -- (Dans le jeu, l'alpha de la couleur de sommet EST l'alpha de la texture : l'opacite
+    -- choisie doit donc y etre, sinon SetVertexColor l'efface.)
+    local op = tonumber(DialogueWheelE_Opacity) or 1
+    if tex.edge then
+        -- Personnalise : fond et contour dans les couleurs choisies.
+        if not frame.dweEdge then frame.dweEdge = frame:CreateTexture(nil, "BORDER") end
+        local bg = DWE.CustomColor("bg")
+        local ec = DWE.CustomColor(selected and "sel" or "border")
+        t:SetVertexColor(bg[1], bg[2], bg[3], DWE.CUSTOM_FILL_ALPHA * op)
+        Place(frame.dweEdge, (selected and tex.edgeSel or tex.edge) .. suffix)
+        frame.dweEdge:SetVertexColor(ec[1], ec[2], ec[3], op)
+    else
+        t:SetVertexColor(1, 1, 1, op)
+        if frame.dweEdge then frame.dweEdge:Hide() end
+    end
 end
 
 -- Police des choix et de l'apercu : celle des options avec la bulle fantasy, celle du jeu
@@ -5144,6 +5309,7 @@ function DWE.GetRow(i)
         local opt = DWE.currentOptions[i]
         if opt and not opt.disabled and opt.action then
             DWE.selectedIndex = i
+            if DWE.LagMark then DWE.LagMark(opt.rawLabel or opt.label) end
             opt.action()
         end
     end)
@@ -5359,7 +5525,8 @@ function DWE.PaintWheelTheme()
         SkinPill(previewPanel, pill, false, false) -- cadre d'apercu : pas d'encoche de dialogue
         -- Plus sombre et plus discret que les choix : on voit que ce n'est pas un bouton.
         if previewPanel.dweTex then
-            previewPanel.dweTex:SetVertexColor(0.62, 0.62, 0.62)
+            local k = pill == "custom" and DWE.CustomColor("bg") or { 1, 1, 1 }
+            previewPanel.dweTex:SetVertexColor(0.62 * k[1], 0.62 * k[2], 0.62 * k[3])
             previewPanel.dweTex:SetAlpha(0.85 * (tonumber(DialogueWheelE_Opacity) or 1))
         end
         previewPanel:ClearAllPoints()
@@ -5445,6 +5612,7 @@ function DWE.PaintSharer()
         SkinPill(sharer, pill, false, false) -- annonce du jeu : pas d'encoche
     else
         if sharer.dweTex then sharer.dweTex:Hide() end
+        if sharer.dweEdge then sharer.dweEdge:Hide() end
         if sharer.SetBackdrop then
             sharer:SetBackdrop(SHARER_BACKDROP)
             if light then
@@ -5552,6 +5720,7 @@ local THEME_LIST = {
     { id = "parchment_dark", key = "THEME_PARCH_DARK", thumb = "ParchmentDark" },
     { id = "folio", key = "THEME_FOLIO", thumb = "Folio" },
     { id = "folio_dark", key = "THEME_FOLIO_DARK", thumb = "FolioDark" },
+    { id = "custom", key = "THEME_CUSTOM", thumb = "Custom" },
 }
 -- Themes DialogueUI : seulement avec DialogueUI installe (images lues dans son dossier).
 if DWE.DUI_ON then
@@ -5564,7 +5733,7 @@ DWE.THEME_LIST = THEME_LIST
 -- deja entendus avec Spoken (ce n'est pas un reglage).
 -- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
 DWE.OPTION_VARS = {}
-for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart DefaultsV"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
+for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart CustomColors DefaultsV"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
@@ -5673,7 +5842,7 @@ function DWE.InitOptionsPanel()
     local function RefreshTiles()
         local cur = DialogueWheelE_Theme or "bubble"
         for _, t in ipairs(tiles) do
-            local bubbleThumb = DWE.ThemeIsBubble(t.id) and BUBBLE_SKINS[t.id].art
+            local bubbleThumb = DWE.ThemeIsBubble(t.id) and (BUBBLE_SKINS[t.id].art or BUBBLE_SKINS[t.id].custom)
             if t.thumbTex then
                 t.img:SetTexture(t.thumbTex)
                 t.img:SetTexCoord(unpack(t.thumbCoord))
@@ -5742,8 +5911,204 @@ function DWE.InitOptionsPanel()
         if choiceBox:IsShown() and DWE.UpdateVisuals then DWE.UpdateVisuals() end
     end)
 
-    ---------------------------------------------------------------- Texte
+    -- Couleurs du theme Personnalise : 4 pastilles (palette de couleurs du jeu) et un bouton
+    -- pour partir des couleurs du theme affiche. Choisir une couleur passe au theme Personnalise.
     y = y - 96
+    do
+        AddText(L.CUSTOM_COLORS, 16, y, "GameFontHighlightSmall")
+        local swatches = {}
+        local function Repaint()
+            for _, sw in ipairs(swatches) do
+                local c = DWE.CustomColor(sw.key)
+                sw.fill:SetColorTexture(c[1], c[2], c[3], 1)
+            end
+        end
+        DWE.CustomOptionsRepaint = Repaint
+        local function UseCustom()
+            DWE.CustomRefresh()
+            if DialogueWheelE_Theme ~= "custom" then DialogueWheelE_Theme = "custom" end
+            RefreshTiles()
+            DWE.OnThemeChanged()
+            if choiceBox:IsShown() and DWE.UpdateVisuals then DWE.UpdateVisuals() end
+            Repaint()
+        end
+        local function SetColor(key, r, g, b)
+            if type(DialogueWheelE_CustomColors) ~= "table" then DialogueWheelE_CustomColors = {} end
+            DialogueWheelE_CustomColors[key] = { r, g, b }
+            UseCustom()
+        end
+        local function Pick(key)
+            local c = DWE.CustomColor(key)
+            local cp = ColorPickerFrame
+            if not cp then return end
+            local function Now()
+                local r, g, b = cp:GetColorRGB()
+                SetColor(key, r, g, b)
+            end
+            local function Undo() SetColor(key, c[1], c[2], c[3]) end
+            if cp.SetupColorPickerAndShow then
+                cp:SetupColorPickerAndShow({ r = c[1], g = c[2], b = c[3], hasOpacity = false,
+                    swatchFunc = Now, cancelFunc = Undo })
+            else
+                cp.hasOpacity = false
+                cp.func, cp.cancelFunc = Now, Undo
+                cp.previousValues = { r = c[1], g = c[2], b = c[3] }
+                cp:SetColorRGB(c[1], c[2], c[3])
+                cp:Hide(); cp:Show()
+            end
+        end
+        local KEYS = { { "bg", L.CUSTOM_BG }, { "border", L.CUSTOM_BORDER }, { "text", L.CUSTOM_TEXT }, { "sel", L.CUSTOM_SEL } }
+        for i, k in ipairs(KEYS) do
+            local b = CreateFrame("Button", nil, p, "BackdropTemplate")
+            b.key = k[1]
+            b:SetSize(22, 22)
+            b:SetPoint("TOPLEFT", 16 + (i - 1) * 140, y - 20)
+            b:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 10 })
+            b:SetBackdropBorderColor(0.8, 0.8, 0.8, 1)
+            b.fill = b:CreateTexture(nil, "ARTWORK")
+            b.fill:SetPoint("TOPLEFT", 3, -3)
+            b.fill:SetPoint("BOTTOMRIGHT", -3, 3)
+            -- Survol : le contour s'eclaire (pas de voile blanc sur la couleur, qui la fausserait).
+            b:SetScript("OnEnter", function(self) self:SetBackdropBorderColor(1, 0.82, 0, 1) end)
+            b:SetScript("OnLeave", function(self) self:SetBackdropBorderColor(0.8, 0.8, 0.8, 1) end)
+            local lbl = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            lbl:SetPoint("LEFT", b, "RIGHT", 6, 0)
+            lbl:SetText(k[2])
+            b:SetScript("OnClick", function() Pick(k[1]) end)
+            swatches[i] = b
+        end
+        local from = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+        from:SetPoint("TOPLEFT", 16, y - 50)
+        from:SetText(L.CUSTOM_FROM_THEME)
+        -- Largeur selon le texte (langues longues), plafonnee : au-dela, police plus petite.
+        do
+            local fs = from:GetFontString()
+            local w = fs and fs:GetStringWidth() or 220
+            if w > 260 and fs then fs:SetFontObject("GameFontNormalSmall"); w = fs:GetStringWidth() end
+            from:SetSize(math.min(280, math.max(200, w + 24)), 22)
+        end
+        from:SetScript("OnClick", function()
+            local cur = DialogueWheelE_Theme or "bubble"
+            if cur ~= "custom" then DWE.CustomFromTheme(cur) end
+            UseCustom()
+        end)
+
+        -- Themes enregistres : "Enregistrer" (demande un nom) et une petite liste deroulante.
+        local list
+        local function Popup(key, text, accept, edit)
+            if not StaticPopupDialogs then return end
+            StaticPopupDialogs[key] = {
+                text = text, button1 = ACCEPT or OKAY or "OK", button2 = CANCEL or "Cancel",
+                hasEditBox = edit or nil, maxLetters = edit and 40 or nil,
+                OnShow = edit and function(self)
+                    local eb = self.editBox or self.EditBox
+                    if eb then eb:SetText(edit); eb:HighlightText(); eb:SetFocus() end
+                end or nil,
+                OnAccept = function(self)
+                    local eb = self.editBox or self.EditBox
+                    accept(eb and eb:GetText())
+                end,
+                EditBoxOnEnterPressed = edit and function(eb)
+                    accept(eb:GetText())
+                    eb:GetParent():Hide()
+                end or nil,
+                EditBoxOnEscapePressed = edit and function(eb) eb:GetParent():Hide() end or nil,
+                timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+            }
+            StaticPopup_Show(key)
+        end
+        local save = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+        save:SetSize(100, 22)
+        save:SetPoint("LEFT", from, "RIGHT", 10, 0)
+        save:SetText(L.PRESET_SAVE)
+        save:SetScript("OnClick", function()
+            Popup("STORYTALE_PRESET_SAVE", L.PRESET_NAME, function(name)
+                if DWE.CustomPresetSave(name) and list and list:IsShown() then list.Fill() end
+            end, L.THEME_CUSTOM .. " " .. (#DWE.CustomPresets() + 1))
+        end)
+        local open = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+        open:SetSize(150, 22)
+        open:SetPoint("LEFT", save, "RIGHT", 8, 0)
+        open:SetText(L.PRESET_LIST .. "  v")
+        list = CreateFrame("Frame", nil, open, "BackdropTemplate")
+        list:SetPoint("TOPLEFT", open, "BOTTOMLEFT", 0, -2)
+        list:SetWidth(240)
+        list:SetFrameStrata("DIALOG")
+        list:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12,
+            insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+        list:SetBackdropColor(0.05, 0.05, 0.06, 0.95)
+        list:EnableMouse(true)
+        list:Hide()
+        list.rows = {}
+        list.empty = list:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        list.empty:SetPoint("TOPLEFT", 10, -10)
+        list.empty:SetText(L.PRESET_EMPTY)
+        local ROW = 22
+        function list.Fill()
+            local presets = DWE.CustomPresets()
+            for _, r in ipairs(list.rows) do r:Hide() end
+            for i, pr in ipairs(presets) do
+                local r = list.rows[i]
+                if not r then
+                    r = CreateFrame("Button", nil, list)
+                    r:SetHeight(ROW)
+                    r:SetPoint("TOPLEFT", 6, -6 - (i - 1) * ROW)
+                    r:SetPoint("RIGHT", list, "RIGHT", -6, 0)
+                    local hl = r:CreateTexture(nil, "HIGHLIGHT")
+                    hl:SetAllPoints()
+                    hl:SetColorTexture(1, 1, 1, 0.12)
+                    r.dots = {}
+                    for d = 1, 4 do
+                        local t = r:CreateTexture(nil, "ARTWORK")
+                        t:SetSize(10, 10)
+                        t:SetPoint("LEFT", 4 + (d - 1) * 12, 0)
+                        r.dots[d] = t
+                    end
+                    r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                    r.text:SetPoint("LEFT", 56, 0)
+                    r.text:SetPoint("RIGHT", -24, 0)
+                    r.text:SetJustifyH("LEFT")
+                    r.del = CreateFrame("Button", nil, r, "UIPanelCloseButton")
+                    r.del:SetSize(20, 20)
+                    r.del:SetPoint("RIGHT", 2, 0)
+                    r.del:SetScript("OnEnter", function(self)
+                        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                        GameTooltip:SetText(L.PRESET_DELETE)
+                        GameTooltip:Show()
+                    end)
+                    r.del:SetScript("OnLeave", function() GameTooltip:Hide() end)
+                    list.rows[i] = r
+                end
+                for d, k in ipairs({ "bg", "border", "text", "sel" }) do
+                    local c = type(pr[k]) == "table" and pr[k] or DWE.CUSTOM_DEFAULT[k]
+                    r.dots[d]:SetColorTexture(c[1] or 1, c[2] or 1, c[3] or 1, 1)
+                end
+                r.text:SetText(pr.name)
+                r:SetScript("OnClick", function()
+                    if DWE.CustomPresetApply(i) then UseCustom() end
+                    list:Hide()
+                end)
+                r.del:SetScript("OnClick", function()
+                    Popup("STORYTALE_PRESET_DELETE", L.PRESET_DELETE_ASK:format((pr.name:gsub("%%", "%%%%"))), function()
+                        DWE.CustomPresetDelete(i)
+                        if list:IsShown() then list.Fill() end
+                    end)
+                end)
+                r:Show()
+            end
+            list.empty:SetShown(#presets == 0)
+            list:SetHeight(math.max(1, #presets) * ROW + 12)
+        end
+        open:SetScript("OnClick", function()
+            if list:IsShown() then list:Hide() else list.Fill(); list:Show() end
+        end)
+        p:HookScript("OnHide", function() list:Hide() end)
+        Repaint()
+    end
+
+    ---------------------------------------------------------------- Texte
+    y = y - 80
     AddSection(L.SEC_TEXT, y)
     AddText(L.FONT_FAMILY, 16, y - 32, "GameFontHighlightSmall")
     local fontItems = {}

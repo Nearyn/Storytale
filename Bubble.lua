@@ -38,6 +38,8 @@ for id, sk in pairs(DWE.BUBBLE_SKINS) do
             art = "Bubble" .. sk.art, slice = 16, optFont = true, split = SPLIT[sk.art] }
     end
 end
+-- Personnalise : bulle blanche en deux calques (remplissage, contour) teintes aux couleurs choisies.
+STYLES.custom = { pad = 14, color = { 1, 1, 1 }, shadow = true, art = "BubbleCustomFill", slice = 16, optFont = true, custom = true }
 -- Murmure en d'autres couleurs.
 for id, c in pairs(DWE.WHISPER_COLORS or {}) do
     STYLES[id] = { pad = 14, color = c.text, shadow = false, art = "Bubble" .. c.art, slice = 16, split = true }
@@ -156,6 +158,21 @@ fantasyTail:SetSize(32, 32)
 fantasyTail:SetPoint("TOP", bubble, "BOTTOM", 0, 8)
 fantasyTail:Hide()
 
+-- Contours du theme Personnalise (au-dessus du remplissage de la bulle et de la pointe).
+local customEdge = bubble:CreateTexture(nil, "BORDER")
+customEdge:SetAllPoints(bubble)
+customEdge:SetTexture(ADDON_PATH .. "BubbleCustomEdge.png")
+if customEdge.SetTextureSliceMargins then
+    customEdge:SetTextureSliceMargins(16, 16, 16, 16)
+    if customEdge.SetTextureSliceMode then customEdge:SetTextureSliceMode(0) end
+end
+customEdge:Hide()
+local customTailEdge = holder:CreateTexture(nil, "OVERLAY")
+customTailEdge:SetTexture(ADDON_PATH .. "BubbleCustomEdgeTail.png")
+customTailEdge:SetSize(32, 32)
+customTailEdge:SetPoint("TOP", bubble, "BOTTOM", 0, 8)
+customTailEdge:Hide()
+
 -- Bulle "ouverte" : la meme image decoupee a la main en 9 morceaux, mais le bord du bas est
 -- coupe en deux autour de la pointe. A la place du contour, un morceau du fond de la bulle
 -- (meme couleur, meme transparence) ; les deux bords de la pointe ferment l'ouverture.
@@ -213,7 +230,9 @@ end
 -- Opacite du fond (option "Opacite du fond") : le fond et la pointe de la bulle, jamais le texte.
 function DWE.ApplyBubbleOpacity()
     local op = tonumber(DialogueWheelE_Opacity) or 1
-    for _, t in ipairs({ fantasy, fantasyTail, tail }) do t:SetAlpha(op) end
+    for _, t in ipairs({ fantasy, fantasyTail, tail, customEdge, customTailEdge }) do t:SetAlpha(op) end
+    -- Personnalise : alpha porte par les couleurs (fond 0.86 x opacite).
+    if styleName == "custom" and DWE.Bubble and DWE.Bubble.RefreshCustom then DWE.Bubble.RefreshCustom() end
     for _, t in pairs(split) do t:SetAlpha(op) end
     if bubble.art then bubble.art:SetAlpha(op) end
     if bubble.GetBackdrop and bubble:GetBackdrop() then
@@ -263,10 +282,20 @@ local function ApplyStyle(name)
         fantasyTail:Hide()
         ShowGameStyle()
     end
+    if st.custom then
+        fantasyTail:SetTexture(ADDON_PATH .. "BubbleCustomFillTail.png")
+        customEdge:Show(); customTailEdge:Show()
+    else
+        customEdge:Hide(); customTailEdge:Hide()
+        local op = tonumber(DialogueWheelE_Opacity) or 1
+        fantasy:SetVertexColor(1, 1, 1, op); fantasyTail:SetVertexColor(1, 1, 1, op)
+    end
+    if DWE.Bubble and DWE.Bubble.RefreshCustom then DWE.Bubble.RefreshCustom() end
     if DWE.ApplyBubbleOpacity then DWE.ApplyBubbleOpacity() end
     text:ClearAllPoints()
     text:SetPoint("TOPLEFT", bubble, "TOPLEFT", st.pad, -st.pad)
-    text:SetTextColor(st.color[1], st.color[2], st.color[3])
+    local tc = st.custom and DWE.CustomColor("text") or st.color
+    text:SetTextColor(tc[1], tc[2], tc[3])
     text:SetShadowOffset(st.shadow and 1 or 0, st.shadow and -1 or 0)
     bubble.fontKey = nil -- police a reappliquer
 end
@@ -650,6 +679,19 @@ bubble:SetScript("OnDragStop", function() DWE.DragStop("bubble") end)
 --------------------------------------------------------------------------------
 
 DWE.Bubble = {}
+
+-- Theme Personnalise : applique les couleurs choisies a la bulle affichee.
+function DWE.Bubble.RefreshCustom()
+    if styleName ~= "custom" then return end
+    local bg, bd, tx = DWE.CustomColor("bg"), DWE.CustomColor("border"), DWE.CustomColor("text")
+    local op = tonumber(DialogueWheelE_Opacity) or 1
+    local a = (DWE.CUSTOM_FILL_ALPHA or 0.86) * op
+    fantasy:SetVertexColor(bg[1], bg[2], bg[3], a)
+    fantasyTail:SetVertexColor(bg[1], bg[2], bg[3], a)
+    customEdge:SetVertexColor(bd[1], bd[2], bd[3], op)
+    customTailEdge:SetVertexColor(bd[1], bd[2], bd[3], op)
+    text:SetTextColor(tx[1], tx[2], tx[3])
+end
 
 -- Nouveau texte : le PNJ recommence a ecrire (sauf si c'est le meme texte, ex. livre recharge).
 function DWE.Bubble.SetText(s)
