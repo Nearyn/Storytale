@@ -1,5 +1,19 @@
 # Changelog / Journal des versions
 
+## 1.6.5
+
+**English**
+
+### Fixed
+- **Gamepad: picking a quest reward no longer hands in the quest.** As with Blizzard's gamepad controls, the D-pad browses the items, A picks the reward you want, and Complete Quest stays greyed until a reward is picked. A second press of A on Complete Quest hands it in.
+
+---
+
+**Français**
+
+### Corrections
+- **Manette : choisir une récompense de quête ne rend plus la quête.** Comme avec la manette de Blizzard, la croix parcourt les objets, A choisit la récompense voulue, et Terminer la quête reste grisé tant qu'aucune n'est choisie. Un second appui sur A sur Terminer la quête la rend.
+
 ## 1.6.4
 
 **English**

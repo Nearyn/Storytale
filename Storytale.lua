@@ -1579,10 +1579,18 @@ function DWE.PadRewardStep(d)
     if C_Timer and C_Timer.After then
         C_Timer.After(0.3, function() if DWE.padRewardBtn == b then DWE.PadRewardFill(b) end end)
     end
-    if b.canChoose and b.itemIndex and DWE.selectedRewardIndex ~= b.itemIndex then
+    return true
+end
+-- A sur l'objet vise : choisit la recompense (comme la manette de Blizzard), sans rendre la
+-- quete. La main revient a la roue, ou "Terminer" se valide par un second appui.
+function DWE.PadRewardPick()
+    local b = DWE.padRewardBtn
+    if not b then return false end
+    if b.canChoose and b.itemIndex then
         DWE.selectedRewardIndex = b.itemIndex
         if DWE.OnRewardSelected then DWE.OnRewardSelected() end
     end
+    DWE.PadRewardClear()
     return true
 end
 -- Infos d'objet : C_Item.GetItemInfo sur les clients recents, GetItemInfo sinon.
@@ -1917,6 +1925,12 @@ if DWE.padCatcher.EnableGamePadButton then
             if d then DWE.RibbonPadMove(d)
             elseif button == "PAD1" then DWE.RibbonPadClick()
             elseif button == "PAD2" or button == "PAD4" then DWE.RibbonPadToggle() end
+            return
+        end
+        local isA = button == "PAD1" or (DWE.padInteract and DWE.padInteract[button])
+        -- Un objet de la quete est vise : A le choisit, il ne declenche pas la roue.
+        if isA and not DWE.bookMode and DWE.padRewardBtn and DWE.PadRewardPick() then
+            if self.SetPropagateGamePadInput and not InCombatLockdown() then self:SetPropagateGamePadInput(false) end
             return
         end
         local target = (DWE.padInteract and DWE.padInteract[button]) and "DWE_SelectBtn" or DWE.PAD_ACTIONS[button]

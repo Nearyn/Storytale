@@ -894,12 +894,23 @@ check(#DWE.PadRewardButtons() >= 3, "gamepad: reward buttons reachable (" .. #DW
 check(DWE.PadRewardStep(1) == true, "d-pad right steps into the rewards")
 local padB = DWE.padRewardBtn
 check(padB and DWE.hoveredRewardBtn == padB, "d-pad: focused reward shows its details like a hover")
-check(padB and padB.canChoose and DWE.selectedRewardIndex == padB.itemIndex, "d-pad: focused reward is picked")
-check(DWE.currentOptions[2 + OFF].disabled == false, "d-pad pick enables Complete")
+check(padB and padB.canChoose and DWE.selectedRewardIndex == nil, "d-pad: browsing does not pick a reward")
+check(DWE.currentOptions[2 + OFF].disabled == true, "d-pad browsing leaves Complete greyed")
 DWE.PadRewardStep(-1)
 check(DWE.padRewardBtn ~= padB, "d-pad left moves to another reward")
 DWE.PadRewardStep(1)
 check(DWE.padRewardBtn == padB, "d-pad right comes back")
+-- A sur la recompense visee : la choisit sans rendre la quete, la main revient a la roue.
+local rewarded = 0
+local oldGQR = _G.GetQuestReward
+_G.GetQuestReward = function() rewarded = rewarded + 1 end
+local h = DWE.padCatcher:GetScript("OnGamePadButtonDown")
+h(DWE.padCatcher, "PAD1")
+check(DWE.selectedRewardIndex == padB.itemIndex, "A on the focused reward picks it")
+check(rewarded == 0, "A on a reward does not hand in the quest")
+check(DWE.padRewardBtn == nil, "after picking, focus goes back to the wheel")
+check(DWE.currentOptions[2 + OFF].disabled == false, "picking with A enables Complete")
+_G.GetQuestReward = oldGQR
 M.FireEvent("QUEST_FINISHED")
 check(DWE.padRewardBtn == nil, "gamepad reward focus cleared when the quest closes")
 -- Bouton de la mini-carte : affiche par defaut, cache par l'option.
