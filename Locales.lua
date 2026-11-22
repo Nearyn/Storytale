@@ -1000,6 +1000,23 @@ for loc, list in pairs(THEME_DUI_L) do
     if dest then for k, v in pairs(list) do dest[k] = v end end
 end
 
+-- Tombes et monuments (souvent l'hommage a une vraie personne) : pas un "recit".
+enUS.GRAVE_READ, enUS.GRAVE_NEW = "I have paid my respects here.", "I have not paid my respects here yet..."
+enUS.GRAVE_READING = "I am paying my respects..."
+for loc, v in pairs({
+    frFR = { "Je me suis déjà recueilli ici.", "Je ne me suis pas encore recueilli ici…" },
+    deDE = { "Ich habe hier bereits innegehalten.", "Hier habe ich noch nicht innegehalten…" },
+    esES = { "Ya presenté aquí mis respetos.", "Aún no he presentado aquí mis respetos…" },
+    esMX = { "Ya presenté aquí mis respetos.", "Aún no he presentado aquí mis respetos…" },
+    itIT = { "Ho già reso omaggio qui.", "Non ho ancora reso omaggio qui…" },
+    ptBR = { "Já prestei minhas homenagens aqui.", "Ainda não prestei minhas homenagens aqui…" },
+    ruRU = { "Я уже почтил здесь память.", "Я ещё не почтил здесь память…" },
+    koKR = { "이곳에서 이미 추모했다.", "아직 이곳에서 추모하지 않았다…" },
+    zhCN = { "我已在此致敬。", "我还未在此致敬……" },
+    zhTW = { "我已在此致敬。", "我還未在此致敬……" },
+}) do if T[loc] then T[loc].GRAVE_READ, T[loc].GRAVE_NEW = v[1], v[2] end end
+for loc, v in pairs({ frFR = "Je me recueille…", deDE = "Ich halte inne…", esES = "Estoy presentando mis respetos…", esMX = "Estoy presentando mis respetos…", itIT = "Sto rendendo omaggio…", ptBR = "Estou prestando minhas homenagens…", ruRU = "Я чту память…", koKR = "추모하는 중이다…", zhCN = "我正在致敬……", zhTW = "我正在致敬……" }) do if T[loc] then T[loc].GRAVE_READING = v end end
+
 local own = T[LOCALE] or {}
 DWE.L = setmetatable({}, { __index = function(_, k)
     return GAME[k] or own[k] or enUS[k]

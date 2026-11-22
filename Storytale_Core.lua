@@ -448,12 +448,26 @@ local THEME_STYLES = {
     },
 }
 DWE.THEME_STYLES = THEME_STYLES
+for id, m in pairs({ parchment = "|cff9c1a1a", folio = "|cff9c1a1a", dui_brown = "|cff9c1a1a",
+    velin = "|cffa8280f", arcane = "|cff2a55c8", sylvan = "|cff3f7d0c" }) do
+    if THEME_STYLES[id] then THEME_STYLES[id].lightMark = m end
+end
 -- Couleur du mot lu par Spoken dans un theme : la sienne, sinon celle de son titre.
 function DWE.ThemeMark(cfg)
     if type(cfg) ~= "table" then return nil end
     if cfg.mark then return cfg.mark end
+    -- Papier clair : le titre est presque de la couleur du texte, le mot lu ne se verrait pas.
+    -- Une encre franche, propre a chaque papier.
+    if cfg.lightMark then return cfg.lightMark end
     local c = cfg.hdr
     if type(c) ~= "table" then return nil end
+    -- Page claire (plaques, page de livre...) dont le titre se confond avec le texte : le rouge
+    -- profond de Spoken pour les pages claires.
+    local t = cfg.body
+    if cfg.shadow == 0 and type(t) == "table"
+        and math.abs(c[1] - t[1]) + math.abs(c[2] - t[2]) + math.abs(c[3] - t[3]) < 0.6 then
+        return "|cff9c1a1a"
+    end
     return string.format("|cff%02x%02x%02x", math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5), math.floor(c[3] * 255 + 0.5))
 end
 
@@ -515,8 +529,8 @@ local WHEEL_DEFAULT = {
 local WHEEL_INK = {
     normal = { 0.16, 0.09, 0.03 }, selected = { 0.55, 0.20, 0.0 }, disabled = { 0.42, 0.36, 0.30 },
     goodbye = { 0.36, 0.27, 0.19 }, goodbyeSel = { 0.62, 0.08, 0.05 }, dim = { 0.34, 0.27, 0.19 },
-    common = { 0.16, 0.09, 0.03 }, qualityDim = 0.55, shadow = 0,
-    hex = { hdr = "|cff5c3300", body = "|cff2b1a0b", num = "|cff2b1a0b", rep = "|cff7a5214", ok = "|cff8a4b14", bad = "|cff9e1b1b" },
+    common = { 0.16, 0.09, 0.03 }, qualityDim = 0.80, shadow = 0,
+    hex = { hdr = "|cff8c3300", body = "|cff0a0400", num = "|cff2b1a0b", rep = "|cff7a5214", ok = "|cff8a4b14", bad = "|cff9e1b1b" },
 }
 -- Murmure : couleurs des chuchotements du jeu (rose / violet).
 local WHEEL_WHISPER = {
@@ -934,7 +948,7 @@ function PaintThemeParts(parts, content, divAnchor, id)
         sl:SetTexCoord(0, 1, 0, 1)
         if sl.SetTextureSliceMargins then
             pcall(sl.SetTextureSliceMargins, sl, unpack(cfg.slice))
-            if sl.SetTextureSliceMode then pcall(sl.SetTextureSliceMode, sl, 0) end
+            if sl.SetTextureSliceMode then pcall(sl.SetTextureSliceMode, sl, cfg.tile and 1 or 0) end
         end
         sl:SetVertexColor(r, g, b, a)
         sl:Show()
@@ -1472,6 +1486,28 @@ end
 -- Habillage retenu par livre (son titre) : les pages suivantes, mises en file plus tard, gardent
 -- celui du livre (papier, plaque...) au lieu de prendre le theme du moment.
 DWE.bookStamps = {}
+-- Hommages a de vraies personnes disparues (tombes de Hautebrande) : pas de mot surligne,
+-- un texte sobre.
+DWE.MEMORIALS = { ["In Loving Memory"] = true, ["Decorated Headstone"] = true }
+function DWE.IsMemorialClip(clip)
+    local F = DWE.SpokenFocus
+    local key = F and F.GroupKey and F.GroupKey(clip)
+    return type(key) == "string" and DWE.MEMORIALS[key:match("^book:(.*)$") or ""] == true
+end
+-- Epitaphe centree : hommage, ou texte ouvert que le jeu centre (tombe ecrite en HTML) et que
+-- Spoken est en train de lire.
+function DWE.CenteredClip(clip)
+    if DWE.IsMemorialClip(clip) then return true end
+    if not DWE.bookCentered then return false end
+    local F = DWE.SpokenFocus
+    local key = F and F.GroupKey and F.GroupKey(clip)
+    local t = ItemTextGetItem and ItemTextGetItem()
+    return type(key) == "string" and type(t) == "string" and not (issecretvalue and issecretvalue(t)) and key == "book:" .. t
+end
+function DWE.MemorialOpen()
+    local t = ItemTextGetItem and ItemTextGetItem()
+    return type(t) == "string" and not (issecretvalue and issecretvalue(t)) and DWE.MEMORIALS[t] == true
+end
 function DWE.StampKey(clip)
     local F = DWE.SpokenFocus
     return F and F.GroupKey and F.GroupKey(clip) or nil
@@ -1578,10 +1614,12 @@ local function PlateStyle(mat)
     if not THEME_STYLES[id] then
         local sl = pl.slice
         local h = { math.floor(sl[1] / 2), math.floor(sl[2] / 2), math.floor(sl[3] / 2), math.floor(sl[4] / 2) }
+        local ins = pl.inner or sl
+        local q = { math.floor(ins[1] / 2), math.floor(ins[2] / 2), math.floor(ins[3] / 2), math.floor(ins[4] / 2) }
         THEME_STYLES[id] = {
             tex = ADDON_PATH .. pl.tex .. "S.png", slice = h,
-            pad = { h[1] + 14, h[2] + 10, h[3] + 14, h[4] + 10 },
-            tint = { 1, 1, 1, 1 }, div = pl.rule, hdr = pl.hdr, body = pl.body, shadow = 0,
+            pad = { q[1] + 14, q[2] + 10, q[3] + 14, q[4] + 10 },
+            tint = { 1, 1, 1, 1 }, div = pl.rule, hdr = pl.hdr, body = pl.body, shadow = 0, tile = pl.tile, mark = DWE.PLATE_MARK and DWE.PLATE_MARK[mat],
         }
     end
     return id
@@ -1601,7 +1639,7 @@ local function ThemeSpokenStyle(t)
             THEME_STYLES[id] = {
                 tex = ADDON_PATH .. "Bubble" .. sk.art .. ".png", slice = { 16, 16, 16, 16 }, pad = { 16, 14, 16, 14 },
                 tint = { 1, 1, 1, 1 }, div = base.div, hdr = base.hdr, body = base.body, shadow = base.shadow,
-                mark = base.mark, matchBubble = true,
+                mark = base.mark, lightMark = base.lightMark, matchBubble = true,
             }
         end
         return id
@@ -1628,6 +1666,9 @@ local function PlateClip()
     end
     local clip = SpokenCurClip()
     local m = type(clip) == "table" and type(clip.present) == "table" and clip.present.material or nil
+    if not (m and DWE.PLATES[m]) and type(clip) == "table" and DWE.TrollTablet then
+        m = DWE.TrollTablet(clip.pageId) or m
+    end
     if not (m and DWE.PLATES[m]) then return false end
     local pick = DialogueWheelE_PlateLook
     if pick and DWE.PLATES[pick] then m = pick end
@@ -1864,8 +1905,9 @@ function DWE.HookSpoken()
             -- Lecteur habille par Storytale : les couleurs de son theme (titre, texte, mot lu).
             local id, cfg = nil, nil
             if DWE.SpokenOwnStyle then id, cfg = DWE.SpokenOwnStyle() end
-            if not hex and not id then return c end
-            local k = tostring(palette) .. (mat or "") .. (id or "")
+            local memo = DWE.IsMemorialClip and DWE.IsMemorialClip(SpokenCurClip())
+            if not hex and not id and not memo then return c end
+            local k = tostring(palette) .. (mat or "") .. (id or "") .. (memo and "m" or "")
             if not cache[k] then
                 local n = {}
                 for a, b in pairs(c) do n[a] = b end
@@ -1874,6 +1916,8 @@ function DWE.HookSpoken()
                     n.highlight = DWE.ThemeMark(cfg) or n.highlight
                 end
                 if hex then n.highlight = hex end
+                -- Hommage a une personne disparue : le mot lu garde la couleur du texte.
+                if memo then n.highlight = n.paragraph or n.highlight end
                 cache[k] = n
             end
             return cache[k]
@@ -1936,6 +1980,21 @@ function DWE.HookSpoken()
     if type(tr) == "table" then
         HookTranscript()
         if type(tr.Initialize) == "function" then hooksecurefunc(tr, "Initialize", HookTranscript) end
+        -- Epitaphe (hommage) : lignes centrees dans la petite fenetre, comme sur la pierre.
+        if type(tr.Place) == "function" and not tr.dweCenterHook then
+            tr.dweCenterHook = true
+            hooksecurefunc(tr, "Place", function(self)
+                local center = DWE.CenteredClip(SpokenCurClip())
+                for _, label in ipairs(self.labels or {}) do
+                    if label.SetJustifyH then
+                        local p = label:GetParent()
+                        if center and p then label:SetPoint("RIGHT", p, "RIGHT", 0, 0) end
+                        if center or label.dweCentered then label:SetJustifyH(center and "CENTER" or "LEFT") end
+                        label.dweCentered = center or nil
+                    end
+                end
+            end)
+        end
     end
     -- Pendant ses fondus "en une seule image", Spoken fait ignorer l'alpha du cadre a ses
     -- morceaux : notre fond fait pareil pour s'effacer au meme rythme.
@@ -2031,6 +2090,13 @@ end
 -- Mot lu : rouge fonce sur un papier clair (l'or de Spoken s'y lit mal).
 local function SubHighlight(line, text)
     if line.dweInking or type(text) ~= "string" then return end
+    -- Hommage a une personne disparue : le texte reste uni.
+    if text:find("|c", 1, true) and DWE.IsMemorialClip(SpokenCurClip()) then
+        line.dweInking = true
+        line:SetText((text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")))
+        line.dweInking = nil
+        return
+    end
     local mark = subPaint.cfg and DWE.ThemeMark(subPaint.cfg)
     if not mark or mark == SPOKEN_GOLD or not text:find(SPOKEN_GOLD, 1, true) then return end
     line.dweInking = true
@@ -2199,6 +2265,10 @@ local function CardOn(mp, env, palette, shadow)
     CardFont(mp.title and mp.title.text, CARD.titleSize)
     local cfg = palette
     local ink = { title = cfg.hdr, name = cfg.body, words = cfg.body, highlight = DWE.ThemeMark(cfg) or SPOKEN_GOLD }
+    if DWE.IsMemorialClip(mp.clip or SpokenCurClip()) then
+        local b = cfg.body
+        ink.highlight = string.format("|cff%02x%02x%02x", math.floor(b[1] * 255 + 0.5), math.floor(b[2] * 255 + 0.5), math.floor(b[3] * 255 + 0.5))
+    end
     Ink(mp.name, ink.name, 0.8, shadow)
     Ink(mp.title and mp.title.text, ink.title, 1, shadow)
     for _, fs in ipairs({ mp.stopped, mp.count, mp.held }) do Ink(fs, ink.name, 0.7, shadow) end
@@ -2497,6 +2567,34 @@ function DWE.HookSpokenStyles()
         Paint()
     end
     local mp = rawget(env, "MinimalPlayer")
+    -- Epitaphe : le titre (In Loving Memory) centre aussi ; l'etiquette au-dessus ne bouge pas.
+    if type(mp) == "table" and not stylesHooked.miniCenter and type(mp.Count) == "function" then
+        stylesHooked.miniCenter = true
+        hooksecurefunc(mp, "Count", function(self)
+            local t = self.title and self.title.text
+            if not (t and t.SetJustifyH) then return end
+            local center = DWE.CenteredClip(self.clip)
+            if center then
+                t:SetJustifyH("CENTER")
+                -- Meme axe que l'epitaphe (zone de texte de Spoken), pas celui de la ligne du titre.
+                local tr = rawget(env, "Transcript")
+                local fr = type(tr) == "table" and tr.frame
+                local d = 0
+                if fr and fr.GetCenter and self.title.GetCenter then
+                    local a, b = fr:GetCenter(), self.title:GetCenter()
+                    if a and b then d = a - b end
+                end
+                t:ClearAllPoints()
+                t:SetPoint("TOPLEFT", self.title, "TOPLEFT", d, 0)
+                t:SetPoint("BOTTOMRIGHT", self.title, "BOTTOMRIGHT", d, 0)
+                self.dweCentered = true
+            elseif self.dweCentered then
+                self.dweCentered = nil
+                t:SetJustifyH("LEFT")
+                if self.tail and self.tail.Fit then pcall(self.tail.Fit, self.tail, t, self.title:GetWidth() or 0) end
+            end
+        end)
+    end
     if type(mp) == "table" and not stylesHooked.mini and type(mp.Dress) == "function" then
         stylesHooked.mini = true
         -- Dress : Spoken y remet son papier et ses couleurs ; on repasse juste apres.
@@ -2747,6 +2845,10 @@ local noteBg = textBox:CreateTexture(nil, "BACKGROUND", nil, -7)
 noteBg:SetTexture(ADDON_PATH .. "BookPaper.png")
 if noteBg.SetTextureSliceMargins then pcall(noteBg.SetTextureSliceMargins, noteBg, 90, 90, 90, 90) end
 noteBg:Hide()
+-- Petales de rose sur le rebord d'une tombe en hommage a une personne disparue.
+DWE.memorialPetals = textBox:CreateTexture(nil, "ARTWORK", nil, 2)
+DWE.memorialPetals:SetTexture(ADDON_PATH .. "MemorialPetals.png")
+DWE.memorialPetals:Hide()
 local noteRule = textBox:CreateTexture(nil, "ARTWORK")
 noteRule:SetColorTexture(0.42, 0.26, 0.10, 0.55)
 noteRule:Hide()
@@ -2774,7 +2876,36 @@ DWE.PLATES = {
     Marble = { tex = "PlateMarble", slice = { 62, 66, 62, 67 }, body = { 0.22, 0.22, 0.25 }, hdr = { 0.14, 0.14, 0.17 }, rule = { 0.35, 0.35, 0.40, 0.45 }, engrave = { 1, 1, 1, 0.6 } },
     Bronze = { tex = "PlateBronze", slice = { 68, 68, 68, 66 }, body = { 0.20, 0.13, 0.03 }, hdr = { 0.14, 0.09, 0.02 }, rule = { 0.30, 0.20, 0.05, 0.45 }, engrave = { 1, 0.94, 0.75, 0.55 } },
     Silver = { tex = "PlateSilver", slice = { 48, 48, 48, 55 }, body = { 0.16, 0.17, 0.19 }, hdr = { 0.10, 0.11, 0.13 }, rule = { 0.25, 0.26, 0.30, 0.45 }, engrave = { 1, 1, 1, 0.6 } },
+    -- Steles trolles (pas une matiere du jeu : reconnues par les donnees de Spoken Readables).
+    Troll = { tex = "PlateTroll", slice = { 124, 124, 124, 124 }, inner = { 92, 96, 92, 96 }, body = { 0.20, 0.11, 0.03 }, hdr = { 0.13, 0.07, 0.02 }, rule = { 0.36, 0.20, 0.06, 0.45 }, engrave = { 1, 0.92, 0.72, 0.5 } },
+    Tablet = { tex = "PlateTablet", slice = { 124, 124, 124, 124 }, inner = { 92, 96, 92, 96 }, body = { 0.20, 0.11, 0.03 }, hdr = { 0.13, 0.07, 0.02 }, rule = { 0.36, 0.20, 0.06, 0.45 }, engrave = { 1, 0.92, 0.72, 0.5 } },
 }
+-- Zones et donjons des tablettes trolles (Strangleronce, Zul'Farrak).
+DWE.TROLL_ZONES, DWE.TROLL_DUNGEONS = { [1434] = true }, { [209] = true }
+-- La page `pageId` de Spoken Readables est-elle une tablette trolle ?
+function DWE.TrollTablet(pageId)
+    if not pageId then return false end
+    local sr = rawget(_G, "SpokenReadables")
+    local places = rawget(_G, "SpokenReadablesPlaces")
+    if type(sr) ~= "table" or type(places) ~= "table" or type(places.books) ~= "table" or not sr.Data then return false end
+    local ok, data = pcall(sr.Data, sr)
+    local page = ok and type(data) == "table" and type(data.pages) == "table" and data.pages[pageId]
+    local entry = type(page) == "table" and places.books[page.book]
+    if type(entry) ~= "table" or entry.type ~= "tablet" then return false end
+    for _, z in ipairs(entry.zones or {}) do if DWE.TROLL_ZONES[z] then return "Troll" end end
+    for _, d in ipairs(entry.dungeons or {}) do if DWE.TROLL_DUNGEONS[d] then return "Troll" end end
+    return "Tablet" -- autre tablette (quetes de classe) : la stele sans gravures
+end
+-- Le texte ouvert est-il une tablette trolle ? (sans Spoken : d'apres son titre)
+function DWE.OpenTrollTablet()
+    local sr = rawget(_G, "SpokenReadables")
+    if type(sr) == "table" and sr.PageOnScreen then
+        local ok, id = pcall(sr.PageOnScreen, sr)
+        if ok and id then return DWE.TrollTablet(id) end
+    end
+    local title = ItemTextGetItem and ItemTextGetItem()
+    return type(title) == "string" and not (issecretvalue and issecretvalue(title)) and title:find("Troll Legend", 1, true) and "Troll" or false
+end
 function DWE.RawPlate()
     if DWE.testPlate and (DWE.bookMode or (ItemTextGetMaterial and ItemTextGetMaterial())) then
         DWE.lastPlate = DWE.testPlate
@@ -2784,6 +2915,8 @@ function DWE.RawPlate()
     -- Le jeu ne donne la matiere que tant que son texte est ouvert : on la garde pour la suite
     -- du meme texte (le lecteur Spoken se redessine apres).
     local ok, m = pcall(ItemTextGetMaterial)
+    -- Tablette trolle : le jeu la donne pour du parchemin (ou rien) ; on lui met sa stele.
+    if ok and DWE.bookMode and not (type(m) == "string" and DWE.PLATES[m]) then m = DWE.OpenTrollTablet() or m end
     if ok and type(m) == "string" and m ~= "" then
         -- Matiere choisie dans les options pour toutes les plaques (sinon celle du jeu).
         local pick = DialogueWheelE_PlateLook
@@ -2923,6 +3056,7 @@ local function RestoreTextAnchors()
     bookL:Hide()
     bookR:Hide()
     noteBg:Hide()
+    DWE.memorialPetals:Hide()
     noteRule:Hide()
     notePage:Hide()
     bookPageNum:Hide()
@@ -3096,12 +3230,15 @@ local function LayoutNote()
         if noteBg.SetTextureSliceMargins then
             local sl = plate and plate.slice or { 90, 90, 90, 90 }
             pcall(noteBg.SetTextureSliceMargins, noteBg, sl[1], sl[2], sl[3], sl[4])
+            -- Frise gravee (stele trolle) : bords repetes, pas etires, pour garder les glyphes nets.
+            if noteBg.SetTextureSliceMode then pcall(noteBg.SetTextureSliceMode, noteBg, (plate and plate.tile) and 1 or 0) end
         end
     end
     -- Marges autour du texte : celles de la page, ou le cadre de la plaque plus un peu d'air.
     local padL, padT, padR, padB = NOTE_PAD_X, NOTE_PAD_Y, NOTE_PAD_X, NOTE_PAD_Y
     if plate then
-        local sl = plate.slice
+        -- Texture en haute definition : son cadre fait la moitie de sa decoupe a l'ecran.
+        local sl = plate.inner or plate.slice
         padL, padT, padR, padB = sl[1] + 22, sl[2] + 18, sl[3] + 22, sl[4] + 18
     end
     textBox.dwePadB = padB
@@ -3130,6 +3267,8 @@ local function LayoutNote()
     local body = DWE.bookRawBody or ""
     if NOTE.noteText.dweLast ~= body then
         NOTE.noteText.dweLast = body
+        -- Texte centre par le jeu (epitaphe en HTML align="center") : centre aussi ici.
+        NOTE.noteText:SetJustifyH(DWE.bookCentered and "CENTER" or "LEFT")
         NOTE.noteText:SetText(body)
         noteScroll:SetVerticalScroll(0)
     end
@@ -3149,6 +3288,16 @@ local function LayoutNote()
     noteBg:SetPoint("TOPLEFT", textBox, "TOPLEFT", -padL, padT)
     noteBg:SetPoint("BOTTOMRIGHT", textBox, "BOTTOMRIGHT", padR, -padB)
     noteBg:Show()
+    local pe = DWE.memorialPetals
+    if DWE.MemorialOpen and DWE.MemorialOpen() then
+        local w = ((textBox:GetWidth() or 300) + padL + padR) * 0.41
+        pe:SetSize(w, w * 55 / 320)
+        pe:ClearAllPoints()
+        pe:SetPoint("BOTTOMRIGHT", noteBg, "BOTTOMRIGHT", -40 / 560 * w / 0.41, 6)
+        pe:Show()
+    else
+        pe:Hide()
+    end
     if textBox.SetHitRectInsets then textBox:SetHitRectInsets(-padL, -padR, -padT, -padB) end
     DWE.SetGripCorner(textBox, "BOTTOMRIGHT")
     BookPosition()
@@ -3329,6 +3478,7 @@ end
 local function LayoutBook()
     ClearThemeParts(textParts)
     noteBg:Hide()
+    DWE.memorialPetals:Hide()
     noteRule:Hide()
     notePage:Hide()
     textBox.dweBook = true
@@ -3826,7 +3976,9 @@ do
         -- ni de gravure (rien a ouvrir). Le livre garde son ruban (marque-page, pages animees).
         local focus = DWE.SpokenFocus
         local useful = book == true or (focus and focus.Available and focus.Available())
-        if not (active and useful and DWE.BookByAddon() and (book == true or book == "note")) then
+        -- Hommage a une personne disparue : ni gravure ni menu de lecture, la pierre seule.
+        if not (active and useful and DWE.BookByAddon() and (book == true or book == "note"))
+            or (DWE.MemorialOpen and DWE.MemorialOpen()) then
             rib.marked = nil
             rib.glow:SetAlpha(0)
             rib:Hide()
@@ -5098,8 +5250,8 @@ pcall(listClip.SetClipsChildren, listClip, true)
 local scroll = { px = 0, target = 0, max = 0, view = 0, tops = {}, heights = {}, active = false }
 
 -- Barre arrondie : deux demi-disques et un rectangle, colores ensemble (meme API que SetColorTexture).
-function DWE.RoundBar(owner, layer)
-    local w = 6
+function DWE.RoundBar(owner, layer, w)
+    w = w or 6
     local top = owner:CreateTexture(nil, layer)
     top:SetTexture(ADDON_PATH .. "ScrollCap.png"); top:SetTexCoord(0, 1, 0, 0.5)
     top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT"); top:SetHeight(w / 2)
@@ -5114,25 +5266,29 @@ function DWE.RoundBar(owner, layer)
     end }
 end
 
+-- Barre de defilement : un simple indicateur, fin et discret, a l'ecart des choix. Elle
+-- s'affirme au survol, pendant un glisser ou un defilement.
+DWE.SCROLL_BAR = { w = 3, edge = 4, gap = 18, out = 8, len = 0.5 }
 local scrollTrack = CreateFrame("Frame", nil, choiceBox)
-scrollTrack:SetWidth(6)
+scrollTrack:SetWidth(DWE.SCROLL_BAR.w)
 scrollTrack:SetPoint("TOPRIGHT", choiceBox, "TOPRIGHT", -3, -20)
 scrollTrack:SetPoint("BOTTOMRIGHT", choiceBox, "BOTTOMRIGHT", -3, 20)
-scrollTrack.bg = DWE.RoundBar(scrollTrack, "BACKGROUND")
+scrollTrack.bg = DWE.RoundBar(scrollTrack, "BACKGROUND", DWE.SCROLL_BAR.w)
 scrollTrack.bg:SetColorTexture(1, 1, 1, 0.10)
 scrollTrack:Hide()
 
 local scrollThumb = CreateFrame("Button", nil, scrollTrack)
-scrollThumb:SetWidth(6)
-scrollThumb.tex = DWE.RoundBar(scrollThumb, "ARTWORK")
+scrollThumb:SetWidth(DWE.SCROLL_BAR.w)
+scrollThumb.tex = DWE.RoundBar(scrollThumb, "ARTWORK", DWE.SCROLL_BAR.w)
 scrollThumb.tex:SetColorTexture(1, 0.82, 0.3, 0.75)
-scrollThumb:SetHitRectInsets(-6, -6, 0, 0)
+scrollThumb:SetHitRectInsets(-8, -8, -4, -4) -- fine a l'oeil, facile a attraper
 scrollThumb:RegisterForClicks("LeftButtonUp")
 
 local function TrackSizes()
     local okH, h = pcall(scrollTrack.GetHeight, scrollTrack)
     h = (okH and type(h) == "number" and h > 0) and h or 100
-    local th = math.max(14, h * scroll.view / math.max(scroll.view, scroll.view + scroll.max))
+    -- Curseur court : un repere, pas une barre (la moitie de sa taille proportionnelle).
+    local th = math.max(14, h * scroll.view / math.max(scroll.view, scroll.view + scroll.max) * DWE.SCROLL_BAR.len)
     return h, th
 end
 
@@ -5143,7 +5299,7 @@ local function PositionRows()
             local y = -(top - scroll.px)
             row:ClearAllPoints()
             -- Roue a gauche du PNJ : encoches a droite et barre de defilement a gauche (miroir).
-            local barGap = scroll.active and 14 or 4
+            local barGap = scroll.active and DWE.SCROLL_BAR.gap or 4
             if DWE.WheelLeft() then
                 row:SetPoint("TOPLEFT", listClip, "TOPLEFT", barGap, y)
                 row:SetPoint("TOPRIGHT", listClip, "TOPRIGHT", -(LIST_PAD + 4), y)
@@ -5164,19 +5320,22 @@ local function PositionRows()
     local pal = DWE.WheelPalette()
     local c, n = pal.selected, pal.normal
     local skin = DWE.BubbleSkin()
+    local busy = scrollThumb.dragY or scrollThumb.dweHover or (DWE.scrollAnim and DWE.scrollAnim:IsShown()) or DWE.listDragging
+    local k = busy and 1 or 0.6
+    DWE.scrollBusy = busy and true or false
     if skin and skin.palette == WHEEL_INK then
         -- Bulles claires (Bulle enluminee...) : cuivre de la surbrillance.
         local ink = WHEEL_INK.selected
         c = ink
-        scrollThumb.tex:SetColorTexture(ink[1], ink[2], ink[3], 0.8)
-        scrollTrack.bg:SetColorTexture(ink[1], ink[2], ink[3], 0.12)
+        scrollThumb.tex:SetColorTexture(ink[1], ink[2], ink[3], 0.75 * k)
+        scrollTrack.bg:SetColorTexture(ink[1], ink[2], ink[3], 0.07)
     elseif not DWE.WheelThemeId() then
-        -- Pas de bloc de theme (Bulle d'Azeroth...) : barre grise tres translucide, discrete.
-        scrollThumb.tex:SetColorTexture(0.6, 0.6, 0.6, 0.18)
+        -- Pas de bloc de theme (Bulle d'Azeroth...) : barre claire tres translucide, discrete.
+        scrollThumb.tex:SetColorTexture(0.85, 0.82, 0.75, 0.5 * k)
         scrollTrack.bg:SetColorTexture(1, 1, 1, 0.04)
     else
-        scrollThumb.tex:SetColorTexture(c[1], c[2], c[3], 0.85)
-        scrollTrack.bg:SetColorTexture(n[1], n[2], n[3], pal.shadow == 0 and 0.18 or 0.10)
+        scrollThumb.tex:SetColorTexture(c[1], c[2], c[3], 0.8 * k)
+        scrollTrack.bg:SetColorTexture(n[1], n[2], n[3], pal.shadow == 0 and 0.10 or 0.06)
     end
     for _, arrow in ipairs({ scrollUp, scrollDown }) do
         arrow:SetDesaturated(true)
@@ -5189,7 +5348,8 @@ local function PositionRows()
 end
 
 -- Glissade douce vers la cible.
-local scrollAnim = CreateFrame("Frame")
+DWE.scrollAnim = CreateFrame("Frame")
+local scrollAnim = DWE.scrollAnim
 scrollAnim:Hide()
 scrollAnim:SetScript("OnUpdate", function(self, dt)
     local d = scroll.target - scroll.px
@@ -5272,7 +5432,10 @@ scrollThumb:SetScript("OnMouseDown", function(self, button)
 end)
 scrollThumb:SetScript("OnMouseUp", function(self)
     if self.dragY then self.dragY = nil EndPixelDrag() end
+    PositionRows()
 end)
+scrollThumb:SetScript("OnEnter", function(self) self.dweHover = true PositionRows() end)
+scrollThumb:SetScript("OnLeave", function(self) self.dweHover = nil PositionRows() end)
 scrollThumb:SetScript("OnUpdate", function(self)
     if not self.dragY or not scroll.active then return end
     local h, th = TrackSizes()
@@ -5473,11 +5636,17 @@ function DWE.UpdateVisualsInner()
     listClip:SetHeight(view + (scroll.active and gap - 1 or 12))
     -- Rail de defilement cale exactement sur la zone visible des choix (ne depasse pas).
     scrollTrack:ClearAllPoints()
+    -- Choix en bulles : la barre se tient a l'exterieur, a l'ecart des bulles (leur image
+    -- deborde de la ligne). Dans un cadre de theme, elle reste dedans, contre le bord.
+    local out = DWE.WheelPillStyle() and DWE.SCROLL_BAR.out or nil
     if mirrored then
-        scrollTrack:SetPoint("TOPLEFT", choiceBox, "TOPLEFT", 3, -topPad - 3)
+        if out then scrollTrack:SetPoint("TOPRIGHT", choiceBox, "TOPLEFT", -out, -topPad - 3)
+        else scrollTrack:SetPoint("TOPLEFT", choiceBox, "TOPLEFT", DWE.SCROLL_BAR.edge, -topPad - 3) end
     else
-        scrollTrack:SetPoint("TOPRIGHT", choiceBox, "TOPRIGHT", -3, -topPad - 3)
+        if out then scrollTrack:SetPoint("TOPLEFT", choiceBox, "TOPRIGHT", out, -topPad - 3)
+        else scrollTrack:SetPoint("TOPRIGHT", choiceBox, "TOPRIGHT", -DWE.SCROLL_BAR.edge, -topPad - 3) end
     end
+    -- Rail sur toute la hauteur des choix : le curseur va d'un bout a l'autre de la liste.
     scrollTrack:SetHeight(math.max(10, view - 6))
     choiceBox:SetHeight(topPad + view + bottomPad)
     if not DWE.listDragging then AnimateScroll() end
@@ -5748,10 +5917,15 @@ function DWE.PaintWheelTheme()
     end
     if pill and bottom ~= choiceBox then
         SkinPill(previewPanel, pill, false, false) -- cadre d'apercu : pas d'encoche de dialogue
-        -- Plus sombre et plus discret que les choix : on voit que ce n'est pas un bouton.
+        -- Plus sombre et plus discret que les choix : on voit que ce n'est pas un bouton. Sur
+        -- un fond clair (encre foncee), a peine : sinon le parchemin vire au gris et l'encre ne
+        -- se lit plus.
         if previewPanel.dweTex then
             local k = pill == "custom" and DWE.CustomColor("bg") or { 1, 1, 1 }
-            previewPanel.dweTex:SetVertexColor(0.62 * k[1], 0.62 * k[2], 0.62 * k[3])
+            local sk = DWE.BubbleSkin and DWE.BubbleSkin()
+            local f = (sk and sk.palette == WHEEL_INK) and 0.88 or 0.62
+            DWE.previewShade = f
+            previewPanel.dweTex:SetVertexColor(f * k[1], f * k[2], f * k[3])
             previewPanel.dweTex:SetAlpha(0.85 * (tonumber(DialogueWheelE_Opacity) or 1))
         end
         previewPanel:ClearAllPoints()

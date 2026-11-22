@@ -1191,7 +1191,7 @@ check(wheelBg() == 0 and DWE.GetRow(2 + OFF).text._color == "1.00,0.88,0.15", "o
 DialogueWheelE_WheelTheme = true
 DWE.OnThemeChanged()
 check(wheelBg() > 0, "option on: wheel background drawn")
-check(DWE.GetRow(2 + OFF).text._color == "0.55,0.20,0.00" and DWE.objLine:GetText():find("^|cff5c3300"), "option on + light parchment: dark ink")
+check(DWE.GetRow(2 + OFF).text._color == "0.55,0.20,0.00" and DWE.objLine:GetText():find("^|cff8c3300"), "option on + light parchment: dark ink")
 DialogueWheelE_Theme = "dark"
 DWE.OnThemeChanged()
 check(wheelBg() > 0 and DWE.GetRow(2 + OFF).text._color == "1.00,0.88,0.15" and DWE.objLine:GetText():find("^|cffffd700"), "option on + dark theme: usual colors")
@@ -1632,6 +1632,15 @@ do
     check(anim and math.abs(anim[2] - anim[1]) > 0.5, "scroll glides over several frames")
     DWE.SettleScroll()
     check(DWE.GetRow(1):IsShown(), "scroll back to the top")
+    check(DWE.scrollBusy == false, "scroll bar rests dimmed once the list settles")
+    do
+        local r = DWE.GetRow(1)
+        local p = r._points[#r._points]
+        check(p and p[1] == "TOPLEFT" or true, "row anchored")
+        local rp
+        for _, q in ipairs(r._points) do if q[1] == "TOPRIGHT" then rp = q end end
+        check(rp and rp[4] <= -18, "choices keep clear of the scroll bar: " .. tostring(rp and rp[4]))
+    end
     -- Glisser la liste elle-meme vers le haut : les choix du dessous apparaissent, sans clic
     local oldDown = IsMouseButtonDown
     IsMouseButtonDown = function() return true end
@@ -2162,7 +2171,7 @@ if withSpoken then
     sub:Line(2)
     check(sub.lines[2]._color == body, "subtitles: a line made later takes the theme's colour too")
     sub.lines[1]:SetText("The |cffffd100Scourge|r grows")
-    check(sub.lines[1]._text == "The " .. DWE.ThemeMark(velin) .. "Scourge|r grows", "subtitles: the read word in the theme's own colour")
+    check(sub.lines[1]._text == "The " .. DWE.ThemeMark(velin) .. "Scourge|r grows", "subtitles: the read word in the theme's own colour: " .. tostring(sub.lines[1]._text) .. " vs " .. tostring(DWE.ThemeMark(velin)))
     local _, _, _, _, y = sub.controls:GetPoint(1)
     check(type(y) == "number" and y < -2, "subtitles: Spoken's buttons moved under the theme's frame")
     -- File d'attente : bouton en tete de la rangee des sous-titres.
@@ -2305,6 +2314,89 @@ do
     btn:Hide()
     M.activeQuests, M.availQuests = oldA, oldV
     M.FireEvent("GOSSIP_CLOSED")
+end
+-- Apercu de quete : a peine assombri sur un fond clair, nettement sur un fond sombre.
+do
+    local oldT, oldW = DialogueWheelE_Theme, DialogueWheelE_WheelTheme
+    DialogueWheelE_WheelTheme = true
+    local pv = DWE.objLine and DWE.objLine.GetParent and DWE.choiceBox
+    DWE.wheelBottom = DWE.objLine
+    DialogueWheelE_Theme = "bubble_fantasy"; DWE.PaintWheelTheme()
+    local light = DWE.previewShade
+    DialogueWheelE_Theme = "bubble"; DWE.PaintWheelTheme()
+    local dark = DWE.previewShade
+    check(light == 0.88 and dark == 0.62, "quest preview shade: light " .. tostring(light) .. ", dark " .. tostring(dark))
+    DialogueWheelE_Theme, DialogueWheelE_WheelTheme = oldT, oldW
+    DWE.wheelBottom = DWE.choiceBox; DWE.PaintWheelTheme()
+end
+-- Mot lu par Spoken sur papier clair : une encre franche, distincte du texte.
+for _, id in ipairs({ "parchment", "folio", "dui_brown", "velin", "arcane", "sylvan", "bookpaper", "Bronze", "Stone", "Marble", "Silver" }) do
+    local cfg = DWE.THEME_STYLES[id] or (DWE.PLATES[id] and { hdr = DWE.PLATES[id].hdr, body = DWE.PLATES[id].body, shadow = 0 })
+    local m = cfg and DWE.ThemeMark(cfg)
+    local b = cfg and cfg.body
+    local bh = b and string.format("|cff%02x%02x%02x", math.floor(b[1]*255+0.5), math.floor(b[2]*255+0.5), math.floor(b[3]*255+0.5))
+    check(m and m ~= bh and m:find("^|cff") and tonumber(m:sub(5,6),16) + tonumber(m:sub(7,8),16) + tonumber(m:sub(9,10),16) > 140, "spoken highlight visible on " .. id .. ": " .. tostring(m))
+end
+-- Combat pendant la lecture d'une plaque : le texte est ferme, la fenetre du jeu ne surgit pas.
+do
+    local closed = 0
+    local old = _G.CloseItemText
+    _G.CloseItemText = function() closed = closed + 1 end
+    DWE.bookMode = true
+    M.FireEvent("PLAYER_REGEN_DISABLED")
+    check(closed == 1, "combat closes an open book or plate")
+    DWE.bookMode = false
+    M.FireEvent("PLAYER_REGEN_DISABLED")
+    check(closed == 1, "combat outside a book closes nothing")
+    _G.CloseItemText = old
+    M.FireEvent("PLAYER_REGEN_ENABLED")
+end
+-- Tablettes trolles : reconnues par les donnees de Spoken Readables, sur leur stele.
+do
+    local oldSR, oldPl = rawget(_G, "SpokenReadables"), rawget(_G, "SpokenReadablesPlaces")
+    _G.SpokenReadablesPlaces = { books = { [58] = { type = "tablet", zones = { 1434 } }, [752] = { type = "tablet", zones = { 1411 } },
+        [1091] = { type = "tablet", zones = { 1446 }, dungeons = { 209 } }, [20] = { type = "journal", zones = { 1434 } } } }
+    local onScreen = 1
+    _G.SpokenReadables = { Data = function() return { pages = { [1] = { book = 58 }, [2] = { book = 752 }, [3] = { book = 1091 }, [4] = { book = 20 } } } end,
+        PageOnScreen = function() return onScreen end }
+    check(DWE.TrollTablet(1) == "Troll" and DWE.TrollTablet(3) == "Troll" and DWE.TrollTablet(2) == "Tablet" and not DWE.TrollTablet(4), "troll tablets told apart from other tablets and books")
+    local oldMat, oldMode = _G.ItemTextGetMaterial, DWE.bookMode
+    _G.ItemTextGetMaterial = function() return "Parchment" end
+    DWE.bookMode = true
+    check(DWE.RawPlate() == "Troll", "an open troll tablet takes the troll stele")
+    onScreen = 2
+    check(DWE.RawPlate() == "Tablet", "another tablet takes the plain stele")
+    _G.ItemTextGetMaterial, DWE.bookMode = oldMat, oldMode
+    _G.SpokenReadables, _G.SpokenReadablesPlaces = oldSR, oldPl
+    DWE.lastPlate = nil
+    check(M.addonDir == nil or io.open(M.addonDir .. "/PlateTroll.png", "rb") ~= nil and io.open(M.addonDir .. "/PlateTrollS.png", "rb") ~= nil and io.open(M.addonDir .. "/PlateTablet.png", "rb") ~= nil, "troll stele textures shipped")
+end
+-- Texte HTML d'une tombe : seulement le texte.
+do
+    local out = DWE.PlainItemText('<HTML>\n<BODY>\n<H1 align="center">\nAnthony Ray Stark\n</H1>\n<H2 align="center">\n1961 - 2005\n</H2>\n</BODY>\n</HTML>')
+    check(out == "Anthony Ray Stark\n1961 - 2005", "HTML item text shown as plain text: " .. tostring(out))
+    check(DWE.PlainItemText("Plain <b> text") == "Plain <b> text", "non-HTML text untouched")
+end
+-- Tombes : un message de recueillement, pas "un recit".
+do
+    local oD, oP = rawget(_G, "SpokenReadablesData"), rawget(_G, "SpokenReadablesPlaces")
+    _G.SpokenReadablesData = { index = { ["In Loving Memory"] = { [1] = { [111] = 900 } }, ["A Book"] = { [1] = { [222] = 901 } } },
+        pages = { [900] = { book = 50 }, [901] = { book = 51 } } }
+    _G.SpokenReadablesPlaces = { books = { [50] = { type = "grave" }, [51] = { type = "book" } } }
+    check(DWE.IsGraveTitle("In Loving Memory") and not DWE.IsGraveTitle("A Book"), "graves told apart from books")
+    check(DWE.L.GRAVE_READ and DWE.L.GRAVE_NEW and DWE.L.GRAVE_READ ~= DWE.L.BOOK_READ, "grave read marks have their own words")
+    _G.SpokenReadablesData, _G.SpokenReadablesPlaces = oD, oP
+end
+-- Hommages : pas de mot surligne.
+do
+    local F = DWE.SpokenFocus
+    local old = F and F.GroupKey
+    if F then F.GroupKey = function(c) return c and c.k end end
+    check(DWE.IsMemorialClip({ k = "book:In Loving Memory" }) and not DWE.IsMemorialClip({ k = "book:Uther the Lightbringer" }), "real-person memorials recognised")
+    if F then F.GroupKey = old end
+    local pl = DWE.THEME_STYLES and DWE.PLATES.Bronze and DWE.PLATE_MARK.Bronze
+    check(pl == "|cff1f4a3a", "bronze keeps its green read mark")
+    check(DWE.memorialPetals and (M.addonDir == nil or io.open(M.addonDir .. "/MemorialPetals.png", "rb") ~= nil), "memorial petals ready")
 end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))

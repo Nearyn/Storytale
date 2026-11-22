@@ -876,6 +876,8 @@ do
         local caption = ok and sp:GetCaption()
         local clip = caption and caption.clip
         if not (clip and IsBook(clip) and caption.highlight) then Restore() return end
+        -- Hommage a une personne disparue : pas de surbrillance.
+        if (DWE.IsMemorialClip and DWE.IsMemorialClip(clip)) or (DWE.MemorialOpen and DWE.MemorialOpen()) then Restore() return end
         local Marks = sp:WordMarks()
         -- Nouvelle page lue : le suivi reprend (meme si une page avait ete tournee a la main).
         if clip ~= hl.followClip then hl.followClip = clip; DWE.bookFollowPause = nil end

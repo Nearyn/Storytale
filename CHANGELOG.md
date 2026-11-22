@@ -1,5 +1,37 @@
 # Changelog / Journal des versions
 
+## 1.6.7
+
+**English**
+
+### New
+- **Troll tablets** are shown on their own carved stele, in the book window and in Spoken's small window. Other stone tablets get a plain stele.
+
+### Improved
+- **Quest preview on light themes**: brighter, easier to read text and item colors.
+- **Scroll bar** of the dialogue wheel: thinner, discreet at rest, set apart from the choices, and running the full length of the list.
+- **Spoken's highlighted word** now shows on light pages and plaques (it blended into the text); bronze plaques keep their green.
+
+### Fixed
+- A book or plaque left open when combat starts is now closed, instead of the game's own window popping up.
+- Some engraved texts showed raw HTML code; they now show their text only, centered when the game centers it.
+
+---
+
+**Français**
+
+### Nouveautés
+- **Tablettes trolles** : elles s'affichent sur leur propre stèle gravée, dans la fenêtre du livre et dans la petite fenêtre de Spoken. Les autres tablettes de pierre ont une stèle lisse.
+
+### Améliorations
+- **Aperçu de quête sur les thèmes clairs** : texte et couleurs des objets plus vifs, plus faciles à lire.
+- **Barre de défilement** de la roue : plus fine, discrète au repos, écartée des choix, et sur toute la hauteur de la liste.
+- **Le mot lu par Spoken** se voit désormais sur les pages et plaques claires (il se confondait avec le texte) ; les plaques de bronze gardent leur vert.
+
+### Corrections
+- Un livre ou une plaque ouvert au début d'un combat est maintenant fermé, au lieu de faire apparaître la fenêtre du jeu.
+- Certains textes gravés affichaient du code HTML brut ; ils n'affichent plus que leur texte, centré quand le jeu le centre.
+
 ## 1.6.6
 
 **English**

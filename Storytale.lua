@@ -890,10 +890,28 @@ function BookHasNext()
     return ItemTextGetPage() == cur and ItemTextHasNextPage() and true or false
 end
 
+-- Texte ecrit en HTML (certaines plaques et tombes) : la fenetre du jeu le met en forme, nous
+-- n'en gardons que le texte, une ligne par paragraphe ou titre.
+function DWE.PlainItemText(t)
+    if type(t) ~= "string" or (issecretvalue and issecretvalue(t)) then return t end
+    if not t:find("<[Hh][Tt][Mm][Ll]") and not t:find("<[Bb][Oo][Dd][Yy]") then return t end
+    local centered = t:find('[Aa][Ll][Ii][Gg][Nn]%s*=%s*"?[Cc][Ee][Nn][Tt][Ee][Rr]') ~= nil
+    if centered then DWE.htmlCentered = true end
+    t = t:gsub("[\r\n]+", " ")
+    t = t:gsub("<[Bb][Rr]%s*/?>", "\n")
+    t = t:gsub("</[Hh]%d%s*>", "\n"):gsub("</[Pp]%s*>", "\n")
+    t = t:gsub("<[^>]*>", "")
+    t = t:gsub("&nbsp;", " "):gsub("&lt;", "<"):gsub("&gt;", ">"):gsub("&quot;", '"'):gsub("&amp;", "&")
+    t = t:gsub("[ \t]+", " "):gsub(" *\n *", "\n"):gsub("\n\n\n+", "\n\n")
+    return (t:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
 local function StoreCurrentBookPage()
     local p = (ItemTextGetPage and ItemTextGetPage()) or (#bookState.pages + 1)
-    bookState.pages[p] = (ItemTextGetText and ItemTextGetText()) or ""
+    if p == 1 then DWE.htmlCentered = nil end
+    bookState.pages[p] = DWE.PlainItemText((ItemTextGetText and ItemTextGetText()) or "")
     if p > bookState.maxPage then bookState.maxPage = p end
+    DWE.bookCentered = DWE.htmlCentered or nil
     -- Connu des la premiere page : plusieurs pages ? (decide livre ouvert / note en automatique)
     local more = ItemTextHasNextPage and ItemTextHasNextPage() and true or false
     DWE.bookInfo = { page = bookState.currentPage or 1, total = #bookState.pages, hasNext = more or nil }
@@ -2847,12 +2865,12 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
     elseif msg:match("^%s*plate") then
         -- Test : force une matiere de plaque sur le texte ouvert (et les suivants) jusqu'a "off".
         local arg = (msg:match("plate%s+(%a+)") or ""):lower()
-        local names = { stone = "Stone", marble = "Marble", bronze = "Bronze", silver = "Silver" }
+        local names = { stone = "Stone", marble = "Marble", bronze = "Bronze", silver = "Silver", troll = "Troll", tablet = "Tablet" }
         DWE.testPlate = names[arg]
         if DWE.testPlate then
             Out("plaque de test : " .. DWE.testPlate .. " (/storytale plate off pour arreter)")
         else
-            Out("plaque de test arretee. Usage : /storytale plate stone | marble | bronze | silver | off")
+            Out("plaque de test arretee. Usage : /storytale plate stone | marble | bronze | silver | troll | tablet | off")
         end
         if DWE.bookMode and DWE.UpdateTextPanelVisuals then DWE.UpdateTextPanelVisuals() end
         if DWE.RefreshSpoken then DWE.RefreshSpoken() end
@@ -2971,6 +2989,9 @@ f:SetScript("OnEvent", function(_, event)
         end
         return
     elseif event == "PLAYER_REGEN_DISABLED" then
+        -- Livre ou plaque ouvert quand le combat commence : on le ferme. Sinon la roue s'efface
+        -- et la fenetre du jeu, restee ouverte derriere, reapparait en plein combat.
+        if DWE.bookMode and CloseItemText then pcall(CloseItemText) end
         DisableKeys()
         return
     elseif event == "PLAYER_REGEN_ENABLED" then
@@ -3245,22 +3266,41 @@ if GameTooltip and GameTooltip.HookScript then
     end
     DWE.TipMark = Mark
     -- Ligne voulue pour ce titre, selon l'etat du moment (lecture en cours, lu, commence, jamais).
+    -- Tombe ou monument (donnees de Spoken Readables) ? Souvent l'hommage a une vraie personne.
+    local function IsGrave(title)
+        local data, places = rawget(_G, "SpokenReadablesData"), rawget(_G, "SpokenReadablesPlaces")
+        local e = type(data) == "table" and type(data.index) == "table" and data.index[title]
+        if type(e) ~= "table" or type(places) ~= "table" or type(places.books) ~= "table" then return false end
+        for _, pg in pairs(e) do
+            for _, id in pairs(type(pg) == "table" and pg or {}) do
+                local page = type(data.pages) == "table" and data.pages[id]
+                local b = type(page) == "table" and places.books[page.book]
+                if type(b) == "table" then return b.type == "grave" end
+            end
+        end
+        return false
+    end
+    DWE.IsGraveTitle = IsGrave
     local function Desired(title)
         if DialogueWheelE_ReadMarks == false then return nil end
         -- Avec Spoken : tant que le livre est dans sa file (lu, en pause ou en attente), on le lit.
         local f = DWE.SpokenFocus
         if f and f.BookQueued and f.BookQueued(DWE.BookKey(title)) then
-            return DWE.L.BOOK_READING, 0.55, 0.8, 1
+            return IsGrave(title) and DWE.L.GRAVE_READING or DWE.L.BOOK_READING, 0.55, 0.8, 1
         end
         local st = DWE.BookState(title)
         if not st then
             local data = rawget(_G, "SpokenReadablesData")
             local idx = type(data) == "table" and data.index
-            if type(idx) == "table" and idx[title] then return DWE.L.BOOK_NEW, 1, 0.82, 0 end
+            if type(idx) == "table" and idx[title] then
+                return IsGrave(title) and DWE.L.GRAVE_NEW or DWE.L.BOOK_NEW, 1, 0.82, 0
+            end
             return nil
         end
-        if st >= 2 then return DWE.READ_ICON .. " " .. DWE.L.BOOK_READ, 0.6, 0.6, 0.6 end
-        return DWE.L.BOOK_UNFINISHED, 1, 0.82, 0
+        if st >= 2 then
+            return DWE.READ_ICON .. " " .. (IsGrave(title) and DWE.L.GRAVE_READ or DWE.L.BOOK_READ), 0.6, 0.6, 0.6
+        end
+        return IsGrave(title) and DWE.L.GRAVE_NEW or DWE.L.BOOK_UNFINISHED, 1, 0.82, 0
     end
     GameTooltip:HookScript("OnUpdate", function(tt, elapsed)
         if tt.dweAtCursor then AtCursor(tt) end
