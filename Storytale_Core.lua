@@ -2245,6 +2245,14 @@ local function CardOff(mp, env)
 end
 function DWE.SpokenCardOn() return cardOn and true or false end
 
+-- Le cadre du theme autour de la petite fenetre ; `mp.dweArtExtra` l'agrandit vers le haut
+-- pour y loger l'illustration du lieu (une seule carte).
+function DWE.MiniAreaAnchor(mp)
+    if not miniArea then return end
+    miniArea:ClearAllPoints()
+    miniArea:SetPoint("TOPLEFT", mp.frame, "TOPLEFT", CARD.side, -CARD.inset + 4 + (mp.dweArtExtra or 0))
+    miniArea:SetPoint("BOTTOMRIGHT", mp.frame, "BOTTOMRIGHT", -CARD.side, 14 - CARD.below)
+end
 local function PaintMinimal()
     local env = rawget(_G, "SpokenEnv")
     local mp = type(env) == "table" and rawget(env, "MinimalPlayer")
@@ -2255,12 +2263,11 @@ local function PaintMinimal()
     local id, cfg = SpokenOwnStyle()
     -- Habillage EllesmereUI choisi dans Spoken : on le laisse.
     if panel.spokenEllesmere == true then id = nil end
+    mp.dweThemeId = id
     if id then
         -- Le cadre du theme autour de la colonne de texte de la carte (comme sur le lecteur
         -- facon DialogueUI, ou il entoure son contenu).
-        miniArea:ClearAllPoints()
-        miniArea:SetPoint("TOPLEFT", mp.frame, "TOPLEFT", CARD.side, -CARD.inset + 4)
-        miniArea:SetPoint("BOTTOMRIGHT", mp.frame, "BOTTOMRIGHT", -CARD.side, 14 - CARD.below)
+        DWE.MiniAreaAnchor(mp)
         PaintThemeParts(miniParts, miniArea, nil, id)
         mp.paper:SetAlpha(0)
         if panel.SetBackdropBorderColor then panel:SetBackdropBorderColor(1, 1, 1, 0) end
@@ -2286,7 +2293,179 @@ function DWE.PaintSpokenMinimal()
     miniBusy = true
     pcall(PaintMinimal)
     miniBusy = nil
+    if DWE.ZoneArtRefresh then DWE.ZoneArtRefresh() end
 end
+
+-- Illustration de lieu (Spoken Places la fournit avec sa narration) au-dessus de la petite
+-- fenetre de Spoken, qui ne la montre pas (seul son lecteur facon DialogueUI le fait). Option,
+-- active par defaut. Tout passe par ZoneArtOf : le jour ou Spoken offre une fonction officielle
+-- pour l'image d'une ligne, seule celle-ci change. Si la petite fenetre montre un jour l'image
+-- elle-meme, Storytale se retire.
+local ZONE_ART_GAP, ZONE_ART_ALPHA = 4, 0.95
+local function ZoneArtOf(clip)
+    local pic = type(clip) == "table" and type(clip.present) == "table" and clip.present.picture
+    if type(pic) ~= "table" or not pic.file then return nil end
+    return pic
+end
+DWE.ZoneArtOf = ZoneArtOf
+function DWE.ZoneArtWanted() return DialogueWheelE_ZoneArt ~= false end
+-- Marge entre l'image et le cadre du theme qui l'entoure.
+local ZONE_ART_PAD = 8
+-- Part du bas de l'image qui s'efface dans le fond de la carte, vers le texte.
+local ZONE_ART_FADE = 0.45
+-- Bord de papier peint dans les images de Spoken (512 x 256) : environ 24 px en haut et en bas,
+-- 20 px sur les cotes, en bords dechires irreguliers.
+local ZONE_ART_CROP_U, ZONE_ART_CROP_V = 0.05, 0.12
+-- Agrandit (ou rend) le cadre du theme de la petite fenetre, et le redessine.
+local function SetArtExtra(mp, extra)
+    if (mp.dweArtExtra or 0) == extra then return end
+    mp.dweArtExtra = extra
+    if miniPainted and miniArea and mp.dweThemeId then
+        DWE.MiniAreaAnchor(mp)
+        PaintThemeParts(miniParts, miniArea, nil, mp.dweThemeId)
+    end
+end
+function DWE.SpokenZoneArt(mp)
+    if type(mp) ~= "table" or not (mp.frame and mp.panel) then return end
+    local holder = mp.dweZoneHolder
+    local pic = DWE.ZoneArtWanted() and ZoneArtOf(mp.clip) or nil
+    -- La petite fenetre de Spoken a sa propre image : on ne double pas.
+    if mp.picture ~= nil and mp.picture ~= mp.dweZoneArt then pic = nil end
+    if not pic then
+        if holder then holder:Hide() end
+        SetArtExtra(mp, 0)
+        return
+    end
+    if not holder then
+        holder = CreateFrame("Frame", nil, mp.frame)
+        holder:SetFrameLevel(mp.frame:GetFrameLevel() + 1)
+        holder:EnableMouse(false)
+        mp.dweZoneHolder = holder
+        holder.parts = CreateThemeParts(holder, holder:GetFrameLevel())
+        -- L'image sur son propre calque, au-dessus du cadre du theme : le fond du cadre (souvent
+        -- sombre et semi-opaque) passait par-dessus et l'assombrissait.
+        local layer = CreateFrame("Frame", nil, holder)
+        layer:SetAllPoints(holder)
+        layer:SetFrameLevel(holder:GetFrameLevel() + 5)
+        layer:EnableMouse(false)
+        local art = layer:CreateTexture(nil, "ARTWORK")
+        mp.dweZoneArt = art
+        if layer.CreateMaskTexture and art.AddMaskTexture then
+            art.mask = layer:CreateMaskTexture()
+            art.mask:SetAllPoints(art)
+            art:AddMaskTexture(art.mask)
+            art.maskOn = true
+        end
+    end
+    local art = mp.dweZoneArt
+    local id = miniPainted and mp.dweThemeId or nil
+    art:SetTexture(pic.file)
+    art:SetAlpha(ZONE_ART_ALPHA)
+    art:ClearAllPoints()
+    holder:ClearAllPoints()
+    ClearThemeParts(holder.parts)
+    if id then
+        -- Une seule carte : le cadre du theme de la fenetre s'agrandit vers le haut, l'image en
+        -- occupe le haut et son bas s'efface dans le fond, vers le texte.
+        local pad = ZONE_ART_PAD
+        local w = math.max(1, (mp.frame:GetWidth() or 0) - 2 * CARD.side - 2 * pad)
+        -- Les images de Spoken ont un bord de papier clair peint dedans. Dans la carte d'un theme,
+        -- on le retire (le fond du theme fait office de papier) : la scene seule, a ses proportions.
+        local cfgT = THEME_STYLES[id]
+        local frameless = cfgT and cfgT.none
+        local cu, cv = ZONE_ART_CROP_U, ZONE_ART_CROP_V
+        -- Sans fond (Frameless), l'image garde son papier et ses bords dechires. Option : garder
+        -- aussi le papier dans la carte des autres themes (effet livre de contes).
+        local paper = DialogueWheelE_ZoneArtPaper == true
+        if frameless or paper then cu, cv = 0, 0 end
+        local h = math.floor(w * ((1 - 2 * cv) * 256) / ((1 - 2 * cu) * 512) + 0.5)
+        local function V(f) return cv + (1 - 2 * cv) * f end
+        SetArtExtra(mp, h + pad)
+        holder:SetPoint("TOPLEFT", miniArea, "TOPLEFT", pad, -pad)
+        holder:SetSize(w, h)
+        -- Sans fond (Frameless) : rien pour accueillir le fondu. Bords dechires de Spoken sur
+        -- les quatre cotes, l'image juste au-dessus du texte.
+        if frameless then
+            for _, t in ipairs(holder.strips or {}) do t:Hide() end
+            if art.mask then
+                if not art.maskOn and art.AddMaskTexture then art:AddMaskTexture(art.mask); art.maskOn = true end
+                art.mask:SetTexture(pic.mask or [[Interface\Buttons\WHITE8X8]], "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+            end
+            art:SetTexCoord(0, 1, 0, 1)
+            art:SetAllPoints(holder)
+            art:Show()
+            holder:Show()
+            return
+        end
+        -- Le bas s'efface en bandes d'opacite decroissante. Bandes de hauteur entiere, sans
+        -- calage sur la grille de pixels : des bandes de 2 pixels a cheval sur deux pixels
+        -- laissaient des trous (l'image paraissait translucide a partir du fondu).
+        local band = 3
+        local fadeH = math.floor(h * ZONE_ART_FADE / band + 0.5) * band
+        local solid = h - fadeH
+        local n = math.max(1, fadeH / band)
+        -- Meme rendu pour le haut et les bandes : pas de masque sur l'image dans la carte.
+        if art.mask and art.maskOn and art.RemoveMaskTexture then
+            art:RemoveMaskTexture(art.mask); art.maskOn = false
+        end
+        local function NoSnap(t)
+            if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false) end
+            if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
+        end
+        NoSnap(art)
+        art:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, 0)
+        art:SetSize(w, solid)
+        art:SetTexCoord(cu, 1 - cu, V(0), V(solid / h))
+        local strips = holder.strips or {}
+        holder.strips = strips
+        for i = 1, #strips do strips[i]:Hide() end
+        for i = 1, n do
+            local t = strips[i] or art:GetParent():CreateTexture(nil, "ARTWORK")
+            strips[i] = t
+            NoSnap(t)
+            t:SetTexture(pic.file)
+            local y0 = solid + band * (i - 1)
+            t:SetTexCoord(cu, 1 - cu, V(y0 / h), V((y0 + band) / h))
+            t:ClearAllPoints()
+            t:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, -y0)
+            t:SetSize(w, band)
+            -- Opacite au milieu de la bande, de pleine (en haut) a nulle (en bas). Courbe en S :
+            -- la baisse demarre a plat, sans bord visible au debut du fondu.
+            local x = (i - 0.5) / n
+            t:SetAlpha(ZONE_ART_ALPHA * (1 - x * x * (3 - 2 * x)))
+            t:Show()
+        end
+    else
+        -- Look de Spoken : l'image seule au-dessus de la fenetre, avec ses bords dechires.
+        SetArtExtra(mp, 0)
+        for _, t in ipairs(holder.strips or {}) do t:Hide() end
+        if art.mask then
+            if not art.maskOn and art.AddMaskTexture then art:AddMaskTexture(art.mask); art.maskOn = true end
+            art.mask:SetTexture(pic.mask or [[Interface\Buttons\WHITE8X8]], "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        end
+        art:SetTexCoord(0, 1, 0, 1)
+        local panel = mp.panel
+        local w = math.max(1, (panel:GetWidth() or 0) - 16)
+        local h = math.floor(w / 2 + 0.5)
+        holder:SetSize(w, h)
+        art:SetAllPoints(holder)
+        local top, screen = mp.frame:GetTop(), UIParent and UIParent:GetTop()
+        local scale = (mp.frame:GetEffectiveScale() or 1) / ((UIParent and UIParent:GetEffectiveScale()) or 1)
+        if top and screen and (top + h + ZONE_ART_GAP) * scale > screen then
+            holder:SetPoint("TOP", panel, "BOTTOM", 0, -ZONE_ART_GAP)
+        else
+            holder:SetPoint("BOTTOM", panel, "TOP", 0, ZONE_ART_GAP)
+        end
+    end
+    art:Show()
+    holder:Show()
+end
+local function ZoneArtRefresh()
+    local env = rawget(_G, "SpokenEnv")
+    local mp = type(env) == "table" and rawget(env, "MinimalPlayer")
+    if type(mp) == "table" then pcall(DWE.SpokenZoneArt, mp) end
+end
+DWE.ZoneArtRefresh = ZoneArtRefresh
 
 -- Accroches posees une fois, des que Spoken est la (ses fenetres sont creees plus tard, a la
 -- premiere replique : on repasse a leur creation et a chaque mise en page).
@@ -2331,6 +2510,7 @@ function DWE.HookSpokenStyles()
                     DWE.PaintSpokenMinimal()
                 end
                 if cardOn then pcall(CardDock, self, env) end
+                pcall(DWE.SpokenZoneArt, self)
             end)
         end
         DWE.PaintSpokenMinimal()
@@ -5769,7 +5949,7 @@ DWE.THEME_LIST = THEME_LIST
 -- deja entendus avec Spoken (ce n'est pas un reglage).
 -- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
 DWE.OPTION_VARS = {}
-for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart CustomColors HideUI DefaultsV"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
+for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart CustomColors HideUI ZoneArt ZoneArtPaper MinimapHide DefaultsV"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
@@ -5943,6 +6123,12 @@ function DWE.InitOptionsPanel()
     y = y - 30
     AddCheck(L.HIDE_UI, 16, y, DialogueWheelE_HideUI == true, function(self)
         DialogueWheelE_HideUI = self:GetChecked() and true or false
+    end)
+    y = y - 30
+    -- Bouton de la mini-carte (ouvre ces options).
+    AddCheck(L.MINIMAP_BTN, 16, y, DialogueWheelE_MinimapHide ~= true, function(self)
+        DialogueWheelE_MinimapHide = (not self:GetChecked()) and true or nil
+        if DWE.MinimapButtonRefresh then DWE.MinimapButtonRefresh() end
     end)
     AddSlider("DWESliderOpacity", L.OPACITY_LBL, 22, y - 50, 0.2, 1, 0.05, tonumber(DialogueWheelE_Opacity) or 1, "%.2f", function(v)
         DialogueWheelE_Opacity = v
@@ -6530,6 +6716,16 @@ function DWE.InitOptionsPanel()
     Grey(AddCheck(L.BOOK_STOP_CLOSE, 16, y - 344, DialogueWheelE_BookStopOnClose == true, function(self)
         DialogueWheelE_BookStopOnClose = self:GetChecked() and true or nil
     end), spokenOn)
+    -- Illustration du lieu au-dessus de la petite fenetre de Spoken (narrations de Spoken Places).
+    Grey(AddCheck(L.ZONE_ART, 16, y - 370, DialogueWheelE_ZoneArt ~= false, function(self)
+        DialogueWheelE_ZoneArt = self:GetChecked() and true or false
+        if DWE.ZoneArtRefresh then DWE.ZoneArtRefresh() end
+    end), spokenOn)
+    -- Bord de papier peint dans l'illustration (decoche : la scene seule, dans le fond du theme).
+    Grey(AddCheck(L.ZONE_ART_PAPER, 36, y - 396, DialogueWheelE_ZoneArtPaper == true, function(self)
+        DialogueWheelE_ZoneArtPaper = self:GetChecked() and true or nil
+        if DWE.ZoneArtRefresh then DWE.ZoneArtRefresh() end
+    end), spokenOn)
     Grey(spokenThemeCheck, spokenOn)
     Grey(spokenCheck, spokenOn)
     Grey(toggleBtn, spokenOn)
@@ -6583,7 +6779,7 @@ function DWE.InitOptionsPanel()
         RefreshTiles()
     end)
     RefreshKeyButtons()
-    p:SetHeight(-(y - 372) + 30)
+    p:SetHeight(-(y - 424) + 30)
 
     ---------------------------------------------------------------- Recherche
     -- Une barre en haut du panneau (hors du defilement) : chaque frappe amene la vue sur la
@@ -6709,6 +6905,7 @@ function DWE.InitOptionsPanel()
     if Settings and Settings.RegisterCanvasLayoutCategory then
         local cat = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
         Settings.RegisterAddOnCategory(cat)
+        DWE.optionsCategory = cat
     end
 end
 

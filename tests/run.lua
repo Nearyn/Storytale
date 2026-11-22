@@ -107,7 +107,7 @@ SlashCmdList = {}
 local chat = {}
 DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) table.insert(chat, m) end }
 -- Load the addon ------------------------------------------------------------
-for _, file in ipairs({ "Locales.lua", "Storytale_Core.lua", "Bubble.lua", "SpokenFocus.lua", "SpokenQueueUI.lua", "Storytale.lua" }) do
+for _, file in ipairs({ "Locales.lua", "Storytale_Core.lua", "Bubble.lua", "SpokenFocus.lua", "SpokenQueueUI.lua", "Storytale.lua", "MinimapButton.lua" }) do
     local chunk, err = loadfile(dir .. "/" .. file)
     check(chunk ~= nil, "compile " .. file .. ": " .. tostring(err))
     local ok, rerr = pcall(chunk, "Storytale", {})
@@ -902,6 +902,47 @@ DWE.PadRewardStep(1)
 check(DWE.padRewardBtn == padB, "d-pad right comes back")
 M.FireEvent("QUEST_FINISHED")
 check(DWE.padRewardBtn == nil, "gamepad reward focus cleared when the quest closes")
+-- Bouton de la mini-carte : affiche par defaut, cache par l'option.
+do
+    _G.Minimap = _G.Minimap or CreateFrame("Frame", "Minimap", UIParent)
+    if not Minimap:GetWidth() or Minimap:GetWidth() == 0 then Minimap:SetSize(140, 140) end
+    DialogueWheelE_MinimapHide = nil
+    DWE.MinimapButtonRefresh()
+    local b = _G.StorytaleMinimapButton
+    check(b and b:IsShown(), "minimap button shown by default")
+    DialogueWheelE_MinimapHide = true
+    DWE.MinimapButtonRefresh()
+    check(b and not b:IsShown(), "minimap button hidden by its option")
+    DialogueWheelE_MinimapHide = nil
+    DWE.MinimapButtonRefresh()
+    check(type(DWE.OpenOptions) == "function", "minimap button opens the options")
+end
+-- Illustration de lieu au-dessus de la petite fenetre de Spoken.
+do
+    local mp = { frame = CreateFrame("Frame", nil, UIParent), panel = CreateFrame("Frame", nil, UIParent) }
+    mp.panel:SetSize(300, 100)
+    mp.clip = { present = { picture = { file = "Interface\\Pic\\Zone", mask = "Interface\\Pic\\Mask" } } }
+    local saved = DialogueWheelE_ZoneArt
+    DialogueWheelE_ZoneArt = nil
+    DWE.SpokenZoneArt(mp)
+    check(mp.dweZoneHolder and mp.dweZoneHolder:IsShown(), "zone art: shown by default for a place line")
+    mp.dweThemeId = "dark"
+    DWE.SpokenZoneArt(mp)
+    check(mp.dweZoneHolder:IsShown() and (mp.dweArtExtra or 0) == 0, "zone art: window not dressed by Storytale, picture stays apart")
+    mp.dweThemeId = nil
+    DialogueWheelE_ZoneArt = false
+    DWE.SpokenZoneArt(mp)
+    check(not mp.dweZoneHolder:IsShown(), "zone art: option off hides it")
+    DialogueWheelE_ZoneArt = nil
+    mp.clip = { present = {} }
+    DWE.SpokenZoneArt(mp)
+    check(not mp.dweZoneHolder:IsShown(), "zone art: a line without picture hides it")
+    mp.clip = { present = { picture = { file = "x" } } }
+    mp.picture = mp.frame:CreateTexture()
+    DWE.SpokenZoneArt(mp)
+    check(not mp.dweZoneHolder:IsShown(), "zone art: steps back when Spoken shows its own")
+    DialogueWheelE_ZoneArt = saved
+end
 GetQuestLogIndexByID, SelectQuestLogEntry, GetQuestLogSelection, GetNumQuestLogChoices, GetQuestLogChoiceInfo, GetNumQuestLogRewards = nil, nil, nil, nil, nil, nil
 M.questID = 7894
 M.FireEvent("QUEST_GREETING")

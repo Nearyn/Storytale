@@ -1,5 +1,29 @@
 # Changelog / Journal des versions
 
+## 1.6.4
+
+**English**
+
+### New
+- **Place pictures in Spoken's window.** When Spoken Places narrates a place, its picture now shows at the top of Spoken's small window, its bottom fading into the window's background. It follows every theme. With Frameless, it keeps its torn paper edges.
+- Two options in the Spoken section: show or hide place pictures (on by default), and keep the picture's painted paper edge, for a storybook look (off by default).
+- **Minimap button.** Click it to open Storytale's options, drag it to move it around the minimap. An option hides it.
+
+### Improved
+- **Gamepad: rings, trinkets and one-hand weapons** are now compared with both items you wear, side by side, like with the mouse.
+
+---
+
+**Français**
+
+### Nouveautés
+- **Illustrations des lieux dans la fenêtre de Spoken.** Quand Spoken Places raconte un lieu, son illustration s'affiche en haut de la petite fenêtre de Spoken, et son bas s'efface dans le fond de la fenêtre. Elle suit tous les thèmes. Avec Sans cadre, elle garde ses bords de papier déchirés.
+- Deux options dans la section Spoken : afficher ou masquer les illustrations des lieux (activé par défaut), et garder le bord de papier peint de l'illustration, pour un effet livre de contes (désactivé par défaut).
+- **Bouton de la mini-carte.** Un clic ouvre les options de Storytale ; glissez-le pour le déplacer autour de la mini-carte. Une option le cache.
+
+### Améliorations
+- **Manette : bagues, bijoux et armes à une main** sont maintenant comparés aux deux objets que vous portez, côte à côte, comme à la souris.
+
 ## 1.6.3
 
 **English**

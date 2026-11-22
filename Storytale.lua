@@ -11,7 +11,7 @@ local L = DWE.L
 do
     local EXTRA = { "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose",
         "BookVoiceOff", "RibbonSeen", "GamePad", "PadTipSeen", "PadTips", "DUIPos", "SpokenStyleChosen",
-        "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "DefaultsV" }
+        "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV" }
     DWE.EXTRA_VARS = EXTRA
     local me = ...
     local saver = CreateFrame("Frame")
@@ -1701,8 +1701,11 @@ function DWE.PadRewardTip()
         if tip.SetFrameStrata then tip:SetFrameStrata("TOOLTIP") end
         local cmp = CreateFrame("GameTooltip", "StorytalePadCompare", UIParent, "GameTooltipTemplate")
         if cmp.SetFrameStrata then cmp:SetFrameStrata("TOOLTIP") end
-        tip:HookScript("OnHide", function() cmp:Hide() end)
-        DWE.padRewardTip, DWE.padCompareTip = tip, cmp
+        -- Deuxieme objet porte (deux bagues, deux bijoux, deux armes a une main), comme le jeu.
+        local cmp2 = CreateFrame("GameTooltip", "StorytalePadCompare2", UIParent, "GameTooltipTemplate")
+        if cmp2.SetFrameStrata then cmp2:SetFrameStrata("TOOLTIP") end
+        tip:HookScript("OnHide", function() cmp:Hide(); cmp2:Hide() end)
+        DWE.padRewardTip, DWE.padCompareTip, DWE.padCompareTip2 = tip, cmp, cmp2
     end
     return DWE.padRewardTip
 end
@@ -1718,7 +1721,7 @@ local SLOT_OF = {
 }
 -- Onglet "Equipe" au-dessus de la fiche de l'objet porte (comme celui du jeu).
 function DWE.PadCompareHeader(cmp)
-    local h = DWE.padCompareHdr
+    local h = cmp.dweHdr
     if not h then
         -- Meme bordure que les fiches du jeu si le modele existe, sinon un cadre simple.
         local ok, f = pcall(CreateFrame, "Frame", nil, cmp, "TooltipBackdropTemplate")
@@ -1737,7 +1740,7 @@ function DWE.PadCompareHeader(cmp)
         h.text:SetPoint("CENTER", 0, 0)
         h.text:SetText(rawget(_G, "EQUIPPED") or rawget(_G, "CURRENTLY_EQUIPPED") or "Equipped")
         h:SetPoint("BOTTOMLEFT", cmp, "TOPLEFT", 0, -1)
-        DWE.padCompareHdr = h
+        cmp.dweHdr = h
     end
     local w = h.text.GetStringWidth and h.text:GetStringWidth() or 60
     h:SetSize(math.max(60, (tonumber(w) or 60) + 22), 22)
@@ -1779,26 +1782,30 @@ function DWE.PadDropTransmog(cmp)
         end
     end
 end
-function DWE.PadRewardCompare(tip, link)
-    local cmp = DWE.padCompareTip
-    if not cmp then return end
-    cmp:Hide()
-    local function Why(msg) if DWE.padCompareDebug then print("|cff88ccffStorytale compare:|r " .. msg) end end
-    if not link then return Why("no link (" .. tostring(tip and tip.GetName and tip:GetName()) .. ")") end
-    local loc = select(9, ItemInfo(link))
-    local slot = SLOT_OF[loc or ""]
-    if not slot then return Why("no slot for " .. tostring(loc)) end
+-- Emplacements a comparer pour un objet : les deux bagues, les deux bijoux ; une arme a une main
+-- se compare aussi a la main gauche si elle tient une arme (pas un bouclier ni un objet tenu).
+local SECOND_SLOT = { [11] = 12, [13] = 14 }
+local function SlotsFor(loc, slot)
+    local list = { slot }
+    local second = SECOND_SLOT[slot]
+    if not second and loc == "INVTYPE_WEAPON" then
+        local off = GetInventoryItemLink and GetInventoryItemLink("player", 17)
+        local offLoc = off and select(9, ItemInfo(off))
+        if offLoc == "INVTYPE_WEAPON" or offLoc == "INVTYPE_WEAPONOFFHAND" then second = 17 end
+    end
+    if second then list[2] = second end
+    return list
+end
+-- Remplit une fiche avec l'objet porte a `slot`, puis les changements de stats. Faux si rien.
+local function FillCompare(cmp, anchor, slot, link)
     local worn = GetInventoryItemLink and GetInventoryItemLink("player", slot)
-    if not worn then return Why("nothing worn in slot " .. slot) end
+    if not worn then return false end
     cmp:SetOwner(UIParent, "ANCHOR_NONE")
     cmp:ClearAllPoints()
-    cmp:SetPoint("TOPLEFT", tip, "TOPRIGHT", 2, 0)
+    cmp:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 2, 0)
     -- L'objet porte lui-meme (lie, durabilite, enchantement), sinon sa fiche generique.
     local ok = pcall(cmp.SetInventoryItem, cmp, "player", slot) and (cmp:NumLines() or 0) > 0
-    if not ok then
-        local ok2, err = pcall(cmp.SetHyperlink, cmp, worn)
-        if not ok2 then cmp:Hide() return Why("SetHyperlink failed: " .. tostring(err)) end
-    end
+    if not ok and not pcall(cmp.SetHyperlink, cmp, worn) then cmp:Hide() return false end
     DWE.PadDropTransmog(cmp)
     -- Changements de stats si l'on remplace l'objet porte (comme la comparaison du jeu).
     local deltaFn = (C_Item and C_Item.GetItemStatDelta) or rawget(_G, "GetItemStatDelta")
@@ -1842,7 +1849,27 @@ function DWE.PadRewardCompare(tip, link)
     end
     cmp:Show()
     DWE.PadCompareHeader(cmp)
-    Why("shown (" .. tostring(cmp:IsShown()) .. ")")
+    return true
+end
+function DWE.PadRewardCompare(tip, link)
+    local cmp, cmp2 = DWE.padCompareTip, DWE.padCompareTip2
+    if not cmp then return end
+    cmp:Hide()
+    if cmp2 then cmp2:Hide() end
+    local function Why(msg) if DWE.padCompareDebug then print("|cff88ccffStorytale compare:|r " .. msg) end end
+    if not link then return Why("no link (" .. tostring(tip and tip.GetName and tip:GetName()) .. ")") end
+    local loc = select(9, ItemInfo(link))
+    local slot = SLOT_OF[loc or ""]
+    if not slot then return Why("no slot for " .. tostring(loc)) end
+    local anchor, shown = tip, 0
+    for _, s in ipairs(SlotsFor(loc, slot)) do
+        local target = (shown == 0) and cmp or cmp2
+        if target and FillCompare(target, anchor, s, link) then
+            anchor, shown = target, shown + 1
+        end
+    end
+    if shown == 0 then return Why("nothing worn in slot " .. slot) end
+    Why("shown (" .. shown .. ")")
 end
 
 -- Les fenetres du jeu restent ouvertes (invisibles) sous la roue et le livre : la navigation

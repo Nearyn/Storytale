@@ -665,6 +665,61 @@ for loc, text in pairs(HIDE_UI) do
     if dest then dest.HIDE_UI = text end
 end
 
+-- Option : illustration du lieu au-dessus de la petite fenetre de Spoken.
+local ZONE_ART = {
+    enUS = "Show place pictures in Spoken's small window",
+    frFR = "Afficher les illustrations des lieux dans la petite fenêtre de Spoken",
+    deDE = "Ortsbilder in Spokens kleinem Fenster zeigen",
+    esES = "Mostrar las ilustraciones de los lugares en la ventana pequeña de Spoken",
+    esMX = "Mostrar las ilustraciones de los lugares en la ventana pequeña de Spoken",
+    itIT = "Mostra le illustrazioni dei luoghi nella finestra piccola di Spoken",
+    ptBR = "Mostrar as ilustrações dos locais na janela pequena do Spoken",
+    ruRU = "Показывать иллюстрации мест в маленьком окне Spoken",
+    koKR = "Spoken 작은 창에 장소 그림 표시",
+    zhCN = "在 Spoken 小窗口中显示地点插图",
+    zhTW = "在 Spoken 小視窗中顯示地點插圖",
+}
+local ZONE_ART_PAPER = {
+    enUS = "Keep the painted paper edge of the picture",
+    frFR = "Garder le bord de papier peint de l'illustration",
+    deDE = "Gemalten Papierrand des Bildes behalten",
+    esES = "Conservar el borde de papel pintado de la ilustración",
+    esMX = "Conservar el borde de papel pintado de la ilustración",
+    itIT = "Mantieni il bordo di carta dipinto dell'illustrazione",
+    ptBR = "Manter a borda de papel pintada da ilustração",
+    ruRU = "Сохранять нарисованный бумажный край иллюстрации",
+    koKR = "그림의 종이 테두리 유지",
+    zhCN = "保留插图的纸张边缘",
+    zhTW = "保留插圖的紙張邊緣",
+}
+for loc, text in pairs(ZONE_ART_PAPER) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.ZONE_ART_PAPER = text end
+end
+for loc, text in pairs(ZONE_ART) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.ZONE_ART = text end
+end
+
+-- Bouton de la mini-carte : option, et son infobulle.
+local MINIMAP = {
+    enUS = { "Show the minimap button", "Click: options. Drag: move this button." },
+    frFR = { "Afficher le bouton de la mini-carte", "Clic : options. Glisser : déplacer ce bouton." },
+    deDE = { "Minikarten-Knopf anzeigen", "Klick: Optionen. Ziehen: Knopf verschieben." },
+    esES = { "Mostrar el botón del minimapa", "Clic: opciones. Arrastrar: mover este botón." },
+    esMX = { "Mostrar el botón del minimapa", "Clic: opciones. Arrastrar: mover este botón." },
+    itIT = { "Mostra il pulsante della minimappa", "Clic: opzioni. Trascina: sposta questo pulsante." },
+    ptBR = { "Mostrar o botão do minimapa", "Clique: opções. Arrastar: mover este botão." },
+    ruRU = { "Показывать кнопку у мини-карты", "Щелчок: настройки. Перетащить: переместить кнопку." },
+    koKR = { "미니맵 버튼 표시", "클릭: 설정. 드래그: 버튼 이동." },
+    zhCN = { "显示小地图按钮", "点击：设置。拖动：移动此按钮。" },
+    zhTW = { "顯示小地圖按鈕", "點擊：設定。拖曳：移動此按鈕。" },
+}
+for loc, list in pairs(MINIMAP) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.MINIMAP_BTN, dest.MINIMAP_TIP = list[1], list[2] end
+end
+
 -- Themes Personnalises enregistres : Enregistrer, liste, nom, suppression, liste vide, Supprimer.
 local CUSTOM_PRESETS = {
     enUS = { "Save", "Saved themes", "Name of this theme:", "Delete the theme \"%s\"?", "No saved theme yet", "Delete" },
