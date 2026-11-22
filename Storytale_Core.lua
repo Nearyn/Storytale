@@ -3932,7 +3932,7 @@ function DWE.UpdateBookBar()
             end)
             bookBar.buttons[i] = b
         end
-        b.icon:SetTexture(opt.icon)
+        if opt.icon then DWE.SetOptionIcon(b.icon, opt) else b.icon:SetTexture(nil) end
         b.icon:SetShown(opt.icon ~= nil)
         -- Icone peinte (bouton "Surbrillance" : carre de la couleur des mots lus, cerne de noir).
         local ic = opt.iconColor
@@ -5008,11 +5008,20 @@ function DWE.WheelWidth()
     return tonumber(DialogueWheelE_WheelWidth) or DWE.autoWheelWidth or AUTO_WHEEL_MAX
 end
 
+-- Icone d'une option : planche (atlas) ou decoupe recopiees de la fenetre du jeu, sinon fichier.
+function DWE.SetOptionIcon(t, opt)
+    if opt.iconAtlas and t.SetAtlas and pcall(t.SetAtlas, t, opt.iconAtlas) then return end
+    t:SetTexture(opt.icon)
+    local c = opt.iconCoords
+    if c then t:SetTexCoord(c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8])
+    else t:SetTexCoord(0, 1, 0, 1) end
+end
+
 local function PaintRow(row, opt, selected, pillWidth)
     local pill = DWE.WheelPillStyle()
     local pad = pill and PILL_PAD or ROW_PAD
     if opt.icon then
-        row.icon:SetTexture(opt.icon)
+        DWE.SetOptionIcon(row.icon, opt)
         local ic = opt.iconColor
         row.icon:SetVertexColor(ic and ic[1] or 1, ic and ic[2] or 1, ic and ic[3] or 1)
         row.icon:ClearAllPoints()

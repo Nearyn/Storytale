@@ -2268,6 +2268,44 @@ do
     DWE.padEarly = nil
     _G.GamepadMode = oldGM
 end
+-- Icone de quete recopiee du jeu : sa decoupe (planche d'icones) suit, sinon pleine image.
+do
+    local t = UIParent:CreateTexture()
+    DWE.SetOptionIcon(t, { icon = 123, iconCoords = { 0, 0, 0, 0.5, 0.5, 0, 0.5, 0.5 } })
+    check(t._texture == 123 and t._texCoord and t._texCoord[4] == 0.5, "quest icon keeps its cut from an icon sheet")
+    DWE.SetOptionIcon(t, { icon = 456 })
+    check(t._texture == 456 and t._texCoord and t._texCoord[2] == 1, "plain icon resets the cut")
+end
+-- Quete qu'on vient d'accepter : le bouton du jeu pas encore remis a jour (icone "a prendre")
+-- ne doit pas remplacer l'icone "en cours" de la roue.
+do
+    local gf = rawget(_G, "GossipFrame") or CreateFrame("Frame", "GossipFrame", UIParent)
+    gf:Show()
+    _G.GOSSIP_BUTTON_TYPE_ACTIVE_QUEST, _G.GOSSIP_BUTTON_TYPE_AVAILABLE_QUEST = 4, 5
+    local btn = CreateFrame("Button", nil, gf)
+    btn:Show()
+    btn.Name = btn:CreateFontString(); btn.Name:SetText("Magics of the Drowned City")
+    btn.Icon = btn:CreateTexture(); btn.Icon:SetTexture("STALE_BANG")
+    local bt = 5
+    btn.GetElementData = function() return { buttonType = bt, info = { questID = 7701 } } end
+    local oldA, oldV = M.activeQuests, M.availQuests
+    M.availQuests, M.activeQuests = {}, { { questID = 7701, title = "Magics of the Drowned City" } }
+    DWE.currentOptions = {}
+    M.FireEvent("GOSSIP_SHOW")
+    M.RunTimers()
+    local o
+    for _, x in ipairs(DWE.currentOptions) do if x.qID == 7701 then o = x end end
+    check(o and o.icon ~= "STALE_BANG", "accepted quest keeps its in-progress icon, not the stale one")
+    bt = 4
+    M.FireEvent("GOSSIP_SHOW")
+    M.RunTimers()
+    o = nil
+    for _, x in ipairs(DWE.currentOptions) do if x.qID == 7701 then o = x end end
+    check(o and o.icon == "STALE_BANG", "matching game button still lends its icon")
+    btn:Hide()
+    M.activeQuests, M.availQuests = oldA, oldV
+    M.FireEvent("GOSSIP_CLOSED")
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end

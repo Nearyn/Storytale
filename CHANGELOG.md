@@ -1,5 +1,21 @@
 # Changelog / Journal des versions
 
+## 1.6.6
+
+**English**
+
+### Fixed
+- **Quest icons in the wheel:** the icon of a quest in progress was sometimes a blur of pixels; it now shows a clean grey question mark.
+- A quest you just accepted no longer keeps the "available quest" icon when you talk to the NPC again.
+
+---
+
+**Français**
+
+### Corrections
+- **Icônes de quête dans la roue :** l'icône d'une quête en cours s'affichait parfois comme un amas de pixels ; c'est maintenant un point d'interrogation gris bien net.
+- Une quête qu'on vient d'accepter ne garde plus l'icône « quête à prendre » quand on reparle au PNJ.
+
 ## 1.6.5
 
 **English**

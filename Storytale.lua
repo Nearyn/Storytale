@@ -286,11 +286,37 @@ end
 -- d'autres addons comme Questie peuvent y mettre leurs propres icones).
 local function ScanFrameForQuestIcons(frame, found, depth)
     if not frame or depth > 6 or (frame.IsShown and not frame:IsShown()) then return end
-    local label = (frame.Name and frame.Name.GetText and frame.Name) or (frame.GetText and frame)
-    if frame.Icon and frame.Icon.GetTexture and label then
-        local txt, tex = NotSecret(label:GetText()), frame.Icon:GetTexture()
+    local name, icon = rawget(frame, "Name"), rawget(frame, "Icon")
+    local label = (type(name) == "table" and name.GetText and name) or (frame.GetText and frame)
+    if type(icon) == "table" and icon.GetTexture and label then
+        local txt, tex = NotSecret(label:GetText()), icon:GetTexture()
         if txt and tex then
-            found[txt:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")] = tex
+            -- Icone tiree d'une planche (atlas) : sans sa decoupe, on afficherait la planche
+            -- entiere en miniature, illisible.
+            local atlas = icon.GetAtlas and NotSecret(icon:GetAtlas()) or nil
+            local c = icon.GetTexCoord and { icon:GetTexCoord() } or nil
+            if c and #c == 8 then
+                local full = c[1] == 0 and c[2] == 0 and c[3] == 0 and c[4] == 1
+                    and c[5] == 1 and c[6] == 0 and c[7] == 1 and c[8] == 1
+                if full then c = nil end
+            else
+                c = nil
+            end
+            local entry = { tex = tex, atlas = atlas ~= "" and atlas or nil, coords = c }
+            -- Bouton de la liste du jeu : on le reconnait par sa quete et son genre (a prendre,
+            -- en cours), pas par son titre. Un bouton pas encore remis a jour (quete qu'on vient
+            -- d'accepter) ne prete alors pas son ancienne icone.
+            local ed = frame.GetElementData and select(2, pcall(frame.GetElementData, frame))
+            local qid = type(ed) == "table" and type(ed.info) == "table" and ed.info.questID
+            if qid then
+                local bt = ed.buttonType
+                local kind = (bt ~= nil and bt == rawget(_G, "GOSSIP_BUTTON_TYPE_ACTIVE_QUEST") and "active")
+                    or (bt ~= nil and bt == rawget(_G, "GOSSIP_BUTTON_TYPE_AVAILABLE_QUEST") and "avail") or "any"
+                found["q:" .. qid .. ":" .. kind] = entry
+                found.byQuest = true
+            else
+                found[txt:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")] = entry
+            end
         end
     end
     if frame.GetChildren then
@@ -306,9 +332,14 @@ local function SyncIconsFromGossipFrame()
     ScanFrameForQuestIcons(GossipFrame, found, 0)
     local updated = false
     for _, opt in ipairs(DWE.currentOptions) do
-        local tex = opt.isQuest and found[opt.rawLabel]
-        if tex and opt.icon ~= tex then
-            opt.icon = tex
+        local f
+        if opt.isQuest and found.byQuest and opt.qID then
+            f = found["q:" .. opt.qID .. ":" .. (opt.questKind or "any")] or found["q:" .. opt.qID .. ":any"]
+        elseif opt.isQuest and not found.byQuest then
+            f = found[opt.rawLabel]
+        end
+        if f and (opt.icon ~= f.tex or opt.iconAtlas ~= f.atlas or opt.iconCoords ~= f.coords) then
+            opt.icon, opt.iconAtlas, opt.iconCoords = f.tex, f.atlas, f.coords
             updated = true
         end
     end
@@ -949,7 +980,7 @@ local function BuildGossipOptions()
     for _, q in ipairs(C_GossipInfo.GetAvailableQuests and C_GossipInfo.GetAvailableQuests() or {}) do
         local qID = q.questID
         AddOption({
-            isQuest = true,
+            isQuest = true, qID = qID, questKind = "avail",
             icon = IsKnownRepeatable(q) and ICON_QUEST_REPEATABLE or ICON_QUEST_AVAIL,
             rawLabel = q.title or "?",
             action = function() C_GossipInfo.SelectAvailableQuest(qID) end,
@@ -958,7 +989,7 @@ local function BuildGossipOptions()
     for _, q in ipairs(C_GossipInfo.GetActiveQuests and C_GossipInfo.GetActiveQuests() or {}) do
         local qID = q.questID
         AddOption({
-            isQuest = true,
+            isQuest = true, qID = qID, questKind = "active",
             icon = IsQuestDone(q) and ICON_QUEST_ACTIVE or ICON_QUEST_INCOMPLETE,
             rawLabel = q.title or "?",
             action = function() C_GossipInfo.SelectActiveQuest(qID) end,
