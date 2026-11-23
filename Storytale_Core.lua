@@ -4899,6 +4899,15 @@ function DWE.PlateNameStyle(parts, token)
     if okR and react == 4 then r, g, b = 1, 1, 0 end
     pcall(fs.SetTextColor, fs, r, g, b, 1)
     if not fs:IsShown() then fs:Show() end
+    -- Journal : de quoi caler la taille sur la distance de la camera (le nom habituel en depend).
+    if DWE.followLog and parts.loggedFor ~= token then
+        parts.loggedFor = token
+        local okZ, z = pcall(GetCameraZoom)
+        local function cv(k) local ok, v = pcall(GetCVar, k) return ok and tostring(v) or "?" end
+        DWE.FLog(("nom maquille : %s | zoom camera=%s | taille=%s | echelle plaques min=%s max=%s dist=%s"):format(
+            nm, tostring(okZ and z and string.format("%.2f", z)), tostring(DWE.NEAR_NAME_SIZE),
+            cv("nameplateMinScale"), cv("nameplateMaxScale"), cv("nameplateMinScaleDistance")))
+    end
 end
 
 function DWE.PlateRestoreParts(uf, parts)
