@@ -7687,6 +7687,19 @@ function DWE.InitOptionsPanel()
             b:SetText(L.DEFAULTS_BTN)
             b:SetScript("OnClick", function() DWE.AskResetPage(pg.panel.name ~= "Storytale" and pg.panel.name or L.SEC_THEME, pg.vars) end)
             pg.defaults = b
+            if k == 1 then
+                -- Page principale : tout remettre d'un coup (le profil en cours, toutes les pages).
+                local all = CreateFrame("Button", nil, pg.panel, "UIPanelButtonTemplate")
+                all:SetSize(130, 22)
+                all:SetPoint("RIGHT", b, "LEFT", -6, 0)
+                all:SetText(L.DEFAULTS_ALL_BTN)
+                all:SetScript("OnClick", function() DWE.AskResetAll() end)
+                pg.defaultsAll = all
+                if pg.search then
+                    pg.search:ClearAllPoints()
+                    pg.search:SetPoint("TOPRIGHT", pg.panel, "TOPRIGHT", -306, -8)
+                end
+            end
         end
     end
     -- Texte du compteur, sur toutes les pages.
