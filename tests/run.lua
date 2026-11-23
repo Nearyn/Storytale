@@ -169,7 +169,7 @@ do
     for k = 2, #(DWE.optionPages or {}) do names[#names + 1] = DWE.optionPages[k].panel.name end
     check(names[1] == DWE.L.SEC_BOOKS and names[3] == DWE.L.CAT_KEYS and names[5] == DWE.L.SEC_PROFILES, "category names: " .. table.concat(names, ", "))
     local found = false
-    for _, c in ipairs({ DWE.optionPages[6].content:GetChildren() }) do if c.GetText and c:GetText() == DWE.L.PROFILE_USE then found = true end end
+    for _, c in ipairs({ DWE.optionPages[6].content:GetChildren() }) do if c.GetText and c:GetText() == DWE.L.PROFILE_NEW_BTN then found = true end end
     check(found, "profiles controls live on the Profiles page")
 end
 do -- recherche dans les options
@@ -2751,8 +2751,7 @@ do
     check(DialogueWheelE_Profiles.sets.Alt.Theme == "folio", "profiles: leaving a profile keeps its changes")
     check(DWE.ProfileCreate("Copy", true, true) and DialogueWheelE_Theme == "parchment", "profiles: a copy keeps the current options")
     check(not DWE.ProfileCreate("Copy", true, true) and not DWE.ProfileCreate("  ", false, true) and not DWE.ProfileCreate("Default", false, true), "profiles: empty or taken names refused")
-    DWE.ProfileForNew(true)
-    check(DialogueWheelE_Profiles.newChar == "Copy" and DWE.ProfileIsForNew(), "profiles: profile for new characters")
+    check(DWE.ProfileSetForNew("Copy") and DialogueWheelE_Profiles.newChar == "Copy" and DWE.ProfileNewCharName() == "Copy", "profiles: profile for new characters")
     DialogueWheelE_Profiles.sets.Copy.Theme = "frameless"
     DialogueWheelE_Profiles.chars = {}
     DWE.profile = nil
@@ -2761,14 +2760,16 @@ do
         "profiles: deleting the current profile goes back to Default")
     check(not DWE.ProfileDelete("Default", true), "profiles: Default can't be deleted")
     local l = DWE.ProfileList()
-    check(l[1] == "Default" and l[2] == "Factory" and l[3] == "Alt" and #l == 3, "profiles: list starts with Main, then Defaults")
-    -- Profil "Par defaut" : options d'installation, jamais modifie ; le bouton du haut ramene au profil d'avant.
-    check(DWE.ProfileSwitch("Factory", true) and DialogueWheelE_Theme == nil and DialogueWheelE_DefaultsV == nil, "profiles: Defaults profile = first-install options")
-    DialogueWheelE_Theme = "folio"
-    check(DWE.ProfileBackName() == "Default" and DWE.ProfileSwitch(DWE.ProfileBackName(), true) and DialogueWheelE_Theme == "parchment",
-        "profiles: back from Defaults to the previous profile, its options intact")
-    check(DialogueWheelE_Profiles.sets.Factory == nil, "profiles: nothing is kept on the Defaults profile")
-    check(not DWE.ProfileDelete("Factory", true) and not DWE.ProfileCreate("Factory", false, true), "profiles: Defaults can't be deleted or taken as a name")
+    check(l[1] == "Default" and l[2] == "Alt" and #l == 2, "profiles: list starts with Main")
+    check(DWE.ProfileNewCharName() == "Default", "profiles: new characters back on Main after their profile is deleted")
+    -- Copier les reglages d'un autre profil dans celui en cours.
+    check(DWE.ProfileCopyFrom("Alt", true) and DialogueWheelE_Theme == "folio" and DialogueWheelE_Profiles.sets.Default.Theme == "folio",
+        "profiles: copy settings from another profile")
+    check(not DWE.ProfileCopyFrom("Default", true), "profiles: no copy from itself")
+    -- 1.7.0 : un personnage reste sur l'ancien profil fixe "Par defaut" -> son profil d'avant.
+    DialogueWheelE_Profiles.chars = { ["x"] = "Factory" }
+    DialogueWheelE_Profiles.back = "Alt"
+    check(DialogueWheelE_Profiles.back == "Alt", "profiles: old Defaults profile set up")
     DWE.ProfileSwitch("Alt", true)
     DWE.ProfileSave()
     DialogueWheelE_Profiles, DialogueWheelE_Theme, DialogueWheelE_ReadBooks, DialogueWheelE_FontSize = saveP, saveTheme, saveRead, saveFS
