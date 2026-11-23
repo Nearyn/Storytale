@@ -608,7 +608,7 @@ do
     UnitGUID = function() return "Creature-other" end
     follower._scripts.OnUpdate(follower, 0.2)
     local lp = DWE.choiceBox._points[#DWE.choiceBox._points]
-    check(not DWE.IsFollowingNPC() or (lp and lp[2] == DWE.npcGhost), "other NPC plate not taken (last place kept)")
+    check(not DWE.IsFollowingNPC(), "other NPC plate not taken")
     UnitExists, UnitGUID = oE, oG
     follower._scripts.OnUpdate(follower, 0.2)
     check(DWE.IsFollowingNPC(), "re-pinned with npc unit back")
@@ -632,7 +632,7 @@ do
     M.cvars.nameplateMaxAlpha = "1"
     DWE.choiceBox:Show()
     check(M.cvars.nameplateMaxAlpha == "1", "player's plate opacity untouched (their plates stay visible)")
-    check(M.cvars.nameplateShowAll == "0", "show-all plates left alone (other NPC names stay visible)")
+    check(M.cvars.nameplateShowAll == "1" and DialogueWheelE_PlateRestore and DialogueWheelE_PlateRestore.all == "0", "show-all plates on during the conversation, player value kept")
     DWE.choiceBox:Hide(); M.RunTimers()
     check(M.cvars.nameplateShowAll == "0" and DialogueWheelE_PlateRestore == nil, "show-all plates restored after")
     M.RunTimers()

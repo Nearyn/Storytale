@@ -4822,7 +4822,6 @@ local function SetFriendlyPlates(on)
     -- Aucun reglage des plaques n'est plus change en conversation : activer les plaques des PNJ
     -- amicaux changeait l'affichage des noms de TOUS les PNJ autour. Storytale n'utilise plus
     -- que la plaque que le jeu donne deja au PNJ a qui l'on parle.
-    if on and DWE.NO_PLATE_CVARS ~= false then return end
     if on then
         local cur = GetCVar("nameplateShowFriendlyNPCs")
         if cur and cur ~= "1" then
@@ -4831,8 +4830,11 @@ local function SetFriendlyPlates(on)
         end
         -- "Toujours afficher les plaques" coupe : a la manette, la plaque du PNJ n'existait que
         -- comme cible d'interaction et le jeu la retirait a l'ouverture d'une quete.
-        -- (Plus de "toujours afficher les plaques" : le jeu cachait alors les noms de tous les
-        -- PNJ autour. Ecran de quete a la manette : voir le fantome DWE.npcGhost.)
+        local all = GetCVar("nameplateShowAll")
+        if all and all ~= "1" and not DWE.savedShowAll then
+            DWE.savedShowAll = all
+            SetCVar("nameplateShowAll", "1")
+        end
         -- Garde la valeur du joueur meme apres un /reload ou une deconnexion en pleine conversation.
         if savedPlateCVar or DWE.savedShowAll then
             DialogueWheelE_PlateRestore = { friendly = savedPlateCVar, all = DWE.savedShowAll, alpha = DWE.plateAlphaSaved }
@@ -5403,7 +5405,6 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
     elseif follow.plate and (measured or math.abs(ZoomFactor() - (follow.zoomF or 1)) > 0.003) then
         pcall(AnchorTo, follow.plate) -- zoom en cours ou taille du PNJ connue : on suit
     end
-    if follow.plate and follow.plate ~= DWE.npcGhost then pcall(DWE.GhostRecord, follow.plate) end
     -- Le jeu remet l'opacite de certaines plaques apres leur apparition : on les recache a
     -- chaque image (sinon elles se voyaient une demi-seconde a l'entree en conversation).
     pcall(MaskFriendlyPlates)
