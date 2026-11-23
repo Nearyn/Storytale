@@ -6542,6 +6542,25 @@ function DWE.AskProfile(kind, name)
     StaticPopup_Show("STORYTALE_PROFILE_NAME")
 end
 
+-- Valeurs par defaut donnees une fois a l'installation (voir PLAYER_LOGIN) : une page remise
+-- a zero les reprend (sans elles, la valeur "vide" n'est pas celle d'une installation).
+DWE.INSTALL_DEFAULTS = { WheelTheme = true, FontSize = 14, BookTipCursor = true }
+function DWE.ResetPage(vars, noReload)
+    for _, k in ipairs(vars or {}) do
+        local d = DWE.INSTALL_DEFAULTS[k]
+        _G["DialogueWheelE_" .. k] = d
+    end
+    if not noReload and ReloadUI then ReloadUI() end
+end
+function DWE.AskResetPage(name, vars)
+    if not (StaticPopupDialogs and StaticPopup_Show) then DWE.ResetPage(vars) return end
+    StaticPopupDialogs.STORYTALE_RESET_PAGE = {
+        text = DWE.L.PAGE_RESET_CONFIRM, button1 = YES or "Yes", button2 = NO or "No",
+        OnAccept = function() DWE.ResetPage(vars) end,
+        timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+    }
+    StaticPopup_Show("STORYTALE_RESET_PAGE", name)
+end
 function DWE.AskResetAll()
     if not StaticPopupDialogs then DWE.ResetAllOptions() return end
     StaticPopupDialogs.STORYTALE_RESET_ALL = StaticPopupDialogs.STORYTALE_RESET_ALL or {
@@ -6728,13 +6747,6 @@ function DWE.InitOptionsPanel()
     end
 
     AddText("Storytale", 16, -12, "GameFontNormalHuge")
-    -- "Par defaut" (comme les autres addons) : remet le profil en cours comme a l'installation,
-    -- apres confirmation, puis recharge l'interface.
-    local defaultsBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-    defaultsBtn:SetPoint("TOPRIGHT", p, "TOPRIGHT", -16, -12)
-    defaultsBtn:SetSize(140, 24)
-    defaultsBtn:SetText(L.DEFAULTS_BTN)
-    defaultsBtn:SetScript("OnClick", function() DWE.AskResetAll() end)
 
     ---------------------------------------------------------------- Theme
     local y = -52
@@ -7535,6 +7547,11 @@ function DWE.InitOptionsPanel()
     newBtn:SetPoint("TOPLEFT", p, "TOPLEFT", 36, py - 130)
     newBtn:SetText(L.PROFILE_NEW_BTN)
     newBtn:SetScript("OnClick", function() DWE.AskProfile("new") end)
+    local resetBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    resetBtn:SetSize(200, 24)
+    resetBtn:SetPoint("LEFT", newBtn, "RIGHT", 12, 0)
+    resetBtn:SetText(L.RESET_ALL)
+    resetBtn:SetScript("OnClick", function() DWE.AskResetAll() end)
     PRow(L.PROFILE_FOR_NEW, py - 164, function() return DWE.ProfileList() end,
         function() return DWE.ProfileNewCharName() end, function(n)
             DWE.ProfileSetForNew(n)
@@ -7567,7 +7584,7 @@ function DWE.InitOptionsPanel()
         local okT, search = pcall(CreateFrame, "EditBox", gname, host, "SearchBoxTemplate")
         if not okT or not search then search = CreateFrame("EditBox", gname, host, "InputBoxTemplate") end
         search:SetSize(260, 20)
-        search:SetPoint("TOPRIGHT", host, "TOPRIGHT", -40, -8)
+        search:SetPoint("TOPRIGHT", host, "TOPRIGHT", -170, -8)
         search:SetAutoFocus(false)
         if type(search.Instructions) == "table" then
             search.Instructions:SetText(L.OPT_SEARCH)
@@ -7587,6 +7604,27 @@ function DWE.InitOptionsPanel()
         return search
     end
     for k, pg in ipairs(pages) do pg.search = MakeSearch(pg.panel, k == 1 and "DialogueWheelEOptionsSearch" or nil) end
+    -- "Par defaut" en haut de chaque page : remet les reglages de cette page seulement.
+    local PAGE_VARS = {
+        { "Theme", "Font", "FontSize", "Opacity", "ThemeFrames", "WheelTheme", "HideUI", "ChoiceSize", "MinimapHide", "MinimapAngle" },
+        { "BookStyle", "BookLook", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookTurnFX",
+            "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos" },
+        { "AttachNPC", "Locked", "WheelSide", "QuestAuto", "QuestWidth", "NPCOffset", "Pos", "TextPos", "WheelWidth", "TextW", "TextH", "BubbleWidth" },
+        { "UseBlizzKey", "InteractKey", "ToggleKey", "EscClose", "WheelScroll", "GamePad", "PadTips", "PadFreeLook" },
+        { "SpokenTheme", "SpokenSkin", "BookSkin", "PlateSkin", "PlaceSkin", "SpokenButton", "ShowText", "SpokenSmart",
+            "BookVoiceTurn", "BookStopOnClose", "ZoneArt", "ZoneArtPaper" },
+    }
+    for k, pg in ipairs(pages) do
+        if PAGE_VARS[k] then
+            pg.vars = PAGE_VARS[k]
+            local b = CreateFrame("Button", nil, pg.panel, "UIPanelButtonTemplate")
+            b:SetSize(130, 22)
+            b:SetPoint("TOPRIGHT", pg.panel, "TOPRIGHT", -24, -7)
+            b:SetText(L.DEFAULTS_BTN)
+            b:SetScript("OnClick", function() DWE.AskResetPage(pg.panel.name ~= "Storytale" and pg.panel.name or L.SEC_THEME, pg.vars) end)
+            pg.defaults = b
+        end
+    end
     -- Texte du compteur, sur toutes les pages.
     local count = { SetText = function(_, t) for _, c in ipairs(counts) do c:SetText(t) end end }
     local glow, glowPage

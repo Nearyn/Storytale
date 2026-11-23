@@ -2791,6 +2791,16 @@ do
     check(DWE.OpenTrollTablet() == false, "standalone: books stay books")
     ItemTextGetItem, _G.SpokenReadables = oldGet, oldSR
 end
+-- "Par defaut" d'une page : seulement ses reglages, avec les valeurs d'une installation.
+do
+    local saveFS, saveTh, saveEsc, saveWT = DialogueWheelE_FontSize, DialogueWheelE_Theme, DialogueWheelE_EscClose, DialogueWheelE_WheelTheme
+    DialogueWheelE_FontSize, DialogueWheelE_Theme, DialogueWheelE_EscClose, DialogueWheelE_WheelTheme = 18, "folio", false, false
+    DWE.ResetPage(DWE.optionPages[1].vars, true)
+    check(DialogueWheelE_FontSize == 14 and DialogueWheelE_Theme == nil and DialogueWheelE_WheelTheme == true, "page defaults: appearance reset to install values")
+    check(DialogueWheelE_EscClose == false, "page defaults: other pages untouched")
+    check(DWE.optionPages[1].defaults ~= nil and DWE.optionPages[6].defaults == nil, "Defaults button on each page but Profiles")
+    DialogueWheelE_FontSize, DialogueWheelE_Theme, DialogueWheelE_EscClose, DialogueWheelE_WheelTheme = saveFS, saveTh, saveEsc, saveWT
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end
