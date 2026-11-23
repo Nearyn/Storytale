@@ -5110,7 +5110,8 @@ end
 follower:SetScript("OnEvent", function(_, event, unit)
     if event == "NAME_PLATE_UNIT_REMOVED" and follow.plate and follow.plate ~= DWE.npcGhost then
         local tok = PlateToken(follow.plate)
-        if tok and tok == unit then
+        -- Le jeu efface parfois le jeton de la plaque avant l'evenement : on reconnait aussi le PNJ.
+        if (tok and tok == unit) or Check(UnitIsUnit, unit, "npc") then
             pcall(DWE.GhostTake)
             pcall(DWE.RecallNPCPlate)
         end
