@@ -2406,6 +2406,23 @@ if DWE.choiceBox then
     end)
 end
 DWE.padFocusWatch = CreateFrame("Frame", "DWE_PadFocusWatch")
+-- Journal (/storytale followlog) : chaque changement de "qui a la manette" (interface ou joueur).
+DWE.padFocusLog = CreateFrame("Frame")
+DWE.padFocusLog:SetScript("OnUpdate", function(self)
+    if not (DWE.followLog and DWE.FLog) then return end
+    local m = DWE.PadFCM()
+    if not m then return end
+    local sec = rawget(_G, "issecretvalue")
+    local okF, foc = pcall(rawget, m, "isUIFocused")
+    local af = DWE.PadActiveFrame()
+    local okN, n = pcall(function() return af and af:GetName() end)
+    local name = okN and not (sec and sec(n)) and tostring(n) or "?"
+    local state = tostring(okF and not (sec and sec(foc)) and foc) .. "/" .. name
+    if state ~= self.last then
+        self.last = state
+        DWE.FLog("manette : interface prise=" .. state)
+    end
+end)
 DWE.padFocusWatch:SetScript("OnUpdate", function(self, el)
     self.t = (self.t or 0) + el
     if self.t < 0.1 then return end

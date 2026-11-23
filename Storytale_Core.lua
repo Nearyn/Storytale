@@ -5113,7 +5113,6 @@ follower:SetScript("OnEvent", function(_, event, unit)
         -- Le jeu efface parfois le jeton de la plaque avant l'evenement : on reconnait aussi le PNJ.
         if (tok and tok == unit) or Check(UnitIsUnit, unit, "npc") then
             pcall(DWE.GhostTake)
-            pcall(DWE.RecallNPCPlate)
         end
     end
     pcall(MaskFriendlyPlates)

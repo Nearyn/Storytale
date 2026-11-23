@@ -660,17 +660,6 @@ do
     for _ = 1, 2 do follower._scripts.OnUpdate(follower, 0.2) end
     check(plate.UnitFrame:GetAlpha() == 0, "plate the player did not see stays hidden in conversation")
     UnitGUID = oG3
-    -- Plaque du PNJ retiree par le jeu : les plaques amicales sont coupees puis remises.
-    do
-        follower._scripts.OnUpdate(follower, 0.2)
-        local seen = {}
-        local oSet = SetCVar
-        SetCVar = function(k, v) if k == "nameplateShowFriendlyNPCs" then seen[#seen + 1] = v end return oSet(k, v) end
-        follower._scripts.OnEvent(follower, "NAME_PLATE_UNIT_REMOVED", "nameplate1")
-        M.RunTimers()
-        SetCVar = oSet
-        check(seen[1] == "0" and seen[2] == "1" and M.cvars.nameplateShowFriendlyNPCs == "1", "NPC plate removed by the game: friendly plates switched off and on to get it back")
-    end
     -- Suivi arrete sans OnShow : relance au prochain ecran de conversation.
     DWE.StopFollow()
     DWE.EnsureFollow()
