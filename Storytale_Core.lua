@@ -4827,11 +4827,8 @@ local function SetFriendlyPlates(on)
         end
         -- "Toujours afficher les plaques" coupe : a la manette, la plaque du PNJ n'existait que
         -- comme cible d'interaction et le jeu la retirait a l'ouverture d'une quete.
-        local all = GetCVar("nameplateShowAll")
-        if all and all ~= "1" and not DWE.savedShowAll then
-            DWE.savedShowAll = all
-            SetCVar("nameplateShowAll", "1")
-        end
+        -- (Plus de "toujours afficher les plaques" : le jeu cachait alors les noms de tous les
+        -- PNJ autour. Ecran de quete a la manette : voir le fantome DWE.npcGhost.)
         -- Garde la valeur du joueur meme apres un /reload ou une deconnexion en pleine conversation.
         if savedPlateCVar or DWE.savedShowAll then
             DialogueWheelE_PlateRestore = { friendly = savedPlateCVar, all = DWE.savedShowAll, alpha = DWE.plateAlphaSaved }
@@ -5075,21 +5072,29 @@ DWE.npcGhost.valid = false
 
 function DWE.GhostRecord(plate)
     if not plate or plate == DWE.npcGhost then return end
-    local guid = DWE.lastNPC.guid
     local token = PlateToken(plate)
-    if guid and UnitGUID then
-        local okG, g = pcall(UnitGUID, token)
-        if not okG or g ~= guid then return end
-    elseif not Check(UnitIsUnit, token, "npc") then
+    if not token then return end
+    -- Toujours le meme PNJ ? (unite "npc", sinon GUID retenu ; comparaison protegee)
+    local same = Check(UnitIsUnit, token, "npc")
+    if not same and DWE.lastNPC.guid and UnitGUID then
+        local okE, eq = pcall(function() return UnitGUID(token) == DWE.lastNPC.guid end)
+        same = okE and eq
+    end
+    if not same then return end
+    local okC, x, y = pcall(plate.GetCenter, plate)
+    if not okC or type(x) ~= "number" or type(y) ~= "number" then
+        if not follow.measureLogged then
+            follow.measureLogged = true
+            DWE.FLog("mesure de la plaque refusee : " .. tostring(okC and "pas de position" or x))
+        end
         return
     end
-    local okC, x, y = pcall(plate.GetCenter, plate)
-    if not okC or type(x) ~= "number" or type(y) ~= "number" then return end
     local okS, ps = pcall(plate.GetEffectiveScale, plate)
     local us = UIParent:GetEffectiveScale() or 1
     local k = (okS and type(ps) == "number" and us > 0) and ps / us or 1
     DWE.npcGhost:ClearAllPoints()
     DWE.npcGhost:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x * k, y * k)
+    if not DWE.npcGhost.valid then DWE.FLog("position du PNJ retenue") end
     DWE.npcGhost.valid = true
 end
 
