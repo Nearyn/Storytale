@@ -4825,16 +4825,7 @@ function DWE.PlateNameOnly(uf)
     local okR, regs = pcall(function() return { uf:GetRegions() } end)
     if okR then for _, r in ipairs(regs) do Hide(r) end end
     if uf:GetAlpha() ~= 1 then uf:SetAlpha(1) end
-    -- Etat d'origine du nom, rendu a la fin.
-    local okF, f, sz, fl = pcall(name.GetFont, name)
-    local okC2, r, g, b, a = pcall(name.GetTextColor, name)
-    local okS, sx, sy = pcall(name.GetShadowOffset, name)
-    local okT, t = pcall(name.GetText, name)
-    parts.name = name
-    parts.font = okF and f and { f, sz, fl } or nil
-    parts.color = okC2 and { r, g, b, a } or nil
-    parts.shadow = okS and { sx, sy } or nil
-    parts.text = okT and t or nil
+    parts.name, parts.uf = name, uf
     parts.desc = n .. " element(s) caches"
     return parts
 end
@@ -4861,9 +4852,11 @@ function DWE.NPCTitle(token)
     return line
 end
 
--- Taille du nom imitant le nom habituel des PNJ (reglable : /run DWE.NEAR_NAME_SIZE = 26).
-DWE.NEAR_NAME_SIZE = 26
--- Habille le nom de la plaque comme le nom habituel du PNJ : police, vert (ou jaune si neutre), titre.
+-- Taille du nom imitant le nom habituel des PNJ (reglable : /run DWE.NEAR_NAME_SIZE = 34).
+DWE.NEAR_NAME_SIZE = 34
+DWE.ownNames = setmetatable({}, { __mode = "k" })
+-- Habille un texte a nous, pose sur le nom de la plaque (cache), comme le nom habituel du PNJ :
+-- police du jeu, vert vif (jaune si neutre), ombre, titre en dessous, sans limite de largeur.
 function DWE.PlateNameStyle(parts, token)
     local name = parts and parts.name
     if not name then return end
@@ -4872,36 +4865,44 @@ function DWE.PlateNameStyle(parts, token)
     if parts.titleFor ~= token then
         parts.titleFor, parts.title = token, DWE.NPCTitle(token)
     end
-    local text = parts.title and (nm .. "\n<" .. parts.title .. ">") or nm
-    local font = (STANDARD_TEXT_FONT and STANDARD_TEXT_FONT:find("FRIZ")) and STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
-    local okF, f, sz = pcall(name.GetFont, name)
-    if not (okF and f == font and sz and math.abs(sz - DWE.NEAR_NAME_SIZE) < 0.5) then
-        pcall(name.SetFont, name, font, DWE.NEAR_NAME_SIZE, "")
-        pcall(name.SetShadowOffset, name, 1, -1)
-        pcall(name.SetShadowColor, name, 0, 0, 0, 1)
-        pcall(name.SetWordWrap, name, true)
-        pcall(name.SetMaxLines, name, 2)
-        pcall(name.SetWidth, name, 600)
-        pcall(name.SetJustifyH, name, "CENTER")
+    local uf = parts.uf
+    local fs = uf and DWE.ownNames[uf]
+    if uf and not fs then
+        local okC, f = pcall(uf.CreateFontString, uf, nil, "OVERLAY")
+        if not okC or not f then return end
+        fs, DWE.ownNames[uf] = f, f
     end
-    local okT, cur = pcall(name.GetText, name)
-    if not (okT and cur == text) then pcall(name.SetText, name, text) end
+    if not fs then return end
+    if not parts.nameHidden then
+        local okA, a = pcall(name.GetAlpha, name)
+        if pcall(name.SetAlpha, name, 0) then parts[#parts + 1] = { name, okA and a or 1 } end
+        parts.nameHidden = true
+    end
+    local font = "Fonts\\FRIZQT__.TTF"
+    if fs.dweSize ~= DWE.NEAR_NAME_SIZE then
+        fs.dweSize = DWE.NEAR_NAME_SIZE
+        pcall(fs.SetFont, fs, font, DWE.NEAR_NAME_SIZE, "")
+        pcall(fs.SetShadowOffset, fs, 2, -2)
+        pcall(fs.SetShadowColor, fs, 0, 0, 0, 1)
+        pcall(fs.SetJustifyH, fs, "CENTER")
+        pcall(fs.SetSpacing, fs, 0)
+        pcall(fs.ClearAllPoints, fs)
+        pcall(fs.SetPoint, fs, "BOTTOM", name, "BOTTOM", 0, 0)
+    end
+    local text = parts.title and (nm .. "\n<" .. parts.title .. ">") or nm
+    if fs.dweText ~= text then fs.dweText = text pcall(fs.SetText, fs, text) end
     local r, g, b = 0.1, 1, 0.1
     local okR, react = pcall(UnitReaction, token, "player")
     if okR and react == 4 then r, g, b = 1, 1, 0 end
-    pcall(name.SetTextColor, name, r, g, b, 1)
+    pcall(fs.SetTextColor, fs, r, g, b, 1)
+    if not fs:IsShown() then fs:Show() end
 end
 
 function DWE.PlateRestoreParts(uf, parts)
     if type(parts) ~= "table" then return end
     for _, e in ipairs(parts) do pcall(e[1].SetAlpha, e[1], e[2]) end
-    local name = parts.name
-    if name then
-        if parts.font then pcall(name.SetFont, name, parts.font[1], parts.font[2], parts.font[3] or "") end
-        if parts.color then pcall(name.SetTextColor, name, unpack(parts.color)) end
-        if parts.shadow then pcall(name.SetShadowOffset, name, parts.shadow[1], parts.shadow[2]) end
-        if parts.text then pcall(name.SetText, name, parts.text) end
-    end
+    local fs = DWE.ownNames[uf]
+    if fs then fs:Hide() end
 end
 
 local function MaskFriendlyPlates()

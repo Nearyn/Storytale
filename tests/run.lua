@@ -648,13 +648,14 @@ do
         UnitIsUnit = function(a, b) if a == "nameplate5" or b == "nameplate5" then return false end return oUU2(a, b) end
         UnitCanAttack = function() return false end
         follower._scripts.OnUpdate(follower, 0.2)
-        check(nb.UnitFrame:GetAlpha() == 1 and nb.UnitFrame.name:GetAlpha() == 1 and bar:GetAlpha() == 0, "neighbour NPC plate: name kept, rest hidden")
-        check(nb.UnitFrame.name:GetText() == "Tannok", "neighbour NPC name restyled (text set)")
+        check(nb.UnitFrame:GetAlpha() == 1 and bar:GetAlpha() == 0, "neighbour NPC plate: bar hidden")
+        local own = DWE.ownNames[nb.UnitFrame]
+        check(own ~= nil and own:GetText() == "Tannok" and own:IsShown() and nb.UnitFrame.name:GetAlpha() == 0, "neighbour NPC name drawn by Storytale over the hidden plate name")
         UnitExists, UnitIsUnit, UnitCanAttack, UnitName = oE2, oUU2, oCA, oUN
         DWE.choiceBox:Hide(); M.RunTimers()
         check(M.cvars.nameplateShowAll == "0" and M.cvars.nameplateMaxDistance == "41" and DWE.softSaved == nil, "near plates setting restored after the conversation")
         M.RunTimers()
-        check(bar:GetAlpha() == 1, "neighbour plate parts given back after the conversation")
+        check(bar:GetAlpha() == 1 and nb.UnitFrame.name:GetAlpha() == 1 and not DWE.ownNames[nb.UnitFrame]:IsShown(), "neighbour plate parts given back after the conversation")
         M.plates = { plate }
         DWE.choiceBox:Show(); follower._scripts.OnUpdate(follower, 0.2)
         -- Souris : la cible reste -> rien n'est change.
