@@ -4706,6 +4706,34 @@ function DWE.RememberNPC()
 end
 function DWE.LastNPCGUID() return DWE.lastNPC.guid end
 
+-- /storytale followlog : journal du suivi du PNJ dans le chat.
+function DWE.FLog(msg)
+    if not DWE.followLog then return end
+    local t = GetTime and string.format("%.2f", GetTime() % 1000) or ""
+    DEFAULT_CHAT_FRAME:AddMessage("|cff33ccff[ST suivi " .. t .. "]|r " .. tostring(msg))
+end
+do
+    local f = CreateFrame("Frame")
+    for _, e in ipairs({ "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED", "GOSSIP_SHOW", "GOSSIP_CLOSED",
+        "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE", "QUEST_FINISHED", "QUEST_GREETING", "CVAR_UPDATE" }) do
+        pcall(f.RegisterEvent, f, e)
+    end
+    f:SetScript("OnEvent", function(_, e, a, b)
+        if not DWE.followLog then return end
+        if e == "CVAR_UPDATE" then
+            if tostring(a):lower():find("nameplate") then DWE.FLog("CVar " .. tostring(a) .. "=" .. tostring(b)) end
+            return
+        end
+        local extra = ""
+        if e:find("NAME_PLATE") then
+            local ok, n = pcall(UnitName, a)
+            local okN, isN = pcall(UnitIsUnit, a, "npc")
+            extra = " " .. tostring(a) .. " " .. tostring(ok and n) .. (okN and isN and " (PNJ)" or "")
+        end
+        DWE.FLog(e .. extra .. " | npc=" .. tostring(UnitExists and UnitExists("npc")))
+    end)
+end
+
 function DWE.PlateForUnit(unit)
     if not (C_NamePlate and C_NamePlate.GetNamePlateForUnit) then return nil end
     local ok, plate = pcall(C_NamePlate.GetNamePlateForUnit, unit)
@@ -4992,6 +5020,7 @@ end
 
 local function Unpin()
     if not follow.plate then return end
+    if DWE.FLog then DWE.FLog("decroche (plaque perdue, place fixe)") end
     follow.plate = nil
     SetFrameScales(1)
     RestoreFixed()
@@ -5303,6 +5332,8 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
             local okA, errA = pcall(AnchorTo, plate)
             if okA then
                 follow.plate = plate
+                follow.kept = nil
+                DWE.FLog("accroche a " .. tostring(PlateToken(plate)))
             else
                 -- Refuse par le jeu : place fixe pour cette conversation (on reessaie a la
                 -- suivante ; avant, le suivi restait coupe jusqu'au /reload).
@@ -5314,6 +5345,7 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
         end
         Reveal()
     elseif follow.plate and DWE.KeepLostPlate(follow.plate) then
+        if not follow.kept then follow.kept = true DWE.FLog("plaque perdue : on reste sur place") end
         Reveal() -- plaque retiree par le jeu (ecran de quete a la manette) : on reste sur place
     else
         Unpin() -- plaque perdue (PNJ hors champ...) : retour a la place fixe
@@ -5322,6 +5354,7 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
 end))
 
 local function StartFollow()
+    DWE.FLog("debut suivi (deja lance=" .. tostring(follower:IsShown()) .. ")")
     if not follower:IsShown() then followBroken = false end
     if not AttachEnabled() or followBroken or follower:IsShown() then return end
     follow = {}
@@ -5339,6 +5372,7 @@ end
 
 local function StopFollow()
     if not follower:IsShown() then return end
+    DWE.FLog("fin suivi")
     follower:Hide()
     dragging = nil
     local wasPinned = follow.plate ~= nil

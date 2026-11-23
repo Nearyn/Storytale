@@ -2978,6 +2978,9 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
     elseif msg:match("forget") then
         local n = DWE.SpokenFocus and DWE.SpokenFocus.ForgetOpenBook and DWE.SpokenFocus.ForgetOpenBook() or 0
         Out("livre ouvert considere comme jamais ecoute (" .. n .. " ligne(s) oubliee(s)).")
+    elseif msg:match("^%s*followlog") then
+        DWE.followLog = not DWE.followLog
+        Out("journal du suivi du PNJ : " .. (DWE.followLog and "active" or "coupe") .. ".")
     elseif msg:match("^%s*bubblelog") then
         DWE.bubbleLog = not DWE.bubbleLog
         Out("journal de la bulle : " .. (DWE.bubbleLog and "active" or "coupe") .. ".")
