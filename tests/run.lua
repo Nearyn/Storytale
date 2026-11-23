@@ -569,14 +569,14 @@ check(zp and zp[2] == plate and math.abs(zp[5] - (-300)) < 0.01, "zoomed in: whe
 GetCameraZoom = nil
 follower._scripts.OnUpdate(follower, 0.016)
 -- Petit PNJ (gobelin) : interface plus petite, ecarts reduits
-DWE.choiceBox:Hide()
+DWE.choiceBox:Hide(); M.RunTimers()
 M.npcHeight = 2.75
 DWE.choiceBox:Show()
 for _ = 1, 3 do follower._scripts.OnUpdate(follower, 0.05) end
 local sp = DWE.choiceBox._points[#DWE.choiceBox._points]
 check(DWE.choiceBox:GetScale() == 1, "small NPC: wheel keeps normal size: " .. tostring(DWE.choiceBox:GetScale()))
 check(sp and sp[2] == plate and math.abs(sp[4] * DWE.choiceBox:GetScale() - 71.5) < 0.5, "small NPC: wheel closer: " .. tostring(sp and sp[4]))
-DWE.choiceBox:Hide()
+DWE.choiceBox:Hide(); M.RunTimers()
 check(DWE.choiceBox:GetScale() == 1, "scale back to normal after the conversation")
 M.npcHeight = 5.5
 DWE.choiceBox:Show()
@@ -599,7 +599,7 @@ do
     local oE, oG = UnitExists, UnitGUID
     UnitGUID = function(u) if u == "npc" or u == "nameplate1" then return "Creature-0-1-2-3-4-5" end end
     follower._scripts.OnUpdate(follower, 0.2)
-    DWE.choiceBox:Hide()
+    DWE.choiceBox:Hide(); M.RunTimers()
     UnitExists = function() return false end
     DWE.choiceBox:Show()
     for _ = 1, 3 do follower._scripts.OnUpdate(follower, 0.2) end
@@ -619,12 +619,32 @@ do
     C_NamePlate.GetNamePlateForUnit = oF
     M.plates = { plate }
     follower._scripts.OnUpdate(follower, 0.2)
+    -- Le jeu retire toutes les plaques pendant la quete : la roue reste ou elle etait.
+    local oG2 = UnitGUID
+    UnitGUID = function(u) if u == "npc" or u == "nameplate1" then return "Creature-0-1-2-3-4-5" end end
+    follower._scripts.OnUpdate(follower, 0.2)
+    M.plates = {}
+    plate:Hide()
+    follower._scripts.OnUpdate(follower, 0.2)
+    check(DWE.IsFollowingNPC() and DWE.choiceBox._points[#DWE.choiceBox._points][2] == plate, "plates removed by the game: wheel keeps its place")
+    plate:Show()
+    UnitGUID = function(u) if u == "npc" then return "Creature-0-1-2-3-4-5" end return "Creature-other" end
+    follower._scripts.OnUpdate(follower, 0.2)
+    check(not DWE.IsFollowingNPC(), "plate reused by another unit: let go")
+    UnitGUID = oG2
+    M.plates = { plate }
+    follower._scripts.OnUpdate(follower, 0.2)
+    -- Gossip puis quete (fermeture et reouverture immediates) : le suivi continue.
+    DWE.choiceBox:Hide()
+    DWE.choiceBox:Show()
+    M.RunTimers()
+    check(DWE.FollowerRunning() and DWE.IsFollowingNPC(), "gossip to quest: follow kept")
     -- Suivi arrete sans OnShow : relance au prochain ecran de conversation.
     DWE.StopFollow()
     DWE.EnsureFollow()
     check(DWE.FollowerRunning(), "follow restarted on next conversation screen")
 end
-DWE.choiceBox:Hide()
+DWE.choiceBox:Hide(); M.RunTimers()
 check(M.cvars.nameplateShowFriendlyNPCs == "0", "player setting restored on close")
 check(plate.UnitFrame:GetAlpha() == 0, "plate stays invisible while being removed")
 M.RunTimers()
@@ -636,7 +656,7 @@ M.plates = {}
 DWE.choiceBox:Show()
 for _ = 1, 30 do follower._scripts.OnUpdate(follower, 0.016) end
 check(DWE.choiceBox:GetAlpha() == 1, "wheel shown at fixed place when no plate")
-DWE.choiceBox:Hide()
+DWE.choiceBox:Hide(); M.RunTimers()
 
 -- Resize grips (free width/height, no zoom) ---------------------------------
 local function GripOf(frame)
@@ -830,7 +850,7 @@ rb._scripts.OnEnter(rb)
 rb._scripts.OnLeave(rb)
 check(#M.errors == errs0, "no error using grip / tooltips while pinned")
 check(DialogueWheelE_NPCOffset and DialogueWheelE_NPCOffset.bubbleX == 10 and DialogueWheelE_NPCOffset.bubbleY == 25, "bubble offset dragged")
-DWE.choiceBox:Hide()
+DWE.choiceBox:Hide(); M.RunTimers()
 check(not DWE.bubble:IsShown(), "bubble hidden on close")
 M.plates = {}
 DialogueWheelE_NPCOffset = nil
@@ -1294,7 +1314,7 @@ DWE.choiceBox:Hide(); DWE.choiceBox:Show()
 for _ = 1, 30 do follower._scripts.OnUpdate(follower, 0.016) end
 check(DWE.choiceBox:GetAlpha() == 1 and not DWE.IsFollowingNPC(), "refused again next conversation: still fixed and visible")
 check(type(DWE.followError) == "string", "refusal kept for /storytale npc")
-DWE.choiceBox:Hide()
+DWE.choiceBox:Hide(); M.RunTimers()
 check(#M.errors == errBefore, "no Lua error during NPC tracking")
 plate._noAnchor = nil
 M.plates = {}
@@ -1756,7 +1776,7 @@ late:SetAlpha(1)
 check(late:GetAlpha() == 0, "DialogueUI frame created later is hidden at once")
 local lateChild = CreateFrame("Frame", "$parentChild", late)
 check(DUILateFrameChild and DUILateFrameChild:GetAlpha() == 0 or DUILateFrameChild == nil, "child frame named with $parent handled")
-DWE.choiceBox:Hide()
+DWE.choiceBox:Hide(); M.RunTimers()
 
 -- Objet pas encore en cache : le nom vient du cache des objets, sinon on reessaie
 do

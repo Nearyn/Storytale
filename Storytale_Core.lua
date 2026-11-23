@@ -4712,6 +4712,18 @@ function DWE.PlateForUnit(unit)
     if ok and UsablePlate(plate) then return plate end
 end
 
+-- Plaque cachee par le jeu pendant la conversation (meme PNJ) : la roue garde sa derniere
+-- place au lieu de sauter. Si la plaque sert a une autre unite, on la lache.
+function DWE.KeepLostPlate(plate)
+    local guid = DWE.lastNPC.guid
+    if not (guid and UnitGUID) then return false end
+    local okS, shown = pcall(plate.IsShown, plate)
+    if not okS then return false end
+    if not shown then return true end
+    local ok, g = pcall(UnitGUID, PlateToken(plate))
+    return ok and (g == nil or g == guid)
+end
+
 local function FindNPCPlate()
     if Check(UnitExists, "npc") then
         DWE.RememberNPC()
@@ -5301,6 +5313,8 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
             end
         end
         Reveal()
+    elseif follow.plate and DWE.KeepLostPlate(follow.plate) then
+        Reveal() -- plaque retiree par le jeu (ecran de quete a la manette) : on reste sur place
     else
         Unpin() -- plaque perdue (PNJ hors champ...) : retour a la place fixe
         if follow.wait > APPEAR_DELAY then Reveal() end
@@ -5341,7 +5355,14 @@ end
 DWE.StopFollow = StopFollow
 
 choiceBox:HookScript("OnShow", StartFollow)
-choiceBox:HookScript("OnHide", StopFollow)
+-- Fermeture : on attend un instant, car le jeu enchaine souvent deux ecrans (gossip puis
+-- quete). Arreter puis relancer retirait les plaques et la roue se decrochait.
+choiceBox:HookScript("OnHide", function()
+    if not (C_Timer and C_Timer.After) then StopFollow() return end
+    C_Timer.After(0.2, function()
+        if not choiceBox:IsShown() then StopFollow() end
+    end)
+end)
 
 -- Filet : a chaque ecran de conversation, si la roue est la mais que le suivi ne tourne pas
 -- (ecran enchaine sans OnShow), on le relance. On retient aussi le PNJ tant qu'il existe.
