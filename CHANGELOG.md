@@ -6,7 +6,7 @@
 
 ### New
 - Khadgar's text in Dalaran now shows on its round stone stele.
-- The options menu works with a gamepad. Sliders get - and + buttons, and left / right go to the option next to you.
+- The options menu works with a gamepad.
 
 ### Improved
 - With a gamepad, Y lights the bookmark ribbon (or the symbol on plaques) while its menu is open.
@@ -25,7 +25,7 @@
 
 ### Nouveautés
 - Le texte de Khadgar à Dalaran s'affiche sur sa stèle ronde en pierre.
-- Le menu des options marche à la manette. Les curseurs ont des boutons - et +, et gauche / droite vont à l'option d'à côté.
+- Le menu des options marche à la manette.
 
 ### Améliorations
 - À la manette, Y allume le ruban (ou le symbole des plaques) tant que son menu est ouvert.
