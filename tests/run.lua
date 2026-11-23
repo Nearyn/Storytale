@@ -1237,14 +1237,16 @@ end
 
 -- Game refuses anchoring (last: disables tracking for the session)
 local errBefore = #M.errors
--- Game refuses anchoring too: falls back once, never errors, never retries.
+-- Game refuses anchoring too: falls back, never errors; tries again at the next conversation.
 plate._noAnchor = true
 M.plates = { plate }
 DWE.choiceBox:Show()
 for _ = 1, 30 do follower._scripts.OnUpdate(follower, 0.016) end
 check(not DWE.IsFollowingNPC() and DWE.choiceBox:GetAlpha() == 1, "anchor refused: fixed place, visible")
 DWE.choiceBox:Hide(); DWE.choiceBox:Show()
-check(DWE.choiceBox:GetAlpha() == 1, "no further attempts after refusal")
+for _ = 1, 30 do follower._scripts.OnUpdate(follower, 0.016) end
+check(DWE.choiceBox:GetAlpha() == 1 and not DWE.IsFollowingNPC(), "refused again next conversation: still fixed and visible")
+check(type(DWE.followError) == "string", "refusal kept for /storytale npc")
 DWE.choiceBox:Hide()
 check(#M.errors == errBefore, "no Lua error during NPC tracking")
 plate._noAnchor = nil

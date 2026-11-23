@@ -2948,7 +2948,8 @@ local function DiagnoseNPC()
         local token = plate.namePlateUnitToken or (plate.UnitFrame and plate.UnitFrame.unit)
         Out(("  %d. %s nom=%s =npc:%s visible=%s"):format(i, tostring(token), Safe(UnitName, token), Safe(UnitIsUnit, token, "npc"), Safe(plate.IsVisible, plate)))
     end
-    Out("suivi actif=" .. tostring(DWE.IsFollowingNPC()) .. " option=" .. tostring(DialogueWheelE_AttachNPC ~= false))
+    Out("suivi actif=" .. tostring(DWE.IsFollowingNPC()) .. " option=" .. tostring(DialogueWheelE_AttachNPC ~= false)
+        .. (DWE.followError and (" | dernier refus : " .. DWE.followError) or ""))
 end
 
 SLASH_DIALOGUEWHEELE1 = "/storytale"

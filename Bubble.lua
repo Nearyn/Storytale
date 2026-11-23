@@ -575,11 +575,13 @@ local function VoiceSpeed(st, pos, target, rate, dt)
     -- Zone morte : tant que l'ecart reste petit (quelques mots), on garde exactement le rythme de
     -- la voix, sans aucune correction ; on ne corrige que les vrais decalages.
     local gap = target - pos
-    local dead = math.max(6, rate * 0.6)
+    -- En retard : zone morte large (rattraper se voit peu). En avance : presque aucune, et on
+    -- ralentit franchement, le texte ne doit pas devancer la voix.
+    local dead, deadAhead = math.max(6, rate * 0.6), math.max(2, rate * 0.12)
     local want = rate
     if gap > dead then want = rate + (gap - dead) / CATCH_TIME
-    elseif gap < -dead then want = rate + (gap + dead) / CATCH_TIME end
-    want = math.max(rate * 0.8, math.min(rate * 1.5, want))
+    elseif gap < -deadAhead then want = rate + (gap + deadAhead) / (CATCH_TIME * 0.6) end
+    want = math.max(rate * 0.4, math.min(rate * 1.5, want))
     -- La vitesse elle-meme change en douceur (comme un lecteur qui accelere ou ralentit un peu),
     -- jamais d'une image a l'autre : la correction ne se voit pas.
     st.spd = st.spd and (st.spd + (want - st.spd) * math.min(1, dt * 1.5)) or want
@@ -656,10 +658,19 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
         if state.holdT < HOLD_MAX then return end
         share = nil
     elseif share == "hold" then
-        -- La voix n'a pas encore demarre : on ecrit doucement plutot que de figer les premiers mots.
+        -- La voix n'a pas encore demarre : on l'attend un instant (le texte prenait de l'avance
+        -- et ne la rattrapait plus), puis on ecrit doucement si elle tarde.
+        state.waitT = (state.waitT or 0) + elapsed
+        if state.waitT < 1.2 then return end
         share, waitVoice = nil, true
     else
         state.holdT = 0
+    end
+    -- Avec Spoken, la voix met un instant a partir apres l'ouverture : on l'attend un peu au
+    -- lieu d'ecrire seul (l'avance prise la n'etait jamais rattrapee).
+    if share == nil and not state.voiced and state.phase == "typing" and SpokenInstalled()
+        and not state.manual and (state.age or 0) < 0.8 then
+        return
     end
     if share and length then
         -- Voix de Spoken : on suit son rythme, en rattrapant les ecarts en douceur.
@@ -674,7 +685,7 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
     -- Sans voix : vitesse fixe, puis temps de lecture avant le morceau suivant.
     if state.phase == "typing" then
         state.typed = (state.typed or 0) + elapsed * (state.dots and 3 or (SpokenInstalled() and SPOKEN_PACE or TYPE_SPEED))
-            * (waitVoice and 0.8 or StartFactor(state))
+            * (waitVoice and 0.5 or StartFactor(state))
         -- On va jusqu'au bout du fondu pour que les dernieres lettres apparaissent aussi en douceur.
         if state.typed >= (state.lens[state.index] or 0) then FinishTyping() else Reveal() end
     elseif state.phase == "reading" and state.index < #state.segs then
@@ -714,7 +725,7 @@ function DWE.Bubble.SetText(s)
     if not IsSecret(s) and s == state.raw then return end
     state.raw = s
     state.manual, state.clip, state.clipMatch, state.norm = nil, nil, nil, nil
-    state.voiced, state.age, state.holdT = nil, 0, 0
+    state.voiced, state.age, state.holdT, state.waitT = nil, 0, 0, 0
     state.lastTarget, state.tvel, state.spd = nil, nil, nil
     state.setAt = GetTime and GetTime() or nil
     if IsSecret(s) then

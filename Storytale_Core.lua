@@ -5230,9 +5230,13 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
         -- On attend un instant la taille du PNJ pour ne pas changer d'echelle sous les yeux.
         if not sizer.height and not sizer.broken and follow.wait < APPEAR_DELAY then return end
         if follow.plate ~= plate then
-            if pcall(AnchorTo, plate) then
+            local okA, errA = pcall(AnchorTo, plate)
+            if okA then
                 follow.plate = plate
             else
+                -- Refuse par le jeu : place fixe pour cette conversation (on reessaie a la
+                -- suivante ; avant, le suivi restait coupe jusqu'au /reload).
+                DWE.followError = tostring(errA)
                 followBroken = true
                 follow.plate = nil
                 RestoreFixed()
@@ -5246,6 +5250,7 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
 end))
 
 local function StartFollow()
+    if not follower:IsShown() then followBroken = false end
     if not AttachEnabled() or followBroken or follower:IsShown() then return end
     follow = {}
     -- Invisible le temps que la plaque apparaisse (1 ou 2 images), pour ne pas sauter.
