@@ -4782,12 +4782,14 @@ end
 -- Plaques activees par l'addon : on cache celles des unites amicales (on ne garde que leur
 -- position). Les plaques d'ennemis ne sont jamais touchees.
 local function MaskFriendlyPlates()
-    if not savedPlateCVar then return end
+    if not (savedPlateCVar or DWE.savedShowAll) then return end
     for _, plate in ipairs(GetPlates()) do
         local uf = plate.UnitFrame
         if uf and not (uf.IsForbidden and uf:IsForbidden()) then
             local token = PlateToken(plate)
-            if token and not Check(UnitCanAttack, "player", token) then
+            -- Plaques ennemies cachees aussi si c'est nous qui avons active "toutes les plaques"
+            -- (hors combat le joueur ne les voyait pas).
+            if token and (DWE.savedShowAll or not Check(UnitCanAttack, "player", token)) then
                 if uf:GetAlpha() ~= 0 then uf:SetAlpha(0) end
                 maskedFrames[uf] = true
             elseif maskedFrames[uf] then
@@ -4811,14 +4813,30 @@ local function SetFriendlyPlates(on)
             savedPlateCVar = cur
             SetCVar("nameplateShowFriendlyNPCs", "1")
         end
-    elseif savedPlateCVar then
+        -- "Toujours afficher les plaques" coupe : a la manette, la plaque du PNJ n'existait que
+        -- comme cible d'interaction et le jeu la retirait a l'ouverture d'une quete.
+        local all = GetCVar("nameplateShowAll")
+        if all and all ~= "1" and not DWE.savedShowAll then
+            DWE.savedShowAll = all
+            SetCVar("nameplateShowAll", "1")
+        end
+        -- Garde la valeur du joueur meme apres un /reload ou une deconnexion en pleine conversation.
+        if savedPlateCVar or DWE.savedShowAll then
+            DialogueWheelE_PlateRestore = { friendly = savedPlateCVar, all = DWE.savedShowAll }
+        end
+    elseif savedPlateCVar or DWE.savedShowAll then
+        if DWE.savedShowAll then
+            SetCVar("nameplateShowAll", DWE.savedShowAll)
+            DWE.savedShowAll = nil
+        end
         -- D'abord retirer les plaques, ensuite seulement leur rendre leur opacite (sinon elles
         -- reapparaissent une image avant de disparaitre).
-        SetCVar("nameplateShowFriendlyNPCs", savedPlateCVar)
+        if savedPlateCVar then SetCVar("nameplateShowFriendlyNPCs", savedPlateCVar) end
         savedPlateCVar = nil
+        DialogueWheelE_PlateRestore = nil
         if C_Timer and C_Timer.After then
             C_Timer.After(0.2, function()
-                if not savedPlateCVar then UnmaskPlates() end
+                if not (savedPlateCVar or DWE.savedShowAll) then UnmaskPlates() end
             end)
         else
             UnmaskPlates()
@@ -4827,6 +4845,15 @@ local function SetFriendlyPlates(on)
 end
 
 -- Appele a la sortie de combat si le reglage n'a pas pu etre remis pendant le combat.
+-- Au chargement : reglages des plaques laisses changes par une session coupee en conversation.
+function DWE.RestoreLeftoverPlates()
+    local r = DialogueWheelE_PlateRestore
+    if type(r) ~= "table" or not SetCVar or (InCombatLockdown and InCombatLockdown()) then return end
+    if r.friendly then pcall(SetCVar, "nameplateShowFriendlyNPCs", r.friendly) end
+    if r.all then pcall(SetCVar, "nameplateShowAll", r.all) end
+    DialogueWheelE_PlateRestore = nil
+end
+
 function DWE.RestoreNameplateCVar()
     if not choiceBox:IsShown() then SetFriendlyPlates(false) end
 end
@@ -5421,7 +5448,7 @@ local function StopFollow()
     follower:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
     pcall(follower.UnregisterEvent, follower, "NAME_PLATE_UNIT_REMOVED")
     DWE.npcGhost.valid = false
-    if savedPlateCVar then SetFriendlyPlates(false) else UnmaskPlates() end
+    if savedPlateCVar or DWE.savedShowAll then SetFriendlyPlates(false) else UnmaskPlates() end
 end
 DWE.StopFollow = StopFollow
 

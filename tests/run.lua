@@ -646,6 +646,20 @@ do
     DWE.choiceBox:Show()
     M.RunTimers()
     check(DWE.FollowerRunning() and DWE.IsFollowingNPC(), "gossip to quest: follow kept")
+    -- "Toujours afficher les plaques" coupe (manette) : active pendant la conversation, puis remis.
+    DWE.choiceBox:Hide(); M.RunTimers()
+    M.cvars.nameplateShowAll = "0"
+    DWE.choiceBox:Show()
+    check(M.cvars.nameplateShowAll == "1" and DialogueWheelE_PlateRestore and DialogueWheelE_PlateRestore.all == "0", "show-all plates on during the conversation, player value kept")
+    DWE.choiceBox:Hide(); M.RunTimers()
+    check(M.cvars.nameplateShowAll == "0" and DialogueWheelE_PlateRestore == nil, "show-all plates restored after")
+    DialogueWheelE_PlateRestore = { all = "0" }
+    M.cvars.nameplateShowAll = "1"
+    DWE.RestoreLeftoverPlates()
+    check(M.cvars.nameplateShowAll == "0" and DialogueWheelE_PlateRestore == nil, "leftover plate setting restored at login")
+    M.cvars.nameplateShowAll = nil
+    DWE.choiceBox:Show()
+    for _ = 1, 3 do follower._scripts.OnUpdate(follower, 0.2) end
     -- Suivi arrete sans OnShow : relance au prochain ecran de conversation.
     DWE.StopFollow()
     DWE.EnsureFollow()

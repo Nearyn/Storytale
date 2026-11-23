@@ -11,7 +11,7 @@ local L = DWE.L
 do
     local EXTRA = { "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose",
         "BookVoiceOff", "RibbonSeen", "GamePad", "PadTipSeen", "PadTips", "DUIPos", "SpokenStyleChosen",
-        "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen", "Profiles" }
+        "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen", "Profiles", "PlateRestore" }
     DWE.EXTRA_VARS = EXTRA
     local me = ...
 
@@ -20,7 +20,7 @@ do
     -- personnage, au depart on les range dans son profil. L'historique (livres lus, repliques
     -- entendues, marque-pages) et les couleurs perso restent communs a tous les profils.
     local NOT_IN_PROFILE = { CustomColors = true, CustomPresets = true, SpokenStyleChosen = true,
-        RibbonSeen = true, PadTipSeen = true, SpokenTipSeen = true, RoundRibbonSeen = true, Profiles = true,
+        RibbonSeen = true, PadTipSeen = true, SpokenTipSeen = true, RoundRibbonSeen = true, Profiles = true, PlateRestore = true,
         SpokenHeard = true, ReadBooks = true, Bookmarks = true }
     local function ProfileVars()
         local list, seen = {}, {}
@@ -3202,6 +3202,7 @@ end
 
 f:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
+        if DWE.RestoreLeftoverPlates then pcall(DWE.RestoreLeftoverPlates) end
         -- L'ancien dossier DialogueWheelE (avant le nom Storytale) ne doit plus etre installe.
         local loaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
         if loaded and loaded("DialogueWheelE") then
