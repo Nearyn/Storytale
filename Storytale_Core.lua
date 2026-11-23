@@ -6467,6 +6467,51 @@ function DWE.ResetAllOptions()
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
     if ReloadUI then ReloadUI() end
 end
+-- Profils : confirmation (changer, supprimer) ou nom a saisir (nouveau, copie).
+function DWE.AskProfile(kind, name)
+    local L = DWE.L
+    local function Do()
+        if kind == "switch" then return DWE.ProfileSwitch(name)
+        elseif kind == "delete" then return DWE.ProfileDelete(name) end
+    end
+    if not (StaticPopupDialogs and StaticPopup_Show) then
+        if kind == "switch" or kind == "delete" then Do() end
+        return
+    end
+    if kind == "switch" or kind == "delete" then
+        StaticPopupDialogs.STORYTALE_PROFILE_ASK = {
+            text = kind == "switch" and L.PROFILE_SWITCH_CONFIRM or L.PROFILE_DEL_CONFIRM,
+            button1 = YES or "Yes", button2 = NO or "No",
+            OnAccept = Do,
+            timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+        }
+        StaticPopup_Show("STORYTALE_PROFILE_ASK", DWE.ProfileLabel(name))
+        return
+    end
+    local copy = kind == "copy"
+    local function Accept(self)
+        local eb = self.editBox or self.EditBox or (self.GetParent and self:GetParent() and (self:GetParent().editBox or self:GetParent().EditBox))
+        local text = eb and eb.GetText and eb:GetText()
+        if not DWE.ProfileCreate(text, copy) and UIErrorsFrame and UIErrorsFrame.AddMessage then
+            UIErrorsFrame:AddMessage(ERR_NAME_INVALID or "Invalid name", 1, 0.2, 0.2)
+        end
+    end
+    StaticPopupDialogs.STORYTALE_PROFILE_NAME = {
+        text = copy and L.PROFILE_NAME_COPY or L.PROFILE_NAME_NEW,
+        button1 = ACCEPT or OKAY or "OK", button2 = CANCEL or "Cancel",
+        hasEditBox = 1, maxLetters = 32,
+        OnAccept = Accept,
+        EditBoxOnEnterPressed = function(self)
+            local parent = self:GetParent()
+            Accept(parent)
+            parent:Hide()
+        end,
+        EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+        timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+    }
+    StaticPopup_Show("STORYTALE_PROFILE_NAME")
+end
+
 function DWE.AskResetAll()
     if not StaticPopupDialogs then DWE.ResetAllOptions() return end
     StaticPopupDialogs.STORYTALE_RESET_ALL = StaticPopupDialogs.STORYTALE_RESET_ALL or {
@@ -7350,7 +7395,70 @@ function DWE.InitOptionsPanel()
         RefreshTiles()
     end)
     RefreshKeyButtons()
-    p:SetHeight(-(y - 454) + 30)
+
+    ---------------------------------------------------------------- Profils
+    -- Que des boutons (navigables a la manette) : < et > choisissent un profil, Utiliser l'applique.
+    local py = y - 484
+    AddSection(L.SEC_PROFILES, py)
+    local pLbl = AddText(L.PROFILE_CUR, 16, py - 38, "GameFontNormal")
+    local function PBtn(text, w)
+        local b = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+        b:SetSize(w, 22)
+        b:SetText(text)
+        return b
+    end
+    local pPrev, pNext = PBtn("<", 24), PBtn(">", 24)
+    pPrev:SetPoint("TOPLEFT", 96, py - 34)
+    local pName = p:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    pName:SetPoint("LEFT", pPrev, "RIGHT", 4, 0)
+    pName:SetWidth(176)
+    pName:SetWordWrap(false)
+    pNext:SetPoint("LEFT", pName, "RIGHT", 4, 0)
+    local pUse = PBtn(L.PROFILE_USE, 110)
+    pUse:SetPoint("LEFT", pNext, "RIGHT", 10, 0)
+    local pNew, pCopy, pDel = PBtn(L.PROFILE_NEW, 120), PBtn(L.PROFILE_COPY, 120), PBtn(L.PROFILE_DEL, 120)
+    pNew:SetPoint("TOPLEFT", 16, py - 66)
+    pCopy:SetPoint("LEFT", pNew, "RIGHT", 10, 0)
+    pDel:SetPoint("LEFT", pCopy, "RIGHT", 10, 0)
+    local pick
+    local pForNew
+    local function RefreshProfiles()
+        if not DWE.ProfileList then return end
+        local cur = DWE.profile or "Default"
+        local list = DWE.ProfileList()
+        local found
+        for _, n in ipairs(list) do if n == pick then found = true end end
+        if not found then pick = cur end
+        pName:SetText(DWE.ProfileLabel(pick))
+        if pick == cur then pName:SetTextColor(1, 0.82, 0.25) else pName:SetTextColor(0.95, 0.95, 0.95) end
+        pUse:SetEnabled(pick ~= cur)
+        pPrev:SetEnabled(#list > 1)
+        pNext:SetEnabled(#list > 1)
+        pDel:SetEnabled(cur ~= "Default")
+        if pForNew then pForNew:SetChecked(DWE.ProfileIsForNew()) end
+    end
+    DWE.RefreshProfilesUI = RefreshProfiles
+    local function Step(d)
+        local list = DWE.ProfileList()
+        local at = 1
+        for i, n in ipairs(list) do if n == pick then at = i end end
+        pick = list[(at - 1 + d) % #list + 1]
+        RefreshProfiles()
+    end
+    pPrev:SetScript("OnClick", function() Step(-1) end)
+    pNext:SetScript("OnClick", function() Step(1) end)
+    pUse:SetScript("OnClick", function() DWE.AskProfile("switch", pick) end)
+    pNew:SetScript("OnClick", function() DWE.AskProfile("new") end)
+    pCopy:SetScript("OnClick", function() DWE.AskProfile("copy") end)
+    pDel:SetScript("OnClick", function() DWE.AskProfile("delete", DWE.profile) end)
+    pForNew = AddCheck(L.PROFILE_NEWCHAR, 12, py - 96, false, function(self)
+        DWE.ProfileForNew(self:GetChecked() and true or false)
+        RefreshProfiles()
+    end)
+    AddText(L.PROFILE_HINT, 16, py - 126, "GameFontDisableSmall")
+    panel:HookScript("OnShow", function() pick = nil; RefreshProfiles() end)
+    RefreshProfiles()
+    p:SetHeight(-(py - 140) + 30)
 
     ---------------------------------------------------------------- Recherche
     -- Une barre en haut du panneau (hors du defilement) : chaque frappe amene la vue sur la

@@ -11,9 +11,135 @@ local L = DWE.L
 do
     local EXTRA = { "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose",
         "BookVoiceOff", "RibbonSeen", "GamePad", "PadTipSeen", "PadTips", "DUIPos", "SpokenStyleChosen",
-        "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen" }
+        "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen", "Profiles" }
     DWE.EXTRA_VARS = EXTRA
     local me = ...
+
+    -- Profils d'options : chaque profil garde une copie des reglages (DialogueWheelE_*). Le jeu
+    -- charge les reglages du dernier personnage joue ; a l'arrivee on y met ceux du profil du
+    -- personnage, au depart on les range dans son profil. L'historique (livres lus, repliques
+    -- entendues, marque-pages) et les couleurs perso restent communs a tous les profils.
+    local NOT_IN_PROFILE = { CustomColors = true, CustomPresets = true, SpokenStyleChosen = true, DefaultsV = true,
+        RibbonSeen = true, PadTipSeen = true, SpokenTipSeen = true, RoundRibbonSeen = true, Profiles = true,
+        SpokenHeard = true, ReadBooks = true, Bookmarks = true }
+    local function ProfileVars()
+        local list, seen = {}, {}
+        local function Add(k) if not seen[k] and not NOT_IN_PROFILE[k] then seen[k] = true; list[#list + 1] = k end end
+        for _, k in ipairs(DWE.OPTION_VARS or {}) do Add(k) end
+        for _, k in ipairs({ "GamePad", "PadTips", "PadFreeLook", "DUIPos", "MinimapAngle" }) do Add(k) end
+        return list
+    end
+    DWE.ProfileVars = ProfileVars
+    local function Copy(v)
+        if type(v) ~= "table" then return v end
+        local t = {}
+        for k, x in pairs(v) do t[k] = Copy(x) end
+        return t
+    end
+    local function Snapshot()
+        local t = {}
+        for _, k in ipairs(ProfileVars()) do
+            local v = rawget(_G, "DialogueWheelE_" .. k)
+            if v ~= nil then t[k] = Copy(v) end
+        end
+        return t
+    end
+    local function Apply(set)
+        for _, k in ipairs(ProfileVars()) do _G["DialogueWheelE_" .. k] = Copy(set and set[k]) end
+    end
+    local function CharKey()
+        local name = UnitName and UnitName("player")
+        local realm = GetRealmName and GetRealmName()
+        if type(name) ~= "string" or name == "" or name == UNKNOWNOBJECT then return nil end
+        return name .. "-" .. (realm or "")
+    end
+    local function Store()
+        local P = rawget(_G, "DialogueWheelE_Profiles")
+        if type(P) ~= "table" then P = {}; DialogueWheelE_Profiles = P end
+        P.sets = type(P.sets) == "table" and P.sets or {}
+        P.chars = type(P.chars) == "table" and P.chars or {}
+        return P
+    end
+    -- A l'arrivee : le profil du personnage (ou celui des nouveaux personnages).
+    function DWE.ProfileLoad()
+        local P = Store()
+        if type(P.sets.Default) ~= "table" then P.sets.Default = Snapshot() end
+        local key = CharKey()
+        local name = key and P.chars[key]
+        if not (name and type(P.sets[name]) == "table") then
+            name = P.newChar
+            if not (name and type(P.sets[name]) == "table") then name = "Default" end
+            if key then P.chars[key] = name end
+        end
+        Apply(P.sets[name])
+        DWE.profile = name
+        return name
+    end
+    -- Au depart (et avant tout changement) : les reglages du moment dans le profil en cours.
+    function DWE.ProfileSave()
+        if not DWE.profile then return end
+        Store().sets[DWE.profile] = Snapshot()
+    end
+    function DWE.ProfileList()
+        local list = {}
+        for n in pairs(Store().sets) do if n ~= "Default" then list[#list + 1] = n end end
+        table.sort(list, function(a, b) return a:lower() < b:lower() end)
+        table.insert(list, 1, "Default")
+        return list
+    end
+    function DWE.ProfileLabel(n) return n == "Default" and (DWE.L.PROFILE_DEFAULT or n) or n end
+    local function Reload() if ReloadUI then ReloadUI() end end
+    -- Changer de profil : reglages du profil voulu, puis rechargement de l'interface.
+    function DWE.ProfileSwitch(name, noReload)
+        local P = Store()
+        if type(P.sets[name]) ~= "table" or name == DWE.profile then return false end
+        DWE.ProfileSave()
+        local key = CharKey()
+        if key then P.chars[key] = name end
+        Apply(P.sets[name])
+        DWE.profile = name
+        if not noReload then Reload() end
+        return true
+    end
+    function DWE.ProfileValidName(name)
+        name = type(name) == "string" and name:gsub("^%s+", ""):gsub("%s+$", "") or ""
+        if name == "" or #name > 32 or Store().sets[name] or name == (DWE.L.PROFILE_DEFAULT or "") then return nil end
+        return name
+    end
+    -- Nouveau (options par defaut) ou copie du profil en cours ; le personnage passe dessus.
+    function DWE.ProfileCreate(name, copy, noReload)
+        name = DWE.ProfileValidName(name)
+        if not name then return false end
+        DWE.ProfileSave()
+        Store().sets[name] = copy and Snapshot() or {}
+        return DWE.ProfileSwitch(name, noReload)
+    end
+    function DWE.ProfileDelete(name, noReload)
+        local P = Store()
+        if name == "Default" or type(P.sets[name]) ~= "table" then return false end
+        local wasMine = name == DWE.profile
+        if wasMine then DWE.profile = nil end
+        P.sets[name] = nil
+        for k, v in pairs(P.chars) do if v == name then P.chars[k] = nil end end
+        if P.newChar == name then P.newChar = nil end
+        if wasMine then
+            local key = CharKey()
+            if key then P.chars[key] = "Default" end
+            Apply(P.sets.Default)
+            DWE.profile = "Default"
+            if not noReload then Reload() end
+        end
+        return true
+    end
+    function DWE.ProfileForNew(on)
+        local P = Store()
+        if on then P.newChar = DWE.profile ~= "Default" and DWE.profile or nil
+        elseif P.newChar == DWE.profile then P.newChar = nil end
+    end
+    function DWE.ProfileIsForNew()
+        return (Store().newChar or "Default") == DWE.profile
+    end
+
     local saver = CreateFrame("Frame")
     saver:RegisterEvent("ADDON_LOADED")
     saver:RegisterEvent("PLAYER_LOGOUT")
@@ -26,7 +152,9 @@ do
                     if t[k] ~= nil and rawget(_G, "DialogueWheelE_" .. k) == nil then _G["DialogueWheelE_" .. k] = t[k] end
                 end
             end
+            DWE.ProfileLoad()
         else
+            DWE.ProfileSave()
             local t = {}
             for _, k in ipairs(EXTRA) do t[k] = rawget(_G, "DialogueWheelE_" .. k) end
             DialogueWheelE_Extra = t

@@ -2714,6 +2714,38 @@ do
     check(state == "untouched", "pad: hover left alone when Storytale never held it")
     _G.C_GamePad, _G.GamepadMode = oldGP, oldGM
 end
+-- Profils d'options.
+do
+    local saveP, saveTheme, saveRead, saveFS = DialogueWheelE_Profiles, DialogueWheelE_Theme, DialogueWheelE_ReadBooks, DialogueWheelE_FontSize
+    DialogueWheelE_Profiles = nil
+    DialogueWheelE_Theme, DialogueWheelE_FontSize = "parchment", 15
+    DialogueWheelE_ReadBooks = { ["x"] = true }
+    check(DWE.ProfileLoad() == "Default" and DialogueWheelE_Theme == "parchment", "profiles: existing settings become the Default profile")
+    check(DWE.ProfileCreate("Alt", false, true) and DWE.profile == "Alt" and DialogueWheelE_Theme == nil and DialogueWheelE_FontSize == nil,
+        "profiles: a new profile starts from the defaults")
+    check(DialogueWheelE_ReadBooks and DialogueWheelE_ReadBooks.x, "profiles: read books are not part of a profile")
+    DialogueWheelE_Theme = "folio"
+    check(DWE.ProfileSwitch("Default", true) and DialogueWheelE_Theme == "parchment" and DialogueWheelE_FontSize == 15, "profiles: switching back restores that profile's options")
+    check(DialogueWheelE_Profiles.sets.Alt.Theme == "folio", "profiles: leaving a profile keeps its changes")
+    check(DWE.ProfileCreate("Copy", true, true) and DialogueWheelE_Theme == "parchment", "profiles: a copy keeps the current options")
+    check(not DWE.ProfileCreate("Copy", true, true) and not DWE.ProfileCreate("  ", false, true) and not DWE.ProfileCreate("Default", false, true), "profiles: empty or taken names refused")
+    DWE.ProfileForNew(true)
+    check(DialogueWheelE_Profiles.newChar == "Copy" and DWE.ProfileIsForNew(), "profiles: profile for new characters")
+    DialogueWheelE_Profiles.sets.Copy.Theme = "frameless"
+    DialogueWheelE_Profiles.chars = {}
+    DWE.profile = nil
+    check(DWE.ProfileLoad() == "Copy" and DialogueWheelE_Theme == "frameless", "profiles: a new character gets the chosen profile")
+    check(DWE.ProfileDelete("Copy", true) and DWE.profile == "Default" and DialogueWheelE_Theme == "parchment" and DialogueWheelE_Profiles.newChar == nil,
+        "profiles: deleting the current profile goes back to Default")
+    check(not DWE.ProfileDelete("Default", true), "profiles: Default can't be deleted")
+    local l = DWE.ProfileList()
+    check(l[1] == "Default" and l[2] == "Alt" and #l == 2, "profiles: list starts with Default")
+    DWE.ProfileSwitch("Alt", true)
+    DWE.ProfileSave()
+    DialogueWheelE_Profiles, DialogueWheelE_Theme, DialogueWheelE_ReadBooks, DialogueWheelE_FontSize = saveP, saveTheme, saveRead, saveFS
+    DWE.profile = nil
+    DWE.ProfileLoad()
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end

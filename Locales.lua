@@ -874,6 +874,65 @@ for loc, list in pairs(SPOKEN_PAD) do
     if dest then for k, v in pairs(list) do dest[k] = v end end
 end
 
+-- Profils d'options.
+local PROFILES = {
+    enUS = { SEC_PROFILES = "Profiles", PROFILE_CUR = "Profile:", PROFILE_DEFAULT = "Default", PROFILE_USE = "Use", PROFILE_NEW = "New", PROFILE_COPY = "Copy", PROFILE_DEL = "Delete",
+        PROFILE_NEWCHAR = "Use this profile for new characters", PROFILE_HINT = "Read books, heard lines and custom colors are shared by all profiles.",
+        PROFILE_NAME_NEW = "Name of the new profile (default options):", PROFILE_NAME_COPY = "Name of the copy of this profile:",
+        PROFILE_SWITCH_CONFIRM = "Use the profile \"%s\" on this character?\nThe interface will reload.",
+        PROFILE_DEL_CONFIRM = "Delete the profile \"%s\"?\nCharacters using it go back to Default. The interface will reload." },
+    frFR = { SEC_PROFILES = "Profils", PROFILE_CUR = "Profil :", PROFILE_DEFAULT = "Par défaut", PROFILE_USE = "Utiliser", PROFILE_NEW = "Nouveau", PROFILE_COPY = "Copier", PROFILE_DEL = "Supprimer",
+        PROFILE_NEWCHAR = "Utiliser ce profil pour les nouveaux personnages", PROFILE_HINT = "Les livres lus, les répliques entendues et les couleurs perso sont communs à tous les profils.",
+        PROFILE_NAME_NEW = "Nom du nouveau profil (options par défaut) :", PROFILE_NAME_COPY = "Nom de la copie de ce profil :",
+        PROFILE_SWITCH_CONFIRM = "Utiliser le profil « %s » sur ce personnage ?\nL'interface va se recharger.",
+        PROFILE_DEL_CONFIRM = "Supprimer le profil « %s » ?\nLes personnages qui l'utilisent reviennent au profil par défaut. L'interface va se recharger." },
+    deDE = { SEC_PROFILES = "Profile", PROFILE_CUR = "Profil:", PROFILE_DEFAULT = "Standard", PROFILE_USE = "Verwenden", PROFILE_NEW = "Neu", PROFILE_COPY = "Kopieren", PROFILE_DEL = "Löschen",
+        PROFILE_NEWCHAR = "Dieses Profil für neue Charaktere verwenden", PROFILE_HINT = "Gelesene Bücher, gehörte Sätze und eigene Farben gelten für alle Profile.",
+        PROFILE_NAME_NEW = "Name des neuen Profils (Standardoptionen):", PROFILE_NAME_COPY = "Name der Kopie dieses Profils:",
+        PROFILE_SWITCH_CONFIRM = "Das Profil „%s“ für diesen Charakter verwenden?\nDie Oberfläche wird neu geladen.",
+        PROFILE_DEL_CONFIRM = "Das Profil „%s“ löschen?\nCharaktere, die es nutzen, kehren zu Standard zurück. Die Oberfläche wird neu geladen." },
+    esES = { SEC_PROFILES = "Perfiles", PROFILE_CUR = "Perfil:", PROFILE_DEFAULT = "Predeterminado", PROFILE_USE = "Usar", PROFILE_NEW = "Nuevo", PROFILE_COPY = "Copiar", PROFILE_DEL = "Borrar",
+        PROFILE_NEWCHAR = "Usar este perfil para los personajes nuevos", PROFILE_HINT = "Los libros leídos, las frases oídas y los colores propios son comunes a todos los perfiles.",
+        PROFILE_NAME_NEW = "Nombre del nuevo perfil (opciones predeterminadas):", PROFILE_NAME_COPY = "Nombre de la copia de este perfil:",
+        PROFILE_SWITCH_CONFIRM = "¿Usar el perfil «%s» en este personaje?\nLa interfaz se recargará.",
+        PROFILE_DEL_CONFIRM = "¿Borrar el perfil «%s»?\nLos personajes que lo usan vuelven al predeterminado. La interfaz se recargará." },
+    itIT = { SEC_PROFILES = "Profili", PROFILE_CUR = "Profilo:", PROFILE_DEFAULT = "Predefinito", PROFILE_USE = "Usa", PROFILE_NEW = "Nuovo", PROFILE_COPY = "Copia", PROFILE_DEL = "Elimina",
+        PROFILE_NEWCHAR = "Usa questo profilo per i nuovi personaggi", PROFILE_HINT = "Libri letti, battute ascoltate e colori personalizzati sono comuni a tutti i profili.",
+        PROFILE_NAME_NEW = "Nome del nuovo profilo (opzioni predefinite):", PROFILE_NAME_COPY = "Nome della copia di questo profilo:",
+        PROFILE_SWITCH_CONFIRM = "Usare il profilo «%s» su questo personaggio?\nL'interfaccia verrà ricaricata.",
+        PROFILE_DEL_CONFIRM = "Eliminare il profilo «%s»?\nI personaggi che lo usano tornano al predefinito. L'interfaccia verrà ricaricata." },
+    ptBR = { SEC_PROFILES = "Perfis", PROFILE_CUR = "Perfil:", PROFILE_DEFAULT = "Padrão", PROFILE_USE = "Usar", PROFILE_NEW = "Novo", PROFILE_COPY = "Copiar", PROFILE_DEL = "Excluir",
+        PROFILE_NEWCHAR = "Usar este perfil para novos personagens", PROFILE_HINT = "Livros lidos, falas ouvidas e cores personalizadas são comuns a todos os perfis.",
+        PROFILE_NAME_NEW = "Nome do novo perfil (opções padrão):", PROFILE_NAME_COPY = "Nome da cópia deste perfil:",
+        PROFILE_SWITCH_CONFIRM = "Usar o perfil «%s» neste personagem?\nA interface será recarregada.",
+        PROFILE_DEL_CONFIRM = "Excluir o perfil «%s»?\nOs personagens que o usam voltam ao padrão. A interface será recarregada." },
+    ruRU = { SEC_PROFILES = "Профили", PROFILE_CUR = "Профиль:", PROFILE_DEFAULT = "По умолчанию", PROFILE_USE = "Выбрать", PROFILE_NEW = "Новый", PROFILE_COPY = "Копия", PROFILE_DEL = "Удалить",
+        PROFILE_NEWCHAR = "Использовать этот профиль для новых персонажей", PROFILE_HINT = "Прочитанные книги, услышанные реплики и свои цвета общие для всех профилей.",
+        PROFILE_NAME_NEW = "Название нового профиля (настройки по умолчанию):", PROFILE_NAME_COPY = "Название копии этого профиля:",
+        PROFILE_SWITCH_CONFIRM = "Использовать профиль «%s» для этого персонажа?\nИнтерфейс будет перезагружен.",
+        PROFILE_DEL_CONFIRM = "Удалить профиль «%s»?\nПерсонажи с ним вернутся к профилю по умолчанию. Интерфейс будет перезагружен." },
+    koKR = { SEC_PROFILES = "프로필", PROFILE_CUR = "프로필:", PROFILE_DEFAULT = "기본", PROFILE_USE = "사용", PROFILE_NEW = "새로 만들기", PROFILE_COPY = "복사", PROFILE_DEL = "삭제",
+        PROFILE_NEWCHAR = "새 캐릭터에 이 프로필 사용", PROFILE_HINT = "읽은 책, 들은 대사, 사용자 색상은 모든 프로필이 공유합니다.",
+        PROFILE_NAME_NEW = "새 프로필 이름 (기본 설정):", PROFILE_NAME_COPY = "이 프로필 복사본의 이름:",
+        PROFILE_SWITCH_CONFIRM = "이 캐릭터에 「%s」 프로필을 사용할까요?\n인터페이스가 다시 불러와집니다.",
+        PROFILE_DEL_CONFIRM = "「%s」 프로필을 삭제할까요?\n이 프로필을 쓰던 캐릭터는 기본으로 돌아갑니다. 인터페이스가 다시 불러와집니다." },
+    zhCN = { SEC_PROFILES = "配置文件", PROFILE_CUR = "配置文件：", PROFILE_DEFAULT = "默认", PROFILE_USE = "使用", PROFILE_NEW = "新建", PROFILE_COPY = "复制", PROFILE_DEL = "删除",
+        PROFILE_NEWCHAR = "新角色使用此配置文件", PROFILE_HINT = "已读书籍、听过的台词和自定义颜色由所有配置文件共享。",
+        PROFILE_NAME_NEW = "新配置文件名称（默认选项）：", PROFILE_NAME_COPY = "此配置文件副本的名称：",
+        PROFILE_SWITCH_CONFIRM = "在此角色上使用配置文件「%s」？\n界面将重新载入。",
+        PROFILE_DEL_CONFIRM = "删除配置文件「%s」？\n使用它的角色将恢复为默认。界面将重新载入。" },
+    zhTW = { SEC_PROFILES = "設定檔", PROFILE_CUR = "設定檔：", PROFILE_DEFAULT = "預設", PROFILE_USE = "使用", PROFILE_NEW = "新增", PROFILE_COPY = "複製", PROFILE_DEL = "刪除",
+        PROFILE_NEWCHAR = "新角色使用此設定檔", PROFILE_HINT = "已讀書籍、聽過的台詞與自訂顏色由所有設定檔共用。",
+        PROFILE_NAME_NEW = "新設定檔名稱（預設選項）：", PROFILE_NAME_COPY = "此設定檔副本的名稱：",
+        PROFILE_SWITCH_CONFIRM = "在此角色上使用設定檔「%s」？\n介面將重新載入。",
+        PROFILE_DEL_CONFIRM = "刪除設定檔「%s」？\n使用它的角色將回到預設。介面將重新載入。" },
+}
+PROFILES.esMX = PROFILES.esES
+for loc, list in pairs(PROFILES) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then for k, v in pairs(list) do dest[k] = v end end
+end
+
 -- Aide manette (options et astuce unique).
 local PAD_HELP = {
     enUS = { SEC_PAD = "Gamepad", PAD_USE = "Use the gamepad in conversations and books",
