@@ -2917,6 +2917,9 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
     elseif msg:match("perf") then
         Out("Pret : parle a un PNJ, la mesure demarre quand le texte commence a s'ecrire.")
         DWE.ArmPerf(Out)
+    elseif msg:match("^%s*$") and DWE.OpenOptions then
+        -- /storytale seul : ouvre les options (comme le bouton de la mini-carte).
+        if InCombatLockdown() then Out("options : pas en combat.") else DWE.OpenOptions() end
     else
         Out("/dwe npc : diagnostic du suivi du PNJ")
         Out("/dwe perf : mesure ce que l'addon coute en images/s")

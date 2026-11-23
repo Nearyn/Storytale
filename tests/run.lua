@@ -1585,8 +1585,8 @@ if withSpoken then
     do
         local heardGreet = { priority = "low", present = { bullet = "gossip", header = "Old NPC" }, key = "g:heard" }
         DWE.SpokenFocus.MarkHeard(heardGreet)
-        check(DWE.SpokenFocus.Hold(queue, heardGreet, "test") == false and not heardGreet.dweManual,
-            "greeting already heard: dropped, not queued")
+        check(DWE.SpokenFocus.Hold(queue, heardGreet, "test") == true and heardGreet.dweManual,
+            "greeting already heard: kept in the queue too (an NPC has several, each can be heard again)")
         local greet = { priority = "low", present = { bullet = "gossip", header = "Old NPC" }, key = "g:1" }
         DWE.SpokenFocus.Hold(queue, greet, "test")
         check(greet.dweManual and greet.priority == "normal", "manual hold: line kept, not dropped as low priority")
@@ -1610,6 +1610,17 @@ if withSpoken then
             function queue:RemoveSoundFromQueue(c) gone[#gone + 1] = c end
             DWE.SpokenFocus.CloseGroup(g2[2].key)
             check(#gone == 1 and gone[1] == q2, "queue: closing a line removes only that line")
+            -- Choisir une autre replique du meme PNJ : celle de tete s'arrete (gardee), la choisie passe devant.
+            queue.sounds = { q1, q2 }
+            local g3 = DWE.SpokenFocus.Groups()
+            local oldPlaying, oldNow = queue.IsPlaying, queue.GetNowPlaying
+            function queue:IsPlaying() return false end
+            function queue:GetNowPlaying() return nil end
+            DWE.SpokenFocus.PlayGroup(g3[2].key)
+            check(queue.sounds[1] == q2 and q1.dweManual, "queue: picking another line of the same NPC plays it, the first one waits")
+            check(gates[1](q1) == DWE.L.SPOKEN_HELD and gates[1](q2) == nil, "queue: the chosen line speaks, the other one holds")
+            queue.IsPlaying, queue.GetNowPlaying = oldPlaying, oldNow
+            DWE.SpokenFocus.forced, q1.dweManual = nil, nil
             queue.RemoveSoundFromQueue = oldRm
             DWE.SpokenFocus.forcedClip = nil
         end
@@ -1644,6 +1655,9 @@ if withSpoken then
             F.npc = true
             F.WatchPage("QUEST_DETAIL")
             check(F.QuestWaiting() == true, "quest page: player hidden while only a stopped greeting waits")
+            local prevQuest = { priority = "normal", present = { bullet = "quest", header = "Elf", label = "A Donation of Wool" }, key = "q:wool" }
+            queue.sounds = { prevQuest }
+            check(F.QuestWaiting() == true, "second quest page: player hidden while the previous quest line waits, stopped")
             F.lineSeq = (F.lineSeq or 0) + 1
             check(F.QuestWaiting() == false, "quest page: player back once the quest line arrives")
             F.npc = false
@@ -2667,6 +2681,14 @@ if DWE.SpokenFocus and DWE.SpokenFocus.Groups then
             "queue: an NPC's different greetings each have their own, distinct line (" .. tostring(g[1] and g[1].label) .. ")")
         queue.sounds = old
     end
+end
+-- /storytale seul ouvre les options.
+do
+    local old, opened = DWE.OpenOptions, false
+    DWE.OpenOptions = function() opened = true end
+    SlashCmdList.DIALOGUEWHEELE("")
+    check(opened, "/storytale opens the options")
+    DWE.OpenOptions = old
 end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))

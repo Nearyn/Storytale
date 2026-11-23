@@ -1,5 +1,29 @@
 # Changelog / Journal des versions
 
+## 1.6.9
+
+**English**
+
+### Improved
+- Type /storytale to open the options.
+
+### Fixed
+- Picking another line of the same NPC in Spoken's reading queue now plays it.
+- The reading queue works with a gamepad again.
+- No more empty Spoken window when you open an NPC's second quest.
+
+---
+
+**Français**
+
+### Améliorations
+- Tapez /storytale pour ouvrir les options.
+
+### Corrections
+- Choisir une autre réplique du même PNJ dans la file de lecture de Spoken la fait bien entendre.
+- La file de lecture marche de nouveau à la manette.
+- Plus de fenêtre Spoken vide quand on ouvre la deuxième quête d'un PNJ.
+
 ## 1.6.8
 
 **English**

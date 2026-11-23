@@ -41,8 +41,8 @@ local function BuildList()
     f:SetBackdropColor(.07, .065, .05, .98)
     f:SetBackdropBorderColor(.6, .57, .48, 1)
     f:Hide()
-    -- Echap la ferme (sans UISpecialFrames : voir DWE.EscapeKeys).
-    if DWE.EscapeKeys then DWE.EscapeKeys(f, function(self) self:Hide() end) end
+    -- (Pas de capture du clavier ici : elle prenait les boutons de la manette avant la liste,
+    -- et la croix ne choisissait plus rien. B ou un clic la ferment.)
     -- Fermee (souris, Echap, manette ou vide) : la manette rend ses boutons au jeu.
     f:SetScript("OnHide", function()
         UI.padIdx = nil

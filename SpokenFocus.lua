@@ -365,6 +365,13 @@ function Focus.Install()
         if Focus.forced then
             local _, q = Env()
             if q and GroupQueued(q, Focus.forced) then
+                -- Une replique precise choisie : les autres du meme PNJ, mises de cote, attendent.
+                local fc = Focus.forcedClip
+                if fc and clip ~= fc and clip.dweManual then
+                    local still = false
+                    for _, c in ipairs(q.sounds or {}) do if c == fc then still = true break end end
+                    if still then return DWE.L.SPOKEN_HELD end
+                end
                 if GroupKey(clip) == Focus.forced then return nil end
                 return DWE.L.SPOKEN_WAIT
             end
@@ -771,8 +778,8 @@ end
 -- Plus rien ne parle et tout ce qui attend est "a la demande" : le lecteur de Spoken n'a rien
 -- a montrer (Storytale le cache et affiche a la place un petit bouton discret).
 -- Page de quete ouverte : Spoken ne lit son texte qu'un peu apres (~0.5 s). Entre-temps, son
--- lecteur montrerait la salutation arretee (fenetre vide) : on le cache jusqu'a ce que la ligne
--- de la quete arrive (2 s au plus).
+-- lecteur montrerait une ligne arretee (salutation, ou la quete precedente du meme PNJ) : une
+-- fenetre vide. On le cache jusqu'a ce que la ligne de cette page arrive (2 s au plus).
 function Focus.QuestWaiting()
     if not Focus.questWaitUntil then return false end
     if not Focus.npc or (Focus.lineSeq or 0) ~= Focus.questWaitSeq
@@ -780,11 +787,11 @@ function Focus.QuestWaiting()
         Focus.questWaitUntil = nil
         return false
     end
+    -- Rien ne parle : ce qu'afficherait le lecteur (salutation ou ligne de quete precedente,
+    -- arretee) n'est pas la page ouverte. On attend la ligne de cette page.
     local _, queue = Env()
     local now = queue and queue.GetNowPlaying and queue:GetNowPlaying()
-    if now and not IsGreeting(now) then return false end
-    local head = queue and queue.sounds and queue.sounds[1]
-    return head == nil or IsGreeting(head)
+    return now == nil or IsGreeting(now)
 end
 
 function Focus.HeldOnly()
@@ -883,6 +890,14 @@ function Focus.PlayGroup(key)
     if key:match("^book:") and Focus.bookMuted then Focus.bookMuted = nil end
     Log("play group " .. key)
     if api.IsPaused and api:IsPaused() and api.Resume then pcall(api.Resume, api) end
+    -- Une autre replique du meme PNJ est choisie pendant que la sienne parle (ou attend en tete) :
+    -- celle de tete s'arrete et reste dans la file, la choisie passe devant. (Sans ca, le clic ne
+    -- faisait rien : le meme PNJ etait deja "en tete".)
+    local first = queue.sounds and queue.sounds[1]
+    if line and first and first ~= line then
+        Hold(queue, first, "other line chosen")
+        Focus.forcedClip = line
+    end
     Reorder(queue)
     local head = queue.GetCurrentSound and queue:GetCurrentSound()
     if head and GroupKey(head) ~= key and head.source and type(queue.RecheckGates) == "function"
