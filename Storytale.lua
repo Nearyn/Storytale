@@ -2309,7 +2309,16 @@ function DWE.PadUnfocusHidden()
                 if DWE.padUntracked then DWE.padUntracked[af] = nil end
                 local now = DWE.PadActiveFrame()
                 local f2 = rawget(m, "isUIFocused")
-                if now == af and f2 ~= false and m.ReturnToPlayerControl then pcall(m.ReturnToPlayerControl, m) end
+                -- Le jeu peut selectionner une autre fenetre cachee (ex. celle du gossip, encore
+                -- connue) : la manette restait alors a l'interface, le PNJ n'etait plus vise et la
+                -- roue se decrochait. Fenetre selectionnee invisible pendant la conversation : on
+                -- rend aussi la main au joueur.
+                local nowHidden = false
+                if now and now ~= af and DWE.choiceBox and DWE.choiceBox:IsShown() then
+                    local okH, ha = pcall(now.GetEffectiveAlpha, now)
+                    nowHidden = okH and not (sec and sec(ha)) and (ha or 1) < 0.05
+                end
+                if (now == af or nowHidden) and f2 ~= false and m.ReturnToPlayerControl then pcall(m.ReturnToPlayerControl, m) end
             end)
         end
         DWE.padUnfocusN = (DWE.padUnfocusN or 0) + 1
