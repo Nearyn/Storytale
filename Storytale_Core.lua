@@ -7555,38 +7555,67 @@ function DWE.InitOptionsPanel()
     local profilesPage = NewPage(L.SEC_PROFILES, py)
     AddSection(L.SEC_PROFILES, py)
     local rows = {}
+    -- Liste a nous (pas les menus deroulants du jeu : ils derangeaient la navigation manette du
+    -- jeu, "action bloquee"). Un bouton montre le choix ; un clic ouvre juste dessous une liste
+    -- de boutons, a la souris comme a la manette.
+    local openList
+    local function CloseList()
+        if openList then openList:Hide(); openList = nil end
+    end
     local function PRow(label, rowY, list, current, apply)
         AddText(label, 36, rowY - 4, "GameFontNormal")
-        local okD, dd = pcall(CreateFrame, "DropdownButton", nil, p, "WowStyle1DropdownTemplate")
-        if not okD or not dd or not dd.SetupMenu then
-            -- (Sans les listes du jeu : un bouton qui fait defiler les profils.)
-            dd = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-            dd:SetHeight(22)
-            dd:SetScript("OnClick", function()
-                local l = list()
-                if #l == 0 then return end
-                local at = 0
-                for k, n in ipairs(l) do if n == (current and current()) then at = k end end
-                apply(l[at % #l + 1])
-            end)
-        end
-        dd:SetWidth(240)
+        local dd = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+        dd:SetSize(240, 24)
         dd:SetPoint("TOPLEFT", p, "TOPLEFT", 300, rowY + 2)
-        local r = { dd = dd, list = list, current = current }
-        if dd.SetupMenu then
-            dd:SetupMenu(function(_, root)
-                for _, n in ipairs(list()) do
-                    if current then
-                        root:CreateRadio(DWE.ProfileLabel(n), function() return n == current() end, function() apply(n) end)
-                    else
-                        root:CreateButton(DWE.ProfileLabel(n), function() apply(n) end)
-                    end
-                end
-            end)
+        local arrow = dd:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        arrow:SetPoint("RIGHT", -8, 0)
+        arrow:SetText("v")
+        local box = CreateFrame("Frame", nil, p, "BackdropTemplate")
+        box:SetFrameStrata("DIALOG")
+        box:SetPoint("TOPLEFT", dd, "BOTTOMLEFT", 0, -2)
+        box:SetWidth(240)
+        if box.SetBackdrop then
+            box:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12,
+                insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+            box:SetBackdropColor(0.05, 0.05, 0.07, 0.96)
+            box:SetBackdropBorderColor(0.8, 0.65, 0.3, 1)
         end
+        box:Hide()
+        box.items = {}
+        local r = { dd = dd, list = list, current = current, box = box }
+        local function Fill()
+            local l = list()
+            local cur = current and current()
+            for i, n in ipairs(l) do
+                local it = box.items[i]
+                if not it then
+                    it = CreateFrame("Button", nil, box, "UIPanelButtonTemplate")
+                    it:SetSize(228, 22)
+                    it:SetPoint("TOPLEFT", box, "TOPLEFT", 6, -6 - (i - 1) * 24)
+                    box.items[i] = it
+                end
+                it:SetText((n == cur and "> " or "") .. DWE.ProfileLabel(n))
+                it:SetScript("OnClick", function() CloseList(); apply(n) end)
+                it:Show()
+            end
+            for i = #l + 1, #box.items do box.items[i]:Hide() end
+            box:SetHeight(12 + #l * 24)
+        end
+        dd:SetScript("OnClick", function()
+            if box:IsShown() then CloseList() return end
+            CloseList()
+            if #list() == 0 then return end
+            Fill()
+            box:Show()
+            openList = box
+            -- (La navigation manette du jeu relit la page quand un cadre y est cree.)
+            local nudge = CreateFrame("Frame", nil, box)
+            nudge:Hide()
+        end)
         rows[#rows + 1] = r
         return r
     end
+    profilesPage:HookScript("OnHide", CloseList)
     local function Others(withDefault)
         local l = {}
         for _, n in ipairs(DWE.ProfileList()) do
@@ -7619,11 +7648,8 @@ function DWE.InitOptionsPanel()
         if not DWE.ProfileList then return end
         for _, r in ipairs(rows) do
             local cur = r.current and r.current()
-            local text = cur and DWE.ProfileLabel(cur) or ""
-            if r.dd.SetDefaultText then r.dd:SetDefaultText(text) end
-            if r.dd.GenerateMenu then pcall(r.dd.GenerateMenu, r.dd)
-            elseif r.dd.SetText then r.dd:SetText(text) end
-            if r.dd.SetEnabled then r.dd:SetEnabled(#r.list() > 0) end
+            r.dd:SetText(cur and DWE.ProfileLabel(cur) or "")
+            r.dd:SetEnabled(#r.list() > 0)
         end
     end
     DWE.RefreshProfilesUI = RefreshProfiles
