@@ -5,7 +5,7 @@
 **English**
 
 ### New
-- Khadgar's text in Dalaran now shows on its round stone stele, with or without Spoken.
+- Khadgar's text in Dalaran now shows on its round stone stele.
 - The options menu works with a gamepad. Sliders get - and + buttons, and left / right go to the option next to you.
 
 ### Improved
@@ -24,7 +24,7 @@
 **Français**
 
 ### Nouveautés
-- Le texte de Khadgar à Dalaran s'affiche sur sa stèle ronde en pierre, avec ou sans Spoken.
+- Le texte de Khadgar à Dalaran s'affiche sur sa stèle ronde en pierre.
 - Le menu des options marche à la manette. Les curseurs ont des boutons - et +, et gauche / droite vont à l'option d'à côté.
 
 ### Améliorations

@@ -2651,6 +2651,23 @@ do
     _G.SmartNavigation_AddJumpNavigationOverride, _G.SMART_NAV_INPUT_DIRECTION, _G.DialogueWheelEOptionsScroll = oldSet, oldDirs, oldScroll
     child:Hide()
 end
+-- File de lecture : plusieurs salutations d'un meme PNJ, chacune sa ligne, reconnaissable.
+if DWE.SpokenFocus and DWE.SpokenFocus.Groups then
+    local F = DWE.SpokenFocus
+    local env = rawget(_G, "SpokenEnv")
+    local queue = type(env) == "table" and env.SoundQueue
+    if queue then
+        local old = queue.sounds
+        queue.sounds = {
+            { priority = "low", key = "g:a", present = { bullet = "gossip", header = "Deputy Willem", label = "Gossip", transcript = "Hello there, citizen. Watch yourself out there." } },
+            { priority = "low", key = "g:b", present = { bullet = "gossip", header = "Deputy Willem", label = "Gossip", transcript = "Normally I'd be out on the road." } },
+        }
+        local g = F.Groups()
+        check(#g == 2 and g[1].label ~= g[2].label and g[1].label:find("Hello there", 1, true) and g[2].label:find("Normally", 1, true),
+            "queue: an NPC's different greetings each have their own, distinct line (" .. tostring(g[1] and g[1].label) .. ")")
+        queue.sounds = old
+    end
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end

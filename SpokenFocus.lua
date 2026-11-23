@@ -174,7 +174,9 @@ end
 -- Seule exception : une salutation generique deja ecoutee en entier ne sert plus a rien,
 -- elle quitte la file (une salutation jamais entendue, elle, reste en attente).
 local function Keep(clip)
-    return not (IsGreeting(clip) and Focus.Heard(clip))
+    -- Toutes les repliques coupees restent dans la file, salutations deja entendues comprises :
+    -- un PNJ en a plusieurs, tirees au hasard, et chacune doit pouvoir etre reecoutee.
+    return true
 end
 Focus.Keep = Keep
 local function Hold(queue, clip, why)
@@ -489,6 +491,16 @@ function Focus.Install()
                     end
                 end
                 if #lowered > 0 then Log("line admitted past " .. #lowered .. " waiting") end
+                -- Une ligne de quete arrive : Spoken jetterait les salutations du meme PNJ qui
+                -- attendent encore (priorite basse). Elles restent dans la file, a la demande.
+                if want ~= "low" then
+                    local playing = self.IsPlaying and self:IsPlaying()
+                    for i, c in ipairs(self.sounds or {}) do
+                        if c ~= clip and IsGreeting(c) and c.priority == "low" and not (i == 1 and playing) then
+                            Hold(self, c, "quest arrived")
+                        end
+                    end
+                end
             end
             -- Une ligne en attente ne disparait que si elle est ecoutee ou fermee : pas de limite
             -- de file par source pendant l'ajout.
@@ -793,6 +805,27 @@ end
 -- Les livres restent groupes (toutes leurs pages) ; chaque replique d'un PNJ a sa propre ligne,
 -- pour pouvoir en retirer ou en ecouter une seule.
 Focus.lineClips = {}
+-- Debut d'une replique ("Hello there, traveler..."), pour distinguer dans la file les
+-- salutations d'un meme PNJ (le jeu en tire une au hasard ; Spoken les appelle toutes "Gossip").
+local function Excerpt(c)
+    local p = type(c.present) == "table" and c.present or {}
+    local t = p.transcript or c.text
+    if type(t) ~= "string" or (issecretvalue and issecretvalue(t)) then return nil end
+    t = t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("%s+", " "):gsub("^ ", "")
+    if t == "" then return nil end
+    local words, out = 0, {}
+    for w in t:gmatch("%S+") do
+        words = words + 1
+        if words > 6 then break end
+        out[#out + 1] = w
+    end
+    local e = table.concat(out, " ")
+    if #e > 42 then e = e:sub(1, 40) end
+    if words > 6 or #e < #t then e = e .. "..." end
+    return e
+end
+Focus.Excerpt = Excerpt
+
 function Focus.Groups()
     local _, queue = Env()
     local list, byKey = {}, {}
@@ -804,6 +837,11 @@ function Focus.Groups()
             local p = type(c.present) == "table" and c.present or {}
             local who = SpeakerOf(c)
             local what = p.label ~= "" and p.label or p.title
+            -- Salutation : son debut plutot que "Gossip", pour les reconnaitre entre elles.
+            if IsGreeting(c) and not c.dweAsked then
+                local e = Excerpt(c)
+                if e then what = "\"" .. e .. "\"" end
+            end
             local label = who and what and what ~= who and (who .. " - " .. tostring(what)) or who or what or p.header
             local lk = "line:" .. tostring(c.id or i) .. ":" .. tostring(c)
             Focus.lineClips[lk] = c
