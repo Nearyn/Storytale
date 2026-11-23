@@ -5457,7 +5457,13 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
             if okA then
                 follow.plate = plate
                 follow.kept = nil
-                DWE.FLog("accroche a " .. tostring(PlateToken(plate)))
+                do
+                    local okP, p1, rel, p2, x, y = pcall(plate.GetPoint, plate, 1)
+                    local rn = "?"
+                    if okP and rel then local okR, n = pcall(rel.GetName, rel) rn = okR and tostring(n) or "?" end
+                    DWE.FLog("accroche a " .. tostring(PlateToken(plate)) .. " | ancrage : "
+                        .. (okP and (tostring(p1) .. " " .. rn .. " " .. tostring(p2) .. " " .. tostring(x) .. " " .. tostring(y)) or ("refuse : " .. tostring(p1))))
+                end
             else
                 -- Refuse par le jeu : place fixe pour cette conversation (on reessaie a la
                 -- suivante ; avant, le suivi restait coupe jusqu'au /reload).
