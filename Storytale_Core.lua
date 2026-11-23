@@ -5506,7 +5506,15 @@ DWE.StopFollow = StopFollow
 choiceBox:HookScript("OnShow", StartFollow)
 -- Fermeture : on attend un instant, car le jeu enchaine souvent deux ecrans (gossip puis
 -- quete). Arreter puis relancer retirait les plaques et la roue se decrochait.
-choiceBox:HookScript("OnHide", StopFollow) -- comme en 1.7.0
+-- Fermeture : on attend un instant avant d'arreter le suivi. Le jeu enchaine souvent deux ecrans
+-- (gossip puis quete) : arreter puis relancer coupait et remettait les plaques amicales, et le jeu
+-- retirait la plaque du PNJ 0,3 s plus tard (roue decrochee, a la manette).
+choiceBox:HookScript("OnHide", function()
+    if not (C_Timer and C_Timer.After) then StopFollow() return end
+    C_Timer.After(0.3, function()
+        if not choiceBox:IsShown() then StopFollow() end
+    end)
+end)
 
 -- Filet : a chaque ecran de conversation, si la roue est la mais que le suivi ne tourne pas
 -- (ecran enchaine sans OnShow), on le relance. On retient aussi le PNJ tant qu'il existe.

@@ -625,7 +625,7 @@ do
     DWE.choiceBox:Hide()
     DWE.choiceBox:Show()
     M.RunTimers()
-    check(DWE.FollowerRunning(), "gossip to quest: follow restarted (like 1.7.0)")
+    check(DWE.FollowerRunning() and M.cvars.nameplateShowFriendlyNPCs == "1", "gossip to quest: follow kept, plates never switched off")
     -- "Toujours afficher les plaques" coupe (manette) : active pendant la conversation, puis remis.
     DWE.choiceBox:Hide(); M.RunTimers()
     M.cvars.nameplateShowAll = "0"
@@ -665,7 +665,7 @@ do
     DWE.EnsureFollow()
     check(DWE.FollowerRunning(), "follow restarted on next conversation screen")
 end
-DWE.choiceBox:Hide()
+DWE.choiceBox:Hide(); M.RunTimers()
 check(M.cvars.nameplateShowFriendlyNPCs == "0", "player setting restored on close")
 check(plate.UnitFrame:GetAlpha() == 0, "plate stays invisible while being removed")
 M.RunTimers()
