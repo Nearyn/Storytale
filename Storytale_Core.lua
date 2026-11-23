@@ -7478,45 +7478,42 @@ function DWE.InitOptionsPanel()
     RefreshKeyButtons()
 
     ---------------------------------------------------------------- Profils
-    -- Comme Spoken : une ligne par action, < nom > (que des boutons : navigable a la manette).
-    -- Les fleches choisissent ; un clic sur le nom applique (avec confirmation quand il faut
-    -- recharger l'interface). Le profil des nouveaux personnages change tout de suite.
+    -- Une ligne par action, avec une liste deroulante du jeu (souris et manette). Changer de
+    -- profil, copier ou supprimer demande confirmation ; le profil des nouveaux personnages
+    -- change tout de suite.
     local py = y - 484
     local profilesPage = NewPage(L.SEC_PROFILES, py)
     AddSection(L.SEC_PROFILES, py)
     local rows = {}
-    local function PRow(label, rowY, list, current, apply, emptyText)
+    local function PRow(label, rowY, list, current, apply)
         AddText(label, 36, rowY - 4, "GameFontNormal")
-        local r = { list = list, current = current, apply = apply, empty = emptyText }
-        local function B(text, w)
-            local b = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-            b:SetSize(w, 22)
-            b:SetText(text)
-            return b
+        local okD, dd = pcall(CreateFrame, "DropdownButton", nil, p, "WowStyle1DropdownTemplate")
+        if not okD or not dd or not dd.SetupMenu then
+            -- (Sans les listes du jeu : un bouton qui fait defiler les profils.)
+            dd = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+            dd:SetHeight(22)
+            dd:SetScript("OnClick", function()
+                local l = list()
+                if #l == 0 then return end
+                local at = 0
+                for k, n in ipairs(l) do if n == (current and current()) then at = k end end
+                apply(l[at % #l + 1])
+            end)
         end
-        r.prev, r.box, r.next = B("<", 26), B("", 220), B(">", 26)
-        r.prev:SetPoint("TOPLEFT", p, "TOPLEFT", 280, rowY)
-        r.box:SetPoint("LEFT", r.prev, "RIGHT", 4, 0)
-        r.next:SetPoint("LEFT", r.box, "RIGHT", 4, 0)
-        local function Step(d)
-            local l = r.list()
-            if #l == 0 then return end
-            local at = 0
-            for k, n in ipairs(l) do if n == r.pick then at = k end end
-            r.pick = l[(at - 1 + d) % #l + 1]
-            if r.instant then r.apply(r.pick) end
-            DWE.RefreshProfilesUI()
+        dd:SetWidth(240)
+        dd:SetPoint("TOPLEFT", p, "TOPLEFT", 300, rowY + 2)
+        local r = { dd = dd, list = list, current = current }
+        if dd.SetupMenu then
+            dd:SetupMenu(function(_, root)
+                for _, n in ipairs(list()) do
+                    if current then
+                        root:CreateRadio(DWE.ProfileLabel(n), function() return n == current() end, function() apply(n) end)
+                    else
+                        root:CreateButton(DWE.ProfileLabel(n), function() apply(n) end)
+                    end
+                end
+            end)
         end
-        r.prev:SetScript("OnClick", function() Step(-1) end)
-        r.next:SetScript("OnClick", function() Step(1) end)
-        r.box:SetScript("OnClick", function() if r.pick and not r.instant then r.apply(r.pick) end end)
-        r.box:SetScript("OnEnter", function(self)
-            if r.instant then return end
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText(L.PROFILE_CLICK_TIP, 1, 1, 1, true)
-            GameTooltip:Show()
-        end)
-        r.box:SetScript("OnLeave", function() GameTooltip:Hide() end)
         rows[#rows + 1] = r
         return r
     end
@@ -7527,46 +7524,36 @@ function DWE.InitOptionsPanel()
         end
         return l
     end
-    local rowCur = PRow(L.PROFILE_CUR, py - 36, function() return DWE.ProfileList() end,
+    PRow(L.PROFILE_CUR, py - 36, function() return DWE.ProfileList() end,
         function() return DWE.profile end, function(n) DWE.AskProfile("switch", n) end)
-    local rowCopy = PRow(L.PROFILE_COPY_FROM, py - 66, function() return Others(true) end,
-        nil, function(n) DWE.AskProfile("copyfrom", n) end, "")
-    local rowDel = PRow(L.PROFILE_DEL_ROW, py - 96, function() return Others(false) end,
-        nil, function(n) DWE.AskProfile("delete", n) end, "")
+    PRow(L.PROFILE_COPY_FROM, py - 68, function() return Others(true) end,
+        nil, function(n) DWE.AskProfile("copyfrom", n) end)
+    PRow(L.PROFILE_DEL_ROW, py - 100, function() return Others(false) end,
+        nil, function(n) DWE.AskProfile("delete", n) end)
     local newBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     newBtn:SetSize(200, 24)
-    newBtn:SetPoint("TOPLEFT", p, "TOPLEFT", 36, py - 126)
+    newBtn:SetPoint("TOPLEFT", p, "TOPLEFT", 36, py - 130)
     newBtn:SetText(L.PROFILE_NEW_BTN)
     newBtn:SetScript("OnClick", function() DWE.AskProfile("new") end)
-    local rowNew = PRow(L.PROFILE_FOR_NEW, py - 160, function() return DWE.ProfileList() end,
-        function() return DWE.ProfileNewCharName() end, function(n) DWE.ProfileSetForNew(n) end)
-    rowNew.instant = true
+    PRow(L.PROFILE_FOR_NEW, py - 164, function() return DWE.ProfileList() end,
+        function() return DWE.ProfileNewCharName() end, function(n)
+            DWE.ProfileSetForNew(n)
+            if DWE.RefreshProfilesUI then DWE.RefreshProfilesUI() end
+        end)
     local function RefreshProfiles()
         if not DWE.ProfileList then return end
         for _, r in ipairs(rows) do
-            local l = r.list()
-            local ok = false
-            for _, n in ipairs(l) do if n == r.pick then ok = true end end
-            if not ok then r.pick = r.current and r.current() or nil end
             local cur = r.current and r.current()
-            r.box:SetText(r.pick and DWE.ProfileLabel(r.pick) or (r.empty or ""))
-            local fs = r.box.GetFontString and r.box:GetFontString()
-            if fs then
-                if r.pick and r.pick ~= cur and not r.instant then fs:SetTextColor(0.95, 0.95, 0.95)
-                else fs:SetTextColor(1, 0.82, 0) end
-            end
-            local can = #l > 0 and not (#l == 1 and l[1] == cur)
-            r.prev:SetEnabled(can)
-            r.next:SetEnabled(can)
-            r.box:SetEnabled(r.pick ~= nil and r.pick ~= cur)
+            local text = cur and DWE.ProfileLabel(cur) or ""
+            if r.dd.SetDefaultText then r.dd:SetDefaultText(text) end
+            if r.dd.GenerateMenu then pcall(r.dd.GenerateMenu, r.dd)
+            elseif r.dd.SetText then r.dd:SetText(text) end
+            if r.dd.SetEnabled then r.dd:SetEnabled(#r.list() > 0) end
         end
     end
     DWE.RefreshProfilesUI = RefreshProfiles
-    AddText(L.PROFILE_HINT, 36, py - 196, "GameFontDisableSmall")
-    profilesPage:HookScript("OnShow", function()
-        for _, r in ipairs(rows) do r.pick = nil end
-        RefreshProfiles()
-    end)
+    AddText(L.PROFILE_HINT, 36, py - 200, "GameFontDisableSmall")
+    profilesPage:HookScript("OnShow", function() RefreshProfiles() end)
     RefreshProfiles()
     pages[#pages].child:SetHeight((py - 12) - (py - 210) + 30)
     keysPage:HookScript("OnShow", function() RefreshKeyButtons() end)
