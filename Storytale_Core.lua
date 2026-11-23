@@ -6489,7 +6489,7 @@ for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey Interact
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
-    if ReloadUI then ReloadUI() end
+    DWE.SettingsChanged()
 end
 -- Profils : confirmation (changer, supprimer) ou nom a saisir (nouveau, copie).
 function DWE.AskProfile(kind, name)
@@ -6503,7 +6503,8 @@ function DWE.AskProfile(kind, name)
             return ok
         end
     end
-    local confirm = kind == "switch" or kind == "delete" or kind == "copyfrom"
+    if kind == "switch" then return Do() end -- (tout de suite : rien n'est perdu, on peut revenir)
+    local confirm = kind == "delete" or kind == "copyfrom"
     if not (StaticPopupDialogs and StaticPopup_Show) then
         if confirm then Do() end
         return
@@ -6545,12 +6546,29 @@ end
 -- Valeurs par defaut donnees une fois a l'installation (voir PLAYER_LOGIN) : une page remise
 -- a zero les reprend (sans elles, la valeur "vide" n'est pas celle d'une installation).
 DWE.INSTALL_DEFAULTS = { WheelTheme = true, FontSize = 14, BookTipCursor = true }
-function DWE.ResetPage(vars, noReload)
+function DWE.ResetPage(vars, noApply)
     for _, k in ipairs(vars or {}) do
         local d = DWE.INSTALL_DEFAULTS[k]
         _G["DialogueWheelE_" .. k] = d
     end
-    if not noReload and ReloadUI then ReloadUI() end
+    if not noApply then DWE.SettingsChanged() end
+end
+-- Tous les reglages viennent de changer (profil, remise a zero) : on applique tout de suite.
+-- Chaque case et curseur des options relit sa valeur et rejoue son effet s'il a change ; puis
+-- tout ce qui depend des reglages est redessine. Pas de rechargement de l'interface.
+function DWE.SettingsChanged()
+    if DWE.ApplyInstallDefaults then pcall(DWE.ApplyInstallDefaults) end
+    for _, f in ipairs(DWE.optionRefreshers or {}) do pcall(f) end
+    for _, name in ipairs({ "OnThemeChanged", "ApplyFont", "ApplyBubbleOpacity", "RefreshBindings", "ApplyLock",
+        "RestorePosition", "RestoreTextPosition", "Repin", "RefreshSpoken", "ZoneArtRefresh", "MinimapButtonRefresh",
+        "RefreshBookLookOptions", "RefreshPlateLookOptions", "TextInRefresh", "CustomRefresh", "RefreshOptionsExtra",
+        "RefreshProfilesUI" }) do
+        local f = DWE[name]
+        if type(f) == "function" then pcall(f) end
+    end
+    if DialogueWheelE_AttachNPC == false and DWE.StopFollow then pcall(DWE.StopFollow) end
+    if DWE.choiceBox and DWE.choiceBox:IsShown() and DWE.UpdateVisuals then pcall(DWE.UpdateVisuals) end
+    if DWE.UpdateTextPanelVisuals then pcall(DWE.UpdateTextPanelVisuals) end
 end
 function DWE.AskResetPage(name, vars)
     if not (StaticPopupDialogs and StaticPopup_Show) then DWE.ResetPage(vars) return end
@@ -6675,12 +6693,27 @@ function DWE.InitOptionsPanel()
         "THEME_BUBBLES", "SPOKEN_BUTTON", "ZONE_ART" }) do
         if L[k] and L[k .. "_TIP"] then TIP_OF[L[k]] = L[k .. "_TIP"] end
     end
+    -- Chaque reglage sait relire sa valeur (profil change, page remise a zero) : il se remet a
+    -- jour et, s'il a change, rejoue son clic pour appliquer l'effet, comme si le joueur l'avait fait.
+    local refreshers = {}
+    DWE.optionRefreshers = refreshers
     local function AddCheck(label, x, y, checked, onClick)
         local cb = CreateFrame("CheckButton", nil, p, CHECK_TEMPLATE)
         cb:SetPoint("TOPLEFT", x, y)
         cb.Text:SetText(label)
-        cb:SetChecked(checked)
+        local get = type(checked) == "function" and checked or nil
+        cb:SetChecked((get and get() or (not get and checked)) and true or false)
         cb:SetScript("OnClick", onClick)
+        if get then
+            refreshers[#refreshers + 1] = function()
+                local want = get() and true or false
+                if (cb:GetChecked() and true or false) ~= want then
+                    cb:SetChecked(want)
+                    local fn = cb:GetScript("OnClick")
+                    if fn then pcall(fn, cb) end
+                end
+            end
+        end
         local tip = TIP_OF[label]
         if tip then
             cb.tooltipText = tip
@@ -6698,6 +6731,22 @@ function DWE.InitOptionsPanel()
     -- Groupe de cases a cocher exclusives (une seule cochee), en colonnes.
     local function AddGroup(items, x, startY, step, current, onPick, perColumn, colWidth)
         local list = {}
+        local get = type(current) == "function" and current or nil
+        if get then current = get() end
+        if get then
+            refreshers[#refreshers + 1] = function()
+                local want = get()
+                local changed = false
+                for i, info in ipairs(items) do
+                    local on = info.id == want
+                    if list[i] and (list[i]:GetChecked() and true or false) ~= on then
+                        list[i]:SetChecked(on)
+                        changed = true
+                    end
+                end
+                if changed then pcall(onPick, want) end
+            end
+        end
         for i, info in ipairs(items) do
             local col = perColumn and math.floor((i - 1) / perColumn) or 0
             local rowI = perColumn and ((i - 1) % perColumn) or (i - 1)
@@ -6715,7 +6764,15 @@ function DWE.InitOptionsPanel()
     end
 
     local function AddSlider(name, label, x, y, minV, maxV, step, curV, fmt, onSlide)
+        local get = type(curV) == "function" and curV or nil
+        if get then curV = get() end
         local sl = CreateFrame("Slider", name, p, SLIDER_TEMPLATE)
+        if get then
+            refreshers[#refreshers + 1] = function()
+                local want = get()
+                if want and math.abs((sl:GetValue() or 0) - want) > 1e-6 then sl:SetValue(want) end
+            end
+        end
         sl:SetPoint("TOPLEFT", x, y)
         sl:SetWidth(220)
         sl:SetMinMaxValues(minV, maxV)
@@ -6809,27 +6866,27 @@ function DWE.InitOptionsPanel()
     y = gridTop - math.ceil(#THEME_LIST / COLS) * (TILE_H + 32) - 6
     -- Cochee (par defaut) : themes en bulle. Decochee : themes en cadre.
     -- Bulle d'Azeroth, Bulle enluminee et Murmure restent toujours en bulle.
-    DWE.framesCheck = AddCheck(L.THEME_BUBBLES, 16, y, DialogueWheelE_ThemeFrames ~= true, function(self)
+    DWE.framesCheck = AddCheck(L.THEME_BUBBLES, 16, y, function() return DialogueWheelE_ThemeFrames ~= true end, function(self)
         DialogueWheelE_ThemeFrames = not self:GetChecked()
         RefreshTiles()
         DWE.OnThemeChanged()
     end)
     y = y - 30
-    AddCheck(L.WHEEL_THEME, 16, y, DialogueWheelE_WheelTheme == true, function(self)
+    AddCheck(L.WHEEL_THEME, 16, y, function() return DialogueWheelE_WheelTheme == true end, function(self)
         DialogueWheelE_WheelTheme = self:GetChecked() and true or false
         DWE.OnThemeChanged()
     end)
     y = y - 30
-    AddCheck(L.HIDE_UI, 16, y, DialogueWheelE_HideUI == true, function(self)
+    AddCheck(L.HIDE_UI, 16, y, function() return DialogueWheelE_HideUI == true end, function(self)
         DialogueWheelE_HideUI = self:GetChecked() and true or false
     end)
     y = y - 30
     -- Bouton de la mini-carte (ouvre ces options).
-    AddCheck(L.MINIMAP_BTN, 16, y, DialogueWheelE_MinimapHide ~= true, function(self)
+    AddCheck(L.MINIMAP_BTN, 16, y, function() return DialogueWheelE_MinimapHide ~= true end, function(self)
         DialogueWheelE_MinimapHide = (not self:GetChecked()) and true or nil
         if DWE.MinimapButtonRefresh then DWE.MinimapButtonRefresh() end
     end)
-    AddSlider("DWESliderOpacity", L.OPACITY_LBL, 22, y - 50, 0.2, 1, 0.05, tonumber(DialogueWheelE_Opacity) or 1, "%.2f", function(v)
+    AddSlider("DWESliderOpacity", L.OPACITY_LBL, 22, y - 50, 0.2, 1, 0.05, function() return tonumber(DialogueWheelE_Opacity) or 1 end, "%.2f", function(v)
         DialogueWheelE_Opacity = v
         DWE.OnThemeChanged()
         if DWE.ApplyBubbleOpacity then DWE.ApplyBubbleOpacity() end
@@ -7045,17 +7102,17 @@ function DWE.InitOptionsPanel()
         AddText(L.FONT_LOCKED, 16, y - 52, "GameFontDisableSmall")
         y = y - 80
     else
-        AddGroup(fontItems, 16, y - 48, 26, DialogueWheelE_Font or "friz", function(id)
+        AddGroup(fontItems, 16, y - 48, 26, function() return DialogueWheelE_Font or "friz" end, function(id)
             DialogueWheelE_Font = id
             DWE.ApplyFont()
         end, 5, 284)
         y = y - 48 - 5 * 26
     end
-    AddSlider("DWESliderFont", L.FONT_SIZE, 22, y - 22, 10, 22, 1, tonumber(DialogueWheelE_FontSize) or 14, "%d pt", function(v)
+    AddSlider("DWESliderFont", L.FONT_SIZE, 22, y - 22, 10, 22, 1, function() return tonumber(DialogueWheelE_FontSize) or 14 end, "%d pt", function(v)
         DialogueWheelE_FontSize = v
         DWE.ApplyFont()
     end)
-    AddSlider("DWESliderChoice", L.CHOICE_SIZE, 306, y - 22, 10, 24, 1, DWE.ChoiceSize(), "%d pt", function(v)
+    AddSlider("DWESliderChoice", L.CHOICE_SIZE, 306, y - 22, 10, 24, 1, function() return DWE.ChoiceSize() end, "%d pt", function(v)
         DialogueWheelE_ChoiceSize = v
         if DWE.choiceBox:IsShown() then DWE.UpdateVisuals() end
     end)
@@ -7080,7 +7137,7 @@ function DWE.InitOptionsPanel()
         { id = "addon", label = L.BOOK_ADDON },
         { id = "dui", label = L.BOOK_DUI },
         { id = "blizzard", label = L.BOOK_BLIZZ },
-    }, 16, y - 70, 26, DialogueWheelE_BookStyle or "addon", function(id)
+    }, 16, y - 70, 26, function() return DialogueWheelE_BookStyle or "addon" end, function(id)
         DialogueWheelE_BookStyle = id
         if DWE.RefreshBookLookOptions then DWE.RefreshBookLookOptions() end
     end, 1, 160)
@@ -7099,7 +7156,7 @@ function DWE.InitOptionsPanel()
         { id = "auto", label = L.BOOK_LOOK_AUTO },
         { id = "note", label = L.BOOK_LOOK_NOTE },
         { id = "book", label = L.BOOK_LOOK_BOOK },
-    }, 16, y - 118, 26, (DialogueWheelE_BookLook ~= "frame" and DialogueWheelE_BookLook) or "auto", function(id)
+    }, 16, y - 118, 26, function() return (DialogueWheelE_BookLook ~= "frame" and DialogueWheelE_BookLook) or "auto" end, function(id)
         DialogueWheelE_BookLook = id
         if DWE.bookMode and textBox:IsShown() then DWE.UpdateTextPanelVisuals() end
     end, 1, 150)
@@ -7121,7 +7178,7 @@ function DWE.InitOptionsPanel()
         { id = "addon", label = L.PLATE_ADDON },
         { id = "dui", label = L.BOOK_DUI },
         { id = "blizzard", label = L.BOOK_BLIZZ },
-    }, 16, y - 194, 26, DialogueWheelE_PlateStyle or "addon", function(id)
+    }, 16, y - 194, 26, function() return DialogueWheelE_PlateStyle or "addon" end, function(id)
         DialogueWheelE_PlateStyle = (id ~= "addon") and id or nil
         if DWE.RefreshPlateLookOptions then DWE.RefreshPlateLookOptions() end
     end, 1, 160)
@@ -7134,7 +7191,7 @@ function DWE.InitOptionsPanel()
         { id = "Marble", label = L.PLATE_MARBLE },
         { id = "Bronze", label = L.PLATE_BRONZE },
         { id = "Silver", label = L.PLATE_SILVER },
-    }, 16, y - 242, 26, DialogueWheelE_PlateLook or "auto", function(id)
+    }, 16, y - 242, 26, function() return DialogueWheelE_PlateLook or "auto" end, function(id)
         DialogueWheelE_PlateLook = (id ~= "auto") and id or nil
         if DWE.bookMode and textBox:IsShown() then DWE.UpdateTextPanelVisuals() end
     end, 1, 110)
@@ -7150,16 +7207,16 @@ function DWE.InitOptionsPanel()
         if plateLookLabel and plateLookLabel.SetTextColor then plateLookLabel:SetTextColor(c, c, c) end
     end
     DWE.RefreshPlateLookOptions()
-    AddCheck(L.READ_MARKS, 16, y - 272, DialogueWheelE_ReadMarks ~= false, function(self)
+    AddCheck(L.READ_MARKS, 16, y - 272, function() return DialogueWheelE_ReadMarks ~= false end, function(self)
         DialogueWheelE_ReadMarks = (not self:GetChecked()) and false or nil
     end)
-    AddCheck(L.BOOK_TIP_CURSOR, 16, y - 298, DialogueWheelE_BookTipCursor == true, function(self)
+    AddCheck(L.BOOK_TIP_CURSOR, 16, y - 298, function() return DialogueWheelE_BookTipCursor == true end, function(self)
         DialogueWheelE_BookTipCursor = self:GetChecked() and true or false
     end)
-    AddCheck(L.BOOK_AUTOSCROLL, 16, y - 324, DialogueWheelE_BookAutoScroll ~= false, function(self)
+    AddCheck(L.BOOK_AUTOSCROLL, 16, y - 324, function() return DialogueWheelE_BookAutoScroll ~= false end, function(self)
         DialogueWheelE_BookAutoScroll = self:GetChecked() and true or false
     end)
-    AddCheck(L.BOOK_TURN_FX, 16, y - 350, DialogueWheelE_BookTurnFX ~= false, function(self)
+    AddCheck(L.BOOK_TURN_FX, 16, y - 350, function() return DialogueWheelE_BookTurnFX ~= false end, function(self)
         DialogueWheelE_BookTurnFX = self:GetChecked() and true or false
     end)
 
@@ -7167,12 +7224,12 @@ function DWE.InitOptionsPanel()
     y = y - 390
     NewPage(L.SEC_PLACE, y)
     AddSection(L.SEC_PLACE, y)
-    AddCheck(L.ATTACH_NPC, 16, y - 32, DialogueWheelE_AttachNPC ~= false, function(self)
+    AddCheck(L.ATTACH_NPC, 16, y - 32, function() return DialogueWheelE_AttachNPC ~= false end, function(self)
         DialogueWheelE_AttachNPC = self:GetChecked() and true or false
         if not DialogueWheelE_AttachNPC then DWE.StopFollow() end
     end)
     AddText(L.ATTACH_TIP, 42, y - 58, "GameFontDisableSmall")
-    AddCheck(L.LOCK, 16, y - 76, DWE.IsLocked(), function(self)
+    AddCheck(L.LOCK, 16, y - 76, function() return DWE.IsLocked() end, function(self)
         DialogueWheelE_Locked = self:GetChecked() and true or false
         DWE.ApplyLock()
     end)
@@ -7185,13 +7242,13 @@ function DWE.InitOptionsPanel()
     AddGroup({
         { id = "right", label = L.SIDE_RIGHT },
         { id = "left", label = L.SIDE_LEFT },
-    }, 300, y - 88, 26, DialogueWheelE_WheelSide == "left" and "left" or "right", function(id)
+    }, 300, y - 88, 26, function() return DialogueWheelE_WheelSide == "left" and "left" or "right" end, function(id)
         DialogueWheelE_WheelSide = (id == "left") and "left" or nil
         if not DialogueWheelE_Pos then DWE.RestorePosition() end
         if choiceBox:IsShown() then DWE.UpdateVisuals() end
         DWE.Repin()
     end, 1, 120)
-    AddCheck(L.QUEST_AUTO_W, 16, y - 104, DialogueWheelE_QuestAuto ~= false, function(self)
+    AddCheck(L.QUEST_AUTO_W, 16, y - 104, function() return DialogueWheelE_QuestAuto ~= false end, function(self)
         DialogueWheelE_QuestAuto = (not self:GetChecked()) and false or nil
         -- Decochee : on part de la largeur automatique actuelle.
         if DialogueWheelE_QuestAuto == false and not tonumber(DialogueWheelE_QuestWidth) then
@@ -7205,14 +7262,14 @@ function DWE.InitOptionsPanel()
     local keysPage = NewPage(L.CAT_KEYS, y)
     AddSection(L.SEC_KEYS, y)
     local keysY = y - 32
-    local useBlizzCb = AddCheck(L.KEY_USE_BLIZZ, 16, keysY, DialogueWheelE_UseBlizzKey ~= false, nil)
+    local useBlizzCb = AddCheck(L.KEY_USE_BLIZZ, 16, keysY, function() return DialogueWheelE_UseBlizzKey ~= false end, nil)
     local interactBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     interactBtn:SetPoint("TOPLEFT", 20, keysY - 30)
     interactBtn:SetSize(240, 24)
-    AddCheck(L.ESC_CLOSE, 300, keysY, DialogueWheelE_EscClose ~= false, function(self)
+    AddCheck(L.ESC_CLOSE, 300, keysY, function() return DialogueWheelE_EscClose ~= false end, function(self)
         DialogueWheelE_EscClose = self:GetChecked() and true or false
     end)
-    AddCheck(L.WHEEL_SCROLL, 300, keysY - 28, DialogueWheelE_WheelScroll ~= false, function(self)
+    AddCheck(L.WHEEL_SCROLL, 300, keysY - 28, function() return DialogueWheelE_WheelScroll ~= false end, function(self)
         DialogueWheelE_WheelScroll = self:GetChecked() and true or false
         DWE.RefreshBindings()
     end)
@@ -7220,7 +7277,7 @@ function DWE.InitOptionsPanel()
     ---------------------------------------------------------------- Manette
     y = keysY - 76
     AddSection(L.SEC_PAD, y)
-    AddCheck(L.PAD_USE, 16, y - 32, DialogueWheelE_GamePad ~= false, function(self)
+    AddCheck(L.PAD_USE, 16, y - 32, function() return DialogueWheelE_GamePad ~= false end, function(self)
         DialogueWheelE_GamePad = self:GetChecked() and true or false
         DWE.RefreshBindings()
     end)
@@ -7242,7 +7299,7 @@ function DWE.InitOptionsPanel()
         if w.SetAlpha then w:SetAlpha(on and 1 or 0.5) end
     end
     if not spokenOn then AddText(L.SPOKEN_NEEDED, 200, y - 4, "GameFontDisableSmall") end
-    local spokenThemeCheck = AddCheck(L.SPOKEN_THEME, 16, y - 32, DialogueWheelE_SpokenTheme == true, function(self)
+    local spokenThemeCheck = AddCheck(L.SPOKEN_THEME, 16, y - 32, function() return DialogueWheelE_SpokenTheme == true end, function(self)
         DialogueWheelE_SpokenTheme = self:GetChecked() and true or false
         if DWE.spokenSkinShow then DWE.spokenSkinShow() end
         DWE.RefreshSpoken()
@@ -7252,6 +7309,7 @@ function DWE.InitOptionsPanel()
     local skinRows = {}
     local function SkinRow(rowY, label, followLabel, get, set, choices)
         local lbl = AddText(label, 36, rowY - 4, "GameFontHighlightSmall")
+        -- (Pas de relecture automatique ici : row.Show la remet a jour sans toucher au reglage.)
         local follow = AddCheck(followLabel, 240, rowY, get() == nil, nil)
         local prev = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
         prev:SetSize(26, 22)
@@ -7373,7 +7431,7 @@ function DWE.InitOptionsPanel()
 
     local toggleLbl, toggleBtn
     -- Bouton de bascule bulle / lecteur de Spoken, dans le coin de la roue.
-    local spokenCheck = AddCheck(L.SPOKEN_BUTTON, 16, y - 170, DialogueWheelE_SpokenButton == true, function(self)
+    local spokenCheck = AddCheck(L.SPOKEN_BUTTON, 16, y - 170, function() return DialogueWheelE_SpokenButton == true end, function(self)
         DialogueWheelE_SpokenButton = self:GetChecked() and true or false
         DWE.RefreshBindings()
     end)
@@ -7383,7 +7441,7 @@ function DWE.InitOptionsPanel()
     local textInBoxes = AddGroup({
         { id = "storytale", label = L.TEXT_IN_STORYTALE },
         { id = "spoken", label = L.TEXT_IN_SPOKEN },
-    }, 300, y - 198, 26, DialogueWheelE_ShowText == true and "storytale" or "spoken", function(id)
+    }, 300, y - 198, 26, function() return DialogueWheelE_ShowText == true and "storytale" or "spoken" end, function(id)
         local want = id == "storytale"
         if (DialogueWheelE_ShowText == true) ~= want then DWE.ToggleDialogueText() end
     end, 1, 160)
@@ -7399,7 +7457,7 @@ function DWE.InitOptionsPanel()
     toggleBtn:SetPoint("TOPLEFT", toggleLbl, "BOTTOMLEFT", 0, -4)
     toggleBtn:SetSize(240, 24)
     -- File de lecture intelligente (decochee : Spoken gere seul sa file, sans nos regles).
-    local smartCheck = AddCheck(L.SPOKEN_SMART, 16, y - 292, DialogueWheelE_SpokenSmart ~= false, function(self)
+    local smartCheck = AddCheck(L.SPOKEN_SMART, 16, y - 292, function() return DialogueWheelE_SpokenSmart ~= false end, function(self)
         DialogueWheelE_SpokenSmart = self:GetChecked() and true or false
     end)
     smartCheck.tooltipText = L.SPOKEN_SMART_TIP
@@ -7418,20 +7476,20 @@ function DWE.InitOptionsPanel()
     local smartTip = AddText(L.SPOKEN_SMART_HINT, 42, y - 316, "GameFontDisableSmall")
     if smartTip.SetWidth then smartTip:SetWidth(520); smartTip:SetJustifyH("LEFT") end
     -- Page tournee a la main dans un livre lu par Spoken : la voix reprend a cette page.
-    Grey(AddCheck(L.BOOK_VOICE_TURN, 16, y - 348, DialogueWheelE_BookVoiceTurn == true, function(self)
+    Grey(AddCheck(L.BOOK_VOICE_TURN, 16, y - 348, function() return DialogueWheelE_BookVoiceTurn == true end, function(self)
         DialogueWheelE_BookVoiceTurn = self:GetChecked() and true or nil
     end), spokenOn)
     -- Livre ferme : Spoken arrete de le lire (decoche par defaut : la lecture continue).
-    Grey(AddCheck(L.BOOK_STOP_CLOSE, 16, y - 374, DialogueWheelE_BookStopOnClose == true, function(self)
+    Grey(AddCheck(L.BOOK_STOP_CLOSE, 16, y - 374, function() return DialogueWheelE_BookStopOnClose == true end, function(self)
         DialogueWheelE_BookStopOnClose = self:GetChecked() and true or nil
     end), spokenOn)
     -- Illustration du lieu au-dessus de la petite fenetre de Spoken (narrations de Spoken Places).
-    Grey(AddCheck(L.ZONE_ART, 16, y - 400, DialogueWheelE_ZoneArt ~= false, function(self)
+    Grey(AddCheck(L.ZONE_ART, 16, y - 400, function() return DialogueWheelE_ZoneArt ~= false end, function(self)
         DialogueWheelE_ZoneArt = self:GetChecked() and true or false
         if DWE.ZoneArtRefresh then DWE.ZoneArtRefresh() end
     end), spokenOn)
     -- Bord de papier peint dans l'illustration (decoche : la scene seule, dans le fond du theme).
-    Grey(AddCheck(L.ZONE_ART_PAPER, 36, y - 426, DialogueWheelE_ZoneArtPaper == true, function(self)
+    Grey(AddCheck(L.ZONE_ART_PAPER, 36, y - 426, function() return DialogueWheelE_ZoneArtPaper == true end, function(self)
         DialogueWheelE_ZoneArtPaper = self:GetChecked() and true or nil
         if DWE.ZoneArtRefresh then DWE.ZoneArtRefresh() end
     end), spokenOn)
@@ -7574,6 +7632,12 @@ function DWE.InitOptionsPanel()
     RefreshProfiles()
     pages[#pages].child:SetHeight((py - 12) - (py - 210) + 30)
     keysPage:HookScript("OnShow", function() RefreshKeyButtons() end)
+    -- Ce que les reglages ne relisent pas d'eux-memes : vignettes de themes, touches, habillages.
+    function DWE.RefreshOptionsExtra()
+        pcall(RefreshTiles)
+        pcall(RefreshKeyButtons)
+        if DWE.spokenSkinShow then pcall(DWE.spokenSkinShow) end
+    end
 
     ---------------------------------------------------------------- Recherche
     -- Une barre en haut du panneau (hors du defilement) : chaque frappe amene la vue sur la

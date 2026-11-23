@@ -2801,6 +2801,36 @@ do
     check(DWE.optionPages[1].defaults ~= nil and DWE.optionPages[6].defaults == nil, "Defaults button on each page but Profiles")
     DialogueWheelE_FontSize, DialogueWheelE_Theme, DialogueWheelE_EscClose, DialogueWheelE_WheelTheme = saveFS, saveTh, saveEsc, saveWT
 end
+-- Profil change ou page remise a zero : les options se relisent, sans recharger l'interface.
+do
+    local function FindCheck(label)
+        for _, pg in ipairs(DWE.optionPages or {}) do
+            local function Walk(f)
+                for _, c in ipairs({ f:GetChildren() }) do
+                    if type(c.Text) == "table" and c.Text.GetText and c.Text:GetText() == label then return c end
+                    local r = Walk(c); if r then return r end
+                end
+            end
+            local r = Walk(pg.child); if r then return r end
+        end
+    end
+    local esc = FindCheck(DWE.L.ESC_CLOSE)
+    local saveEsc, saveFS = DialogueWheelE_EscClose, DialogueWheelE_FontSize
+    local reloaded = false
+    local oldReload = _G.ReloadUI
+    _G.ReloadUI = function() reloaded = true end
+    DialogueWheelE_EscClose = false
+    DialogueWheelE_FontSize = 19
+    DWE.SettingsChanged()
+    check(esc and esc:GetChecked() == false, "live settings: checkbox follows the new value")
+    check(_G.DWESliderFont and math.abs((_G.DWESliderFont:GetValue() or 0) - 19) < 0.01, "live settings: slider follows the new value")
+    DWE.ResetPage(DWE.optionPages[4].vars)
+    check(esc and esc:GetChecked() == true and DialogueWheelE_EscClose ~= false, "page defaults applied at once")
+    check(not reloaded, "no interface reload")
+    _G.ReloadUI = oldReload
+    DialogueWheelE_EscClose, DialogueWheelE_FontSize = saveEsc, saveFS
+    DWE.SettingsChanged()
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end

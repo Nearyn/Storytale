@@ -108,7 +108,8 @@ do
         if n == "Default" then return DWE.L.PROFILE_DEFAULT or n end
         return n
     end
-    local function Reload() if ReloadUI then ReloadUI() end end
+    -- Les reglages du profil s'appliquent tout de suite, sans recharger l'interface.
+    local function Reload() if DWE.SettingsChanged then DWE.SettingsChanged() end end
     -- Changer de profil : reglages du profil voulu, puis rechargement de l'interface.
     function DWE.ProfileSwitch(name, noReload)
         local P = Store()
@@ -3147,6 +3148,47 @@ local function OnBookReady()
     BuildOptions("ITEM_TEXT_CACHED", true)
 end
 
+-- Reglages par defaut d'une installation (et changements de defaut des anciennes versions,
+-- appliques une fois). A la connexion, et quand un profil vide ou remis a zero arrive.
+function DWE.ApplyInstallDefaults()
+    -- Premiere installation : bulle d'Azeroth, texte affiche par l'addon.
+    if DialogueWheelE_Theme == nil then DialogueWheelE_Theme = "bubble" end
+    if DialogueWheelE_ShowText == nil then DialogueWheelE_ShowText = true end
+    -- Nouveaux reglages par defaut (1.2), appliques une fois a tout le monde.
+    if (tonumber(DialogueWheelE_DefaultsV) or 0) < 2 then
+        DialogueWheelE_DefaultsV = 2
+        DialogueWheelE_WheelTheme = true
+        if DialogueWheelE_FontSize == nil or tonumber(DialogueWheelE_FontSize) == 13 then DialogueWheelE_FontSize = 14 end
+        if DialogueWheelE_ToggleKey == "T" then DialogueWheelE_ToggleKey = nil end
+    end
+    -- Touche de choix : celle du jeu ("Interagir avec la cible") si le joueur en a une,
+    -- sinon une touche de l'addon, E par defaut.
+    -- (1.2) Une fois : coche "touche du jeu" sans touche reglee dans le jeu -> touche E.
+    if (tonumber(DialogueWheelE_DefaultsV) or 0) < 5 then
+        DialogueWheelE_DefaultsV = 5
+        if DialogueWheelE_UseBlizzKey == true and not DWE.BlizzInteractOn() then
+            DialogueWheelE_UseBlizzKey = nil
+        end
+    end
+    -- (1.3.6) Une fois : infobulle des livres a la souris, activee aussi pour les joueurs
+    -- qui mettent a jour (ils peuvent la decocher ensuite : false reste false).
+    if (tonumber(DialogueWheelE_DefaultsV) or 0) < 6 then
+        DialogueWheelE_DefaultsV = 6
+        if DialogueWheelE_BookTipCursor == nil then DialogueWheelE_BookTipCursor = true end
+    end
+    if DialogueWheelE_UseBlizzKey == nil then
+        local on = DWE.BlizzInteractOn()
+        DialogueWheelE_UseBlizzKey = on and true or false
+        if not on and DialogueWheelE_InteractKey == nil then DialogueWheelE_InteractKey = "E" end
+    end
+    -- Lecteur Spoken habille du theme des que Spoken est la (meme installe plus tard),
+    -- sauf si le joueur a decoche l'option (false).
+    if DialogueWheelE_SpokenTheme == nil then
+        local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+        if isLoaded and isLoaded("Spoken") then DialogueWheelE_SpokenTheme = true end
+    end
+end
+
 f:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
         -- L'ancien dossier DialogueWheelE (avant le nom Storytale) ne doit plus etre installe.
@@ -3156,42 +3198,7 @@ f:SetScript("OnEvent", function(_, event)
                 and "supprime l'ancien dossier |cffffd200Interface\\AddOns\\DialogueWheelE|r (l'addon s'appelle maintenant Storytale)."
                 or "please delete the old |cffffd200Interface\\AddOns\\DialogueWheelE|r folder (the addon is now called Storytale)."))
         end
-        -- Premiere installation : bulle d'Azeroth, texte affiche par l'addon.
-        if DialogueWheelE_Theme == nil then DialogueWheelE_Theme = "bubble" end
-        if DialogueWheelE_ShowText == nil then DialogueWheelE_ShowText = true end
-        -- Nouveaux reglages par defaut (1.2), appliques une fois a tout le monde.
-        if (tonumber(DialogueWheelE_DefaultsV) or 0) < 2 then
-            DialogueWheelE_DefaultsV = 2
-            DialogueWheelE_WheelTheme = true
-            if DialogueWheelE_FontSize == nil or tonumber(DialogueWheelE_FontSize) == 13 then DialogueWheelE_FontSize = 14 end
-            if DialogueWheelE_ToggleKey == "T" then DialogueWheelE_ToggleKey = nil end
-        end
-        -- Touche de choix : celle du jeu ("Interagir avec la cible") si le joueur en a une,
-        -- sinon une touche de l'addon, E par defaut.
-        -- (1.2) Une fois : coche "touche du jeu" sans touche reglee dans le jeu -> touche E.
-        if (tonumber(DialogueWheelE_DefaultsV) or 0) < 5 then
-            DialogueWheelE_DefaultsV = 5
-            if DialogueWheelE_UseBlizzKey == true and not DWE.BlizzInteractOn() then
-                DialogueWheelE_UseBlizzKey = nil
-            end
-        end
-        -- (1.3.6) Une fois : infobulle des livres a la souris, activee aussi pour les joueurs
-        -- qui mettent a jour (ils peuvent la decocher ensuite : false reste false).
-        if (tonumber(DialogueWheelE_DefaultsV) or 0) < 6 then
-            DialogueWheelE_DefaultsV = 6
-            if DialogueWheelE_BookTipCursor == nil then DialogueWheelE_BookTipCursor = true end
-        end
-        if DialogueWheelE_UseBlizzKey == nil then
-            local on = DWE.BlizzInteractOn()
-            DialogueWheelE_UseBlizzKey = on and true or false
-            if not on and DialogueWheelE_InteractKey == nil then DialogueWheelE_InteractKey = "E" end
-        end
-        -- Lecteur Spoken habille du theme des que Spoken est la (meme installe plus tard),
-        -- sauf si le joueur a decoche l'option (false).
-        if DialogueWheelE_SpokenTheme == nil then
-            local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
-            if isLoaded and isLoaded("Spoken") then DialogueWheelE_SpokenTheme = true end
-        end
+        DWE.ApplyInstallDefaults()
         -- (1.6.8) Une seule fois par compte : sans Spoken, une ligne dans le chat le fait connaitre.
         if not DialogueWheelE_SpokenTipSeen then
             local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
