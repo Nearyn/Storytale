@@ -3347,7 +3347,14 @@ f:SetScript("OnEvent", function(_, event)
         DWE.autoReward = nil
         local qid = GetQuestID and GetQuestID() or 0
         local n = GetNumQuestChoices and GetNumQuestChoices() or 0
-        if ar.questID == qid and GetQuestReward and (n <= 1 or (ar.index and ar.index <= n)) then
+        -- Avec Spoken : l'ecran final reste ouvert, le temps que la voix lise ce que dit le PNJ
+        -- en rendant la quete (sinon la fenetre se fermait aussitot et la replique sautait).
+        -- La recompense deja choisie est gardee ; "Terminer la quete" valide.
+        local voiced = DWE.SpokenFocus and DWE.SpokenFocus.Available and DWE.SpokenFocus.Available()
+        if voiced and ar.questID == qid and ar.index and ar.index <= n then
+            DWE.selectedRewardIndex = ar.index
+        end
+        if not voiced and ar.questID == qid and GetQuestReward and (n <= 1 or (ar.index and ar.index <= n)) then
             GetQuestReward(ar.index or 1)
             return
         end

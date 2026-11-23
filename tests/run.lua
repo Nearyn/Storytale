@@ -888,7 +888,15 @@ check(M.log[1] == "CompleteQuest", "Complete sends the quest")
 M.FireEvent("QUEST_FINISHED")
 M.numChoices = 3
 M.FireEvent("QUEST_COMPLETE")
-check(M.log[2] == "GetQuestReward 3", "final screen validated at once with the picked reward: " .. tostring(M.log[2]))
+if DWE.SpokenFocus and DWE.SpokenFocus.Available and DWE.SpokenFocus.Available() then
+    -- Avec Spoken : l'ecran final reste ouvert (la voix lit ce que dit le PNJ), recompense gardee.
+    check(M.log[2] == nil and DWE.selectedRewardIndex == 3, "with Spoken: final screen stays open, picked reward kept")
+    check(DWE.currentOptions[2 + OFF].rawLabel == DWE.L.COMPLETE and DWE.currentOptions[2 + OFF].disabled == false, "with Spoken: Complete ready on the final screen")
+    DWE.currentOptions[2 + OFF].action()
+    check(M.log[2] == "GetQuestReward 3", "with Spoken: Complete gives the picked reward: " .. tostring(M.log[2]))
+else
+    check(M.log[2] == "GetQuestReward 3", "final screen validated at once with the picked reward: " .. tostring(M.log[2]))
+end
 M.FireEvent("QUEST_FINISHED")
 -- Sans passer par "Terminer" (ecran final ouvert autrement) : le choix est repris
 M.FireEvent("QUEST_COMPLETE")
