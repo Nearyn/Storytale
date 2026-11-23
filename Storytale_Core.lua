@@ -4819,6 +4819,10 @@ end
 
 local function SetFriendlyPlates(on)
     if not (GetCVar and SetCVar) or InCombatLockdown() then return end
+    -- Aucun reglage des plaques n'est plus change en conversation : activer les plaques des PNJ
+    -- amicaux changeait l'affichage des noms de TOUS les PNJ autour. Storytale n'utilise plus
+    -- que la plaque que le jeu donne deja au PNJ a qui l'on parle.
+    if on and DWE.NO_PLATE_CVARS ~= false then return end
     if on then
         local cur = GetCVar("nameplateShowFriendlyNPCs")
         if cur and cur ~= "1" then
@@ -5072,30 +5076,24 @@ DWE.npcGhost.valid = false
 
 function DWE.GhostRecord(plate)
     if not plate or plate == DWE.npcGhost then return end
-    local token = PlateToken(plate)
-    if not token then return end
-    -- Toujours le meme PNJ ? (unite "npc", sinon GUID retenu ; comparaison protegee)
-    local same = Check(UnitIsUnit, token, "npc")
-    if not same and DWE.lastNPC.guid and UnitGUID then
-        local okE, eq = pcall(function() return UnitGUID(token) == DWE.lastNPC.guid end)
-        same = okE and eq
-    end
-    if not same then return end
-    local okC, x, y = pcall(plate.GetCenter, plate)
-    if not okC or type(x) ~= "number" or type(y) ~= "number" then
+    if not Check(UnitIsUnit, PlateToken(plate) or "", "npc") then return end
+    -- Position lue sur l'ancrage de la plaque (pas de mesure : le jeu l'interdit).
+    local ok, p, rel, rp, x, y = pcall(plate.GetPoint, plate, 1)
+    if not (ok and p and type(x) == "number" and type(y) == "number") then
         if not follow.measureLogged then
             follow.measureLogged = true
-            DWE.FLog("mesure de la plaque refusee : " .. tostring(okC and "pas de position" or x))
+            DWE.FLog("ancrage de la plaque illisible : " .. tostring(ok and "aucun" or p))
         end
         return
     end
-    local okS, ps = pcall(plate.GetEffectiveScale, plate)
-    local us = UIParent:GetEffectiveScale() or 1
-    local k = (okS and type(ps) == "number" and us > 0) and ps / us or 1
-    DWE.npcGhost:ClearAllPoints()
-    DWE.npcGhost:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x * k, y * k)
-    if not DWE.npcGhost.valid then DWE.FLog("position du PNJ retenue") end
-    DWE.npcGhost.valid = true
+    local okA = pcall(function()
+        DWE.npcGhost:ClearAllPoints()
+        DWE.npcGhost:SetPoint(p, rel or WorldFrame, rp or p, x, y)
+    end)
+    if okA then
+        if not DWE.npcGhost.valid then DWE.FLog(("position du PNJ retenue (%s %.0f %.0f)"):format(tostring(p), x, y)) end
+        DWE.npcGhost.valid = true
+    end
 end
 
 -- Bascule sur le fantome (plaque retiree). Retourne vrai si c'est fait.

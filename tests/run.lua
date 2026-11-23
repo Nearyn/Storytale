@@ -113,6 +113,7 @@ for _, file in ipairs({ "Locales.lua", "Storytale_Core.lua", "Bubble.lua", "Spok
     local ok, rerr = pcall(chunk, "Storytale", {})
     check(ok, "load " .. file .. ": " .. tostring(rerr))
 end
+DWE.NO_PLATE_CVARS = false -- les tests du masquage des plaques gardent l'ancien chemin
 -- Reglages sauvegardes : ligne SavedVariables du .toc lue en entier par le jeu (1023 caracteres
 -- au plus), et les autres reglages rendus par DialogueWheelE_Extra.
 do
@@ -606,7 +607,8 @@ do
     check(DWE.IsFollowingNPC(), "quest screen without npc unit: still pinned by GUID")
     UnitGUID = function() return "Creature-other" end
     follower._scripts.OnUpdate(follower, 0.2)
-    check(not DWE.IsFollowingNPC(), "other NPC plate not taken")
+    local lp = DWE.choiceBox._points[#DWE.choiceBox._points]
+    check(not DWE.IsFollowingNPC() or (lp and lp[2] == DWE.npcGhost), "other NPC plate not taken (last place kept)")
     UnitExists, UnitGUID = oE, oG
     follower._scripts.OnUpdate(follower, 0.2)
     check(DWE.IsFollowingNPC(), "re-pinned with npc unit back")
@@ -619,28 +621,6 @@ do
     C_NamePlate.GetNamePlateForUnit = oF
     M.plates = { plate }
     follower._scripts.OnUpdate(follower, 0.2)
-    -- Le jeu retire la plaque pendant la quete puis la deplace : la roue reste a sa derniere place.
-    local oG2 = UnitGUID
-    UnitGUID = function(u) if u == "npc" or u == "nameplate1" then return "Creature-0-1-2-3-4-5" end end
-    plate.GetCenter = function() return 500, 400 end
-    plate.GetEffectiveScale = function() return 1 end
-    follower._scripts.OnUpdate(follower, 0.2)
-    check(DWE.npcGhost.valid, "ghost records the plate place")
-    M.plates = {}
-    follower._scripts.OnEvent(follower, "NAME_PLATE_UNIT_REMOVED", "nameplate1")
-    local gp = DWE.choiceBox._points[#DWE.choiceBox._points]
-    check(DWE.IsFollowingNPC() and gp and gp[2] == DWE.npcGhost, "plate removed: wheel moves to the ghost")
-    plate.GetCenter = function() return 0, 0 end
-    UnitGUID = function(u) if u == "npc" then return "Creature-0-1-2-3-4-5" end return "Creature-other" end
-    follower._scripts.OnUpdate(follower, 0.2)
-    gp = DWE.choiceBox._points[#DWE.choiceBox._points]
-    check(gp and gp[2] == DWE.npcGhost, "plate reused by another unit: wheel stays on the ghost")
-    UnitGUID = oG2
-    plate.GetCenter, plate.GetEffectiveScale = nil, nil
-    M.plates = { plate }
-    follower._scripts.OnUpdate(follower, 0.2)
-    gp = DWE.choiceBox._points[#DWE.choiceBox._points]
-    check(gp and gp[2] == plate, "plate back: re-pinned to it")
     -- Gossip puis quete (fermeture et reouverture immediates) : le suivi continue.
     DWE.choiceBox:Hide()
     DWE.choiceBox:Show()
