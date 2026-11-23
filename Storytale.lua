@@ -2249,6 +2249,29 @@ end
 function DWE.PadUnfocusHidden()
     local m, af = DWE.PadFCM(), DWE.PadActiveFrame()
     if not (m and af) or InCombatLockdown() then return end
+    -- Pendant la conversation, la fenetre du chat restait seule dans la liste manette du jeu une
+    -- fois les fenetres cachees retirees : le jeu lui donnait la manette (le PNJ n'etait plus vise,
+    -- la roue se decrochait). On la retire aussi de cette liste (le chat reste affiche).
+    if DWE.choiceBox and DWE.choiceBox:IsShown() and not DWE.ConvToDUI() then
+        local sec = rawget(_G, "issecretvalue")
+        local okN, n = pcall(af.GetName, af)
+        local focused = rawget(m, "isUIFocused")
+        if okN and type(n) == "string" and not (sec and sec(n)) and n:find("^ChatFrame")
+            and focused == true and m.FrameHidden then
+            local now = GetTime and GetTime() or 0
+            DWE.padRate = DWE.padRate or {}
+            local r = DWE.padRate[af]
+            if not r or now - r.t > 2 then r = { t = now, n = 0 } DWE.padRate[af] = r end
+            r.n = r.n + 1
+            if r.n <= 3 then
+                pcall(m.FrameHidden, m, af)
+                DWE.padUnfocusN = (DWE.padUnfocusN or 0) + 1
+                DWE.padUnfocusLast = n
+                if DWE.FLog then DWE.FLog("chat retire de la liste manette du jeu") end
+            end
+            return
+        end
+    end
     -- Conversation ou livre montres par DialogueUI : il pilote lui-meme la manette, on n'y touche pas.
     if DWE.ConvToDUI() and not DWE.BookByAddon() then return end
     -- Fenetre selectionnee par le jeu mais invisible (cachee par Storytale) : on rend la main.
