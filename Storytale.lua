@@ -2284,6 +2284,16 @@ function DWE.PadUnfocusHidden()
         -- Une seule fois par ouverture, tant que le jeu ne la reselectionne pas.
         DWE.padCycled = DWE.padCycled or {}
         if hidden and focused == false and DWE.padCycled[af] then return end
+        -- Garde-fou : jamais plus de 3 allers-retours en 2 secondes pour une meme fenetre (une
+        -- boucle de milliers d'allers-retours avec le jeu finissait par bloquer la manette).
+        do
+            local now = GetTime and GetTime() or 0
+            DWE.padRate = DWE.padRate or {}
+            local r = DWE.padRate[af]
+            if not r or now - r.t > 2 then r = { t = now, n = 0 } DWE.padRate[af] = r end
+            r.n = r.n + 1
+            if r.n > 3 then return end
+        end
         if hidden then
             DWE.padCycled[af] = true
             DWE.padHideHooked = DWE.padHideHooked or {}
