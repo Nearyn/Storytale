@@ -2690,6 +2690,30 @@ do
     check(opened, "/storytale opens the options")
     DWE.OpenOptions = old
 end
+-- Tablettes trolles hautes : les glyphes des cotes se repetent au lieu de s'etirer.
+do
+    local okR, n = DWE.NoteRepFrame(DWE.PLATES.Troll, 668, 950)
+    check(okR == true and n == 10, "troll tablet: side glyphs repeated, not stretched (" .. tostring(n) .. ")")
+    local okT = DWE.NoteRepFrame(DWE.PLATES.Tablet, 668, 420)
+    check(okT == true, "plain tablet uses the same repeated frame")
+    check(DWE.NoteRepFrame(DWE.PLATES.Stone, 668, 950) == false, "other plates keep their single stretched frame")
+end
+-- Manette : la surbrillance de l'objet 3D vise reste allumee tant que Storytale tient la vue libre.
+do
+    local state
+    local oldGP = rawget(_G, "C_GamePad")
+    _G.C_GamePad = { SetAllowHoverEventsWithFreeLook = function(v) state = v end }
+    DWE.PadHoverHold(true)
+    check(state == true, "pad: 3D hover kept on while the camera is held")
+    local oldGM = rawget(_G, "GamepadMode")
+    _G.GamepadMode = { FrameControlsManager = { isUIFocused = true } }
+    DWE.PadHoverHold(false)
+    check(state == false and not DWE.padHoverHeld, "pad: hover handed back to the game's own choice on release")
+    state = "untouched"
+    DWE.PadHoverHold(false)
+    check(state == "untouched", "pad: hover left alone when Storytale never held it")
+    _G.C_GamePad, _G.GamepadMode = oldGP, oldGM
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end

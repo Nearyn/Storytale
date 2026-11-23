@@ -2324,7 +2324,7 @@ function DWE.PadStickRestore()
     for f in pairs(stickTaken) do pcall(f.EnableGamePadStick, f, true) end
     wipe(stickTaken)
 end
-DWE.padCatcher:HookScript("OnHide", function() DWE.PadStickRestore() end)
+DWE.padCatcher:HookScript("OnHide", function() DWE.PadStickRestore(); if DWE.PadHoverHold then DWE.PadHoverHold(false) end end)
 
 -- Camera au stick droit : avec une fenetre ouverte, le jeu donne le stick droit au curseur
 -- virtuel des que le personnage s'arrete. Conversations et livres se pilotent a la croix,
@@ -2361,7 +2361,28 @@ DWE.padCatcher:SetScript("OnUpdate", function(self, el)
     if DialogueWheelE_PadFreeLook == false then return end
     local isOn, setOn = rawget(_G, "IsGamePadFreelookEnabled"), rawget(_G, "SetGamePadFreeLook")
     if isOn and setOn and not isOn() then pcall(setOn, true) end
+    -- Le jeu coupe la surbrillance des objets 3D vises en vue libre quand une fenetre est ouverte,
+    -- mais la remet des qu'il repasse au curseur (camera arretee) : avec la vue libre rendue toutes
+    -- les 0,1 s, l'objet vise clignotait. On la garde allumee, comme a la souris.
+    DWE.PadHoverHold(true)
 end)
+-- Rendu au jeu quand Storytale lache la manette (le gestionnaire de fenetres du jeu decide).
+function DWE.PadHoverHold(on)
+    local gp = rawget(_G, "C_GamePad")
+    local set = type(gp) == "table" and gp.SetAllowHoverEventsWithFreeLook
+    if not set then return end
+    if on then
+        pcall(set, true)
+        DWE.padHoverHeld = true
+    elseif DWE.padHoverHeld then
+        DWE.padHoverHeld = nil
+        local m = DWE.PadFCM()
+        local sec = rawget(_G, "issecretvalue")
+        local focused = m and m.isUIFocused
+        if sec and sec(focused) then focused = nil end
+        pcall(set, not focused)
+    end
+end
 
 -- Y : le menu du ruban d'un livre (en conversation, Y reste au jeu).
 -- Y : le menu du ruban dans un livre ; en conversation, la bascule bulle / lecteur Spoken

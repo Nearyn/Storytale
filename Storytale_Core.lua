@@ -2889,6 +2889,61 @@ local noteBg = textBox:CreateTexture(nil, "BACKGROUND", nil, -7)
 noteBg:SetTexture(ADDON_PATH .. "BookPaper.png")
 if noteBg.SetTextureSliceMargins then pcall(noteBg.SetTextureSliceMargins, noteBg, 90, 90, 90, 90) end
 noteBg:Hide()
+
+-- Tablettes trolles : les cotes de la frise (lignes 216 a 424 de la texture) se repetent tous les
+-- 104 pixels. Une tablette haute (beaucoup de texte) etirait ces glyphes ; on dessine donc le cadre
+-- en morceaux, la bande des cotes repetee autant de fois qu'il faut au lieu d'etiree.
+do
+local REP = { a = 216, b = 320, c = 424, m = 124, tw = 1024, th = 640 }
+local repPieces = {}
+local function RepHide()
+    for _, t in ipairs(repPieces) do t:Hide() end
+    noteBg:SetAlpha(1)
+end
+hooksecurefunc(noteBg, "Hide", RepHide)
+function DWE.NoteRepFrame(plate, W, H)
+    if not (plate and plate.rep and W and H and W > 0 and H > 0) then RepHide(); return false end
+    local s = W / REP.tw
+    local per = (REP.b - REP.a) * s
+    local avail = H - (REP.a + REP.th - REP.c) * s
+    if avail < per * 0.5 then RepHide(); return false end
+    local n = math.max(1, math.floor(avail / per + 0.5))
+    local ph = avail / n
+    local file = ADDON_PATH .. plate.tex .. ".png"
+    local i = 0
+    local function Piece(x, y, w, h, u0, u1, v0, v1, last)
+        i = i + 1
+        local t = repPieces[i]
+        if not t then
+            t = textBox:CreateTexture(nil, "BACKGROUND", nil, -7)
+            if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false); t:SetTexelSnappingBias(0) end
+            repPieces[i] = t
+        end
+        t:SetTexture(file)
+        t:SetTexCoord(u0 / REP.tw, u1 / REP.tw, v0 / REP.th, v1 / REP.th)
+        t:ClearAllPoints()
+        t:SetPoint("TOPLEFT", noteBg, "TOPLEFT", x, -y)
+        -- Un demi-point de recouvrement : pas de fil clair entre deux morceaux.
+        t:SetSize(w, last and h or h + 0.5)
+        t:Show()
+    end
+    local m, cw = REP.m, REP.m * s
+    for _, col in ipairs({ { 0, 0, m }, { W - cw, REP.tw - m, REP.tw } }) do
+        local x, u0, u1 = col[1], col[2], col[3]
+        Piece(x, 0, cw, REP.a * s, u0, u1, 0, REP.a)
+        for k = 0, n - 1 do Piece(x, REP.a * s + k * ph, cw, ph, u0, u1, REP.a, REP.b) end
+        Piece(x, REP.a * s + avail, cw, (REP.th - REP.c) * s, u0, u1, REP.c, REP.th, true)
+    end
+    local mw = W - 2 * cw
+    -- Milieu : memes coupes que les cotes (bords du creux alignes), seul le fond s'etire.
+    Piece(cw, 0, mw, REP.a * s, m, REP.tw - m, 0, REP.a)
+    Piece(cw, REP.a * s, mw, avail, m, REP.tw - m, REP.a, REP.c)
+    Piece(cw, REP.a * s + avail, mw, (REP.th - REP.c) * s, m, REP.tw - m, REP.c, REP.th, true)
+    for k = i + 1, #repPieces do repPieces[k]:Hide() end
+    noteBg:SetAlpha(0)
+    return true, n
+end
+end
 -- Petales de rose sur le rebord d'une tombe en hommage a une personne disparue.
 DWE.memorialPetals = textBox:CreateTexture(nil, "ARTWORK", nil, 2)
 DWE.memorialPetals:SetTexture(ADDON_PATH .. "MemorialPetals.png")
@@ -2924,8 +2979,8 @@ DWE.PLATES = {
     Dalaran = { tex = "PlateDalaran", round = true, slice = { 0, 0, 0, 0 }, body = { 0.62, 0.71, 0.81 }, hdr = { 0.67, 0.76, 0.86 }, rule = { 0.02, 0.04, 0.09, 0.35 }, engrave = { 0.01, 0.02, 0.05, 0.9 }, engraveOffset = { -1, 1 },
         mini = { slice = { 124, 124, 124, 124 }, inner = { 136, 96, 136, 96 } } },
     -- Steles trolles (pas une matiere du jeu : reconnues par les donnees de Spoken Readables).
-    Troll = { tex = "PlateTroll", slice = { 124, 124, 124, 124 }, inner = { 92, 96, 92, 96 }, body = { 0.20, 0.11, 0.03 }, hdr = { 0.13, 0.07, 0.02 }, rule = { 0.36, 0.20, 0.06, 0.45 }, engrave = { 1, 0.92, 0.72, 0.5 } },
-    Tablet = { tex = "PlateTablet", slice = { 124, 124, 124, 124 }, inner = { 92, 96, 92, 96 }, body = { 0.20, 0.11, 0.03 }, hdr = { 0.13, 0.07, 0.02 }, rule = { 0.36, 0.20, 0.06, 0.45 }, engrave = { 1, 0.92, 0.72, 0.5 } },
+    Troll = { tex = "PlateTroll", rep = true, slice = { 124, 124, 124, 124 }, inner = { 92, 96, 92, 96 }, body = { 0.20, 0.11, 0.03 }, hdr = { 0.13, 0.07, 0.02 }, rule = { 0.36, 0.20, 0.06, 0.45 }, engrave = { 1, 0.92, 0.72, 0.5 } },
+    Tablet = { tex = "PlateTablet", rep = true, slice = { 124, 124, 124, 124 }, inner = { 92, 96, 92, 96 }, body = { 0.20, 0.11, 0.03 }, hdr = { 0.13, 0.07, 0.02 }, rule = { 0.36, 0.20, 0.06, 0.45 }, engrave = { 1, 0.92, 0.72, 0.5 } },
 }
 -- Zones et donjons des tablettes trolles (Strangleronce, Zul'Farrak).
 DWE.TROLL_ZONES, DWE.TROLL_DUNGEONS = { [1434] = true }, { [209] = true }
@@ -3509,6 +3564,7 @@ local function LayoutNote()
     noteBg:SetPoint("TOPLEFT", textBox, "TOPLEFT", -padL, padT)
     noteBg:SetPoint("BOTTOMRIGHT", textBox, "BOTTOMRIGHT", padR, -padB)
     noteBg:Show()
+    DWE.NoteRepFrame(plate, noteW + padL + padR, (textBox:GetHeight() or 160) + padT + padB)
     local pe = DWE.memorialPetals
     if DWE.MemorialOpen and DWE.MemorialOpen() then
         local w = ((textBox:GetWidth() or 300) + padL + padR) * 0.41
