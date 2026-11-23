@@ -634,6 +634,21 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
     if state.phase == "idle" then return end
 
     local share, length = SpokenShare(state)
+    -- Diagnostic (/storytale sync) : une ligne par seconde sur le suivi de la voix.
+    if DWE.bubbleSyncDebug and state.phase ~= "idle" then
+        state.dbgT = (state.dbgT or 0) + elapsed
+        if state.dbgT >= 1 then
+            state.dbgT = 0
+            local clip = state.clip
+            local present = type(clip) == "table" and type(clip.present) == "table" and clip.present or {}
+            local who = type(clip) == "table" and DWE.SpokenFocus and DWE.SpokenFocus.SpeakerOf and DWE.SpokenFocus.SpeakerOf(clip)
+            print(("|cff33ff99Storytale|r sync: %s pos=%d/%d voix=%s match=%s duree=%s qui=%s texte=%s"):format(
+                tostring(state.phase), CurrentPos(), state.total or 0,
+                type(share) == "number" and string.format("%.0f%%", share * 100) or tostring(share),
+                tostring(state.clipMatch), tostring(length and string.format("%.1f", length)),
+                tostring(who), tostring(present.transcript or (type(clip) == "table" and clip.text) or "-"):sub(1, 40)))
+        end
+    end
     local waitVoice = false
     if share == "paused" then
         -- Spoken en pause (Stop) : on attend un peu, puis on continue seul.

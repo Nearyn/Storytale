@@ -2962,6 +2962,9 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
     elseif msg:match("forget") then
         local n = DWE.SpokenFocus and DWE.SpokenFocus.ForgetOpenBook and DWE.SpokenFocus.ForgetOpenBook() or 0
         Out("livre ouvert considere comme jamais ecoute (" .. n .. " ligne(s) oubliee(s)).")
+    elseif msg:match("^%s*sync") then
+        DWE.bubbleSyncDebug = not DWE.bubbleSyncDebug
+        Out("suivi de la voix (bulle) : diagnostic " .. (DWE.bubbleSyncDebug and "active" or "coupe") .. ".")
     elseif msg:match("^%s*compare") then
         DWE.padCompareDebug = not DWE.padCompareDebug
         Out("comparaison manette : diagnostic " .. (DWE.padCompareDebug and "active" or "coupe") .. ".")
