@@ -94,6 +94,23 @@ do
     bubble:HookScript("OnHide", function()
         if DWE.bubbleLog then print("|cff33ff99Storytale|r bulle cachee : " .. Where()) end
     end)
+    -- Etat de la bulle un instant apres chaque affichage : visible ? transparente ? ou ?
+    function DWE.BubbleState(tag)
+        local function n(v) return type(v) == "number" and string.format("%.2f", v) or tostring(v) end
+        local okA, ea = pcall(bubble.GetEffectiveAlpha, bubble)
+        local x, y = bubble:GetCenter()
+        local par = bubble:GetParent()
+        print(("|cff33ff99Storytale|r etat (%s) : montree=%s visible=%s alpha=%s effective=%s pos=%s,%s parent=%s(%s) roue=%s accrochee=%s off=%s"):format(
+            tostring(tag), tostring(bubble:IsShown()), tostring(bubble:IsVisible()), n(bubble:GetAlpha()), n(okA and ea),
+            n(x), n(y), tostring(par and par.GetName and par:GetName()), tostring(par and par.IsVisible and par:IsVisible()),
+            tostring(DWE.choiceBox and DWE.choiceBox:IsVisible()), tostring(bubble.pinned), tostring(bubble.dweOff)))
+    end
+    bubble:HookScript("OnShow", function()
+        if DWE.bubbleLog and C_Timer and C_Timer.After then
+            C_Timer.After(0.5, function() DWE.BubbleState("0,5 s") end)
+            C_Timer.After(1.5, function() DWE.BubbleState("1,5 s") end)
+        end
+    end)
     hooksecurefunc(bubble, "SetAlpha", function(_, a)
         if DWE.bubbleLog and a == 0 then print("|cff33ff99Storytale|r bulle transparente : " .. Where()) end
     end)
