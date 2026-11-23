@@ -5656,7 +5656,11 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
 end))
 
 local function StartFollow()
-    DWE.FLog("debut suivi (deja lance=" .. tostring(follower:IsShown()) .. ")")
+    do
+        local okZ, z = pcall(GetCameraZoom)
+        DWE.FLog("debut suivi (deja lance=" .. tostring(follower:IsShown()) .. ") | zoom camera="
+            .. tostring(okZ and z and string.format("%.2f", z)))
+    end
     if not follower:IsShown() then followBroken = false end
     if not AttachEnabled() or followBroken or follower:IsShown() then return end
     follow = {}
