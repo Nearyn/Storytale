@@ -660,6 +660,16 @@ do
     for _ = 1, 2 do follower._scripts.OnUpdate(follower, 0.2) end
     check(plate.UnitFrame:GetAlpha() == 0, "plate the player did not see stays hidden in conversation")
     UnitGUID = oG3
+    -- Visee automatique des allies activee pendant la conversation (manette : gossip -> quete).
+    DWE.choiceBox:Hide(); M.RunTimers()
+    M.cvars.SoftTargetFriend, M.cvars.SoftTargetNameplateFriend = "0", "0"
+    DWE.choiceBox:Show()
+    check(M.cvars.SoftTargetFriend == "3" and M.cvars.SoftTargetNameplateFriend == "1", "friendly soft target on during the conversation")
+    DWE.choiceBox:Hide(); M.RunTimers()
+    check(M.cvars.SoftTargetFriend == "0" and M.cvars.SoftTargetNameplateFriend == "0", "friendly soft target restored after")
+    M.cvars.SoftTargetFriend, M.cvars.SoftTargetNameplateFriend = nil, nil
+    DWE.choiceBox:Show()
+    for _ = 1, 3 do follower._scripts.OnUpdate(follower, 0.2) end
     -- Suivi arrete sans OnShow : relance au prochain ecran de conversation.
     DWE.StopFollow()
     DWE.EnsureFollow()

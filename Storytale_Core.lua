@@ -4738,7 +4738,7 @@ do
             return tostring(okE and ex) .. (okI and isN and "(PNJ)" or "") .. (okP and pl and "+plaque" or "")
         end
         DWE.FLog(e .. extra .. " | npc=" .. tostring(UnitExists and UnitExists("npc"))
-            .. " cible=" .. U("target") .. " vise=" .. U("softinteract"))
+            .. " cible=" .. U("target") .. " vise=" .. U("softinteract") .. " allie=" .. U("softfriend"))
     end)
 end
 
@@ -4840,11 +4840,28 @@ local function SetFriendlyPlates(on)
         -- comme cible d'interaction et le jeu la retirait a l'ouverture d'une quete.
         -- (Comme en 1.7.0 : seulement les plaques des PNJ amicaux. "Toujours afficher les
         -- plaques" faisait apparaitre celles de tous les PNJ autour.)
-        -- Garde la valeur du joueur meme apres un /reload ou une deconnexion en pleine conversation.
-        if savedPlateCVar or DWE.savedShowAll then
-            DialogueWheelE_PlateRestore = { friendly = savedPlateCVar, all = DWE.savedShowAll, alpha = DWE.plateAlphaSaved }
+        -- A la manette, le jeu efface la cible quand le gossip se ferme (gossip -> quete) : le PNJ
+        -- perdait sa plaque. La visee automatique des allies le garde vise (c'est l'allie en face),
+        -- donc sa plaque reste. Reglages du joueur remis a la fin de la conversation.
+        if not DWE.softSaved then
+            DWE.softSaved = {}
+            for k, want in pairs({ SoftTargetFriend = "3", SoftTargetNameplateFriend = "1" }) do
+                local v = GetCVar(k)
+                if v and v ~= want and not (k == "SoftTargetFriend" and v == "3") and pcall(SetCVar, k, want) then
+                    DWE.softSaved[k] = v
+                end
+            end
+            if not next(DWE.softSaved) then DWE.softSaved = nil end
         end
-    elseif savedPlateCVar or DWE.savedShowAll then
+        -- Garde la valeur du joueur meme apres un /reload ou une deconnexion en pleine conversation.
+        if savedPlateCVar or DWE.savedShowAll or DWE.softSaved then
+            DialogueWheelE_PlateRestore = { friendly = savedPlateCVar, all = DWE.savedShowAll, alpha = DWE.plateAlphaSaved, soft = DWE.softSaved }
+        end
+    elseif savedPlateCVar or DWE.savedShowAll or DWE.softSaved then
+        if DWE.softSaved then
+            for k, v in pairs(DWE.softSaved) do pcall(SetCVar, k, v) end
+            DWE.softSaved = nil
+        end
         if DWE.savedShowAll then
             SetCVar("nameplateShowAll", DWE.savedShowAll)
             DWE.savedShowAll = nil
@@ -4884,6 +4901,7 @@ function DWE.RestoreLeftoverPlates()
     if r.friendly then pcall(SetCVar, "nameplateShowFriendlyNPCs", r.friendly) end
     if r.all then pcall(SetCVar, "nameplateShowAll", r.all) end
     if type(r.alpha) == "table" then for k, v in pairs(r.alpha) do pcall(SetCVar, k, v) end end
+    if type(r.soft) == "table" then for k, v in pairs(r.soft) do pcall(SetCVar, k, v) end end
     DialogueWheelE_PlateRestore = nil
 end
 
@@ -5528,7 +5546,7 @@ local function StopFollow()
     follower:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
     pcall(follower.UnregisterEvent, follower, "NAME_PLATE_UNIT_REMOVED")
     DWE.npcGhost.valid = false
-    if savedPlateCVar or DWE.savedShowAll then SetFriendlyPlates(false) else UnmaskPlates() end
+    if savedPlateCVar or DWE.savedShowAll or DWE.softSaved then SetFriendlyPlates(false) else UnmaskPlates() end
 end
 DWE.StopFollow = StopFollow
 
