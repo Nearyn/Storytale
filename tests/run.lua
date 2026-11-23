@@ -2720,12 +2720,15 @@ do
     DialogueWheelE_Profiles = nil
     DialogueWheelE_Theme, DialogueWheelE_FontSize = "parchment", 15
     DialogueWheelE_ReadBooks = { ["x"] = true }
+    local saveDV = DialogueWheelE_DefaultsV
+    DialogueWheelE_DefaultsV = 6
     check(DWE.ProfileLoad() == "Default" and DialogueWheelE_Theme == "parchment", "profiles: existing settings become the Default profile")
     check(DWE.ProfileCreate("Alt", false, true) and DWE.profile == "Alt" and DialogueWheelE_Theme == nil and DialogueWheelE_FontSize == nil,
         "profiles: a new profile starts from the defaults")
     check(DialogueWheelE_ReadBooks and DialogueWheelE_ReadBooks.x, "profiles: read books are not part of a profile")
+    check(DialogueWheelE_DefaultsV == nil, "profiles: a new profile gets the first-install defaults too")
     DialogueWheelE_Theme = "folio"
-    check(DWE.ProfileSwitch("Default", true) and DialogueWheelE_Theme == "parchment" and DialogueWheelE_FontSize == 15, "profiles: switching back restores that profile's options")
+    check(DWE.ProfileSwitch("Default", true) and DialogueWheelE_Theme == "parchment" and DialogueWheelE_FontSize == 15 and DialogueWheelE_DefaultsV == 6, "profiles: switching back restores that profile's options")
     check(DialogueWheelE_Profiles.sets.Alt.Theme == "folio", "profiles: leaving a profile keeps its changes")
     check(DWE.ProfileCreate("Copy", true, true) and DialogueWheelE_Theme == "parchment", "profiles: a copy keeps the current options")
     check(not DWE.ProfileCreate("Copy", true, true) and not DWE.ProfileCreate("  ", false, true) and not DWE.ProfileCreate("Default", false, true), "profiles: empty or taken names refused")
@@ -2743,6 +2746,7 @@ do
     DWE.ProfileSwitch("Alt", true)
     DWE.ProfileSave()
     DialogueWheelE_Profiles, DialogueWheelE_Theme, DialogueWheelE_ReadBooks, DialogueWheelE_FontSize = saveP, saveTheme, saveRead, saveFS
+    DialogueWheelE_DefaultsV = saveDV
     DWE.profile = nil
     DWE.ProfileLoad()
 end

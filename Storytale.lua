@@ -19,7 +19,7 @@ do
     -- charge les reglages du dernier personnage joue ; a l'arrivee on y met ceux du profil du
     -- personnage, au depart on les range dans son profil. L'historique (livres lus, repliques
     -- entendues, marque-pages) et les couleurs perso restent communs a tous les profils.
-    local NOT_IN_PROFILE = { CustomColors = true, CustomPresets = true, SpokenStyleChosen = true, DefaultsV = true,
+    local NOT_IN_PROFILE = { CustomColors = true, CustomPresets = true, SpokenStyleChosen = true,
         RibbonSeen = true, PadTipSeen = true, SpokenTipSeen = true, RoundRibbonSeen = true, Profiles = true,
         SpokenHeard = true, ReadBooks = true, Bookmarks = true }
     local function ProfileVars()
@@ -64,6 +64,17 @@ do
     function DWE.ProfileLoad()
         local P = Store()
         if type(P.sets.Default) ~= "table" then P.sets.Default = Snapshot() end
+        -- La version des reglages par defaut suit chaque profil : un nouveau profil (vide) recoit
+        -- ainsi tous les reglages par defaut, comme une premiere installation. (Profils d'avant :
+        -- ils gardent la version du moment.)
+        if P.v ~= 2 then
+            P.v = 2
+            for _, set in pairs(P.sets) do
+                if type(set) == "table" and next(set) ~= nil and set.DefaultsV == nil then
+                    set.DefaultsV = rawget(_G, "DialogueWheelE_DefaultsV")
+                end
+            end
+        end
         local key = CharKey()
         local name = key and P.chars[key]
         if not (name and type(P.sets[name]) == "table") then
