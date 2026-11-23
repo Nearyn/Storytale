@@ -5110,10 +5110,31 @@ end
 follower:SetScript("OnEvent", function(_, event, unit)
     if event == "NAME_PLATE_UNIT_REMOVED" and follow.plate and follow.plate ~= DWE.npcGhost then
         local tok = PlateToken(follow.plate)
-        if tok and tok == unit then pcall(DWE.GhostTake) end
+        if tok and tok == unit then
+            pcall(DWE.GhostTake)
+            pcall(DWE.RecallNPCPlate)
+        end
     end
     pcall(MaskFriendlyPlates)
 end)
+
+-- A la manette, entre le gossip et la quete, le jeu retire la plaque du PNJ. En coupant puis
+-- remettant les plaques amicales (que Storytale a lui-meme activees), le jeu recree celle du PNJ
+-- avec qui l'on parle, et seulement elle. Deux fois au plus par conversation.
+function DWE.RecallNPCPlate()
+    if not (savedPlateCVar and SetCVar and choiceBox:IsShown()) or InCombatLockdown() then return end
+    if not Check(UnitExists, "npc") then return end
+    follow.recalls = (follow.recalls or 0) + 1
+    if follow.recalls > 2 then return end
+    DWE.FLog("plaque du PNJ retiree par le jeu : on la redemande")
+    SetCVar("nameplateShowFriendlyNPCs", "0")
+    local function Back()
+        if savedPlateCVar and follower:IsShown() and not InCombatLockdown() then
+            SetCVar("nameplateShowFriendlyNPCs", "1")
+        end
+    end
+    if C_Timer and C_Timer.After then C_Timer.After(0, Back) else Back() end
+end
 
 local function CursorUI()
     local x, y = GetCursorPosition()
