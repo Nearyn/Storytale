@@ -5100,43 +5100,40 @@ function DWE.GhostTake()
     return false
 end
 
--- A la manette, entre le gossip et la quete, le jeu enleve la cible et retire la plaque du PNJ.
--- Une plaque retiree est seulement cachee : elle garde sa place a l'ecran tant que le jeu ne la
--- donne pas a une autre unite. La roue et la bulle restent donc accrochees a elle ; si le jeu la
--- reutilise pour quelqu'un d'autre, on decroche (place fixe), comme avant.
+-- A la manette, a la fermeture du gossip, le jeu enleve la cible ; la plaque du PNJ n'existait
+-- que parce qu'il etait la cible, et le jeu la retire 0,3 s plus tard (deja le cas en 1.7.0).
+-- Seul "toujours afficher les plaques" la garde. On l'active a ce moment-la seulement, avec une
+-- distance d'affichage tres courte (seuls le PNJ et ceux colles a lui sont concernes), puis tout
+-- est remis a la fin de la conversation. A la souris la cible reste : rien n'est change.
+DWE.NEAR_PLATES = "7"
+function DWE.KeepNPCPlate()
+    if not (follow.plate and GetCVar and SetCVar) or (InCombatLockdown and InCombatLockdown()) then return end
+    if Check(UnitIsUnit, "target", "npc") then return end -- cible gardee (souris) : rien a faire
+    if DWE.softSaved and DWE.softSaved.nameplateShowAll then return end
+    local okA, all = pcall(GetCVar, "nameplateShowAll")
+    local okD, dist = pcall(GetCVar, "nameplateMaxDistance")
+    if not (okA and all) or all == "1" then
+        DWE.FLog("plaques toujours affichees deja actives (" .. tostring(all) .. ")")
+        return
+    end
+    DWE.softSaved = DWE.softSaved or {}
+    if okD and dist then
+        DWE.softSaved.nameplateMaxDistance = dist
+        pcall(SetCVar, "nameplateMaxDistance", DWE.NEAR_PLATES)
+    end
+    DWE.softSaved.nameplateShowAll = all
+    pcall(SetCVar, "nameplateShowAll", "1")
+    DialogueWheelE_PlateRestore = DialogueWheelE_PlateRestore or {}
+    DialogueWheelE_PlateRestore.soft = DWE.softSaved
+    local _, nowA = pcall(GetCVar, "nameplateShowAll")
+    local _, nowD = pcall(GetCVar, "nameplateMaxDistance")
+    DWE.FLog("cible enlevee par le jeu : plaques proches gardees (toujours=" .. tostring(all) .. "->" .. tostring(nowA)
+        .. ", distance=" .. tostring(dist) .. "->" .. tostring(nowD) .. ")")
+end
+
 follower:SetScript("OnEvent", function(_, event, unit)
-    if event == "NAME_PLATE_UNIT_REMOVED" and follow.plate and not follow.held then
-        local tok = PlateToken(follow.plate)
-        -- Le jeu efface parfois le jeton de la plaque avant l'evenement : on reconnait aussi le PNJ.
-        if (tok and tok == unit) or Check(UnitIsUnit, unit, "npc") then
-            follow.held, follow.heldTok = follow.plate, unit
-            DWE.FLog("plaque du PNJ retiree par le jeu : la roue reste en place")
-            -- Le jeu redonnait aussitot cette plaque a l'objet vise a la manette (une chaise...) :
-            -- la visee des objets est suspendue jusqu'a la fin de la conversation (les plaques de
-            -- ces objets sont de toute facon cachees pendant la conversation), puis remise.
-            if GetCVar and SetCVar and not (InCombatLockdown and InCombatLockdown()) then
-                local okG, cur = pcall(GetCVar, "SoftTargetInteract")
-                if okG and cur and cur ~= "0" and not (DWE.softSaved and DWE.softSaved.SoftTargetInteract) then
-                    local okS = pcall(SetCVar, "SoftTargetInteract", "0")
-                    local okN, now = pcall(GetCVar, "SoftTargetInteract")
-                    if okS and okN and now == "0" then
-                        DWE.softSaved = DWE.softSaved or {}
-                        DWE.softSaved.SoftTargetInteract = cur
-                        DialogueWheelE_PlateRestore = DialogueWheelE_PlateRestore or {}
-                        DialogueWheelE_PlateRestore.soft = DWE.softSaved
-                    end
-                    DWE.FLog("visee des objets suspendue : " .. tostring(cur) .. " -> " .. tostring(now))
-                end
-            end
-        end
-    elseif event == "NAME_PLATE_UNIT_ADDED" and follow.held and unit == follow.heldTok then
-        if Check(UnitIsUnit, unit, "npc") then
-            follow.held, follow.heldTok = nil, nil -- le PNJ revient sur la meme plaque
-        else
-            DWE.FLog("plaque reprise par le jeu pour " .. tostring(Check(UnitName, unit)) .. " : decroche")
-            follow.held, follow.heldTok = nil, nil
-            Unpin()
-        end
+    if event == "GOSSIP_CLOSED" then
+        pcall(DWE.KeepNPCPlate)
     end
     pcall(MaskFriendlyPlates)
 end)
@@ -5467,7 +5464,6 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
             if okA then
                 follow.plate = plate
                 follow.kept = nil
-                follow.held, follow.heldTok = nil, nil
                 DWE.FLog("accroche a " .. tostring(PlateToken(plate)))
             else
                 -- Refuse par le jeu : place fixe pour cette conversation (on reessaie a la
@@ -5479,8 +5475,6 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
             end
         end
         Reveal()
-    elseif follow.plate and follow.held == follow.plate then
-        Reveal() -- plaque du PNJ retiree par le jeu (quete a la manette) : la roue reste ou elle etait
     else
         Unpin() -- plaque perdue (PNJ hors champ...) : retour a la place fixe
         if follow.wait > APPEAR_DELAY then Reveal() end
@@ -5521,6 +5515,7 @@ local function StartFollow()
     end
     follower:RegisterEvent("NAME_PLATE_UNIT_ADDED")
     pcall(follower.RegisterEvent, follower, "NAME_PLATE_UNIT_REMOVED")
+    pcall(follower.RegisterEvent, follower, "GOSSIP_CLOSED")
     DWE.npcGhost.valid = false
     pcall(StartMeasure)
     SetFriendlyPlates(true)
@@ -5543,6 +5538,7 @@ local function StopFollow()
     if wasPinned then RestoreFixed() end -- avant de retirer les plaques
     follower:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
     pcall(follower.UnregisterEvent, follower, "NAME_PLATE_UNIT_REMOVED")
+    pcall(follower.UnregisterEvent, follower, "GOSSIP_CLOSED")
     DWE.npcGhost.valid = false
     if savedPlateCVar or DWE.savedShowAll or DWE.softSaved then SetFriendlyPlates(false) else UnmaskPlates() end
 end

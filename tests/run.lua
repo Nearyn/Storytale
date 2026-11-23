@@ -626,25 +626,24 @@ do
     DWE.choiceBox:Show()
     M.RunTimers()
     check(DWE.FollowerRunning() and M.cvars.nameplateShowFriendlyNPCs == "1", "gossip to quest: follow kept, plates never switched off")
-    -- Manette : le jeu retire la plaque du PNJ (cible enlevee) -> la roue reste sur la plaque cachee.
+    -- Manette : le jeu enleve la cible a la fermeture du gossip -> plaques proches gardees.
     follower._scripts.OnUpdate(follower, 0.2)
     if DWE.IsFollowingNPC() then
-        M.plates = {}
-        M.cvars.SoftTargetInteract = "3"
-        follower._scripts.OnEvent(follower, "NAME_PLATE_UNIT_REMOVED", "nameplate1")
-        check(M.cvars.SoftTargetInteract == "0", "object aiming paused while the NPC plate is held")
-        for _ = 1, 3 do follower._scripts.OnUpdate(follower, 0.2) end
-        check(DWE.IsFollowingNPC(), "gamepad gossip to quest: NPC plate removed, wheel stays on it")
+        M.cvars.nameplateShowAll, M.cvars.nameplateMaxDistance = "0", "41"
         local oUU = UnitIsUnit
-        UnitIsUnit = function() return false end
-        follower._scripts.OnEvent(follower, "NAME_PLATE_UNIT_ADDED", "nameplate1")
+        UnitIsUnit = function(a, b) if a == "target" then return false end return oUU(a, b) end
+        follower._scripts.OnEvent(follower, "GOSSIP_CLOSED")
         UnitIsUnit = oUU
-        check(not DWE.IsFollowingNPC(), "removed plate reused for someone else: wheel detaches")
-        M.plates = { plate }
-        follower._scripts.OnUpdate(follower, 0.2)
+        check(M.cvars.nameplateShowAll == "1" and M.cvars.nameplateMaxDistance == "7", "gamepad: target cleared, near plates kept")
         DWE.choiceBox:Hide(); M.RunTimers()
-        check(M.cvars.SoftTargetInteract == "3" and DWE.softSaved == nil, "object aiming restored after the conversation")
+        check(M.cvars.nameplateShowAll == "0" and M.cvars.nameplateMaxDistance == "41" and DWE.softSaved == nil, "near plates setting restored after the conversation")
         DWE.choiceBox:Show(); follower._scripts.OnUpdate(follower, 0.2)
+        -- Souris : la cible reste -> rien n'est change.
+        UnitIsUnit = function(a, b) if a == "target" then return true end return oUU(a, b) end
+        follower._scripts.OnEvent(follower, "GOSSIP_CLOSED")
+        UnitIsUnit = oUU
+        check(M.cvars.nameplateShowAll == "0" and M.cvars.nameplateMaxDistance == "41", "mouse: target kept, plate settings untouched")
+        M.cvars.nameplateShowAll, M.cvars.nameplateMaxDistance = nil, nil
     end
     -- "Toujours afficher les plaques" coupe (manette) : active pendant la conversation, puis remis.
     DWE.choiceBox:Hide(); M.RunTimers()
