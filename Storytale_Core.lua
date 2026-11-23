@@ -4792,12 +4792,17 @@ local function MaskFriendlyPlates()
             local hide
             if token and DWE.plateSeen then
                 local okG, g = pcall(UnitGUID, token)
-                hide = not (okG and g and DWE.plateSeen[g])
+                local okS, seen = pcall(function() return okG and g and DWE.plateSeen[g] end)
+                hide = not (okS and seen)
             elseif token then
                 hide = not Check(UnitCanAttack, "player", token)
             end
             if hide then
                 if uf:GetAlpha() ~= 0 then uf:SetAlpha(0) end
+                if not maskedFrames[uf] and DWE.followLog then
+                    local okN, n = pcall(UnitName, token)
+                    DWE.FLog("plaque cachee : " .. tostring(okN and n) .. " (" .. tostring(token) .. ")")
+                end
                 maskedFrames[uf] = true
             elseif maskedFrames[uf] then
                 uf:SetAlpha(1)
@@ -5454,8 +5459,18 @@ local function StartFollow()
             local uf = plate.UnitFrame
             if UsablePlate(plate) and uf and (uf:GetAlpha() or 0) > 0 then
                 local okG, g = pcall(UnitGUID, PlateToken(plate))
-                if okG and g then DWE.plateSeen[g] = true end
+                if okG and g then pcall(function() DWE.plateSeen[g] = true end) end
             end
+        end
+        if DWE.followLog then
+            local names = {}
+            for _, plate in ipairs(GetPlates()) do
+                local okN, n = pcall(UnitName, PlateToken(plate) or "")
+                local uf = plate.UnitFrame
+                names[#names + 1] = tostring(okN and n) .. "(" .. (UsablePlate(plate) and "ok" or "non")
+                    .. " a=" .. tostring(uf and uf:GetAlpha()) .. ")"
+            end
+            DWE.FLog("plaques vues avant : " .. (#names > 0 and table.concat(names, ", ") or "aucune"))
         end
     end
     follower:RegisterEvent("NAME_PLATE_UNIT_ADDED")
