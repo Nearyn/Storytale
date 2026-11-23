@@ -11,7 +11,6 @@
 ### Improved
 - With a gamepad, Y lights the bookmark ribbon (or the symbol on plaques) while its menu is open.
 - Spoken's reading queue lists each NPC line on its own, so you can play or remove just one.
-- A tip reminds you that Spoken's "Stop When Window Closes" cuts NPCs off when you close the window.
 
 ### Fixed
 - Storytale no longer blocks the game's gamepad navigation ("Interface action failed because of an AddOn").
@@ -30,7 +29,6 @@
 ### Améliorations
 - À la manette, Y allume le ruban (ou le symbole des plaques) tant que son menu est ouvert.
 - La file de lecture de Spoken montre chaque réplique d'un PNJ séparément : on peut en écouter ou en retirer une seule.
-- Une astuce rappelle que "Stop When Window Closes" dans Spoken coupe les PNJ quand on ferme la fenêtre.
 
 ### Corrections
 - Storytale ne bloque plus la navigation manette du jeu ("Interface action failed because of an AddOn").
