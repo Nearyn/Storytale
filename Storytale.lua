@@ -2329,10 +2329,11 @@ function DWE.PadUnfocusHidden()
         -- Pendant la conversation, on ne la remet pas dans la liste du jeu : l'y remettre
         -- redonnait la manette a l'interface (le PNJ n'etait plus vise). Elle y revient a la fin
         -- de la conversation si elle est encore ouverte (voir plus bas).
-        if hidden and DWE.choiceBox and DWE.choiceBox:IsShown() then
-            DWE.padReadd = DWE.padReadd or {}
-            DWE.padReadd[af] = true
-        elseif hidden and m.FrameShown and C_Timer then
+        -- Plus jamais remise dans la liste du jeu : y remettre une fenetre (FrameShown) redonne
+        -- d'office la manette a l'interface. Le jeu restait alors sur une autre fenetre (le chat) :
+        -- plus moyen de parler aux PNJ, camera bloquee. A sa vraie fermeture, la fenetre
+        -- suivante (un marchand) est annoncee par le jeu lui-meme.
+        if false then
             C_Timer.After(0, function()
                 if InCombatLockdown() then return end
                 local okS, shown = pcall(af.IsShown, af)
@@ -2376,11 +2377,6 @@ if DWE.choiceBox then
             DWE.padReadd = nil
             if not (m and m.FrameShown) then return end
             for f in pairs(list) do
-                local okS, shown = pcall(f.IsShown, f)
-                local sec = rawget(_G, "issecretvalue")
-                if okS and not (sec and sec(shown)) and shown then
-                    pcall(m.FrameShown, m, f, false, false)
-                end
                 if DWE.padUntracked then DWE.padUntracked[f] = nil end
             end
         end)
@@ -2513,9 +2509,20 @@ function DWE.PadRefocusAfterClose()
         local okC, n = pcall(m.GetShownFrameCount, m)
         local sec = rawget(_G, "issecretvalue")
         if okC and not (sec and sec(n)) and (n or 0) > 0 then
+            -- Seulement une vraie fenetre visible (marchand, banque...), jamais le chat : la manette
+            -- restait sinon sur le chat (plus moyen de parler aux PNJ, camera bloquee).
             local okL, list = pcall(rawget, m, "shownFrames")
             local f = okL and type(list) == "table" and list[1]
-            if type(f) == "table" then DWE.PadSecureFocus(m, f) end
+            if type(f) == "table" then
+                local okN, n = pcall(f.GetName, f)
+                local okV, vis = pcall(f.IsVisible, f)
+                local okA, a = pcall(f.GetEffectiveAlpha, f)
+                local name = okN and not (sec and sec(n)) and n or ""
+                if okV and okA and not (sec and (sec(vis) or sec(a))) and vis and (a or 0) > 0.5
+                    and not tostring(name):find("Chat") then
+                    DWE.PadSecureFocus(m, f)
+                end
+            end
         end
     end) end
 end
