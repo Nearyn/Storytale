@@ -2515,11 +2515,21 @@ function DWE.PadZoomTick(el)
     local down = Down("PADLSHOULDER") and Down("PADRSHOULDER")
     local gp = rawget(_G, "C_GamePad")
     if not (down and gp and gp.GetDeviceMappedState and GetCameraZoom and CameraZoomIn) then
-        padZoom.t, padZoom.drive, padZoom.game = nil, nil, nil
+        padZoom.t, padZoom.drive, padZoom.game, padZoom.evY = nil, nil, nil, nil
+        if padZoom.stick then
+            padZoom.stick = nil
+            pcall(DWE.padCatcher.EnableGamePadStick, DWE.padCatcher, false)
+        end
         return
     end
+    -- Stick lu par evenement (l'etat de la manette donnait 0) : pendant L1 + R1, le stick
+    -- droit est pris par Storytale pour zoomer.
+    local c = DWE.padCatcher
+    if c.EnableGamePadStick and not padZoom.stick and not InCombatLockdown() then
+        if pcall(c.EnableGamePadStick, c, true) then padZoom.stick = true end
+    end
     local okS, st = pcall(gp.GetDeviceMappedState)
-    local y = 0
+    local y = padZoom.evY or 0
     local found
     if okS and st and st.sticks then
         for i = 1, (st.stickCount or #st.sticks) do
@@ -2529,6 +2539,7 @@ function DWE.PadZoomTick(el)
         -- Pas de nom de configuration : le 2e stick est le droit.
         if not found and st.sticks[2] then y = st.sticks[2].y or 0 end
     end
+    if padZoom.evY and math.abs(padZoom.evY) > math.abs(y) then y = padZoom.evY end
     padZoom.logT = (padZoom.logT or 0) + el
     if DWE.FLog and padZoom.logT > 0.5 then
         padZoom.logT = 0
@@ -2548,6 +2559,17 @@ function DWE.PadZoomTick(el)
     local step = math.abs(y) * el * 15
     if y > 0 then pcall(CameraZoomIn, step) else pcall(CameraZoomOut, step) end
 end
+
+if DWE.padCatcher.EnableGamePadStick then
+    DWE.padCatcher:SetScript("OnGamePadStick", function(_, stick, x, y)
+        if stick == "Movement" or stick == "Left" then return end
+        padZoom.evY = tonumber(y) or 0
+    end)
+end
+DWE.padCatcher:HookScript("OnHide", function()
+    if padZoom.stick then padZoom.stick = nil pcall(DWE.padCatcher.EnableGamePadStick, DWE.padCatcher, false) end
+    padZoom.evY = nil
+end)
 
 DWE.padCatcher:SetScript("OnUpdate", function(self, el)
     pcall(DWE.PadZoomTick, el)

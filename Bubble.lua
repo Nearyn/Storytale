@@ -731,9 +731,29 @@ local function MoveTo(pos)
     end
 end
 
+-- Journal image par image des premieres images d'un texte (/storytale followlog).
+local frameLog = { n = 0 }
+local function LogFrames(tag)
+    if not (DWE.followLog and DWE.FLog) then return end
+    frameLog.n, frameLog.tag = 10, tag
+end
+local function FrameLogTick()
+    if frameLog.n <= 0 then return end
+    frameLog.n = frameLog.n - 1
+    local tb = DWE.textBox
+    local okA, ga = pcall(text.GetAlpha, text)
+    DWE.FLog(("%s img%d : bulle vis=%s a=%s attente=%s | texte a=%s tape=%s phase=%s | popup vis=%s"):format(
+        tostring(frameLog.tag), 10 - frameLog.n, tostring(bubble:IsVisible()), tostring(bubble:GetAlpha()),
+        tostring(bubble.dweWaitHide), tostring(okA and ga), tostring(state.typed), tostring(state.phase),
+        tostring(tb and tb:IsVisible())))
+end
+DWE.BubbleFrameLog = LogFrames
+bubble:HookScript("OnShow", function() LogFrames("apparition") end)
+
 bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
     state.t = state.t + elapsed
     state.age = (state.age or 0) + elapsed
+    FrameLogTick()
     if state.fresh then state.fresh = nil state.shownN = nil Reveal() end
     if state.phase == "idle" then return end
 
@@ -824,6 +844,7 @@ end
 
 -- Nouveau texte : le PNJ recommence a ecrire (sauf si c'est le meme texte, ex. livre recharge).
 function DWE.Bubble.SetText(s)
+    LogFrames("nouveau texte")
     if s == nil then s = "" end
     if not IsSecret(s) and s == state.raw then return end
     state.raw = s

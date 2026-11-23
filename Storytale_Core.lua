@@ -4822,6 +4822,11 @@ local function SetFriendlyPlates(on)
         end
         -- Plaques activees par nous : transparentes par le jeu lui-meme (les cacher une a une
         -- laissait voir chaque nouvelle plaque une image, d'ou un clignotement).
+        if DWE.savedShowAll and not DWE.plateAlphaSaved and DWE.plateAlphaPending then
+            -- Nouvelle conversation avant la remise de l'opacite : on garde les valeurs du joueur.
+            DWE.plateAlphaSaved, DWE.plateAlphaPending = DWE.plateAlphaPending, nil
+            for k in pairs(DWE.plateAlphaSaved) do pcall(SetCVar, k, "0") end
+        end
         if DWE.savedShowAll and not DWE.plateAlphaSaved then
             DWE.plateAlphaSaved = {}
             for _, k in ipairs({ "nameplateMinAlpha", "nameplateMaxAlpha", "nameplateSelectedAlpha", "nameplateNotSelectedAlpha", "nameplateOccludedAlphaMult" }) do
@@ -4842,7 +4847,12 @@ local function SetFriendlyPlates(on)
         local alpha = DWE.plateAlphaSaved
         DWE.plateAlphaSaved = nil
         if alpha then
-            local function Back() for k, v in pairs(alpha) do pcall(SetCVar, k, v) end end
+            DWE.plateAlphaPending = alpha
+            local function Back()
+                if DWE.plateAlphaPending ~= alpha then return end -- reprise par une conversation
+                DWE.plateAlphaPending = nil
+                for k, v in pairs(alpha) do pcall(SetCVar, k, v) end
+            end
             if C_Timer and C_Timer.After then C_Timer.After(0.2, Back) else Back() end
         end
         -- D'abord retirer les plaques, ensuite seulement leur rendre leur opacite (sinon elles
