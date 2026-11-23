@@ -651,7 +651,7 @@ do
     M.cvars.nameplateShowAll = "0"
     M.cvars.nameplateMaxAlpha = "1"
     DWE.choiceBox:Show()
-    check(M.cvars.nameplateMaxAlpha == "0", "plates made transparent by the game while shown for us")
+    check(M.cvars.nameplateMaxAlpha == "1", "player's plate opacity untouched (their plates stay visible)")
     check(M.cvars.nameplateShowAll == "1" and DialogueWheelE_PlateRestore and DialogueWheelE_PlateRestore.all == "0", "show-all plates on during the conversation, player value kept")
     DWE.choiceBox:Hide(); M.RunTimers()
     check(M.cvars.nameplateShowAll == "0" and DialogueWheelE_PlateRestore == nil, "show-all plates restored after")

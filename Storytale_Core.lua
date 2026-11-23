@@ -4787,9 +4787,10 @@ local function MaskFriendlyPlates()
         local uf = plate.UnitFrame
         if uf and not (uf.IsForbidden and uf:IsForbidden()) then
             local token = PlateToken(plate)
-            -- Plaques ennemies cachees aussi si c'est nous qui avons active "toutes les plaques"
-            -- (hors combat le joueur ne les voyait pas).
-            if token and (DWE.savedShowAll or not Check(UnitCanAttack, "player", token)) then
+            -- On ne cache que les plaques que le joueur ne voyait pas : les amicales si c'est
+            -- nous qui les avons activees, les ennemies si c'est nous qui avons active "toutes".
+            local enemy = Check(UnitCanAttack, "player", token)
+            if token and ((enemy and DWE.savedShowAll) or (not enemy and savedPlateCVar)) then
                 if uf:GetAlpha() ~= 0 then uf:SetAlpha(0) end
                 maskedFrames[uf] = true
             elseif maskedFrames[uf] then
@@ -4819,20 +4820,6 @@ local function SetFriendlyPlates(on)
         if all and all ~= "1" and not DWE.savedShowAll then
             DWE.savedShowAll = all
             SetCVar("nameplateShowAll", "1")
-        end
-        -- Plaques activees par nous : transparentes par le jeu lui-meme (les cacher une a une
-        -- laissait voir chaque nouvelle plaque une image, d'ou un clignotement).
-        if DWE.savedShowAll and not DWE.plateAlphaSaved and DWE.plateAlphaPending then
-            -- Nouvelle conversation avant la remise de l'opacite : on garde les valeurs du joueur.
-            DWE.plateAlphaSaved, DWE.plateAlphaPending = DWE.plateAlphaPending, nil
-            for k in pairs(DWE.plateAlphaSaved) do pcall(SetCVar, k, "0") end
-        end
-        if DWE.savedShowAll and not DWE.plateAlphaSaved then
-            DWE.plateAlphaSaved = {}
-            for _, k in ipairs({ "nameplateMinAlpha", "nameplateMaxAlpha", "nameplateSelectedAlpha", "nameplateNotSelectedAlpha", "nameplateOccludedAlphaMult" }) do
-                local v = GetCVar(k)
-                if v and v ~= "0" and pcall(SetCVar, k, "0") then DWE.plateAlphaSaved[k] = v end
-            end
         end
         -- Garde la valeur du joueur meme apres un /reload ou une deconnexion en pleine conversation.
         if savedPlateCVar or DWE.savedShowAll then

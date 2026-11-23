@@ -2507,10 +2507,15 @@ DWE.padCatcher:HookScript("OnHide", function() DWE.PadStickRestore(); if DWE.Pad
 local padZoom = {}
 function DWE.PadZoomTick(el)
     local held = DWE.padHeld or {}
+    -- IsKeyDown d'abord : un bouton relache pendant que Storytale n'ecoutait pas restait
+    -- "tenu" et le stick droit restait pris (camera bloquee).
     local function Down(k)
-        if held[k] then return true end
         local ok, d = pcall(IsKeyDown, k)
-        return ok and d == true
+        if ok and type(d) == "boolean" then
+            if not d then held[k] = nil end
+            return d
+        end
+        return held[k] == true
     end
     local down = Down("PADLSHOULDER") and Down("PADRSHOULDER")
     local gp = rawget(_G, "C_GamePad")
@@ -2569,6 +2574,7 @@ end
 DWE.padCatcher:HookScript("OnHide", function()
     if padZoom.stick then padZoom.stick = nil pcall(DWE.padCatcher.EnableGamePadStick, DWE.padCatcher, false) end
     padZoom.evY = nil
+    if DWE.padHeld then wipe(DWE.padHeld) end
 end)
 
 DWE.padCatcher:SetScript("OnUpdate", function(self, el)

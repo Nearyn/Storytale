@@ -494,7 +494,12 @@ local hasGradient = text.SetAlphaGradient ~= nil
 local function Reveal()
     local seg = state.segs[state.index] or ""
     local n = math.floor(state.typed or 0)
-    if n == state.shownN then return end -- rien de nouveau a afficher : on ne touche pas au texte
+    if n == state.shownN then
+        -- Le jeu peut effacer le fondu quand la bulle devient visible : le texte entier se
+        -- voyait jusqu'a la lettre suivante. On le remet a chaque image (sans toucher au texte).
+        if hasGradient and not state.dots and state.phase == "typing" and n > 0 then GradientAt(text, n) end
+        return
+    end
     state.shownN = n
     -- Rien d'ecrit encore (on attend la voix) : texte cache. Un fondu qui commence a 0 lettre
     -- montrait tout le texte d'un coup pendant l'attente, avant qu'il ne s'ecrive.
@@ -755,6 +760,7 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
     state.age = (state.age or 0) + elapsed
     FrameLogTick()
     if state.fresh then state.fresh = nil state.shownN = nil Reveal() end
+    if state.phase == "typing" then Reveal() end -- garde le fondu en place, meme en pause
     if state.phase == "idle" then return end
 
     local share, length = SpokenShare(state)
