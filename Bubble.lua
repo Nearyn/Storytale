@@ -616,6 +616,13 @@ local function SpokenShare(st)
     if okP and paused then return "paused" end
     local length = tonumber(clip.length)
     if not (length and length > 0 and tonumber(clip.spokenAt)) then return "hold" end
+    -- Voix bien trop courte pour ce texte (ex. la salutation du PNJ, encore en cours, prise pour
+    -- la voix du texte de quete) : ce n'est pas elle qui lit ce texte. On ne la suit pas, sinon le
+    -- texte defilait a toute vitesse.
+    if st.total and st.total / length > 35 then
+        st.clipMatch = false
+        return nil
+    end
     -- Le mieux : le mot que Spoken est en train de lire (meme calcul que ses sous-titres,
     -- avec les vraies durees des mots quand la voix les fournit).
     -- Base reguliere : le temps ecoule de la voix. Le mot lu par Spoken avance par sauts (un mot
