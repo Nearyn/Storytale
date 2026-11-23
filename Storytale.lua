@@ -3238,6 +3238,23 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
             .. (af and string.format(" alpha=%.2f", af:GetEffectiveAlpha() or 1) or "")
             .. " gestionnaire=" .. tostring(DWE.PadFCM() ~= nil) .. " rendus=" .. tostring(DWE.padUnfocusN or 0)
             .. " derniere=" .. tostring(DWE.padUnfocusLast) .. " apres=" .. tostring(DWE.padUnfocusAfter))
+        do
+            local m = DWE.PadFCM()
+            local names = {}
+            local okL, list = pcall(rawget, m or {}, "shownFrames")
+            local secf = rawget(_G, "issecretvalue")
+            if okL and type(list) == "table" then
+                for _, f in ipairs(list) do
+                    local okN, n = pcall(f.GetName, f)
+                    local okA, a = pcall(f.GetEffectiveAlpha, f)
+                    names[#names + 1] = tostring(okN and not (secf and secf(n)) and n or "?")
+                        .. ((okA and not (secf and secf(a))) and string.format("(%.2f)", a or 1) or "")
+                end
+            end
+            local okF, foc = pcall(rawget, m or {}, "isUIFocused")
+            Out("liste du jeu: " .. (#names > 0 and table.concat(names, " ") or "vide")
+                .. " | interface prise=" .. tostring(okF and not (secf and secf(foc)) and foc))
+        end
         -- Systeme de selection de panneau a la manette du jeu : ses fonctions.
         local api = {}
         for k, v in pairs(_G) do
