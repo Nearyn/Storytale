@@ -6646,7 +6646,7 @@ function DWE.InitOptionsPanel()
 
     -- Precisions des options (infobulle au survol) : texte court a l'ecran, details ici.
     local TIP_OF = {}
-    for _, k in ipairs({ "READ_MARKS", "BOOK_TIP_CURSOR", "BOOK_AUTOSCROLL", "HIDE_UI", "QUEST_AUTO_W",
+    for _, k in ipairs({ "LOCK", "READ_MARKS", "BOOK_TIP_CURSOR", "BOOK_AUTOSCROLL", "HIDE_UI", "QUEST_AUTO_W",
         "THEME_BUBBLES", "SPOKEN_BUTTON", "ZONE_ART" }) do
         if L[k] and L[k .. "_TIP"] then TIP_OF[L[k]] = L[k .. "_TIP"] end
     end
