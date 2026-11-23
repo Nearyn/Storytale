@@ -594,6 +594,27 @@ check(not DWE.IsFollowingNPC() and DWE.choiceBox._points[1] and DWE.choiceBox._p
 M.plates = { plate }
 follower._scripts.OnUpdate(follower, 0.2)
 check(DWE.IsFollowingNPC(), "re-pinned when plate back")
+-- Manette : l'unite "npc" disparait a l'ouverture de la quete ; on retrouve la plaque par GUID.
+do
+    local oE, oG = UnitExists, UnitGUID
+    UnitGUID = function(u) if u == "npc" or u == "nameplate1" then return "Creature-0-1-2-3-4-5" end end
+    follower._scripts.OnUpdate(follower, 0.2)
+    DWE.choiceBox:Hide()
+    UnitExists = function() return false end
+    DWE.choiceBox:Show()
+    for _ = 1, 3 do follower._scripts.OnUpdate(follower, 0.2) end
+    check(DWE.IsFollowingNPC(), "quest screen without npc unit: still pinned by GUID")
+    UnitGUID = function() return "Creature-other" end
+    follower._scripts.OnUpdate(follower, 0.2)
+    check(not DWE.IsFollowingNPC(), "other NPC plate not taken")
+    UnitExists, UnitGUID = oE, oG
+    follower._scripts.OnUpdate(follower, 0.2)
+    check(DWE.IsFollowingNPC(), "re-pinned with npc unit back")
+    -- Suivi arrete sans OnShow : relance au prochain ecran de conversation.
+    DWE.StopFollow()
+    DWE.EnsureFollow()
+    check(DWE.FollowerRunning(), "follow restarted on next conversation screen")
+end
 DWE.choiceBox:Hide()
 check(M.cvars.nameplateShowFriendlyNPCs == "0", "player setting restored on close")
 check(plate.UnitFrame:GetAlpha() == 0, "plate stays invisible while being removed")

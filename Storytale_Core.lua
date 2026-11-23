@@ -4696,10 +4696,33 @@ local function GetPlates()
     return C_NamePlate and C_NamePlate.GetNamePlates and C_NamePlate.GetNamePlates() or {}
 end
 
+-- PNJ de la conversation : son GUID est retenu, car a la manette le jeu peut retirer l'unite
+-- "npc" a l'ouverture d'une quete alors que la conversation continue.
+DWE.lastNPC = { guid = nil, t = 0 }
+function DWE.RememberNPC()
+    if not (UnitGUID and Check(UnitExists, "npc")) then return end
+    local ok, guid = pcall(UnitGUID, "npc")
+    if ok and guid then DWE.lastNPC.guid = guid DWE.lastNPC.t = GetTime and GetTime() or 0 end
+end
+function DWE.LastNPCGUID() return DWE.lastNPC.guid end
+
 local function FindNPCPlate()
-    if not Check(UnitExists, "npc") then return nil end
+    if Check(UnitExists, "npc") then
+        DWE.RememberNPC()
+        for _, plate in ipairs(GetPlates()) do
+            if UsablePlate(plate) and Check(UnitIsUnit, PlateToken(plate), "npc") then return plate end
+        end
+        return nil
+    end
+    -- Plus d'unite "npc" : on retrouve le meme PNJ par son GUID (conversation recente seulement).
+    local guid = DWE.lastNPC.guid
+    if not (guid and UnitGUID) then return nil end
+    if GetTime and GetTime() - DWE.lastNPC.t > 600 then return nil end
     for _, plate in ipairs(GetPlates()) do
-        if UsablePlate(plate) and Check(UnitIsUnit, PlateToken(plate), "npc") then return plate end
+        if UsablePlate(plate) then
+            local ok, g = pcall(UnitGUID, PlateToken(plate))
+            if ok and g == guid then return plate end
+        end
     end
 end
 
@@ -5294,6 +5317,27 @@ DWE.StopFollow = StopFollow
 
 choiceBox:HookScript("OnShow", StartFollow)
 choiceBox:HookScript("OnHide", StopFollow)
+
+-- Filet : a chaque ecran de conversation, si la roue est la mais que le suivi ne tourne pas
+-- (ecran enchaine sans OnShow), on le relance. On retient aussi le PNJ tant qu'il existe.
+do
+    local watch = CreateFrame("Frame")
+    for _, e in ipairs({ "GOSSIP_SHOW", "QUEST_GREETING", "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE" }) do
+        pcall(watch.RegisterEvent, watch, e)
+    end
+    local function Ensure()
+        if choiceBox:IsShown() and not follower:IsShown() and AttachEnabled() then
+            DWE.followRestarts = (DWE.followRestarts or 0) + 1
+            StartFollow()
+        end
+    end
+    DWE.EnsureFollow = Ensure
+    watch:SetScript("OnEvent", function()
+        pcall(DWE.RememberNPC)
+        if C_Timer and C_Timer.After then C_Timer.After(0, Ensure) C_Timer.After(0.3, Ensure) else Ensure() end
+    end)
+end
+function DWE.FollowerRunning() return follower:IsShown() end
 
 --------------------------------------------------------------------------------
 -- Roue de choix
