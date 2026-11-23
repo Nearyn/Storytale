@@ -4618,6 +4618,15 @@ function DWE.SaveTextPosition()
     end
 end
 
+-- Le cadre de texte (et la bulle, posee sur lui hors suivi du PNJ) doit toujours avoir une place.
+-- Sans position enregistree, rendre la place fixe le laissait sans aucun point : la bulle n'avait
+-- plus de position et disparaissait (vu a la manette, en prenant une quete).
+function DWE.EnsureTextPlaced()
+    if textBox:GetNumPoints() == 0 then
+        textBox:SetPoint("TOPRIGHT", choiceBox, "TOPLEFT", -125, 110)
+        DWE.SetGripCorner(textBox, "TOPRIGHT")
+    end
+end
 function DWE.RestoreTextPosition()
     local p = DialogueWheelE_TextPos
     if p and p.x and not DWE.IsCinema() then
@@ -4768,6 +4777,7 @@ local function RestoreFixed()
     DWE.RestorePosition()
     textBox:ClearAllPoints()
     DWE.RestoreTextPosition()
+    DWE.EnsureTextPlaced()
     DWE.UpdateTextPanelVisuals()
 end
 

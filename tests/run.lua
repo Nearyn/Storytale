@@ -2833,6 +2833,13 @@ do
     DialogueWheelE_EscClose, DialogueWheelE_FontSize = saveEsc, saveFS
     DWE.SettingsChanged()
 end
+-- Cadre de texte sans place (place fixe rendue sans position enregistree) : il en reprend une,
+-- sinon la bulle posee dessus n'avait plus de position et disparaissait.
+do
+    DWE.textBox:ClearAllPoints()
+    DWE.EnsureTextPlaced()
+    check(DWE.textBox:GetNumPoints() > 0, "text frame always gets a place back (bubble never left without a position)")
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end

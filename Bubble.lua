@@ -98,7 +98,14 @@ do
     function DWE.BubbleState(tag)
         local function n(v) return type(v) == "number" and string.format("%.2f", v) or tostring(v) end
         local okA, ea = pcall(bubble.GetEffectiveAlpha, bubble)
-        local x, y = bubble:GetCenter()
+        -- (Accrochee a une plaque de nom, la bulle ne peut pas etre mesuree : on ne le fait pas.)
+        local x, y
+        if not bubble.pinned then
+            local okC, cx, cy = pcall(bubble.GetCenter, bubble)
+            if okC then x, y = cx, cy end
+        else
+            x, y = "plaque", "PNJ"
+        end
         local par = bubble:GetParent()
         print(("|cff33ff99Storytale|r etat (%s) : montree=%s visible=%s alpha=%s effective=%s pos=%s,%s parent=%s(%s) roue=%s accrochee=%s off=%s"):format(
             tostring(tag), tostring(bubble:IsShown()), tostring(bubble:IsVisible()), n(bubble:GetAlpha()), n(okA and ea),
@@ -853,6 +860,7 @@ function DWE.Bubble.SetShown(show)
     end
     if changed then DWE.Bubble.Refit() end
     if not bubble.pinned then
+        if DWE.EnsureTextPlaced then DWE.EnsureTextPlaced() end
         bubble:ClearAllPoints()
         bubble:SetPoint("BOTTOMRIGHT", textBox, "BOTTOMRIGHT", 0, 0)
         DWE.SetGripCorner(bubble, "BOTTOMRIGHT")
@@ -869,6 +877,7 @@ function DWE.Bubble.Pin(plate, x, y)
         DWE.SetGripCorner(bubble, "BOTTOM")
     else
         bubble.pinned = false
+        if DWE.EnsureTextPlaced then DWE.EnsureTextPlaced() end
         bubble:SetPoint("BOTTOMRIGHT", textBox, "BOTTOMRIGHT", 0, 0)
         DWE.SetGripCorner(bubble, "BOTTOMRIGHT")
     end
