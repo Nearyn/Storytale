@@ -3153,6 +3153,10 @@ local function DiagnoseNPC()
     for i, plate in ipairs(plates) do
         local token = plate.namePlateUnitToken or (plate.UnitFrame and plate.UnitFrame.unit)
         Out(("  %d. %s nom=%s =npc:%s visible=%s"):format(i, tostring(token), Safe(UnitName, token), Safe(UnitIsUnit, token, "npc"), Safe(plate.IsVisible, plate)))
+        -- Ancrage de la plaque (lecture, pas une mesure) : permettrait de figer la roue a sa place.
+        local okP, p1, rel, p2, x, y = pcall(plate.GetPoint, plate, 1)
+        local relName = okP and rel and (pcall(rel.GetName, rel) and rel:GetName()) or tostring(rel)
+        Out("     ancrage : " .. (okP and (tostring(p1) .. " " .. tostring(relName) .. " " .. tostring(p2) .. " " .. tostring(x) .. " " .. tostring(y)) or ("refuse : " .. tostring(p1))))
     end
     Out("suivi lance=" .. tostring(DWE.FollowerRunning and DWE.FollowerRunning()) .. " relances=" .. tostring(DWE.followRestarts or 0)
         .. " PNJ retenu=" .. tostring(DWE.LastNPCGUID and DWE.LastNPCGUID() ~= nil))
