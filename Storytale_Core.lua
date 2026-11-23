@@ -4852,8 +4852,8 @@ function DWE.NPCTitle(token)
     return line
 end
 
--- Taille du nom imitant le nom habituel des PNJ (reglable : /run DWE.NEAR_NAME_SIZE = 43).
-DWE.NEAR_NAME_SIZE = 43
+-- Taille du nom imitant le nom habituel des PNJ (reglable : /run DWE.NEAR_NAME_SIZE = 40).
+DWE.NEAR_NAME_SIZE = 40
 DWE.NEAR_NAME_Y = -26 -- decalage vertical (reglable : /run DWE.NEAR_NAME_Y = -20)
 DWE.ownNames = setmetatable({}, { __mode = "k" })
 -- Habille un texte a nous, pose sur le nom de la plaque (cache), comme le nom habituel du PNJ :
