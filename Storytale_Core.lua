@@ -4825,13 +4825,83 @@ function DWE.PlateNameOnly(uf)
     local okR, regs = pcall(function() return { uf:GetRegions() } end)
     if okR then for _, r in ipairs(regs) do Hide(r) end end
     if uf:GetAlpha() ~= 1 then uf:SetAlpha(1) end
+    -- Etat d'origine du nom, rendu a la fin.
+    local okF, f, sz, fl = pcall(name.GetFont, name)
+    local okC2, r, g, b, a = pcall(name.GetTextColor, name)
+    local okS, sx, sy = pcall(name.GetShadowOffset, name)
+    local okT, t = pcall(name.GetText, name)
+    parts.name = name
+    parts.font = okF and f and { f, sz, fl } or nil
+    parts.color = okC2 and { r, g, b, a } or nil
+    parts.shadow = okS and { sx, sy } or nil
+    parts.text = okT and t or nil
     parts.desc = n .. " element(s) caches"
     return parts
+end
+
+-- Titre d'un PNJ ("<Innkeeper Assistant>") lu dans son infobulle (2e ligne, si ce n'est pas le niveau).
+function DWE.NPCTitle(token)
+    local tip = DWE.titleTip
+    if not tip then
+        local ok, t = pcall(CreateFrame, "GameTooltip", "DWE_TitleScanTip", nil, "GameTooltipTemplate")
+        if not ok or not t then return nil end
+        tip, DWE.titleTip = t, t
+    end
+    local line
+    pcall(function()
+        tip:SetOwner(WorldFrame, "ANCHOR_NONE")
+        tip:SetUnit(token)
+        local fs = _G["DWE_TitleScanTipTextLeft2"]
+        line = fs and fs:GetText()
+        tip:Hide()
+    end)
+    if type(line) ~= "string" or line == "" then return nil end
+    local lvl = type(LEVEL) == "string" and LEVEL or "Level"
+    if line:find(lvl, 1, true) or line:find("%d") then return nil end
+    return line
+end
+
+-- Taille du nom imitant le nom habituel des PNJ (reglable : /run DWE.NEAR_NAME_SIZE = 26).
+DWE.NEAR_NAME_SIZE = 26
+-- Habille le nom de la plaque comme le nom habituel du PNJ : police, vert (ou jaune si neutre), titre.
+function DWE.PlateNameStyle(parts, token)
+    local name = parts and parts.name
+    if not name then return end
+    local nm = Check(UnitName, token)
+    if not nm then return end
+    if parts.titleFor ~= token then
+        parts.titleFor, parts.title = token, DWE.NPCTitle(token)
+    end
+    local text = parts.title and (nm .. "\n<" .. parts.title .. ">") or nm
+    local font = (STANDARD_TEXT_FONT and STANDARD_TEXT_FONT:find("FRIZ")) and STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+    local okF, f, sz = pcall(name.GetFont, name)
+    if not (okF and f == font and sz and math.abs(sz - DWE.NEAR_NAME_SIZE) < 0.5) then
+        pcall(name.SetFont, name, font, DWE.NEAR_NAME_SIZE, "")
+        pcall(name.SetShadowOffset, name, 1, -1)
+        pcall(name.SetShadowColor, name, 0, 0, 0, 1)
+        pcall(name.SetWordWrap, name, true)
+        pcall(name.SetMaxLines, name, 2)
+        pcall(name.SetWidth, name, 600)
+        pcall(name.SetJustifyH, name, "CENTER")
+    end
+    local okT, cur = pcall(name.GetText, name)
+    if not (okT and cur == text) then pcall(name.SetText, name, text) end
+    local r, g, b = 0.1, 1, 0.1
+    local okR, react = pcall(UnitReaction, token, "player")
+    if okR and react == 4 then r, g, b = 1, 1, 0 end
+    pcall(name.SetTextColor, name, r, g, b, 1)
 end
 
 function DWE.PlateRestoreParts(uf, parts)
     if type(parts) ~= "table" then return end
     for _, e in ipairs(parts) do pcall(e[1].SetAlpha, e[1], e[2]) end
+    local name = parts.name
+    if name then
+        if parts.font then pcall(name.SetFont, name, parts.font[1], parts.font[2], parts.font[3] or "") end
+        if parts.color then pcall(name.SetTextColor, name, unpack(parts.color)) end
+        if parts.shadow then pcall(name.SetShadowOffset, name, parts.shadow[1], parts.shadow[2]) end
+        if parts.text then pcall(name.SetText, name, parts.text) end
+    end
 end
 
 local function MaskFriendlyPlates()
@@ -4867,7 +4937,7 @@ local function MaskFriendlyPlates()
                 end
             end
             if hide and type(maskedFrames[uf]) == "table" then
-                -- deja reduite au nom
+                DWE.PlateNameStyle(maskedFrames[uf], token) -- le jeu peut remettre son style : on le reapplique
             elseif hide then
                 if uf:GetAlpha() ~= 0 then uf:SetAlpha(0) end
                 if not maskedFrames[uf] and DWE.followLog then
@@ -4884,12 +4954,34 @@ local function MaskFriendlyPlates()
     end
 end
 
-local function UnmaskPlates()
+local function UnmaskPlates(onlyGone)
     for uf, parts in pairs(maskedFrames) do
-        DWE.PlateRestoreParts(uf, parts)
-        uf:SetAlpha(1)
+        local gone = true
+        if onlyGone then
+            -- Plaque encore portee par une unite : le jeu va la retirer (reglages remis) ; la
+            -- rendre visible maintenant la faisait apparaitre un instant a la fin de la conversation.
+            local plate = uf:GetParent()
+            local okS, shown = pcall(function() return plate and plate:IsShown() end)
+            local tok = plate and plate.namePlateUnitToken
+            gone = not (okS and shown) or not (tok and Check(UnitExists, tok))
+        end
+        if gone then
+            DWE.PlateRestoreParts(uf, parts)
+            uf:SetAlpha(1)
+            maskedFrames[uf] = nil
+        end
     end
-    wipe(maskedFrames)
+end
+-- Fin de conversation : chaque plaque cachee est rendue quand le jeu l'a retiree (au plus 1,5 s).
+function DWE.UnmaskWhenGone(stillMasking)
+    local t = 0
+    local function Step()
+        if stillMasking() then return end -- une conversation a repris : elle garde ses plaques
+        t = t + 0.05
+        UnmaskPlates(t < 1.5)
+        if next(maskedFrames) and t < 1.5 then C_Timer.After(0.05, Step) end
+    end
+    C_Timer.After(0.05, Step)
 end
 
 local function SetFriendlyPlates(on)
@@ -4938,9 +5030,7 @@ local function SetFriendlyPlates(on)
         savedPlateCVar = nil
         DialogueWheelE_PlateRestore = nil
         if C_Timer and C_Timer.After then
-            C_Timer.After(0.2, function()
-                if not (savedPlateCVar or DWE.savedShowAll) then UnmaskPlates() end
-            end)
+            DWE.UnmaskWhenGone(function() return savedPlateCVar or DWE.savedShowAll end)
         else
             UnmaskPlates()
         end
