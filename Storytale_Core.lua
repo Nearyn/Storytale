@@ -4706,14 +4706,39 @@ function DWE.RememberNPC()
 end
 function DWE.LastNPCGUID() return DWE.lastNPC.guid end
 
+function DWE.PlateForUnit(unit)
+    if not (C_NamePlate and C_NamePlate.GetNamePlateForUnit) then return nil end
+    local ok, plate = pcall(C_NamePlate.GetNamePlateForUnit, unit)
+    if ok and UsablePlate(plate) then return plate end
+end
+
 local function FindNPCPlate()
     if Check(UnitExists, "npc") then
         DWE.RememberNPC()
         for _, plate in ipairs(GetPlates()) do
             if UsablePlate(plate) and Check(UnitIsUnit, PlateToken(plate), "npc") then return plate end
         end
-        return nil
+        -- A la manette, la plaque du PNJ peut etre celle de l'interaction (hors de la liste).
+        local direct = DWE.PlateForUnit("npc")
+        if direct then return direct end
     end
+    -- Plaque d'interaction ou cible : meme PNJ que celui retenu ?
+    local guid0 = DWE.lastNPC.guid
+    if guid0 and UnitGUID then
+        for _, u in ipairs({ "softinteract", "target" }) do
+            local ok, g = pcall(UnitGUID, u)
+            if ok and g == guid0 then
+                local pl = DWE.PlateForUnit(u)
+                if pl then return pl end
+            end
+        end
+        local pl = DWE.PlateForUnit("softinteract")
+        if pl then
+            local ok, g = pcall(UnitGUID, PlateToken(pl))
+            if ok and g == guid0 then return pl end
+        end
+    end
+    if Check(UnitExists, "npc") then return nil end
     -- Plus d'unite "npc" : on retrouve le meme PNJ par son GUID (conversation recente seulement).
     local guid = DWE.lastNPC.guid
     if not (guid and UnitGUID) then return nil end

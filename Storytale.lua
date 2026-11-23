@@ -2952,6 +2952,9 @@ local function DiagnoseNPC()
     if not C_NamePlate then Out("C_NamePlate absent") return end
     local soft = C_NamePlate.GetNamePlateForUnit and C_NamePlate.GetNamePlateForUnit("softinteract")
     Out("plaque softinteract : " .. (soft and ("trouvee, interdite=" .. Safe(soft.IsForbidden, soft) .. " visible=" .. Safe(soft.IsVisible, soft)) or "aucune"))
+    local np = C_NamePlate.GetNamePlateForUnit and C_NamePlate.GetNamePlateForUnit("npc")
+    Out("plaque npc : " .. (np and ("trouvee, jeton=" .. tostring(np.namePlateUnitToken) .. " interdite=" .. Safe(np.IsForbidden, np) .. " visible=" .. Safe(np.IsVisible, np)) or "aucune")
+        .. (soft and (" | jeton softinteract=" .. tostring(soft.namePlateUnitToken) .. " nom=" .. Safe(UnitName, soft.namePlateUnitToken or "")) or ""))
     local plates = C_NamePlate.GetNamePlates and C_NamePlate.GetNamePlates() or {}
     Out(#plates .. " plaque(s) lisible(s)")
     for i, plate in ipairs(plates) do

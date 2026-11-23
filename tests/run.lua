@@ -610,6 +610,15 @@ do
     UnitExists, UnitGUID = oE, oG
     follower._scripts.OnUpdate(follower, 0.2)
     check(DWE.IsFollowingNPC(), "re-pinned with npc unit back")
+    -- Plaque d'interaction absente de la liste : trouvee directement pour l'unite "npc".
+    local oF = C_NamePlate.GetNamePlateForUnit
+    M.plates = {}
+    C_NamePlate.GetNamePlateForUnit = function(u) if u == "npc" then return plate end end
+    follower._scripts.OnUpdate(follower, 0.2)
+    check(DWE.IsFollowingNPC(), "interact plate outside the list: still pinned")
+    C_NamePlate.GetNamePlateForUnit = oF
+    M.plates = { plate }
+    follower._scripts.OnUpdate(follower, 0.2)
     -- Suivi arrete sans OnShow : relance au prochain ecran de conversation.
     DWE.StopFollow()
     DWE.EnsureFollow()
