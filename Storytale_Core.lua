@@ -4740,18 +4740,6 @@ function DWE.PlateForUnit(unit)
     if ok and UsablePlate(plate) then return plate end
 end
 
--- Plaque cachee par le jeu pendant la conversation (meme PNJ) : la roue garde sa derniere
--- place au lieu de sauter. Si la plaque sert a une autre unite, on la lache.
-function DWE.KeepLostPlate(plate)
-    local guid = DWE.lastNPC.guid
-    if not (guid and UnitGUID) then return false end
-    local okS, shown = pcall(plate.IsShown, plate)
-    if not okS then return false end
-    if not shown then return true end
-    local ok, g = pcall(UnitGUID, PlateToken(plate))
-    return ok and (g == nil or g == guid)
-end
-
 local function FindNPCPlate()
     if Check(UnitExists, "npc") then
         DWE.RememberNPC()
@@ -5026,7 +5014,52 @@ local function Unpin()
     RestoreFixed()
 end
 
-follower:SetScript("OnEvent", function() pcall(MaskFriendlyPlates) end)
+-- Fantome : un point invisible qui garde la derniere place a l'ecran de la plaque du PNJ.
+-- A la manette, le jeu retire la plaque a l'ouverture d'une quete et la deplace (vers le
+-- personnage) avant de la reutiliser : on passe alors sur le fantome, qui ne bouge pas.
+DWE.npcGhost = CreateFrame("Frame", nil, UIParent)
+DWE.npcGhost:SetSize(1, 1)
+DWE.npcGhost.valid = false
+
+function DWE.GhostRecord(plate)
+    if not plate or plate == DWE.npcGhost then return end
+    local guid = DWE.lastNPC.guid
+    local token = PlateToken(plate)
+    if guid and UnitGUID then
+        local okG, g = pcall(UnitGUID, token)
+        if not okG or g ~= guid then return end
+    elseif not Check(UnitIsUnit, token, "npc") then
+        return
+    end
+    local okC, x, y = pcall(plate.GetCenter, plate)
+    if not okC or type(x) ~= "number" or type(y) ~= "number" then return end
+    local okS, ps = pcall(plate.GetEffectiveScale, plate)
+    local us = UIParent:GetEffectiveScale() or 1
+    local k = (okS and type(ps) == "number" and us > 0) and ps / us or 1
+    DWE.npcGhost:ClearAllPoints()
+    DWE.npcGhost:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x * k, y * k)
+    DWE.npcGhost.valid = true
+end
+
+-- Bascule sur le fantome (plaque retiree). Retourne vrai si c'est fait.
+function DWE.GhostTake()
+    if not (follow.plate and DWE.npcGhost.valid) then return false end
+    if follow.plate == DWE.npcGhost then return true end
+    if pcall(AnchorTo, DWE.npcGhost) then
+        follow.plate = DWE.npcGhost
+        DWE.FLog("plaque retiree : la roue garde sa place")
+        return true
+    end
+    return false
+end
+
+follower:SetScript("OnEvent", function(_, event, unit)
+    if event == "NAME_PLATE_UNIT_REMOVED" and follow.plate and follow.plate ~= DWE.npcGhost then
+        local tok = PlateToken(follow.plate)
+        if tok and tok == unit then pcall(DWE.GhostTake) end
+    end
+    pcall(MaskFriendlyPlates)
+end)
 
 local function CursorUI()
     local x, y = GetCursorPosition()
@@ -5315,6 +5348,7 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
     elseif follow.plate and (measured or math.abs(ZoomFactor() - (follow.zoomF or 1)) > 0.003) then
         pcall(AnchorTo, follow.plate) -- zoom en cours ou taille du PNJ connue : on suit
     end
+    if follow.plate and follow.plate ~= DWE.npcGhost then pcall(DWE.GhostRecord, follow.plate) end
     follow.wait = (follow.wait or 0) + elapsed
     if follow.plate and not follow.revealed then Reveal() end
     follow.scan = (follow.scan or 0) + elapsed
@@ -5344,9 +5378,8 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
             end
         end
         Reveal()
-    elseif follow.plate and DWE.KeepLostPlate(follow.plate) then
-        if not follow.kept then follow.kept = true DWE.FLog("plaque perdue : on reste sur place") end
-        Reveal() -- plaque retiree par le jeu (ecran de quete a la manette) : on reste sur place
+    elseif follow.plate and DWE.lastNPC.guid and DWE.GhostTake() then
+        Reveal() -- plaque retiree par le jeu (ecran de quete a la manette) : on reste sur place -- plaque retiree par le jeu (ecran de quete a la manette) : on reste sur place
     else
         Unpin() -- plaque perdue (PNJ hors champ...) : retour a la place fixe
         if follow.wait > APPEAR_DELAY then Reveal() end
@@ -5364,6 +5397,8 @@ local function StartFollow()
     if DWE.bubble then DWE.bubble:SetAlpha(0) end
     -- Une plaque creee se cache aussitot (avant d'etre dessinee), pas a l'image suivante.
     follower:RegisterEvent("NAME_PLATE_UNIT_ADDED")
+    pcall(follower.RegisterEvent, follower, "NAME_PLATE_UNIT_REMOVED")
+    DWE.npcGhost.valid = false
     pcall(StartMeasure)
     SetFriendlyPlates(true)
     pcall(MaskFriendlyPlates)
@@ -5384,6 +5419,8 @@ local function StopFollow()
     if sizer.scene then sizer.scene:Hide() end
     if wasPinned then RestoreFixed() end -- avant de retirer les plaques
     follower:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
+    pcall(follower.UnregisterEvent, follower, "NAME_PLATE_UNIT_REMOVED")
+    DWE.npcGhost.valid = false
     if savedPlateCVar then SetFriendlyPlates(false) else UnmaskPlates() end
 end
 DWE.StopFollow = StopFollow
