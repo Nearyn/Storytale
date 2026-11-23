@@ -2296,11 +2296,33 @@ function DWE.PadUnfocusHidden()
             pcall(m.FrameHidden, m, af)
             DWE.padUntracked = DWE.padUntracked or {}
             DWE.padUntracked[af] = true
+            -- Les autres fenetres du jeu cachees par Storytale (le gossip, encore connu a
+            -- l'ouverture d'une quete) recevaient la selection a sa place : la manette restait a
+            -- l'interface, ne visait plus le PNJ et la roue se decrochait. On les retire aussi :
+            -- sans fenetre restante, le jeu rend lui-meme la main au joueur.
+            if DWE.choiceBox and DWE.choiceBox:IsShown() then
+                for _, n in ipairs(STICK_FRAMES) do
+                    local f = rawget(_G, n)
+                    if f and f ~= af then
+                        local okE, ea = pcall(f.GetEffectiveAlpha, f)
+                        local okV, vis = pcall(f.IsShown, f)
+                        if okV and vis and okE and not (sec and sec(ea)) and (ea or 1) < 0.05 then
+                            pcall(m.FrameHidden, m, f)
+                            DWE.padUntracked[f] = true
+                        end
+                    end
+                end
+            end
         end
-        if m.ReturnToPlayerControl then pcall(m.ReturnToPlayerControl, m) end
         -- Puis on la remet dans la liste du jeu, sans la selectionner : il la connait encore a sa
         -- vraie fermeture (le marchand qui suit reste pilotable).
-        if hidden and m.FrameShown and C_Timer then
+        -- Pendant la conversation, on ne la remet pas dans la liste du jeu : l'y remettre
+        -- redonnait la manette a l'interface (le PNJ n'etait plus vise). Elle y revient a la fin
+        -- de la conversation si elle est encore ouverte (voir plus bas).
+        if hidden and DWE.choiceBox and DWE.choiceBox:IsShown() then
+            DWE.padReadd = DWE.padReadd or {}
+            DWE.padReadd[af] = true
+        elseif hidden and m.FrameShown and C_Timer then
             C_Timer.After(0, function()
                 if InCombatLockdown() then return end
                 local okS, shown = pcall(af.IsShown, af)
@@ -2318,7 +2340,7 @@ function DWE.PadUnfocusHidden()
                     local okH, ha = pcall(now.GetEffectiveAlpha, now)
                     nowHidden = okH and not (sec and sec(ha)) and (ha or 1) < 0.05
                 end
-                if (now == af or nowHidden) and f2 ~= false and m.ReturnToPlayerControl then pcall(m.ReturnToPlayerControl, m) end
+                -- (ReturnToPlayerControl ne s'appelle pas ainsi : il ne faisait rien.)
             end)
         end
         DWE.padUnfocusN = (DWE.padUnfocusN or 0) + 1
@@ -2332,6 +2354,28 @@ end
 -- Surveillance independante de la roue : le jeu selectionne la fenetre des l'ouverture du PNJ,
 -- avant que la roue (et son capteur manette) ne s'affiche. On reagit aussi tout de suite quand le
 -- gestionnaire change de selection.
+-- Fin de conversation : les fenetres retirees de la liste du jeu et encore ouvertes y reviennent
+-- (sans etre selectionnees), pour que la manette les connaisse a leur vraie fermeture.
+if DWE.choiceBox then
+    DWE.choiceBox:HookScript("OnHide", function()
+        if not (C_Timer and DWE.padReadd) then return end
+        C_Timer.After(0.3, function()
+            if InCombatLockdown() or (DWE.choiceBox and DWE.choiceBox:IsShown()) then return end
+            local m = DWE.PadFCM()
+            local list = DWE.padReadd or {}
+            DWE.padReadd = nil
+            if not (m and m.FrameShown) then return end
+            for f in pairs(list) do
+                local okS, shown = pcall(f.IsShown, f)
+                local sec = rawget(_G, "issecretvalue")
+                if okS and not (sec and sec(shown)) and shown then
+                    pcall(m.FrameShown, m, f, false, false)
+                end
+                if DWE.padUntracked then DWE.padUntracked[f] = nil end
+            end
+        end)
+    end)
+end
 DWE.padFocusWatch = CreateFrame("Frame", "DWE_PadFocusWatch")
 DWE.padFocusWatch:SetScript("OnUpdate", function(self, el)
     self.t = (self.t or 0) + el
@@ -2351,7 +2395,7 @@ DWE.padFocusWatch:SetScript("OnUpdate", function(self, el)
             local m = DWE.PadFCM()
             if m and m.FocusFrame and okS and okA and not (sec and (sec(shown) or sec(a))) and shown and (a or 0) > 0.5
                 and not (DWE.choiceBox and DWE.choiceBox:IsShown()) and not InCombatLockdown() then
-                pcall(m.FocusFrame, m, e.f)
+                DWE.PadSecureFocus(m, e.f)
             end
         end
         DWE.PadLogSample()
@@ -2433,6 +2477,16 @@ end
 -- Une fenetre retiree de la liste du jeu vient de se fermer pour de bon : si une autre fenetre du
 -- jeu est ouverte (marchand, banque...) et que Storytale n'affiche rien, on la reselectionne pour
 -- qu'elle reste pilotable a la manette.
+-- Selectionner une fenetre a la manette sans salir le gestionnaire du jeu : seules ses fonctions
+-- FrameHidden/FrameShown sont protegees (appelees en securite). Appeler directement FocusFrame
+-- depuis Storytale salissait le gestionnaire, puis le jeu refusait de viser les PNJ
+-- ("Interface action failed", plus moyen de parler aux PNJ a la manette jusqu'au /reload).
+function DWE.PadSecureFocus(m, f)
+    if not (m and f and m.FrameHidden and m.FrameShown) or InCombatLockdown() then return end
+    pcall(m.FrameHidden, m, f)
+    pcall(m.FrameShown, m, f, false, true)
+end
+
 function DWE.PadRefocusAfterClose()
     local u = DWE.padUntracked
     if not u then return end
@@ -2448,7 +2502,11 @@ function DWE.PadRefocusAfterClose()
         if not (m and m.GetShownFrameCount and m.FocusFirstFrameShown) then return end
         local okC, n = pcall(m.GetShownFrameCount, m)
         local sec = rawget(_G, "issecretvalue")
-        if okC and not (sec and sec(n)) and (n or 0) > 0 then pcall(m.FocusFirstFrameShown, m) end
+        if okC and not (sec and sec(n)) and (n or 0) > 0 then
+            local okL, list = pcall(rawget, m, "shownFrames")
+            local f = okL and type(list) == "table" and list[1]
+            if type(f) == "table" then DWE.PadSecureFocus(m, f) end
+        end
     end) end
 end
 -- Spoken Quests (3.10.1) pose un bouton "Ecouter" et un bouton "Couper ce PNJ" au coin de la
