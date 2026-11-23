@@ -5105,7 +5105,7 @@ end
 -- Seul "toujours afficher les plaques" la garde. On l'active a ce moment-la seulement, avec une
 -- distance d'affichage tres courte (seuls le PNJ et ceux colles a lui sont concernes), puis tout
 -- est remis a la fin de la conversation. A la souris la cible reste : rien n'est change.
-DWE.NEAR_PLATES = "7"
+DWE.NEAR_PLATES = "4"
 function DWE.KeepNPCPlate()
     if not (follow.plate and GetCVar and SetCVar) or (InCombatLockdown and InCombatLockdown()) then return end
     if Check(UnitIsUnit, "target", "npc") then return end -- cible gardee (souris) : rien a faire
