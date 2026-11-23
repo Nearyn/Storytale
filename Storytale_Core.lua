@@ -4860,6 +4860,16 @@ end
 DWE.NEAR_NAME_SIZE = 40
 DWE.NEAR_NAME_Y = -26 -- decalage vertical (reglable : /run DWE.NEAR_NAME_Y = -20)
 DWE.ownNames = setmetatable({}, { __mode = "k" })
+-- Le nom habituel d'un PNJ grossit quand la camera s'approche. Mesure sur captures (Tannok,
+-- largeur du nom) : 560 px au zoom 1,9 ; 203 px au zoom 50 ; 277 px au reglage habituel (taille 40).
+-- Taille = 2073 / (zoom + 25,5), ramenee a NEAR_NAME_SIZE (40 = reference).
+function DWE.NearNameSize()
+    local okZ, z = pcall(GetCameraZoom)
+    z = (okZ and type(z) == "number") and z or 30
+    local size = 2073 / (z + 25.5) * (DWE.NEAR_NAME_SIZE / 40)
+    if size < 12 then size = 12 elseif size > 110 then size = 110 end
+    return math.floor(size + 0.5)
+end
 -- Habille un texte a nous, pose sur le nom de la plaque (cache), comme le nom habituel du PNJ :
 -- police du jeu, vert vif (jaune si neutre), ombre, titre en dessous, sans limite de largeur.
 function DWE.PlateNameStyle(parts, token)
@@ -4884,11 +4894,12 @@ function DWE.PlateNameStyle(parts, token)
         parts.nameHidden = true
     end
     local font = "Fonts\\FRIZQT__.TTF"
-    if fs.dweSize ~= DWE.NEAR_NAME_SIZE or fs.dweY ~= DWE.NEAR_NAME_Y then
-        fs.dweSize, fs.dweY = DWE.NEAR_NAME_SIZE, DWE.NEAR_NAME_Y
+    local size = DWE.NearNameSize()
+    if fs.dweSize ~= size or fs.dweY ~= DWE.NEAR_NAME_Y then
+        fs.dweSize, fs.dweY = size, DWE.NEAR_NAME_Y
         -- Les plaques non ciblees sont semi-transparentes : le nom habituel, lui, ne l'est pas.
         if fs.SetIgnoreParentAlpha then pcall(fs.SetIgnoreParentAlpha, fs, true) end
-        pcall(fs.SetFont, fs, font, DWE.NEAR_NAME_SIZE, "")
+        pcall(fs.SetFont, fs, font, size, "")
         pcall(fs.SetShadowOffset, fs, 2, -2)
         pcall(fs.SetShadowColor, fs, 0, 0, 0, 1)
         pcall(fs.SetJustifyH, fs, "CENTER")
@@ -4909,7 +4920,7 @@ function DWE.PlateNameStyle(parts, token)
         local okZ, z = pcall(GetCameraZoom)
         local function cv(k) local ok, v = pcall(GetCVar, k) return ok and tostring(v) or "?" end
         DWE.FLog(("nom maquille : %s | zoom camera=%s | taille=%s | echelle plaques min=%s max=%s dist=%s"):format(
-            nm, tostring(okZ and z and string.format("%.2f", z)), tostring(DWE.NEAR_NAME_SIZE),
+            nm, tostring(okZ and z and string.format("%.2f", z)), tostring(DWE.NearNameSize()),
             cv("nameplateMinScale"), cv("nameplateMaxScale"), cv("nameplateMinScaleDistance")))
     end
 end
