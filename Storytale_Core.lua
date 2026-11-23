@@ -4715,7 +4715,8 @@ end
 do
     local f = CreateFrame("Frame")
     for _, e in ipairs({ "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED", "GOSSIP_SHOW", "GOSSIP_CLOSED",
-        "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE", "QUEST_FINISHED", "QUEST_GREETING", "CVAR_UPDATE" }) do
+        "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE", "QUEST_FINISHED", "QUEST_GREETING", "CVAR_UPDATE",
+        "PLAYER_TARGET_CHANGED", "PLAYER_SOFT_INTERACT_CHANGED", "PLAYER_SOFT_FRIEND_CHANGED" }) do
         pcall(f.RegisterEvent, f, e)
     end
     f:SetScript("OnEvent", function(_, e, a, b)
@@ -4730,7 +4731,14 @@ do
             local okN, isN = pcall(UnitIsUnit, a, "npc")
             extra = " " .. tostring(a) .. " " .. tostring(ok and n) .. (okN and isN and " (PNJ)" or "")
         end
-        DWE.FLog(e .. extra .. " | npc=" .. tostring(UnitExists and UnitExists("npc")))
+        local function U(u)
+            local okE, ex = pcall(UnitExists, u)
+            local okI, isN = pcall(UnitIsUnit, u, "npc")
+            local okP, pl = pcall(C_NamePlate.GetNamePlateForUnit, u)
+            return tostring(okE and ex) .. (okI and isN and "(PNJ)" or "") .. (okP and pl and "+plaque" or "")
+        end
+        DWE.FLog(e .. extra .. " | npc=" .. tostring(UnitExists and UnitExists("npc"))
+            .. " cible=" .. U("target") .. " vise=" .. U("softinteract"))
     end)
 end
 
