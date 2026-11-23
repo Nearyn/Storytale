@@ -2516,10 +2516,6 @@ DWE.padCatcher:SetScript("OnUpdate", function(self, el)
     if DialogueWheelE_PadFreeLook == false then return end
     local isOn, setOn = rawget(_G, "IsGamePadFreelookEnabled"), rawget(_G, "SetGamePadFreeLook")
     if isOn and setOn and not isOn() then pcall(setOn, true) end
-    -- Le jeu coupe la surbrillance des objets 3D vises en vue libre quand une fenetre est ouverte,
-    -- mais la remet des qu'il repasse au curseur (camera arretee) : avec la vue libre rendue toutes
-    -- les 0,1 s, l'objet vise clignotait. On la garde allumee, comme a la souris.
-    DWE.PadHoverHold(true)
 end)
 -- Rendu au jeu quand Storytale lache la manette (le gestionnaire de fenetres du jeu decide).
 function DWE.PadHoverHold(on)

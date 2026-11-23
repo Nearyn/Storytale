@@ -1,5 +1,41 @@
 # Changelog / Journal des versions
 
+## 1.7.0
+
+**English**
+
+### New
+- Option profiles: one per character if you like, with new, copy and delete. Read books and heard lines are shared by all profiles.
+- A "Default options" button at the top of the options, and a way back to your profile.
+- Engraved texts (tombstones, monuments, plaques, troll steles) now show on stone even without Spoken Readables.
+
+### Improved
+- Tall troll tablets repeat their glyphs instead of stretching them.
+- No more line under the title of plaques, steles and tablets.
+
+### Fixed
+- With Spoken, the bubble text no longer runs ahead of the voice.
+- With Spoken, handing in a quest no longer skips what the NPC says.
+- The bubble no longer stops following NPCs until a /reload.
+
+---
+
+**Français**
+
+### Nouveautés
+- Profils d'options : un par personnage si vous voulez, avec nouveau, copier et supprimer. Les livres lus et les répliques entendues sont communs à tous les profils.
+- Un bouton "Options par défaut" en haut des options, et de quoi revenir à votre profil.
+- Les textes gravés (tombes, monuments, plaques, stèles trolles) s'affichent sur pierre même sans Spoken Readables.
+
+### Améliorations
+- Les grandes tablettes trolles répètent leurs glyphes au lieu de les étirer.
+- Plus de trait sous le titre des plaques, stèles et tablettes.
+
+### Corrections
+- Avec Spoken, le texte de la bulle ne prend plus d'avance sur la voix.
+- Avec Spoken, rendre une quête ne saute plus ce que dit le PNJ.
+- La bulle ne cesse plus de suivre les PNJ jusqu'au /reload.
+
 ## 1.6.9
 
 **English**
