@@ -5111,6 +5111,23 @@ follower:SetScript("OnEvent", function(_, event, unit)
         if (tok and tok == unit) or Check(UnitIsUnit, unit, "npc") then
             follow.held, follow.heldTok = follow.plate, unit
             DWE.FLog("plaque du PNJ retiree par le jeu : la roue reste en place")
+            -- Le jeu redonnait aussitot cette plaque a l'objet vise a la manette (une chaise...) :
+            -- la visee des objets est suspendue jusqu'a la fin de la conversation (les plaques de
+            -- ces objets sont de toute facon cachees pendant la conversation), puis remise.
+            if GetCVar and SetCVar and not (InCombatLockdown and InCombatLockdown()) then
+                local okG, cur = pcall(GetCVar, "SoftTargetInteract")
+                if okG and cur and cur ~= "0" and not (DWE.softSaved and DWE.softSaved.SoftTargetInteract) then
+                    local okS = pcall(SetCVar, "SoftTargetInteract", "0")
+                    local okN, now = pcall(GetCVar, "SoftTargetInteract")
+                    if okS and okN and now == "0" then
+                        DWE.softSaved = DWE.softSaved or {}
+                        DWE.softSaved.SoftTargetInteract = cur
+                        DialogueWheelE_PlateRestore = DialogueWheelE_PlateRestore or {}
+                        DialogueWheelE_PlateRestore.soft = DWE.softSaved
+                    end
+                    DWE.FLog("visee des objets suspendue : " .. tostring(cur) .. " -> " .. tostring(now))
+                end
+            end
         end
     elseif event == "NAME_PLATE_UNIT_ADDED" and follow.held and unit == follow.heldTok then
         if Check(UnitIsUnit, unit, "npc") then

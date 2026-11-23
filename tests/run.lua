@@ -630,7 +630,9 @@ do
     follower._scripts.OnUpdate(follower, 0.2)
     if DWE.IsFollowingNPC() then
         M.plates = {}
+        M.cvars.SoftTargetInteract = "3"
         follower._scripts.OnEvent(follower, "NAME_PLATE_UNIT_REMOVED", "nameplate1")
+        check(M.cvars.SoftTargetInteract == "0", "object aiming paused while the NPC plate is held")
         for _ = 1, 3 do follower._scripts.OnUpdate(follower, 0.2) end
         check(DWE.IsFollowingNPC(), "gamepad gossip to quest: NPC plate removed, wheel stays on it")
         local oUU = UnitIsUnit
@@ -640,6 +642,9 @@ do
         check(not DWE.IsFollowingNPC(), "removed plate reused for someone else: wheel detaches")
         M.plates = { plate }
         follower._scripts.OnUpdate(follower, 0.2)
+        DWE.choiceBox:Hide(); M.RunTimers()
+        check(M.cvars.SoftTargetInteract == "3" and DWE.softSaved == nil, "object aiming restored after the conversation")
+        DWE.choiceBox:Show(); follower._scripts.OnUpdate(follower, 0.2)
     end
     -- "Toujours afficher les plaques" coupe (manette) : active pendant la conversation, puis remis.
     DWE.choiceBox:Hide(); M.RunTimers()
