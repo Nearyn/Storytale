@@ -5086,27 +5086,7 @@ DWE.npcGhost = CreateFrame("Frame", nil, UIParent)
 DWE.npcGhost:SetSize(1, 1)
 DWE.npcGhost.valid = false
 
-function DWE.GhostRecord(plate)
-    if not plate or plate == DWE.npcGhost then return end
-    if not Check(UnitIsUnit, PlateToken(plate) or "", "npc") then return end
-    -- Position lue sur l'ancrage de la plaque (pas de mesure : le jeu l'interdit).
-    local ok, p, rel, rp, x, y = pcall(plate.GetPoint, plate, 1)
-    if not (ok and p and type(x) == "number" and type(y) == "number") then
-        if not follow.measureLogged then
-            follow.measureLogged = true
-            DWE.FLog("ancrage de la plaque illisible : " .. tostring(ok and "aucun" or p))
-        end
-        return
-    end
-    local okA = pcall(function()
-        DWE.npcGhost:ClearAllPoints()
-        DWE.npcGhost:SetPoint(p, rel or WorldFrame, rp or p, x, y)
-    end)
-    if okA then
-        if not DWE.npcGhost.valid then DWE.FLog(("position du PNJ retenue (%s %.0f %.0f)"):format(tostring(p), x, y)) end
-        DWE.npcGhost.valid = true
-    end
-end
+function DWE.GhostRecord() end -- position de la plaque illisible (le jeu l'interdit)
 
 -- Bascule sur le fantome (plaque retiree). Retourne vrai si c'est fait.
 function DWE.GhostTake()
@@ -5120,12 +5100,25 @@ function DWE.GhostTake()
     return false
 end
 
+-- A la manette, entre le gossip et la quete, le jeu enleve la cible et retire la plaque du PNJ.
+-- Une plaque retiree est seulement cachee : elle garde sa place a l'ecran tant que le jeu ne la
+-- donne pas a une autre unite. La roue et la bulle restent donc accrochees a elle ; si le jeu la
+-- reutilise pour quelqu'un d'autre, on decroche (place fixe), comme avant.
 follower:SetScript("OnEvent", function(_, event, unit)
-    if event == "NAME_PLATE_UNIT_REMOVED" and follow.plate and follow.plate ~= DWE.npcGhost then
+    if event == "NAME_PLATE_UNIT_REMOVED" and follow.plate and not follow.held then
         local tok = PlateToken(follow.plate)
         -- Le jeu efface parfois le jeton de la plaque avant l'evenement : on reconnait aussi le PNJ.
         if (tok and tok == unit) or Check(UnitIsUnit, unit, "npc") then
-            pcall(DWE.GhostTake)
+            follow.held, follow.heldTok = follow.plate, unit
+            DWE.FLog("plaque du PNJ retiree par le jeu : la roue reste en place")
+        end
+    elseif event == "NAME_PLATE_UNIT_ADDED" and follow.held and unit == follow.heldTok then
+        if Check(UnitIsUnit, unit, "npc") then
+            follow.held, follow.heldTok = nil, nil -- le PNJ revient sur la meme plaque
+        else
+            DWE.FLog("plaque reprise par le jeu pour " .. tostring(Check(UnitName, unit)) .. " : decroche")
+            follow.held, follow.heldTok = nil, nil
+            Unpin()
         end
     end
     pcall(MaskFriendlyPlates)
@@ -5457,13 +5450,8 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
             if okA then
                 follow.plate = plate
                 follow.kept = nil
-                do
-                    local okP, p1, rel, p2, x, y = pcall(plate.GetPoint, plate, 1)
-                    local rn = "?"
-                    if okP and rel then local okR, n = pcall(rel.GetName, rel) rn = okR and tostring(n) or "?" end
-                    DWE.FLog("accroche a " .. tostring(PlateToken(plate)) .. " | ancrage : "
-                        .. (okP and (tostring(p1) .. " " .. rn .. " " .. tostring(p2) .. " " .. tostring(x) .. " " .. tostring(y)) or ("refuse : " .. tostring(p1))))
-                end
+                follow.held, follow.heldTok = nil, nil
+                DWE.FLog("accroche a " .. tostring(PlateToken(plate)))
             else
                 -- Refuse par le jeu : place fixe pour cette conversation (on reessaie a la
                 -- suivante ; avant, le suivi restait coupe jusqu'au /reload).
@@ -5474,8 +5462,8 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
             end
         end
         Reveal()
-    elseif follow.plate and DWE.lastNPC.guid and DWE.GhostTake() then
-        Reveal() -- plaque retiree par le jeu (ecran de quete a la manette) : on reste sur place -- plaque retiree par le jeu (ecran de quete a la manette) : on reste sur place
+    elseif follow.plate and follow.held == follow.plate then
+        Reveal() -- plaque du PNJ retiree par le jeu (quete a la manette) : la roue reste ou elle etait
     else
         Unpin() -- plaque perdue (PNJ hors champ...) : retour a la place fixe
         if follow.wait > APPEAR_DELAY then Reveal() end

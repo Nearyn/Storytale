@@ -626,6 +626,21 @@ do
     DWE.choiceBox:Show()
     M.RunTimers()
     check(DWE.FollowerRunning() and M.cvars.nameplateShowFriendlyNPCs == "1", "gossip to quest: follow kept, plates never switched off")
+    -- Manette : le jeu retire la plaque du PNJ (cible enlevee) -> la roue reste sur la plaque cachee.
+    follower._scripts.OnUpdate(follower, 0.2)
+    if DWE.IsFollowingNPC() then
+        M.plates = {}
+        follower._scripts.OnEvent(follower, "NAME_PLATE_UNIT_REMOVED", "nameplate1")
+        for _ = 1, 3 do follower._scripts.OnUpdate(follower, 0.2) end
+        check(DWE.IsFollowingNPC(), "gamepad gossip to quest: NPC plate removed, wheel stays on it")
+        local oUU = UnitIsUnit
+        UnitIsUnit = function() return false end
+        follower._scripts.OnEvent(follower, "NAME_PLATE_UNIT_ADDED", "nameplate1")
+        UnitIsUnit = oUU
+        check(not DWE.IsFollowingNPC(), "removed plate reused for someone else: wheel detaches")
+        M.plates = { plate }
+        follower._scripts.OnUpdate(follower, 0.2)
+    end
     -- "Toujours afficher les plaques" coupe (manette) : active pendant la conversation, puis remis.
     DWE.choiceBox:Hide(); M.RunTimers()
     M.cvars.nameplateShowAll = "0"
