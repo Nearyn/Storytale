@@ -4840,19 +4840,6 @@ local function SetFriendlyPlates(on)
         -- comme cible d'interaction et le jeu la retirait a l'ouverture d'une quete.
         -- (Comme en 1.7.0 : seulement les plaques des PNJ amicaux. "Toujours afficher les
         -- plaques" faisait apparaitre celles de tous les PNJ autour.)
-        -- A la manette, le jeu efface la cible quand le gossip se ferme (gossip -> quete) : le PNJ
-        -- perdait sa plaque. La visee automatique des allies le garde vise (c'est l'allie en face),
-        -- donc sa plaque reste. Reglages du joueur remis a la fin de la conversation.
-        if not DWE.softSaved then
-            DWE.softSaved = {}
-            for k, want in pairs({ SoftTargetFriend = "3", SoftTargetNameplateFriend = "1" }) do
-                local v = GetCVar(k)
-                if v and v ~= want and not (k == "SoftTargetFriend" and v == "3") and pcall(SetCVar, k, want) then
-                    DWE.softSaved[k] = v
-                end
-            end
-            if not next(DWE.softSaved) then DWE.softSaved = nil end
-        end
         -- Garde la valeur du joueur meme apres un /reload ou une deconnexion en pleine conversation.
         if savedPlateCVar or DWE.savedShowAll or DWE.softSaved then
             DialogueWheelE_PlateRestore = { friendly = savedPlateCVar, all = DWE.savedShowAll, alpha = DWE.plateAlphaSaved, soft = DWE.softSaved }
