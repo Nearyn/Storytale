@@ -6644,12 +6644,29 @@ function DWE.InitOptionsPanel()
         line:SetPoint("TOPRIGHT", p, "TOPRIGHT", -16, y - 22)
     end
 
+    -- Precisions des options (infobulle au survol) : texte court a l'ecran, details ici.
+    local TIP_OF = {}
+    for _, k in ipairs({ "READ_MARKS", "BOOK_TIP_CURSOR", "BOOK_AUTOSCROLL", "HIDE_UI", "QUEST_AUTO_W",
+        "THEME_BUBBLES", "SPOKEN_BUTTON", "ZONE_ART" }) do
+        if L[k] and L[k .. "_TIP"] then TIP_OF[L[k]] = L[k .. "_TIP"] end
+    end
     local function AddCheck(label, x, y, checked, onClick)
         local cb = CreateFrame("CheckButton", nil, p, CHECK_TEMPLATE)
         cb:SetPoint("TOPLEFT", x, y)
         cb.Text:SetText(label)
         cb:SetChecked(checked)
         cb:SetScript("OnClick", onClick)
+        local tip = TIP_OF[label]
+        if tip then
+            cb.tooltipText = tip
+            cb:HookScript("OnEnter", function(self)
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:SetText(label, 1, 0.82, 0)
+                GameTooltip:AddLine(tip, 1, 1, 1, true)
+                GameTooltip:Show()
+            end)
+            cb:HookScript("OnLeave", function() GameTooltip:Hide() end)
+        end
         return cb
     end
 
