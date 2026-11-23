@@ -55,6 +55,20 @@ bubble:RegisterForDrag("LeftButton", "RightButton")
 bubble:SetSize(120, 40)
 bubble:Hide()
 DWE.bubble = bubble
+-- Diagnostic (/storytale bubblelog) : qui cache la bulle, et quand.
+do
+    local function Where()
+        local st = debugstack and debugstack(3, 4, 0) or ""
+        st = st:gsub("Interface/AddOns/", ""):gsub("\n", " | ")
+        return st:sub(1, 300)
+    end
+    bubble:HookScript("OnHide", function()
+        if DWE.bubbleLog then print("|cff33ff99Storytale|r bulle cachee : " .. Where()) end
+    end)
+    hooksecurefunc(bubble, "SetAlpha", function(_, a)
+        if DWE.bubbleLog and a == 0 then print("|cff33ff99Storytale|r bulle transparente : " .. Where()) end
+    end)
+end
 
 -- Le texte et la pointe sont sur un cadre au-dessus du decor de la bulle.
 local holder = CreateFrame("Frame", nil, bubble)
