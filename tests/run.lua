@@ -2742,7 +2742,14 @@ do
         "profiles: deleting the current profile goes back to Default")
     check(not DWE.ProfileDelete("Default", true), "profiles: Default can't be deleted")
     local l = DWE.ProfileList()
-    check(l[1] == "Default" and l[2] == "Alt" and #l == 2, "profiles: list starts with Default")
+    check(l[1] == "Default" and l[2] == "Factory" and l[3] == "Alt" and #l == 3, "profiles: list starts with Main, then Defaults")
+    -- Profil "Par defaut" : options d'installation, jamais modifie ; le bouton du haut ramene au profil d'avant.
+    check(DWE.ProfileSwitch("Factory", true) and DialogueWheelE_Theme == nil and DialogueWheelE_DefaultsV == nil, "profiles: Defaults profile = first-install options")
+    DialogueWheelE_Theme = "folio"
+    check(DWE.ProfileBackName() == "Default" and DWE.ProfileSwitch(DWE.ProfileBackName(), true) and DialogueWheelE_Theme == "parchment",
+        "profiles: back from Defaults to the previous profile, its options intact")
+    check(DialogueWheelE_Profiles.sets.Factory == nil, "profiles: nothing is kept on the Defaults profile")
+    check(not DWE.ProfileDelete("Factory", true) and not DWE.ProfileCreate("Factory", false, true), "profiles: Defaults can't be deleted or taken as a name")
     DWE.ProfileSwitch("Alt", true)
     DWE.ProfileSave()
     DialogueWheelE_Profiles, DialogueWheelE_Theme, DialogueWheelE_ReadBooks, DialogueWheelE_FontSize = saveP, saveTheme, saveRead, saveFS

@@ -77,18 +77,19 @@ do
         end
         local key = CharKey()
         local name = key and P.chars[key]
-        if not (name and type(P.sets[name]) == "table") then
+        if not (name and (name == "Factory" or type(P.sets[name]) == "table")) then
             name = P.newChar
             if not (name and type(P.sets[name]) == "table") then name = "Default" end
             if key then P.chars[key] = name end
         end
-        Apply(P.sets[name])
+        Apply(name ~= "Factory" and P.sets[name] or nil)
         DWE.profile = name
         return name
     end
     -- Au depart (et avant tout changement) : les reglages du moment dans le profil en cours.
     function DWE.ProfileSave()
-        if not DWE.profile then return end
+        -- (Profil "Par defaut" : toujours comme a l'installation, rien n'y est garde.)
+        if not DWE.profile or DWE.profile == "Factory" then return end
         Store().sets[DWE.profile] = Snapshot()
     end
     function DWE.ProfileList()
@@ -96,25 +97,33 @@ do
         for n in pairs(Store().sets) do if n ~= "Default" then list[#list + 1] = n end end
         table.sort(list, function(a, b) return a:lower() < b:lower() end)
         table.insert(list, 1, "Default")
+        table.insert(list, 2, "Factory")
         return list
     end
-    function DWE.ProfileLabel(n) return n == "Default" and (DWE.L.PROFILE_DEFAULT or n) or n end
+    function DWE.ProfileLabel(n)
+        if n == "Default" then return DWE.L.PROFILE_DEFAULT or n end
+        if n == "Factory" then return DWE.L.PROFILE_FACTORY or n end
+        return n
+    end
     local function Reload() if ReloadUI then ReloadUI() end end
     -- Changer de profil : reglages du profil voulu, puis rechargement de l'interface.
     function DWE.ProfileSwitch(name, noReload)
         local P = Store()
-        if type(P.sets[name]) ~= "table" or name == DWE.profile then return false end
+        if not (name == "Factory" or type(P.sets[name]) == "table") or name == DWE.profile then return false end
         DWE.ProfileSave()
+        -- Le profil quitte pour "Par defaut" : le bouton du haut y ramene.
+        if name == "Factory" then P.back = DWE.profile end
         local key = CharKey()
         if key then P.chars[key] = name end
-        Apply(P.sets[name])
+        Apply(name ~= "Factory" and P.sets[name] or nil)
         DWE.profile = name
         if not noReload then Reload() end
         return true
     end
     function DWE.ProfileValidName(name)
         name = type(name) == "string" and name:gsub("^%s+", ""):gsub("%s+$", "") or ""
-        if name == "" or #name > 32 or Store().sets[name] or name == (DWE.L.PROFILE_DEFAULT or "") then return nil end
+        if name == "" or #name > 32 or Store().sets[name] or name == "Factory" or name == (DWE.L.PROFILE_DEFAULT or "")
+            or name == (DWE.L.PROFILE_FACTORY or "") then return nil end
         return name
     end
     -- Nouveau (options par defaut) ou copie du profil en cours ; le personnage passe dessus.
@@ -127,12 +136,13 @@ do
     end
     function DWE.ProfileDelete(name, noReload)
         local P = Store()
-        if name == "Default" or type(P.sets[name]) ~= "table" then return false end
+        if name == "Default" or name == "Factory" or type(P.sets[name]) ~= "table" then return false end
         local wasMine = name == DWE.profile
         if wasMine then DWE.profile = nil end
         P.sets[name] = nil
         for k, v in pairs(P.chars) do if v == name then P.chars[k] = nil end end
         if P.newChar == name then P.newChar = nil end
+        if P.back == name then P.back = nil end
         if wasMine then
             local key = CharKey()
             if key then P.chars[key] = "Default" end
@@ -146,6 +156,12 @@ do
         local P = Store()
         if on then P.newChar = DWE.profile ~= "Default" and DWE.profile or nil
         elseif P.newChar == DWE.profile then P.newChar = nil end
+    end
+    -- Bouton du haut : "Options par defaut", ou retour au profil d'avant.
+    function DWE.ProfileBackName()
+        local b = Store().back
+        if b and type(Store().sets[b]) == "table" then return b end
+        return "Default"
     end
     function DWE.ProfileIsForNew()
         return (Store().newChar or "Default") == DWE.profile

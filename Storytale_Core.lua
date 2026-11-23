@@ -6672,11 +6672,22 @@ function DWE.InitOptionsPanel()
 
     AddText("Storytale", 16, -12, "GameFontNormalHuge")
     -- Remise a zero de toutes les options (avec confirmation, puis rechargement de l'interface).
-    local resetAllBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-    resetAllBtn:SetPoint("TOPRIGHT", p, "TOPRIGHT", -16, -12)
-    resetAllBtn:SetSize(220, 24)
-    resetAllBtn:SetText(L.RESET_ALL)
-    resetAllBtn:SetScript("OnClick", function() DWE.AskResetAll() end)
+    -- En haut : passer aux options par defaut (profil fixe), ou revenir au profil d'avant.
+    local factoryBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    factoryBtn:SetPoint("TOPRIGHT", p, "TOPRIGHT", -16, -12)
+    factoryBtn:SetSize(240, 24)
+    factoryBtn:SetScript("OnClick", function()
+        if DWE.profile == "Factory" then DWE.ProfileSwitch(DWE.ProfileBackName())
+        else DWE.ProfileSwitch("Factory") end
+    end)
+    function DWE.RefreshFactoryBtn()
+        if DWE.profile == "Factory" then
+            factoryBtn:SetText(string.format(L.PROFILE_BACK, DWE.ProfileLabel(DWE.ProfileBackName())))
+        else
+            factoryBtn:SetText(L.PROFILE_USE_FACTORY)
+        end
+    end
+    DWE.RefreshFactoryBtn()
 
     ---------------------------------------------------------------- Theme
     local y = -52
@@ -7435,10 +7446,13 @@ function DWE.InitOptionsPanel()
     pNext:SetPoint("LEFT", pName, "RIGHT", 4, 0)
     local pUse = PBtn(L.PROFILE_USE, 110)
     pUse:SetPoint("LEFT", pNext, "RIGHT", 10, 0)
-    local pNew, pCopy, pDel = PBtn(L.PROFILE_NEW, 120), PBtn(L.PROFILE_COPY, 120), PBtn(L.PROFILE_DEL, 120)
+    local pNew, pCopy, pDel = PBtn(L.PROFILE_NEW, 100), PBtn(L.PROFILE_COPY, 100), PBtn(L.PROFILE_DEL, 100)
+    local pReset = PBtn(L.RESET_ALL, 190)
     pNew:SetPoint("TOPLEFT", 16, py - 66)
-    pCopy:SetPoint("LEFT", pNew, "RIGHT", 10, 0)
-    pDel:SetPoint("LEFT", pCopy, "RIGHT", 10, 0)
+    pCopy:SetPoint("LEFT", pNew, "RIGHT", 8, 0)
+    pDel:SetPoint("LEFT", pCopy, "RIGHT", 8, 0)
+    pReset:SetPoint("LEFT", pDel, "RIGHT", 8, 0)
+    pReset:SetScript("OnClick", function() DWE.AskResetAll() end)
     local pick
     local pForNew
     local function RefreshProfiles()
@@ -7453,8 +7467,13 @@ function DWE.InitOptionsPanel()
         pUse:SetEnabled(pick ~= cur)
         pPrev:SetEnabled(#list > 1)
         pNext:SetEnabled(#list > 1)
-        pDel:SetEnabled(cur ~= "Default")
-        if pForNew then pForNew:SetChecked(DWE.ProfileIsForNew()) end
+        pDel:SetEnabled(cur ~= "Default" and cur ~= "Factory")
+        pReset:SetEnabled(cur ~= "Factory")
+        if pForNew then
+            pForNew:SetChecked(DWE.ProfileIsForNew())
+            pForNew:SetEnabled(cur ~= "Factory")
+        end
+        if DWE.RefreshFactoryBtn then DWE.RefreshFactoryBtn() end
     end
     DWE.RefreshProfilesUI = RefreshProfiles
     local function Step(d)
@@ -7475,9 +7494,10 @@ function DWE.InitOptionsPanel()
         RefreshProfiles()
     end)
     AddText(L.PROFILE_HINT, 16, py - 126, "GameFontDisableSmall")
+    AddText(L.PROFILE_FACTORY_NOTE, 16, py - 142, "GameFontDisableSmall")
     panel:HookScript("OnShow", function() pick = nil; RefreshProfiles() end)
     RefreshProfiles()
-    p:SetHeight(-(py - 140) + 30)
+    p:SetHeight(-(py - 156) + 30)
 
     ---------------------------------------------------------------- Recherche
     -- Une barre en haut du panneau (hors du defilement) : chaque frappe amene la vue sur la
