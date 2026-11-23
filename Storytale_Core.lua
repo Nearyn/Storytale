@@ -4789,6 +4789,51 @@ end
 
 -- Plaques activees par l'addon : on cache celles des unites amicales (on ne garde que leur
 -- position). Les plaques d'ennemis ne sont jamais touchees.
+-- Nom seul : un PNJ (pas le PNJ de la conversation, pas un objet) pendant le reglage "plaques
+-- proches" de la manette.
+function DWE.NameOnlyWanted(token)
+    if not (DWE.softSaved and DWE.softSaved.nameplateShowAll) or not token then return false end
+    if not Check(UnitExists, token) or Check(UnitIsUnit, token, "npc") then return false end
+    if Check(UnitIsPlayer, token) or Check(UnitCanAttack, "player", token) then return false end
+    return true
+end
+
+-- Cache tout sauf le texte du nom ; retourne la liste des elements caches (pour les rendre).
+function DWE.PlateNameOnly(uf)
+    local name = uf.name or uf.Name
+    if not (name and name.GetObjectType) then return nil end
+    local parts, n = { desc = "" }, 0
+    local function Hide(r)
+        if r == name or not r or not r.GetAlpha or not r.SetAlpha then return end
+        local okA, a = pcall(r.GetAlpha, r)
+        if okA and a and a > 0 and pcall(r.SetAlpha, r, 0) then
+            parts[#parts + 1] = { r, a }
+            n = n + 1
+        end
+    end
+    local okC, children = pcall(function() return { uf:GetChildren() } end)
+    if okC then for _, c in ipairs(children) do
+        -- Un enfant qui porte le nom n'est pas cache en entier : seulement ses autres elements.
+        local okP, par = pcall(name.GetParent, name)
+        if okP and par == c then
+            local okR, regs = pcall(function() return { c:GetRegions() } end)
+            if okR then for _, r in ipairs(regs) do Hide(r) end end
+        else
+            Hide(c)
+        end
+    end end
+    local okR, regs = pcall(function() return { uf:GetRegions() } end)
+    if okR then for _, r in ipairs(regs) do Hide(r) end end
+    if uf:GetAlpha() ~= 1 then uf:SetAlpha(1) end
+    parts.desc = n .. " element(s) caches"
+    return parts
+end
+
+function DWE.PlateRestoreParts(uf, parts)
+    if type(parts) ~= "table" then return end
+    for _, e in ipairs(parts) do pcall(e[1].SetAlpha, e[1], e[2]) end
+end
+
 local function MaskFriendlyPlates()
     if not (savedPlateCVar or DWE.savedShowAll) then return end
     for _, plate in ipairs(GetPlates()) do
@@ -4805,7 +4850,25 @@ local function MaskFriendlyPlates()
             elseif token then
                 hide = not Check(UnitCanAttack, "player", token)
             end
-            if hide then
+            -- Les cadres de plaques sont reutilises : on reevalue a chaque passage.
+            local want = hide and DWE.NameOnlyWanted(token)
+            if type(maskedFrames[uf]) == "table" and not want then
+                DWE.PlateRestoreParts(uf, maskedFrames[uf])
+                maskedFrames[uf] = hide and true or nil
+                if hide then uf:SetAlpha(0) else uf:SetAlpha(1) end
+            end
+            if want and type(maskedFrames[uf]) ~= "table" then
+                -- PNJ voisin qui recoit une plaque a cause du reglage "plaques proches" (manette) :
+                -- le jeu cache alors son nom habituel ; on garde le nom de la plaque, le reste est cache.
+                local parts = DWE.PlateNameOnly(uf)
+                if parts then
+                    maskedFrames[uf] = parts
+                    if DWE.followLog then DWE.FLog("plaque reduite au nom : " .. tostring(Check(UnitName, token)) .. " (" .. tostring(token) .. ") " .. tostring(parts.desc)) end
+                end
+            end
+            if hide and type(maskedFrames[uf]) == "table" then
+                -- deja reduite au nom
+            elseif hide then
                 if uf:GetAlpha() ~= 0 then uf:SetAlpha(0) end
                 if not maskedFrames[uf] and DWE.followLog then
                     local okN, n = pcall(UnitName, token)
@@ -4813,6 +4876,7 @@ local function MaskFriendlyPlates()
                 end
                 maskedFrames[uf] = true
             elseif maskedFrames[uf] then
+                DWE.PlateRestoreParts(uf, maskedFrames[uf])
                 uf:SetAlpha(1)
                 maskedFrames[uf] = nil
             end
@@ -4821,7 +4885,10 @@ local function MaskFriendlyPlates()
 end
 
 local function UnmaskPlates()
-    for uf in pairs(maskedFrames) do uf:SetAlpha(1) end
+    for uf, parts in pairs(maskedFrames) do
+        DWE.PlateRestoreParts(uf, parts)
+        uf:SetAlpha(1)
+    end
     wipe(maskedFrames)
 end
 

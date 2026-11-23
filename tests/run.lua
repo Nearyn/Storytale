@@ -635,8 +635,25 @@ do
         follower._scripts.OnEvent(follower, "GOSSIP_CLOSED")
         UnitIsUnit = oUU
         check(M.cvars.nameplateShowAll == "1" and M.cvars.nameplateMaxDistance == "5", "gamepad: target cleared, near plates kept")
+        -- PNJ voisin : sa plaque garde le nom, le reste est cache.
+        local nb = CreateFrame("Frame", nil, UIParent)
+        nb.namePlateUnitToken = "nameplate5"
+        nb.UnitFrame = CreateFrame("Frame", nil, nb)
+        nb.UnitFrame.name = nb.UnitFrame:CreateFontString()
+        local bar = CreateFrame("StatusBar", nil, nb.UnitFrame)
+        M.plates = { plate, nb }
+        local oE2, oUU2, oCA = UnitExists, UnitIsUnit, UnitCanAttack
+        UnitExists = function() return true end
+        UnitIsUnit = function(a, b) if a == "nameplate5" or b == "nameplate5" then return false end return oUU2(a, b) end
+        UnitCanAttack = function() return false end
+        follower._scripts.OnUpdate(follower, 0.2)
+        check(nb.UnitFrame:GetAlpha() == 1 and nb.UnitFrame.name:GetAlpha() == 1 and bar:GetAlpha() == 0, "neighbour NPC plate: name kept, rest hidden")
+        UnitExists, UnitIsUnit, UnitCanAttack = oE2, oUU2, oCA
         DWE.choiceBox:Hide(); M.RunTimers()
         check(M.cvars.nameplateShowAll == "0" and M.cvars.nameplateMaxDistance == "41" and DWE.softSaved == nil, "near plates setting restored after the conversation")
+        M.RunTimers()
+        check(bar:GetAlpha() == 1, "neighbour plate parts given back after the conversation")
+        M.plates = { plate }
         DWE.choiceBox:Show(); follower._scripts.OnUpdate(follower, 0.2)
         -- Souris : la cible reste -> rien n'est change.
         UnitIsUnit = function(a, b) if a == "target" then return true end return oUU(a, b) end
