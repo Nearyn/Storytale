@@ -2498,7 +2498,42 @@ DWE.padCatcher:HookScript("OnHide", function() DWE.PadStickRestore(); if DWE.Pad
 -- Camera au stick droit : avec une fenetre ouverte, le jeu donne le stick droit au curseur
 -- virtuel des que le personnage s'arrete. Conversations et livres se pilotent a la croix,
 -- donc on garde la camera libre tant que Storytale tient la manette.
+-- Zoom L1 + R1 + stick droit pendant une conversation : le jeu bloque les gachettes hautes
+-- tant que sa fenetre (cachee sous la roue) est ouverte. Storytale zoome alors lui-meme, sauf si
+-- le jeu zoome deja (on regarde d'abord si la camera bouge seule).
+local padZoom = {}
+function DWE.PadZoomTick(el)
+    local down = IsKeyDown and IsKeyDown("PADLSHOULDER") and IsKeyDown("PADRSHOULDER")
+    local gp = rawget(_G, "C_GamePad")
+    if not (down and gp and gp.GetDeviceMappedState and GetCameraZoom and CameraZoomIn) then
+        padZoom.t, padZoom.drive, padZoom.game = nil, nil, nil
+        return
+    end
+    local okS, st = pcall(gp.GetDeviceMappedState)
+    local y = 0
+    if okS and st and st.sticks then
+        for i = 1, (st.stickCount or #st.sticks) do
+            local okN, name = pcall(gp.StickIndexToConfigName, i - 1)
+            if okN and name == "Camera" and st.sticks[i] then y = st.sticks[i].y or 0 end
+        end
+    end
+    if math.abs(y) < 0.25 then padZoom.t = nil return end
+    if padZoom.game then return end
+    local okZ, z = pcall(GetCameraZoom)
+    if not okZ then return end
+    if not padZoom.t then padZoom.t, padZoom.z0 = 0, z return end
+    padZoom.t = padZoom.t + el
+    if not padZoom.drive then
+        if math.abs(z - padZoom.z0) > 0.05 then padZoom.game = true return end -- le jeu zoome
+        if padZoom.t < 0.15 then return end
+        padZoom.drive = true
+    end
+    local step = math.abs(y) * el * 15
+    if y > 0 then pcall(CameraZoomIn, step) else pcall(CameraZoomOut, step) end
+end
+
 DWE.padCatcher:SetScript("OnUpdate", function(self, el)
+    pcall(DWE.PadZoomTick, el)
     self.lookT = (self.lookT or 0) + el
     if self.lookT < 0.1 then return end
     self.lookT = 0

@@ -514,7 +514,8 @@ end
 
 local function StartSegment(i)
     local seg = state.segs[i]
-    state.index, state.phase, state.typed, state.shownN = i, "typing", 0, nil
+    -- Premiere lettre tout de suite : la bulle apparait avec son texte, sans delai.
+    state.index, state.phase, state.typed, state.shownN = i, "typing", (i == 1) and 1 or 0, nil
     FitTo(seg, seg)
     Reveal()
 end
@@ -756,9 +757,10 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
     elseif share == "hold" then
         -- La voix n'a pas encore demarre : on l'attend un instant (le texte prenait de l'avance
         -- et ne la rattrapait plus), puis on ecrit doucement si elle tarde.
+        -- La voix n'a pas encore demarre : on ecrit doucement (la bulle apparait tout de suite
+        -- avec son texte), sans prendre d'avance qu'on ne rattraperait pas.
         state.waitT = (state.waitT or 0) + elapsed
-        if state.waitT < 1.2 then return end
-        share, waitVoice = nil, true
+        share, waitVoice = nil, state.waitT < 1.2 and "slow" or true
     else
         state.holdT = 0
     end
@@ -766,7 +768,7 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
     -- lieu d'ecrire seul (l'avance prise la n'etait jamais rattrapee).
     if share == nil and not state.voiced and state.phase == "typing" and SpokenInstalled()
         and not state.manual and (state.age or 0) < 0.8 then
-        return
+        waitVoice = "slow"
     end
     if share and length then
         -- Voix de Spoken : on suit son rythme, en rattrapant les ecarts en douceur.
@@ -781,7 +783,7 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
     -- Sans voix : vitesse fixe, puis temps de lecture avant le morceau suivant.
     if state.phase == "typing" then
         state.typed = (state.typed or 0) + elapsed * (state.dots and 3 or (SpokenInstalled() and SPOKEN_PACE or TYPE_SPEED))
-            * (waitVoice and 0.5 or StartFactor(state))
+            * (waitVoice == "slow" and 0.25 or waitVoice and 0.5 or StartFactor(state))
         -- On va jusqu'au bout du fondu pour que les dernieres lettres apparaissent aussi en douceur.
         if state.typed >= (state.lens[state.index] or 0) then FinishTyping() else Reveal() end
     elseif state.phase == "reading" and state.index < #state.segs then

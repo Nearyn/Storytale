@@ -4820,14 +4820,30 @@ local function SetFriendlyPlates(on)
             DWE.savedShowAll = all
             SetCVar("nameplateShowAll", "1")
         end
+        -- Plaques activees par nous : transparentes par le jeu lui-meme (les cacher une a une
+        -- laissait voir chaque nouvelle plaque une image, d'ou un clignotement).
+        if DWE.savedShowAll and not DWE.plateAlphaSaved then
+            DWE.plateAlphaSaved = {}
+            for _, k in ipairs({ "nameplateMinAlpha", "nameplateMaxAlpha", "nameplateSelectedAlpha", "nameplateNotSelectedAlpha", "nameplateOccludedAlphaMult" }) do
+                local v = GetCVar(k)
+                if v and v ~= "0" and pcall(SetCVar, k, "0") then DWE.plateAlphaSaved[k] = v end
+            end
+        end
         -- Garde la valeur du joueur meme apres un /reload ou une deconnexion en pleine conversation.
         if savedPlateCVar or DWE.savedShowAll then
-            DialogueWheelE_PlateRestore = { friendly = savedPlateCVar, all = DWE.savedShowAll }
+            DialogueWheelE_PlateRestore = { friendly = savedPlateCVar, all = DWE.savedShowAll, alpha = DWE.plateAlphaSaved }
         end
     elseif savedPlateCVar or DWE.savedShowAll then
         if DWE.savedShowAll then
             SetCVar("nameplateShowAll", DWE.savedShowAll)
             DWE.savedShowAll = nil
+        end
+        -- Opacite rendue un instant apres, une fois les plaques retirees.
+        local alpha = DWE.plateAlphaSaved
+        DWE.plateAlphaSaved = nil
+        if alpha then
+            local function Back() for k, v in pairs(alpha) do pcall(SetCVar, k, v) end end
+            if C_Timer and C_Timer.After then C_Timer.After(0.2, Back) else Back() end
         end
         -- D'abord retirer les plaques, ensuite seulement leur rendre leur opacite (sinon elles
         -- reapparaissent une image avant de disparaitre).
@@ -4851,6 +4867,7 @@ function DWE.RestoreLeftoverPlates()
     if type(r) ~= "table" or not SetCVar or (InCombatLockdown and InCombatLockdown()) then return end
     if r.friendly then pcall(SetCVar, "nameplateShowFriendlyNPCs", r.friendly) end
     if r.all then pcall(SetCVar, "nameplateShowAll", r.all) end
+    if type(r.alpha) == "table" then for k, v in pairs(r.alpha) do pcall(SetCVar, k, v) end end
     DialogueWheelE_PlateRestore = nil
 end
 

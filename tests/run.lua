@@ -649,10 +649,15 @@ do
     -- "Toujours afficher les plaques" coupe (manette) : active pendant la conversation, puis remis.
     DWE.choiceBox:Hide(); M.RunTimers()
     M.cvars.nameplateShowAll = "0"
+    M.cvars.nameplateMaxAlpha = "1"
     DWE.choiceBox:Show()
+    check(M.cvars.nameplateMaxAlpha == "0", "plates made transparent by the game while shown for us")
     check(M.cvars.nameplateShowAll == "1" and DialogueWheelE_PlateRestore and DialogueWheelE_PlateRestore.all == "0", "show-all plates on during the conversation, player value kept")
     DWE.choiceBox:Hide(); M.RunTimers()
     check(M.cvars.nameplateShowAll == "0" and DialogueWheelE_PlateRestore == nil, "show-all plates restored after")
+    M.RunTimers()
+    check(M.cvars.nameplateMaxAlpha == "1", "plate opacity restored after")
+    M.cvars.nameplateMaxAlpha = nil
     DialogueWheelE_PlateRestore = { all = "0" }
     M.cvars.nameplateShowAll = "1"
     DWE.RestoreLeftoverPlates()
@@ -758,15 +763,15 @@ local function vis()
     return out
 end
 local function full() return bt:GetText() end
-check(vis() == "", "bubble starts empty, then writes: '" .. vis() .. "'")
-check(DWE.bubble.dweWaitHide == true and DWE.bubble:GetAlpha() == 0, "bubble itself hidden until the first letter (no empty bubble)")
+check(vis() == "H", "bubble starts with its first letter, then writes: '" .. vis() .. "'")
+check(not DWE.bubble.dweWaitHide, "bubble shown at once with its first letter (no empty bubble, no delay)")
 local function tick(sec) for _ = 1, math.floor(sec / 0.05 + 0.5) do DWE.bubble._scripts.OnUpdate(DWE.bubble, 0.05) end end
 tick(0.4)
 check(DWE.bubble.dweWaitHide == false, "bubble shown with the first letters")
 DWE.bubble:SetAlpha(0.5)
 check(DWE.bubble:GetAlpha() == 0.5, "bubble opacity set elsewhere still applies")
 DWE.bubble:SetAlpha(1)
-check(vis() == "Hello there,", "letter by letter at 30/s: '" .. vis() .. "'")
+check(vis() == "Hello there, ", "letter by letter at 30/s: '" .. vis() .. "'")
 if os.getenv("NOGRADIENT") ~= "1" then
     check(full():find("^Hello there, traveler!"), "whole segment laid out in advance (no reflow)")
 end
