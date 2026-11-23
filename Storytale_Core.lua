@@ -2891,7 +2891,7 @@ if noteBg.SetTextureSliceMargins then pcall(noteBg.SetTextureSliceMargins, noteB
 noteBg:Hide()
 
 -- Tablettes trolles : les cotes de la frise (lignes 216 a 424 de la texture) se repetent tous les
--- 104 pixels. Une tablette haute (beaucoup de texte) etirait ces glyphes ; on dessine donc le cadre
+-- 104 pixels (la bande 216-320 boucle sans raccord : ses dernieres lignes rejoignent la 216). Une tablette haute (beaucoup de texte) etirait ces glyphes ; on dessine donc le cadre
 -- en morceaux, la bande des cotes repetee autant de fois qu'il faut au lieu d'etiree.
 do
 local REP = { a = 216, b = 320, c = 424, m = 124, tw = 1024, th = 640 }
@@ -2931,7 +2931,12 @@ function DWE.NoteRepFrame(plate, W, H)
     for _, col in ipairs({ { 0, 0, m }, { W - cw, REP.tw - m, REP.tw } }) do
         local x, u0, u1 = col[1], col[2], col[3]
         Piece(x, 0, cw, REP.a * s, u0, u1, 0, REP.a)
-        for k = 0, n - 1 do Piece(x, REP.a * s + k * ph, cw, ph, u0, u1, REP.a, REP.b) end
+        -- (La derniere bande est la copie d'origine : elle rejoint le bas sans raccord.)
+        for k = 0, n - 1 do
+            local v0, v1 = REP.a, REP.b
+            if k == n - 1 then v0, v1 = REP.b, REP.c end
+            Piece(x, REP.a * s + k * ph, cw, ph, u0, u1, v0, v1)
+        end
         Piece(x, REP.a * s + avail, cw, (REP.th - REP.c) * s, u0, u1, REP.c, REP.th, true)
     end
     local mw = W - 2 * cw
