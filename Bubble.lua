@@ -55,6 +55,23 @@ bubble:RegisterForDrag("LeftButton", "RightButton")
 bubble:SetSize(120, 40)
 bubble:Hide()
 DWE.bubble = bubble
+-- Le gestionnaire de fenetres du jeu (manette) range parfois la bulle parmi ses fenetres et la
+-- cache quand la fenetre de quete s'ouvre : on la remet aussitot si la conversation continue.
+do
+    local reg = rawget(_G, "EventRegistry")
+    if type(reg) == "table" and reg.RegisterCallback then
+        local owner = {}
+        pcall(reg.RegisterCallback, reg, "UIParentPanelManager.ForcePanelHide", function(_, frame)
+            local mine = frame == bubble or frame == DWE.textBox or frame == DWE.choiceBox
+            if not mine then return end
+            if DWE.bubbleLog then print("|cff33ff99Storytale|r rangee par le jeu, remise : " .. tostring(frame.GetName and frame:GetName())) end
+            local function Back()
+                if DWE.choiceBox and DWE.choiceBox:IsShown() and DWE.UpdateTextPanelVisuals then DWE.UpdateTextPanelVisuals() end
+            end
+            if C_Timer and C_Timer.After then C_Timer.After(0, Back) else Back() end
+        end, owner)
+    end
+end
 -- Diagnostic (/storytale bubblelog) : qui cache la bulle, et quand.
 do
     local function Where()
