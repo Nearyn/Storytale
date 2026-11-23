@@ -3422,8 +3422,9 @@ local function LayoutNote()
     noteRule:SetHeight(1)
     noteRule:SetPoint("TOPLEFT", textHeader, "BOTTOMLEFT", 0, -10)
     noteRule:SetPoint("TOPRIGHT", textHeader, "BOTTOMRIGHT", 0, -10)
-    -- Pas de trait sous le titre de la stele ronde : il coupait la pierre.
-    noteRule:SetShown(not round)
+    -- Trait sous le titre : seulement sur le papier. Sur la pierre ou le metal grave (plaques,
+    -- steles, tablettes), il faisait "imprime par-dessus".
+    noteRule:SetShown(not plate)
     notePage:Hide()
     bookPageNum:Hide() -- (numero du livre ouvert : la note montre toutes les pages)
     -- Tout le texte dans une zone qui defile (pas de pages).
