@@ -4787,10 +4787,16 @@ local function MaskFriendlyPlates()
         local uf = plate.UnitFrame
         if uf and not (uf.IsForbidden and uf:IsForbidden()) then
             local token = PlateToken(plate)
-            -- On ne cache que les plaques que le joueur ne voyait pas : les amicales si c'est
-            -- nous qui les avons activees, les ennemies si c'est nous qui avons active "toutes".
-            local enemy = Check(UnitCanAttack, "player", token)
-            if token and ((enemy and DWE.savedShowAll) or (not enemy and savedPlateCVar)) then
+            -- Rien ne doit changer a l'ecran : les plaques que le joueur voyait avant la
+            -- conversation restent visibles, celles apparues a cause de nos reglages sont cachees.
+            local hide
+            if token and DWE.plateSeen then
+                local okG, g = pcall(UnitGUID, token)
+                hide = not (okG and g and DWE.plateSeen[g])
+            elseif token then
+                hide = not Check(UnitCanAttack, "player", token)
+            end
+            if hide then
                 if uf:GetAlpha() ~= 0 then uf:SetAlpha(0) end
                 maskedFrames[uf] = true
             elseif maskedFrames[uf] then
@@ -5440,6 +5446,18 @@ local function StartFollow()
     textBox:SetAlpha(0)
     if DWE.bubble then DWE.bubble:SetAlpha(0) end
     -- Une plaque creee se cache aussitot (avant d'etre dessinee), pas a l'image suivante.
+    -- Plaques deja visibles pour le joueur (avant que l'on change ses reglages).
+    DWE.plateSeen = nil
+    if UnitGUID then
+        DWE.plateSeen = {}
+        for _, plate in ipairs(GetPlates()) do
+            local uf = plate.UnitFrame
+            if UsablePlate(plate) and uf and (uf:GetAlpha() or 0) > 0 then
+                local okG, g = pcall(UnitGUID, PlateToken(plate))
+                if okG and g then DWE.plateSeen[g] = true end
+            end
+        end
+    end
     follower:RegisterEvent("NAME_PLATE_UNIT_ADDED")
     pcall(follower.RegisterEvent, follower, "NAME_PLATE_UNIT_REMOVED")
     DWE.npcGhost.valid = false

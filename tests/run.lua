@@ -665,6 +665,21 @@ do
     M.cvars.nameplateShowAll = nil
     DWE.choiceBox:Show()
     for _ = 1, 3 do follower._scripts.OnUpdate(follower, 0.2) end
+    -- Rien ne change a l'ecran : une plaque visible avant la conversation le reste.
+    DWE.choiceBox:Hide(); M.RunTimers()
+    local oG3 = UnitGUID
+    UnitGUID = function(u) if u == "nameplate1" then return "Creature-seen" end end
+    plate.UnitFrame:SetAlpha(1)
+    DWE.choiceBox:Show()
+    for _ = 1, 2 do follower._scripts.OnUpdate(follower, 0.2) end
+    check(plate.UnitFrame:GetAlpha() == 1, "plate the player already saw stays visible in conversation")
+    DWE.choiceBox:Hide(); M.RunTimers()
+    plate.UnitFrame:SetAlpha(0)
+    DWE.choiceBox:Show()
+    plate.UnitFrame:SetAlpha(1)
+    for _ = 1, 2 do follower._scripts.OnUpdate(follower, 0.2) end
+    check(plate.UnitFrame:GetAlpha() == 0, "plate the player did not see stays hidden in conversation")
+    UnitGUID = oG3
     -- Suivi arrete sans OnShow : relance au prochain ecran de conversation.
     DWE.StopFollow()
     DWE.EnsureFollow()

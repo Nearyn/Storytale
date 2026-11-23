@@ -2523,15 +2523,15 @@ function DWE.PadZoomTick(el)
         padZoom.t, padZoom.drive, padZoom.game, padZoom.evY = nil, nil, nil, nil
         if padZoom.stick then
             padZoom.stick = nil
-            pcall(DWE.padCatcher.EnableGamePadStick, DWE.padCatcher, false)
+            DWE.PadZoomStick(false)
         end
         return
     end
     -- Stick lu par evenement (l'etat de la manette donnait 0) : pendant L1 + R1, le stick
     -- droit est pris par Storytale pour zoomer.
-    local c = DWE.padCatcher
-    if c.EnableGamePadStick and not padZoom.stick and not InCombatLockdown() then
-        if pcall(c.EnableGamePadStick, c, true) then padZoom.stick = true end
+    if not padZoom.stick and DWE.padCatcher.EnableGamePadStick and not InCombatLockdown() then
+        padZoom.stick = true
+        DWE.PadZoomStick(true)
     end
     local okS, st = pcall(gp.GetDeviceMappedState)
     local y = padZoom.evY or 0
@@ -2565,14 +2565,26 @@ function DWE.PadZoomTick(el)
     if y > 0 then pcall(CameraZoomIn, step) else pcall(CameraZoomOut, step) end
 end
 
-if DWE.padCatcher.EnableGamePadStick then
-    DWE.padCatcher:SetScript("OnGamePadStick", function(_, stick, x, y)
-        if stick == "Movement" or stick == "Left" then return end
-        padZoom.evY = tonumber(y) or 0
-    end)
+-- Le stick n'est ecoute (script pose) que pendant L1 + R1 : un script de stick pose en
+-- permanence prenait le stick droit a la camera pendant toute la conversation.
+local function ZoomStick(_, stick, x, y)
+    if stick == "Movement" or stick == "Left" then return end
+    padZoom.evY = tonumber(y) or 0
+end
+function DWE.PadZoomStick(on)
+    local c = DWE.padCatcher
+    if not c.EnableGamePadStick or InCombatLockdown() then return end
+    if on then
+        c:SetScript("OnGamePadStick", ZoomStick)
+        pcall(c.EnableGamePadStick, c, true)
+    else
+        pcall(c.EnableGamePadStick, c, false)
+        c:SetScript("OnGamePadStick", nil)
+        pcall(c.EnableGamePadStick, c, false)
+    end
 end
 DWE.padCatcher:HookScript("OnHide", function()
-    if padZoom.stick then padZoom.stick = nil pcall(DWE.padCatcher.EnableGamePadStick, DWE.padCatcher, false) end
+    if padZoom.stick then padZoom.stick = nil DWE.PadZoomStick(false) end
     padZoom.evY = nil
     if DWE.padHeld then wipe(DWE.padHeld) end
 end)
