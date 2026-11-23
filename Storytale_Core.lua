@@ -6538,7 +6538,7 @@ function DWE.AskResetAll()
         OnAccept = function() DWE.ResetAllOptions() end,
         timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
     }
-    StaticPopup_Show("STORYTALE_RESET_ALL")
+    StaticPopup_Show("STORYTALE_RESET_ALL", DWE.ProfileLabel and DWE.ProfileLabel(DWE.profile or "Default") or "")
 end
 
 -- Manette, droite / gauche dans les options : la navigation du jeu prend le plus proche dans un
