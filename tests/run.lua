@@ -642,13 +642,15 @@ do
         nb.UnitFrame.name = nb.UnitFrame:CreateFontString()
         local bar = CreateFrame("StatusBar", nil, nb.UnitFrame)
         M.plates = { plate, nb }
-        local oE2, oUU2, oCA = UnitExists, UnitIsUnit, UnitCanAttack
+        local oE2, oUU2, oCA, oUN = UnitExists, UnitIsUnit, UnitCanAttack, UnitName
+        UnitName = function(u) if u == "nameplate5" then return "Tannok" end return oUN(u) end
         UnitExists = function() return true end
         UnitIsUnit = function(a, b) if a == "nameplate5" or b == "nameplate5" then return false end return oUU2(a, b) end
         UnitCanAttack = function() return false end
         follower._scripts.OnUpdate(follower, 0.2)
         check(nb.UnitFrame:GetAlpha() == 1 and nb.UnitFrame.name:GetAlpha() == 1 and bar:GetAlpha() == 0, "neighbour NPC plate: name kept, rest hidden")
-        UnitExists, UnitIsUnit, UnitCanAttack = oE2, oUU2, oCA
+        check(nb.UnitFrame.name:GetText() == "Tannok", "neighbour NPC name restyled (text set)")
+        UnitExists, UnitIsUnit, UnitCanAttack, UnitName = oE2, oUU2, oCA, oUN
         DWE.choiceBox:Hide(); M.RunTimers()
         check(M.cvars.nameplateShowAll == "0" and M.cvars.nameplateMaxDistance == "41" and DWE.softSaved == nil, "near plates setting restored after the conversation")
         M.RunTimers()

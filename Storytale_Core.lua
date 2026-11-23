@@ -4867,8 +4867,8 @@ DWE.NEAR_NAME_SIZE = 26
 function DWE.PlateNameStyle(parts, token)
     local name = parts and parts.name
     if not name then return end
-    local nm = Check(UnitName, token)
-    if not nm then return end
+    local okN, nm = pcall(UnitName, token)
+    if not (okN and type(nm) == "string" and nm ~= "") then return end
     if parts.titleFor ~= token then
         parts.titleFor, parts.title = token, DWE.NPCTitle(token)
     end
@@ -4933,7 +4933,7 @@ local function MaskFriendlyPlates()
                 local parts = DWE.PlateNameOnly(uf)
                 if parts then
                     maskedFrames[uf] = parts
-                    if DWE.followLog then DWE.FLog("plaque reduite au nom : " .. tostring(Check(UnitName, token)) .. " (" .. tostring(token) .. ") " .. tostring(parts.desc)) end
+                    if DWE.followLog then DWE.FLog("plaque reduite au nom : " .. tostring(select(2, pcall(UnitName, token))) .. " (" .. tostring(token) .. ") " .. tostring(parts.desc)) end
                 end
             end
             if hide and type(maskedFrames[uf]) == "table" then
