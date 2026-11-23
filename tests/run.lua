@@ -634,7 +634,7 @@ do
         UnitIsUnit = function(a, b) if a == "target" then return false end return oUU(a, b) end
         follower._scripts.OnEvent(follower, "GOSSIP_CLOSED")
         UnitIsUnit = oUU
-        check(M.cvars.nameplateShowAll == "1" and M.cvars.nameplateMaxDistance == "4", "gamepad: target cleared, near plates kept")
+        check(M.cvars.nameplateShowAll == "1" and M.cvars.nameplateMaxDistance == "5", "gamepad: target cleared, near plates kept")
         DWE.choiceBox:Hide(); M.RunTimers()
         check(M.cvars.nameplateShowAll == "0" and M.cvars.nameplateMaxDistance == "41" and DWE.softSaved == nil, "near plates setting restored after the conversation")
         DWE.choiceBox:Show(); follower._scripts.OnUpdate(follower, 0.2)
