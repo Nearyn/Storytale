@@ -625,14 +625,14 @@ do
     DWE.choiceBox:Hide()
     DWE.choiceBox:Show()
     M.RunTimers()
-    check(DWE.FollowerRunning() and DWE.IsFollowingNPC(), "gossip to quest: follow kept")
+    check(DWE.FollowerRunning(), "gossip to quest: follow restarted (like 1.7.0)")
     -- "Toujours afficher les plaques" coupe (manette) : active pendant la conversation, puis remis.
     DWE.choiceBox:Hide(); M.RunTimers()
     M.cvars.nameplateShowAll = "0"
     M.cvars.nameplateMaxAlpha = "1"
     DWE.choiceBox:Show()
     check(M.cvars.nameplateMaxAlpha == "1", "player's plate opacity untouched (their plates stay visible)")
-    check(M.cvars.nameplateShowAll == "1" and DialogueWheelE_PlateRestore and DialogueWheelE_PlateRestore.all == "0", "show-all plates on during the conversation, player value kept")
+    check(M.cvars.nameplateShowAll == "0", "show-all plates left alone (only friendly NPC plates, like 1.7.0)")
     DWE.choiceBox:Hide(); M.RunTimers()
     check(M.cvars.nameplateShowAll == "0" and DialogueWheelE_PlateRestore == nil, "show-all plates restored after")
     M.RunTimers()
@@ -665,7 +665,7 @@ do
     DWE.EnsureFollow()
     check(DWE.FollowerRunning(), "follow restarted on next conversation screen")
 end
-DWE.choiceBox:Hide(); M.RunTimers()
+DWE.choiceBox:Hide()
 check(M.cvars.nameplateShowFriendlyNPCs == "0", "player setting restored on close")
 check(plate.UnitFrame:GetAlpha() == 0, "plate stays invisible while being removed")
 M.RunTimers()

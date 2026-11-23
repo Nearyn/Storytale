@@ -4830,11 +4830,8 @@ local function SetFriendlyPlates(on)
         end
         -- "Toujours afficher les plaques" coupe : a la manette, la plaque du PNJ n'existait que
         -- comme cible d'interaction et le jeu la retirait a l'ouverture d'une quete.
-        local all = GetCVar("nameplateShowAll")
-        if all and all ~= "1" and not DWE.savedShowAll then
-            DWE.savedShowAll = all
-            SetCVar("nameplateShowAll", "1")
-        end
+        -- (Comme en 1.7.0 : seulement les plaques des PNJ amicaux. "Toujours afficher les
+        -- plaques" faisait apparaitre celles de tous les PNJ autour.)
         -- Garde la valeur du joueur meme apres un /reload ou une deconnexion en pleine conversation.
         if savedPlateCVar or DWE.savedShowAll then
             DialogueWheelE_PlateRestore = { friendly = savedPlateCVar, all = DWE.savedShowAll, alpha = DWE.plateAlphaSaved }
@@ -5509,12 +5506,7 @@ DWE.StopFollow = StopFollow
 choiceBox:HookScript("OnShow", StartFollow)
 -- Fermeture : on attend un instant, car le jeu enchaine souvent deux ecrans (gossip puis
 -- quete). Arreter puis relancer retirait les plaques et la roue se decrochait.
-choiceBox:HookScript("OnHide", function()
-    if not (C_Timer and C_Timer.After) then StopFollow() return end
-    C_Timer.After(0.2, function()
-        if not choiceBox:IsShown() then StopFollow() end
-    end)
-end)
+choiceBox:HookScript("OnHide", StopFollow) -- comme en 1.7.0
 
 -- Filet : a chaque ecran de conversation, si la roue est la mais que le suivi ne tourne pas
 -- (ecran enchaine sans OnShow), on le relance. On retient aussi le PNJ tant qu'il existe.
