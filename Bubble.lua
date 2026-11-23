@@ -54,6 +54,22 @@ bubble:EnableMouse(true)
 bubble:RegisterForDrag("LeftButton", "RightButton")
 bubble:SetSize(120, 40)
 bubble:Hide()
+-- Bulle cachee tant que la premiere lettre n'est pas ecrite (attente de la voix) : une bulle
+-- vide qui se remplit ensuite, c'est moche. L'opacite voulue par le reste de l'addon est gardee.
+do
+    local rawSetAlpha = bubble.SetAlpha
+    bubble.dweWant = 1
+    function bubble:SetAlpha(a)
+        self.dweWant = a
+        rawSetAlpha(self, self.dweWaitHide and 0 or a)
+    end
+    function bubble:DWEWaitHide(on)
+        on = on and true or false
+        if self.dweWaitHide == on then return end
+        self.dweWaitHide = on
+        rawSetAlpha(self, on and 0 or (self.dweWant or 1))
+    end
+end
 DWE.bubble = bubble
 -- Le gestionnaire de fenetres du jeu (manette) range parfois la bulle parmi ses fenetres et la
 -- cache quand la fenetre de quete s'ouvre : on la remet aussitot si la conversation continue.
@@ -483,6 +499,7 @@ local function Reveal()
     -- Rien d'ecrit encore (on attend la voix) : texte cache. Un fondu qui commence a 0 lettre
     -- montrait tout le texte d'un coup pendant l'attente, avant qu'il ne s'ecrive.
     text:SetAlpha(n > 0 and 1 or 0)
+    bubble:DWEWaitHide(n == 0 and (state.index or 1) <= 1)
     if state.dots then
         -- Points de suspension : un point net apres l'autre (pas de fondu), place gardee.
         -- La bulle est taillee pour "..." : texte cale a gauche, les points s'ajoutent un a un.
@@ -509,6 +526,7 @@ local function FinishTyping()
     state.duration = math.max(READ_MIN, math.min(READ_MAX, len * READ_PER_CHAR))
     state.typed = len
     text:SetAlpha(1)
+    bubble:DWEWaitHide(false)
     text:SetText(seg)
     if hasGradient then text:SetAlphaGradient(len + FADE_LETTERS + 1, 1) end
 end
@@ -810,6 +828,7 @@ function DWE.Bubble.SetText(s)
     if IsSecret(s) then
         -- Valeur protegee par le jeu : impossible a decouper, affichee telle quelle.
         state.segs, state.phase = {}, "idle"
+        bubble:DWEWaitHide(false)
         FitTo(s)
         return
     end
@@ -826,6 +845,7 @@ function DWE.Bubble.SetText(s)
     text:SetJustifyH(#state.segs == 0 and "CENTER" or "LEFT")
     if #state.segs == 0 then
         state.phase = "idle"
+        bubble:DWEWaitHide(false)
         FitTo(DWE.L.NO_TEXT)
         if hasGradient then text:SetAlphaGradient(100, 1) end
         text:SetText(DWE.L.NO_TEXT)

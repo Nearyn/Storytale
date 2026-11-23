@@ -759,8 +759,13 @@ local function vis()
 end
 local function full() return bt:GetText() end
 check(vis() == "", "bubble starts empty, then writes: '" .. vis() .. "'")
+check(DWE.bubble.dweWaitHide == true and DWE.bubble:GetAlpha() == 0, "bubble itself hidden until the first letter (no empty bubble)")
 local function tick(sec) for _ = 1, math.floor(sec / 0.05 + 0.5) do DWE.bubble._scripts.OnUpdate(DWE.bubble, 0.05) end end
 tick(0.4)
+check(DWE.bubble.dweWaitHide == false, "bubble shown with the first letters")
+DWE.bubble:SetAlpha(0.5)
+check(DWE.bubble:GetAlpha() == 0.5, "bubble opacity set elsewhere still applies")
+DWE.bubble:SetAlpha(1)
 check(vis() == "Hello there,", "letter by letter at 30/s: '" .. vis() .. "'")
 if os.getenv("NOGRADIENT") ~= "1" then
     check(full():find("^Hello there, traveler!"), "whole segment laid out in advance (no reflow)")
