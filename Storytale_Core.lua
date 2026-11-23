@@ -4794,6 +4794,10 @@ end
 function DWE.NameOnlyWanted(token)
     if not (DWE.softSaved and DWE.softSaved.nameplateShowAll) or not token then return false end
     if not Check(UnitExists, token) or Check(UnitIsUnit, token, "npc") then return false end
+    -- Le PNJ de la conversation (l'unite "npc" disparait un instant entre gossip et quete) : sa
+    -- plaque reste cachee, la bulle est au-dessus de lui.
+    local okG, g = pcall(UnitGUID, token)
+    if okG and g and g == DWE.lastNPC.guid then return false end
     if Check(UnitIsPlayer, token) or Check(UnitCanAttack, "player", token) then return false end
     return true
 end

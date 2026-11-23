@@ -651,6 +651,7 @@ do
         check(nb.UnitFrame:GetAlpha() == 1 and bar:GetAlpha() == 0, "neighbour NPC plate: bar hidden")
         local own = DWE.ownNames[nb.UnitFrame]
         check(own ~= nil and own:GetText() == "Tannok" and own:IsShown() and nb.UnitFrame.name:GetAlpha() == 0, "neighbour NPC name drawn by Storytale over the hidden plate name")
+        check(not DWE.ownNames[plate.UnitFrame] or not DWE.ownNames[plate.UnitFrame]:IsShown(), "conversation NPC plate never gets a drawn name")
         UnitExists, UnitIsUnit, UnitCanAttack, UnitName = oE2, oUU2, oCA, oUN
         DWE.choiceBox:Hide(); M.RunTimers()
         check(M.cvars.nameplateShowAll == "0" and M.cvars.nameplateMaxDistance == "41" and DWE.softSaved == nil, "near plates setting restored after the conversation")
