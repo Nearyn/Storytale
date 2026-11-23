@@ -6599,19 +6599,23 @@ function DWE.OptionsPadRows()
     local scroll = rawget(_G, "DialogueWheelEOptionsScroll")
     local child = scroll and scroll.GetScrollChild and scroll:GetScrollChild()
     -- Categories : la page affichee.
+    local page
     for _, pg in ipairs(DWE.optionPages or {}) do
-        if pg.panel ~= DWE.optionsPanel and pg.panel:IsVisible() then child = pg.child end
+        if pg.panel ~= DWE.optionsPanel and pg.panel:IsVisible() then page = pg; child = pg.child; scroll = pg.scroll end
     end
-    if not (set and dirs and dirs.LEFT and dirs.RIGHT and child) or InCombatLockdown() then return end
+    if not (set and dirs and dirs.LEFT and dirs.RIGHT and dirs.UP and dirs.DOWN and child) or InCombatLockdown() then return end
+    -- Manette : un ordre de lecture fixe, ligne par ligne (la navigation du jeu, laissee seule,
+    -- sautait d'une option a l'autre sans ordre sur cette page). Droite / gauche : l'option voisine
+    -- de la meme ligne ; bas / haut : l'option la plus proche sur la ligne suivante / precedente.
     local items = {}
     local function Walk(fr)
         for _, c in ipairs({ fr:GetChildren() }) do
             local ok, kind = pcall(c.GetObjectType, c)
             if ok and (kind == "Button" or kind == "CheckButton" or kind == "EditBox") then
-                if c:IsVisible() then
+                local okE, en = pcall(function() return not c.IsEnabled or c:IsEnabled() ~= false end)
+                if c:IsVisible() and okE and en then
                     local x, y = c:GetCenter()
-                    local _, h = c:GetSize()
-                    if x and y then items[#items + 1] = { f = c, x = x, y = y, h = h or 20 } end
+                    if x and y then items[#items + 1] = { f = c, x = x, y = y } end
                 end
             elseif ok and c:IsVisible() then
                 Walk(c)
@@ -6619,16 +6623,48 @@ function DWE.OptionsPadRows()
         end
     end
     Walk(child)
+    table.sort(items, function(u, v) if math.abs(u.y - v.y) > 8 then return u.y > v.y end return u.x < v.x end)
+    local rows = {}
     for _, it in ipairs(items) do
-        local right, left
-        for _, o in ipairs(items) do
-            if o ~= it and math.abs(o.y - it.y) <= 8 then
-                if o.x > it.x + 2 and (not right or o.x < right.x) then right = o end
-                if o.x < it.x - 2 and (not left or o.x > left.x) then left = o end
+        local row = rows[#rows]
+        if not row or math.abs(row.y - it.y) > 8 then
+            row = { y = it.y }
+            rows[#rows + 1] = row
+        end
+        row[#row + 1] = it
+        it.row = #rows
+    end
+    local function Nearest(row, x)
+        local best
+        for _, o in ipairs(row or {}) do
+            if not best or math.abs(o.x - x) < math.abs(best.x - x) then best = o end
+        end
+        return best and best.f
+    end
+    for _, row in ipairs(rows) do
+        for i, it in ipairs(row) do
+            pcall(set, it.f, dirs.RIGHT, row[i + 1] and row[i + 1].f or true)
+            pcall(set, it.f, dirs.LEFT, row[i - 1] and row[i - 1].f or nil)
+            -- (Premiere et derniere ligne : on reste sur la page ; sinon la navigation du jeu
+            -- partait sur la minicarte ou d'autres boutons a l'ecran.)
+            pcall(set, it.f, dirs.DOWN, Nearest(rows[it.row + 1], it.x) or true)
+            pcall(set, it.f, dirs.UP, Nearest(rows[it.row - 1], it.x) or true)
+            -- L'option choisie a la manette reste dans la vue (la page defile jusqu'a elle).
+            if not it.f.dweScrollHook and scroll and scroll.GetTop then
+                it.f.dweScrollHook = true
+                local sc, f = scroll, it.f
+                f:HookScript("OnEnter", function()
+                    local top, bottom, sTop, sBottom = f:GetTop(), f:GetBottom(), sc:GetTop(), sc:GetBottom()
+                    if not (top and bottom and sTop and sBottom) then return end
+                    local cur, range = sc:GetVerticalScroll() or 0, sc:GetVerticalScrollRange() or 0
+                    if top > sTop - 4 then
+                        sc:SetVerticalScroll(math.max(0, cur - (top - sTop) - 12))
+                    elseif bottom < sBottom + 4 then
+                        sc:SetVerticalScroll(math.min(range, cur + (sBottom - bottom) + 12))
+                    end
+                end)
             end
         end
-        pcall(set, it.f, dirs.RIGHT, right and right.f or true)
-        pcall(set, it.f, dirs.LEFT, left and left.f or nil)
     end
 end
 

@@ -2681,6 +2681,8 @@ do
     check(got[a] and got[a].right == b, "options pad: right goes to the option on the same line")
     check(got[b] and got[b].left == a and got[b].right == true, "options pad: left back; nothing further right = stay")
     check(got[below] and got[below].right == true, "options pad: no same-line option on the right = stay, never drop to another line")
+    check(got[a] and got[a].down == below and got[below] and got[below].up == a, "options pad: down/up go to the nearest option on the next/previous line")
+    check(got[b] and got[b].down == below, "options pad: down from the right column lands on the line below, not further")
     _G.SmartNavigation_AddJumpNavigationOverride, _G.SMART_NAV_INPUT_DIRECTION, _G.DialogueWheelEOptionsScroll = oldSet, oldDirs, oldScroll
     child:Hide()
 end
