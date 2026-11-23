@@ -1,5 +1,43 @@
 # Changelog / Journal des versions
 
+## 1.6.8
+
+**English**
+
+### New
+- Khadgar's text in Dalaran now shows on its round stone stele, with or without Spoken.
+- The options menu works with a gamepad. Sliders get - and + buttons, and left / right go to the option next to you.
+
+### Improved
+- With a gamepad, Y lights the bookmark ribbon (or the symbol on plaques) while its menu is open.
+- Spoken's reading queue lists each NPC line on its own, so you can play or remove just one.
+- A tip reminds you that Spoken's "Stop When Window Closes" cuts NPCs off when you close the window.
+
+### Fixed
+- Storytale no longer blocks the game's gamepad navigation ("Interface action failed because of an AddOn").
+- No more empty Spoken window flashing when you open a quest.
+- Talking to an NPC again plays their greeting, even when an older copy was waiting in the queue.
+- Tooltips no longer flicker with a gamepad, stay at the mouse, stretch across the screen or flash on the left.
+
+---
+
+**Français**
+
+### Nouveautés
+- Le texte de Khadgar à Dalaran s'affiche sur sa stèle ronde en pierre, avec ou sans Spoken.
+- Le menu des options marche à la manette. Les curseurs ont des boutons - et +, et gauche / droite vont à l'option d'à côté.
+
+### Améliorations
+- À la manette, Y allume le ruban (ou le symbole des plaques) tant que son menu est ouvert.
+- La file de lecture de Spoken montre chaque réplique d'un PNJ séparément : on peut en écouter ou en retirer une seule.
+- Une astuce rappelle que "Stop When Window Closes" dans Spoken coupe les PNJ quand on ferme la fenêtre.
+
+### Corrections
+- Storytale ne bloque plus la navigation manette du jeu ("Interface action failed because of an AddOn").
+- Plus de fenêtre Spoken vide qui apparaît un instant à l'ouverture d'une quête.
+- Reparler à un PNJ fait bien entendre sa salutation, même si une ancienne copie attendait dans la file.
+- Les infobulles ne scintillent plus à la manette, ne restent plus à la souris, ne s'étirent plus et n'apparaissent plus à gauche de l'écran.
+
 ## 1.6.7
 
 **English**

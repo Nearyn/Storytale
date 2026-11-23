@@ -11,7 +11,7 @@ local L = DWE.L
 do
     local EXTRA = { "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose",
         "BookVoiceOff", "RibbonSeen", "GamePad", "PadTipSeen", "PadTips", "DUIPos", "SpokenStyleChosen",
-        "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV" }
+        "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen" }
     DWE.EXTRA_VARS = EXTRA
     local me = ...
     local saver = CreateFrame("Frame")
@@ -1944,6 +1944,8 @@ DWE.padCatcher:SetFrameStrata("FULLSCREEN_DIALOG")
 DWE.padCatcher:SetSize(1, 1)
 DWE.padCatcher:SetPoint("TOPLEFT")
 DWE.padCatcher:Hide()
+-- (Un cadre cache ne recoit rien : celui-ci peut ecouter la manette des le chargement. L'activer
+-- seulement a l'affichage cassait la croix dans la roue.)
 if DWE.padCatcher.EnableGamePadButton then
     DWE.padCatcher:EnableGamePadButton(true)
     -- En combat, on ne peut plus choisir quels boutons laisser passer : on se retire.
@@ -2499,8 +2501,10 @@ do
             or (ui and ui.NoticeShown and ui.NoticeShown()))
         if want and not p:IsShown() then
             p:Show()
+            if DWE.flick then DWE.flick.bind = DWE.flick.bind + 1 end
             for key in pairs(DWE.PAD_PLAYER_KEYS) do SetOverrideBindingClick(p, true, key, "DWE_PadShare") end
         elseif not want and p:IsShown() and not ListOpen() then
+            if DWE.flick then DWE.flick.bind = DWE.flick.bind + 1 end
             ClearOverrideBindings(p)
             p.downAt = nil
             p:Hide()
@@ -2534,24 +2538,22 @@ DWE.padUsed = false
 function DWE.PadInUse()
     -- Un bouton de manette appuye il y a moins de 2 minutes, et rien au clavier ou a la souris depuis.
     if not (DWE.GamePadOn() and DWE.padUsed == true and DWE.padUsedAt) then return false end
+    -- Le jeu dit que la manette est l'appareil actif : vrai tant qu'il ne dit pas le contraire.
+    if DWE.padActive then return true end
     return not GetTime or (GetTime() - DWE.padUsedAt) < 120
 end
 do
     local sense = CreateFrame("Frame", "DWE_PadSense", UIParent)
     sense:SetSize(1, 1)
     sense:SetPoint("TOPLEFT")
-    if sense.EnableGamePadButton then
-        sense:EnableGamePadButton(true)
-        if sense.SetPropagateGamePadInput then pcall(sense.SetPropagateGamePadInput, sense, true) end
-        sense:SetScript("OnGamePadButtonDown", function(_, button)
-            DWE.padUsed, DWE.padUsedAt = true, GetTime and GetTime() or 0
-        end)
-    end
+    -- (Aucun cadre n'ecoute les boutons de la manette en permanence : la navigation manette du
+    -- jeu le voyait et se bloquait. Le jeu signale lui-meme le passage clavier <-> manette.)
     if sense.EnableKeyboard then
         sense:EnableKeyboard(true)
         if sense.SetPropagateKeyboardInput then pcall(sense.SetPropagateKeyboardInput, sense, true) end
         sense:SetScript("OnKeyDown", function(_, key)
             DWE.padUsed = type(key) == "string" and key:find("^PAD") ~= nil
+            DWE.padActive = DWE.padUsed or nil
             if DWE.padUsed then DWE.padUsedAt = GetTime and GetTime() or 0 end
         end)
     end
@@ -2561,8 +2563,9 @@ do
     sense:SetScript("OnEvent", function(_, event, active)
         if event == "GAME_PAD_ACTIVE_CHANGED" then
             DWE.padUsed = active and true or false
+            DWE.padActive = active and true or nil
             if active then DWE.padUsedAt = GetTime and GetTime() or 0 end
-        else DWE.padUsed = false end -- un clic de souris, ou la manette debranchee
+        else DWE.padUsed, DWE.padActive = false, nil end -- un clic de souris, ou la manette debranchee
     end)
 end
 
@@ -2592,18 +2595,19 @@ end
 
 local keysEnabled = false
 
--- Echap ferme la conversation : un cadre invisible inscrit dans UISpecialFrames (la liste
--- des fenetres que le jeu ferme avec Echap, comme les sacs). Il est affiche pendant la
--- conversation ; quand Echap le ferme, on ferme la conversation comme "Au revoir".
--- Aucune touche n'est prise : hors conversation, Echap marche comme d'habitude.
+-- Echap ferme la conversation : un cadre invisible, affiche pendant la conversation, recoit
+-- les touches avant le jeu ; il ne garde qu'Echap (comme "Au revoir"), tout le reste passe.
+-- (Plus dans UISpecialFrames : le jeu y lisait nos cadres et la navigation manette se bloquait.)
+-- Hors conversation, Echap marche comme d'habitude.
 local escCatcher = CreateFrame("Frame", "DialogueWheelEEscapeCatcher", UIParent)
 escCatcher:Hide()
-if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "DialogueWheelEEscapeCatcher") end
-escCatcher:SetScript("OnHide", function(self)
-    if self.silent then self.silent = nil return end
+DWE.EscapeKeys(escCatcher, function(self)
+    self.silent = true
+    self:Hide()
     DWE.CloseAllDialogue()
     DisableKeys()
 end)
+escCatcher:SetScript("OnHide", function(self) self.silent = nil end)
 
 local function ArmEscape()
     if DialogueWheelE_EscClose ~= false then escCatcher:Show() end
@@ -2789,6 +2793,37 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         local log = DWE.lagLog or {}
         DWE.PadShowText(#log > 0 and table.concat(log, "\n") or "(aucun clic mesure)")
         Out("lag : " .. #log .. " clic(s) mesure(s). Ctrl+C dans la fenetre.")
+    elseif msg:match("^%s*padoff") then
+        -- Test : plus aucun cadre de Storytale n'ecoute la manette (jusqu'au /reload).
+        for _, fr in ipairs({ rawget(_G, "DWE_PadSense"), DWE.padCatcher, DWE.padList }) do
+            if fr and fr.EnableGamePadButton and not InCombatLockdown() then pcall(fr.EnableGamePadButton, fr, false) end
+        end
+        DWE.padOff = true
+        Out("manette : Storytale n'ecoute plus aucun bouton jusqu'au /reload (test).")
+    elseif msg:match("^%s*flick") then
+        -- (DWE.FlickWho : d'ou vient chaque affichage / masquage de l'infobulle, 2 exemples de chaque.)
+        -- Diagnostic du scintillement : pendant 6 s, ce qui change (infobulle, cible manette, raccourcis).
+        local fl = { bind = 0, mark = 0, show = 0, hide = 0, soft = 0, cap = 0, fade = 0, who = {}, seen = {} }
+        DWE.flick = fl
+        local w = DWE.flickWatch or CreateFrame("Frame")
+        DWE.flickWatch = w
+        pcall(w.RegisterEvent, w, "PLAYER_SOFT_INTERACT_CHANGED")
+        local lastCap
+        w:SetScript("OnEvent", function() if DWE.flick then DWE.flick.soft = DWE.flick.soft + 1 end end)
+        w:SetScript("OnUpdate", function()
+            local c = DWE.padCatcher and DWE.padCatcher:IsShown() or false
+            if lastCap ~= nil and c ~= lastCap and DWE.flick then DWE.flick.cap = DWE.flick.cap + 1 end
+            lastCap = c
+        end)
+        Out("scintillement : mesure pendant 6 s, vise la stele maintenant...")
+        C_Timer.After(6, function()
+            w:SetScript("OnUpdate", nil)
+            pcall(w.UnregisterAllEvents, w)
+            DWE.flick = nil
+            for _, w2 in ipairs(fl.who) do Out(w2) end
+            Out(string.format("cible=%d infobulle(montre=%d cache=%d ligne=%d estompe=%d) raccourcisShare=%d capteur=%d livre=%s",
+                fl.soft, fl.show, fl.hide, fl.mark, fl.fade, fl.bind, fl.cap, tostring(DWE.bookMode)))
+        end)
     elseif msg:match("^%s*padlog") then
         local out, t0 = {}, GetTime and GetTime() or 0
         for _, e in ipairs(DWE.padLog) do out[#out + 1] = string.format("%.1f ", e.t - t0) .. e.line end
@@ -2964,6 +2999,19 @@ f:SetScript("OnEvent", function(_, event)
         if DialogueWheelE_SpokenTheme == nil then
             local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
             if isLoaded and isLoaded("Spoken") then DialogueWheelE_SpokenTheme = true end
+        end
+        -- (1.6.8) Une seule fois par compte : sans Spoken, une ligne dans le chat le fait connaitre.
+        if not DialogueWheelE_SpokenTipSeen then
+            local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+            local hasSpoken = (isLoaded and isLoaded("Spoken")) or rawget(_G, "SpokenEnv") ~= nil
+            if not hasSpoken then
+                DialogueWheelE_SpokenTipSeen = true
+                local function say()
+                    if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99Storytale|r: " .. L.SPOKEN_TIP) end
+                end
+                DWE.spokenTipSay = say
+                if C_Timer and C_Timer.After then C_Timer.After(8, say) else say() end
+            end
         end
         -- (1.5.3) Les deux themes "parchemin DialogueUI" deviennent le theme DialogueUI (sa vraie interface).
         if DialogueWheelE_Theme == "dui_brown" or DialogueWheelE_Theme == "dui_dark" then DialogueWheelE_Theme = "dui" end
@@ -3245,6 +3293,17 @@ function DWE.BookState(title)
 end
 DWE.READ_ICON = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14|t"
 -- Infobulle d'un objet du monde (livre, plaque) : deja lu, ou commence sans etre fini.
+function DWE.FlickWho(kind)
+    local fl = DWE.flick
+    if not (fl and debugstack) then return end
+    local st = debugstack(3, 4, 0) or ""
+    st = st:gsub("Interface[/\\]AddOns[/\\]", ""):gsub("\n", " < ")
+    st = st:sub(1, 220)
+    local key = kind .. st
+    if fl.seen[key] or #fl.who >= 6 then return end
+    fl.seen[key] = true
+    fl.who[#fl.who + 1] = kind .. ": " .. (st ~= "" and st or "(le jeu)")
+end
 if GameTooltip and GameTooltip.HookScript then
     -- Infobulle d'un livre a la souris (option) : elle suit le curseur, donc l'objet survole.
     local function AtCursor(tt)
@@ -3254,10 +3313,38 @@ if GameTooltip and GameTooltip.HookScript then
         tt:ClearAllPoints()
         tt:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", x / s + 18, y / s + 12)
         tt.dweAnchoring = nil
+        tt.dweCursorPoint = true
+    end
+    -- Plus un livre (autre objet, ou cache) : on retire notre point a la souris. Sans ca, le jeu
+    -- ajoutait le sien a cote (infobulle etiree sur l'ecran) ou l'infobulle suivante restait a
+    -- la souris.
+    local function DropCursorPoint(tt)
+        if not tt.dweCursorPoint then return end
+        tt.dweCursorPoint = nil
+        local keep, mine = {}, false
+        for i = 1, (tt:GetNumPoints() or 0) do
+            local p, rel, rp, x, y = tt:GetPoint(i)
+            if p == "BOTTOMLEFT" and rel == UIParent and rp == "BOTTOMLEFT" then mine = true
+            else keep[#keep + 1] = { p, rel, rp, x, y } end
+        end
+        -- Notre point n'y est plus (le jeu a deja replace l'infobulle) : on n'y touche pas. La
+        -- replacer nous-memes la faisait apparaitre un instant a gauche de l'ecran.
+        if not mine then return end
+        tt.dweAnchoring = true
+        tt:ClearAllPoints()
+        if #keep > 0 then
+            for _, k in ipairs(keep) do tt:SetPoint(k[1], k[2], k[3], k[4], k[5]) end
+        else
+            local box = rawget(_G, "GameTooltipDefaultContainer")
+            if box then tt:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", 0, 0)
+            else tt:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -(CONTAINER_OFFSET_X or 0) - 13, CONTAINER_OFFSET_Y or 0) end
+        end
+        tt.dweAnchoring = nil
     end
     -- Le jeu reecrit l'infobulle d'un objet du monde en continu (elle perdait notre ligne :
     -- clignotement) : on la remet a chaque fois qu'elle manque.
     local function Mark(tt, text, r, g, b)
+        if DWE.flick then DWE.flick.mark = DWE.flick.mark + 1 end
         tt.dweMark = { text, r, g, b }
         DWE.tipBusy = true
         tt:AddLine(text, r, g, b)
@@ -3334,13 +3421,27 @@ if GameTooltip and GameTooltip.HookScript then
         end
     end)
     GameTooltip:HookScript("OnHide", function(tt)
+        -- (Notre point a la souris reste note : la prochaine infobulle le retire quand le jeu
+        -- pose le sien. Le retirer ici laissait l'infobulle suivante sans place une image :
+        -- elle apparaissait a gauche de l'ecran.)
+        if DWE.flick then
+            DWE.flick.hide = DWE.flick.hide + 1
+            DWE.FlickWho("cache")
+        end
         tt.dweAtCursor, tt.dweMark, tt.dweTitle, tt.dweSeen = nil, nil, nil, nil
     end)
     -- Souris partie du livre : le jeu fait s'estomper l'infobulle (et notre Show relance
     -- l'estompage, d'ou une infobulle qui trainait). Pour un livre : disparition immediate.
     if hooksecurefunc and GameTooltip.FadeOut then
         hooksecurefunc(GameTooltip, "FadeOut", function(tt)
-            if tt.dweTitle then tt:Hide() end
+            if DWE.flick then DWE.flick.fade = DWE.flick.fade + 1 end
+            -- Cible a la manette (pas de souris) : le jeu rappelle FadeOut puis Show en continu ;
+            -- la cacher net faisait scintiller l'infobulle. On le laisse faire.
+            -- (Estompages a la chaine, meme fenetre du jeu en arriere-plan : c'est aussi la manette.)
+            local now = GetTime and GetTime() or 0
+            local again = tt.dweFadeAt and (now - tt.dweFadeAt) < 0.5
+            tt.dweFadeAt = now
+            if tt.dweTitle and not again and not (DWE.PadInUse and DWE.PadInUse()) then tt:Hide() end
         end)
     end
     -- Meme image que la reecriture du jeu (il rappelle Show apres SetText) : la ligne et la place
@@ -3372,16 +3473,23 @@ if GameTooltip and GameTooltip.HookScript then
     end
     if hooksecurefunc then
         hooksecurefunc(GameTooltip, "SetPoint", function(tt)
-            if tt.dweAtCursor and not tt.dweAnchoring and tt:GetNumPoints() > 1 then AtCursor(tt) end
+            if tt.dweAnchoring then return end
+            if tt.dweAtCursor then
+                if (tt:GetNumPoints() or 0) > 1 then AtCursor(tt) end
+            elseif tt.dweCursorPoint and (tt:GetNumPoints() or 0) > 1 then
+                DropCursorPoint(tt)
+            end
         end)
     end
     local function Evaluate(tt)
         tt.dweMark, tt.dweTitle = nil, nil
-        if tt.GetUnit and tt:GetUnit() then return end
-        if tt.GetItem and tt:GetItem() then return end
+        -- Une autre infobulle (personnage, objet, autre chose qu'un livre) : plus a la souris.
+        local function NotBook() tt.dweAtCursor = nil; DropCursorPoint(tt) end
+        if tt.GetUnit and tt:GetUnit() then return NotBook() end
+        if tt.GetItem and tt:GetItem() then return NotBook() end
         local line = rawget(_G, "GameTooltipTextLeft1")
         local ok, title = pcall(line and line.GetText or function() end, line)
-        if not ok or type(title) ~= "string" or (issecretvalue and issecretvalue(title)) then return end
+        if not ok or type(title) ~= "string" or (issecretvalue and issecretvalue(title)) then return NotBook() end
         local data = rawget(_G, "SpokenReadablesData")
         local known = DWE.BookState(title) or (type(data) == "table" and type(data.index) == "table" and data.index[title])
         if known and DialogueWheelE_BookTipCursor == true and tt:GetOwner() == UIParent then
@@ -3389,6 +3497,7 @@ if GameTooltip and GameTooltip.HookScript then
             AtCursor(tt)
         else
             tt.dweAtCursor = nil
+            DropCursorPoint(tt)
         end
         tt.dweSeen = title
         if known then tt.dweTitle = title end
@@ -3397,6 +3506,10 @@ if GameTooltip and GameTooltip.HookScript then
     end
     DWE.TipEvaluate = Evaluate
     GameTooltip:HookScript("OnShow", function(tt)
+        if DWE.flick then
+            DWE.flick.show = DWE.flick.show + 1
+            DWE.FlickWho("montre")
+        end
         if DWE.tipBusy then return end
         Evaluate(tt)
     end)
@@ -3404,3 +3517,4 @@ end
 
 -- Evenements surveilles (voir DWE.Guard) : une erreur est notee, jamais coupee.
 if DWE.GuardScripts then DWE.GuardScripts(f, "events") end
+

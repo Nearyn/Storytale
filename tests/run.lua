@@ -140,6 +140,17 @@ check(DialogueWheelE_Extra.CustomColors and DialogueWheelE_Extra.CustomColors.bg
 DialogueWheelE_CustomColors, DialogueWheelE_CustomPresets, DialogueWheelE_GamePad, DialogueWheelE_Extra = nil, nil, nil, nil
 M.FireEvent("PLAYER_LOGIN")
 check(DialogueWheelE_Theme == "bubble" and DialogueWheelE_ShowText == true, "fresh install: Azeroth bubble theme, text shown")
+-- (1.6.8) Sans Spoken : un message unique dans le chat le fait connaitre ; avec Spoken, rien.
+if withSpoken then
+    check(DialogueWheelE_SpokenTipSeen == nil, "Spoken tip: not shown when Spoken is installed")
+else
+    check(DialogueWheelE_SpokenTipSeen == true, "Spoken tip: shown once without Spoken")
+    local before = #chat
+    check(type(DWE.spokenTipSay) == "function", "Spoken tip: queued")
+    if DWE.spokenTipSay then DWE.spokenTipSay() end
+    check(#chat == before + 1 and chat[#chat]:find("Spoken", 1, true), "Spoken tip: line printed in the chat")
+end
+check(type(DWE.L.SPOKEN_TIP) == "string" and DWE.L.SPOKEN_TIP:find("Spoken", 1, true), "Spoken tip text exists")
 -- la suite des tests part de l'ancien reglage (popup cache, theme sans cadre)
 DialogueWheelE_Theme, DialogueWheelE_ShowText = "transparent", nil
 DWE.OnThemeChanged()
@@ -993,6 +1004,7 @@ do -- manette dans un livre : bindings actifs, croix droite tourne la page
     if h and DWE.ribbon:IsShown() then
         h(DWE.padCatcher, "PAD4")
         check(DWE.RibbonPadOpen(), "gamepad Y opens the ribbon menu")
+        check(DWE.ribbon.glowTarget == 0.55, "book: Y lights the ribbon while its menu is open")
         local page = DWE.textBody:GetText()
         h(DWE.padCatcher, "PADDRIGHT")
         check(DWE.textBody:GetText() == page, "d-pad moves in the ribbon menu, not the pages")
@@ -1000,6 +1012,7 @@ do -- manette dans un livre : bindings actifs, croix droite tourne la page
         h(DWE.padCatcher, "PAD1") -- toggle back
         h(DWE.padCatcher, "PAD2")
         check(not DWE.ribbon.open, "gamepad B closes the ribbon menu")
+        check((DWE.ribbon.glowTarget or 0) <= 0.35, "book: ribbon light goes off with its menu")
         check(DWE.textBox:IsShown(), "B on the ribbon menu keeps the book open")
     end
     M.cvars.GamePadEnable = nil; DWE.RefreshBindings()
@@ -1163,7 +1176,63 @@ do
     local nb = 0
     for _, o in ipairs(DWE.currentOptions) do if o.rawLabel == DWE.L.NEXT_PAGE or o.rawLabel == DWE.L.PREV_PAGE then nb = nb + 1 end end
     check(nb == 0, "note: no page buttons")
+    check(DWE.noteText:GetJustifyH() == "LEFT" and not DWE.NOTE.noteHi:IsShown(), "note: text left-aligned, no bevel layer")
     M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
+    -- Plaque ronde de Dalaran : texte centre, police anguleuse du jeu, reflet grave.
+    local oldPM = DWE.PlateMaterial
+    DWE.PlateMaterial = function() return "Dalaran" end
+    M.FireEvent("ITEM_TEXT_BEGIN"); M.FireEvent("ITEM_TEXT_READY")
+    local hi = DWE.NOTE.noteHi
+    check(DWE.noteText:GetJustifyH() == "CENTER" and (tostring((DWE.noteText:GetFont())):find("SKURRI") ~= nil) == not DWE.IS_CJK,
+        "Dalaran plate: centered text in the angular game font (" .. tostring((DWE.noteText:GetFont())) .. ")")
+    check(DWE.RoundNow() and DWE.NoteScale() == DWE.ROUND_DEFAULT.scale, "Dalaran plate: its own default size")
+    DialogueWheelE_RibbonSeen, DialogueWheelE_RoundRibbonSeen = true, nil
+    DWE.ribbon.pulse = nil
+    DWE.UpdateRibbon(true)
+    local rib = DWE.ribbon
+    check(not rib:IsShown() or (DialogueWheelE_RoundRibbonSeen == true and rib.pulse ~= nil), "Dalaran plate: its symbol pulses the first time, even after the book ribbon was seen")
+    rib.pulse = nil
+    check(not rib:IsShown() or tostring(rib.glow._texture):find("PlateDalaranGlow") ~= nil,
+        "Dalaran plate: its symbol opens the reading options (" .. tostring(rib:IsShown()) .. " " .. tostring(rib.glow._texture) .. ")")
+    DialogueWheelE_RoundScale, DialogueWheelE_NoteScale = 0.3, nil
+    check(DWE.NoteScale() == 0.3, "Dalaran plate: can be made much smaller than other plates")
+    DWE.UpdateTextPanelVisuals()
+    check(DWE.IS_CJK or tostring((DWE.noteText:GetFont())):find("FRIZQT") ~= nil, "Dalaran plate, very small: sharp interface font")
+    check(DWE.BarScale(0.3) == 0.8 and DWE.BarScale(1.2) == 1.2, "Dalaran plate: its buttons stay readable when it is small")
+    DWE.BookPosSet({ point = "TOPLEFT", relPoint = "BOTTOMLEFT", x = 10, y = 20 })
+    check(DialogueWheelE_RoundPos and DialogueWheelE_RoundPos.x == 10 and DialogueWheelE_BookPos == nil, "Dalaran plate: its own place, other notes keep theirs")
+    DialogueWheelE_RoundScale, DialogueWheelE_RoundPos = nil, nil
+    DWE.UpdateTextPanelVisuals()
+    local sx, sy = DWE.noteText:GetShadowOffset()
+    local sc0 = DWE.NoteScale()
+    check(not hi:IsShown() and sx < 0 and sy > 0 and math.abs(sx * sc0 + 1) < 0.01, "Dalaran plate: light letters, the carved shadow one real pixel on their upper-left edge")
+    M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
+    DWE.PlateMaterial = oldPM
+    M.FireEvent("ITEM_TEXT_BEGIN"); M.FireEvent("ITEM_TEXT_READY")
+    check(not hi:IsShown() and DWE.noteText:GetJustifyH() == "LEFT", "plain note again: no bevel, left-aligned")
+    M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
+    -- Y a la manette, pour chaque sorte de texte : le symbole s'allume menu ouvert, s'eteint ferme,
+    -- et ne clignote pas la premiere fois.
+    local oldUse = DWE.PadInUse
+    DWE.PadInUse = function() return true end
+    for _, mat in ipairs({ false, "Stone", "Dalaran" }) do
+        DWE.PlateMaterial = function() return mat or nil end
+        M.FireEvent("ITEM_TEXT_BEGIN"); M.FireEvent("ITEM_TEXT_READY")
+        DialogueWheelE_RibbonSeen, DialogueWheelE_RoundRibbonSeen = nil, nil
+        rib.pulse = nil
+        DWE.UpdateRibbon(true)
+        local name = mat or "parchment"
+        if rib:IsShown() then
+            check(rib.pulse == nil, name .. ": no first-time blink on the gamepad")
+            if DWE.RibbonPadToggle() and rib.open then
+                check(rib.glowTarget == 0.55, name .. ": Y lights the symbol while the menu is open")
+                DWE.RibbonPadToggle()
+                check(not rib.open and (rib.glowTarget or 0) <= 0.35, name .. ": light off when the menu closes")
+            end
+        end
+        M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
+    end
+    DWE.PadInUse, DWE.PlateMaterial = oldUse, oldPM
 end
 
 -- Game refuses anchoring (last: disables tracking for the session)
@@ -1347,16 +1416,23 @@ do
     C_Item.GetItemInfo = saved
 end
 
--- Escape closes the conversation cleanly (UISpecialFrames, no key binding)
+-- Escape closes the conversation cleanly (own key catcher, no key binding, nothing in
+-- UISpecialFrames: the game read our names there and the gamepad navigation got blocked)
 local function PressEscape()
-    for _, name in ipairs(UISpecialFrames) do local fr = _G[name] if fr and fr:IsShown() then fr:Hide() end end
+    local fr = DialogueWheelEEscapeCatcher
+    local fn = fr and fr._scripts and fr._scripts.OnKeyDown
+    if fr:IsShown() and fn then fn(fr, "ESCAPE") end
 end
-check(#UISpecialFrames >= 1, "catcher registered in UISpecialFrames")
+local mine = false
+for _, n in ipairs(UISpecialFrames or {}) do if n == "DialogueWheelEEscapeCatcher" or n == "StorytaleSpokenQueue" then mine = true end end
+check(not mine, "nothing of Storytale in UISpecialFrames")
 M.log = {}
 M.gossipText = "Hi"; M.gossipOptions = {}; M.availQuests = {}; M.activeQuests = {}
 M.FireEvent("GOSSIP_SHOW")
 check(DialogueWheelEEscapeCatcher:IsShown(), "Escape armed during conversation")
 check(M.bindings.ESCAPE == nil, "Escape key not taken over")
+DialogueWheelEEscapeCatcher._scripts.OnKeyDown(DialogueWheelEEscapeCatcher, "W")
+check(DialogueWheelEEscapeCatcher:IsShown() and DWE.choiceBox:IsShown(), "other keys pass through, conversation stays")
 PressEscape()
 local closed = false
 for _, l in ipairs(M.log) do if l == "CloseGossip" then closed = true end end
@@ -1521,6 +1597,58 @@ if withSpoken then
         DWE.SpokenFocus.forced = nil
         local groups = DWE.SpokenFocus.Groups()
         check(groups[1] and groups[1].manual == true, "manual hold: marked in the queue list")
+        -- Chaque replique d'un PNJ a sa ligne : on en retire une seule.
+        do
+            local q1 = { present = { bullet = "quest", header = "Old NPC", label = "A Donation of Wool" }, key = "q:1", id = 901 }
+            local q2 = { present = { bullet = "quest", header = "Old NPC", label = "A Donation of Silk" }, key = "q:2", id = 902 }
+            queue.sounds = { q1, q2 }
+            local g2 = DWE.SpokenFocus.Groups()
+            check(#g2 == 2 and g2[1].label:find("Wool", 1, true) and g2[2].label:find("Silk", 1, true),
+                "queue: each NPC line listed on its own (" .. tostring(#g2) .. ")")
+            local gone = {}
+            local oldRm = queue.RemoveSoundFromQueue
+            function queue:RemoveSoundFromQueue(c) gone[#gone + 1] = c end
+            DWE.SpokenFocus.CloseGroup(g2[2].key)
+            check(#gone == 1 and gone[1] == q2, "queue: closing a line removes only that line")
+            queue.RemoveSoundFromQueue = oldRm
+            DWE.SpokenFocus.forcedClip = nil
+        end
+        -- La meme replique redeclenchee remplace sa copie retenue (sinon Spoken refuse le doublon).
+        do
+            local held = { priority = "normal", dweManual = true, present = { bullet = "gossip", header = "Elf" }, key = "g:elf" }
+            local other = { priority = "normal", dweManual = true, present = { bullet = "gossip", header = "Dwarf" }, key = "g:dwarf" }
+            queue.sounds = { held, other }
+            local gone, added = {}, nil
+            local oldRm, oldAdd, oldWrap = queue.RemoveSoundFromQueue, queue.Add, queue.dweWrapped
+            function queue:RemoveSoundFromQueue(c) gone[#gone + 1] = c; for i, x in ipairs(self.sounds) do if x == c then table.remove(self.sounds, i) break end end end
+            function queue:Add(c) for _, x in ipairs(self.sounds) do if x.key == c.key then return nil, "duplicate" end end added = c; return c end
+            queue.dweWrapped = nil
+            DWE.SpokenFocus.installed = nil
+            DWE.SpokenFocus.npc = false
+            M.FireEvent("GOSSIP_SHOW")
+            local again = { priority = "low", present = { bullet = "gossip", header = "Elf" }, key = "g:elf" }
+            local r = queue:Add(again)
+            check(r == again and added == again and #gone == 1 and gone[1] == held,
+                "same line triggered again replaces its held copy (only that one)")
+            M.FireEvent("GOSSIP_CLOSED"); M.RunTimers()
+            queue.RemoveSoundFromQueue, queue.Add, queue.dweWrapped = oldRm, oldAdd, oldWrap
+            DWE.SpokenFocus.installed = nil
+        end
+        -- Page de quete ouverte, la ligne pas encore arrivee : lecteur cache (pas de salutation vide).
+        do
+            local F = DWE.SpokenFocus
+            local stopped = { priority = "low", present = { bullet = "gossip", header = "Elf" }, key = "g:elf2" }
+            queue.sounds = { stopped }
+            local oldNow = queue.GetNowPlaying
+            function queue:GetNowPlaying() return nil end
+            F.npc = true
+            F.WatchPage("QUEST_DETAIL")
+            check(F.QuestWaiting() == true, "quest page: player hidden while only a stopped greeting waits")
+            F.lineSeq = (F.lineSeq or 0) + 1
+            check(F.QuestWaiting() == false, "quest page: player back once the quest line arrives")
+            F.npc = false
+            queue.GetNowPlaying = oldNow
+        end
         -- Livre lu en entier : face a un PNJ, il ne reprend plus tout seul.
         local done = { present = { bullet = "book", label = "Finished Tome" }, key = "b:fin" }
         DialogueWheelE_ReadBooks = nil
@@ -2355,9 +2483,9 @@ end
 do
     local oldSR, oldPl = rawget(_G, "SpokenReadables"), rawget(_G, "SpokenReadablesPlaces")
     _G.SpokenReadablesPlaces = { books = { [58] = { type = "tablet", zones = { 1434 } }, [752] = { type = "tablet", zones = { 1411 } },
-        [1091] = { type = "tablet", zones = { 1446 }, dungeons = { 209 } }, [20] = { type = "journal", zones = { 1434 } } } }
+        [1091] = { type = "tablet", zones = { 1446 }, dungeons = { 209 } }, [20] = { type = "journal", zones = { 1434 } }, [289] = { type = "plaque", zones = { 1416, 1453 } }, [78] = { type = "plaque", zones = { 1420 }, dungeons = { 189 } }, [2676] = { type = "plaque", zones = { 1453 } } } }
     local onScreen = 1
-    _G.SpokenReadables = { Data = function() return { pages = { [1] = { book = 58 }, [2] = { book = 752 }, [3] = { book = 1091 }, [4] = { book = 20 } } } end,
+    _G.SpokenReadables = { Data = function() return { pages = { [1] = { book = 58 }, [2] = { book = 752 }, [3] = { book = 1091 }, [4] = { book = 20 }, [5] = { book = 289 }, [6] = { book = 78 }, [7] = { book = 2676 } } } end,
         PageOnScreen = function() return onScreen end }
     check(DWE.TrollTablet(1) == "Troll" and DWE.TrollTablet(3) == "Troll" and DWE.TrollTablet(2) == "Tablet" and not DWE.TrollTablet(4), "troll tablets told apart from other tablets and books")
     local oldMat, oldMode = _G.ItemTextGetMaterial, DWE.bookMode
@@ -2366,10 +2494,45 @@ do
     check(DWE.RawPlate() == "Troll", "an open troll tablet takes the troll stele")
     onScreen = 2
     check(DWE.RawPlate() == "Tablet", "another tablet takes the plain stele")
+    onScreen = 5
+    local oldMap = C_Map and C_Map.GetBestMapForUnit
+    _G.C_Map = _G.C_Map or {}
+    local here = 1416
+    C_Map.GetBestMapForUnit = function() return here end
+    check(DWE.RawPlate() == "Dalaran", "Khadgar's text read at Dalaran takes the round stone stele")
+    check(DWE.TrollTablet(5) == "Dalaran", "Spoken's player knows the Dalaran stele too")
+    here = 1453
+    check(DWE.RawPlate() == "Bronze", "the same text read in Stormwind stays a bronze plaque")
+    here = 1429
+    check(DWE.RawPlate() == "Stone", "the same text elsewhere: stone")
+    here = 1416
+    onScreen = 6
+    check(DWE.RawPlate() == "Stone", "another plaque the game calls parchment stays stone")
+    onScreen = 7
+    check(DWE.RawPlate() == "Stone", "a Stormwind plaque that is not a hero statue stays stone")
+    _G.ItemTextGetMaterial = function() return "Bronze" end
+    onScreen = 5
+    check(DWE.RawPlate() == "Bronze", "a plaque the game calls bronze keeps its bronze")
+    -- Storytale seul (sans Spoken Readables) : la stele de Khadgar d'apres son titre.
+    do
+        local sr, pl, item = _G.SpokenReadables, _G.SpokenReadablesPlaces, _G.ItemTextGetItem
+        _G.SpokenReadables, _G.SpokenReadablesPlaces = nil, nil
+        _G.ItemTextGetMaterial = function() return "Parchment" end
+        _G.ItemTextGetItem = function() return "Archimage Khadgar" end
+        here = 1416
+        check(DWE.RawPlate() == "Dalaran", "standalone: Khadgar's text at Dalaran still takes the round stele")
+        here = 1453
+        check(DWE.RawPlate() ~= "Dalaran", "standalone: not the round stele in Stormwind")
+        here = 1416
+        _G.ItemTextGetItem = function() return "Some Letter" end
+        check(DWE.RawPlate() ~= "Dalaran", "standalone: another text at Dalaran keeps its own look")
+        _G.SpokenReadables, _G.SpokenReadablesPlaces, _G.ItemTextGetItem = sr, pl, item
+    end
+    C_Map.GetBestMapForUnit = oldMap
     _G.ItemTextGetMaterial, DWE.bookMode = oldMat, oldMode
     _G.SpokenReadables, _G.SpokenReadablesPlaces = oldSR, oldPl
     DWE.lastPlate = nil
-    check(M.addonDir == nil or io.open(M.addonDir .. "/PlateTroll.png", "rb") ~= nil and io.open(M.addonDir .. "/PlateTrollS.png", "rb") ~= nil and io.open(M.addonDir .. "/PlateTablet.png", "rb") ~= nil, "troll stele textures shipped")
+    check(M.addonDir == nil or io.open(M.addonDir .. "/PlateTroll.png", "rb") ~= nil and io.open(M.addonDir .. "/PlateTrollS.png", "rb") ~= nil and io.open(M.addonDir .. "/PlateTablet.png", "rb") ~= nil and io.open(M.addonDir .. "/PlateDalaran.png", "rb") ~= nil and io.open(M.addonDir .. "/PlateDalaranS.png", "rb") ~= nil and io.open(M.addonDir .. "/PlateDalaranGlow.png", "rb") ~= nil, "troll stele textures shipped")
 end
 -- Texte HTML d'une tombe : seulement le texte.
 do
@@ -2397,6 +2560,96 @@ do
     local pl = DWE.THEME_STYLES and DWE.PLATES.Bronze and DWE.PLATE_MARK.Bronze
     check(pl == "|cff1f4a3a", "bronze keeps its green read mark")
     check(DWE.memorialPetals and (M.addonDir == nil or io.open(M.addonDir .. "/MemorialPetals.png", "rb") ~= nil), "memorial petals ready")
+end
+-- Aucun cadre cache n'ecoute la manette (la navigation manette du jeu se bloquait).
+do
+    local sense, cat, list = rawget(_G, "DWE_PadSense"), DWE.padCatcher, DWE.padList
+    if sense and cat and cat.IsGamePadButtonEnabled then
+        check(not sense:IsGamePadButtonEnabled(), "pad sense: never listens to gamepad buttons")
+        check(cat:IsGamePadButtonEnabled() and list:IsGamePadButtonEnabled(), "conversation and queue pad frames listen (they only receive while shown)")
+        DWE.padActive, DWE.padUsed, DWE.padUsedAt = true, true, -1000
+        local oldOn = DWE.GamePadOn
+        DWE.GamePadOn = function() return true end
+        check(DWE.PadInUse(), "gamepad active per the game: in use without a recent press")
+        DWE.GamePadOn = oldOn
+        DWE.padActive, DWE.padUsed = nil, false
+    end
+end
+-- Infobulle a la souris (livres) : un personnage ou un autre objet ensuite ne reste pas a la
+-- souris, et l'infobulle n'a jamais deux ancres (etiree sur l'ecran).
+if DWE.TipEvaluate and GameTooltip then
+    local tt = GameTooltip
+    local other = CreateFrame("Frame", "TipBoxTest", UIParent)
+    tt:ClearAllPoints()
+    tt:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 100, 100)
+    tt:SetPoint("BOTTOMRIGHT", other, "BOTTOMRIGHT", 0, 0)
+    tt.dweAtCursor, tt.dweCursorPoint = true, true
+    local oldUnit = tt.GetUnit
+    tt.GetUnit = function() return "Dalaran Conjuror", "npc" end
+    DWE.TipEvaluate(tt)
+    local p1, rel = tt:GetPoint(1)
+    check(not tt.dweAtCursor and tt:GetNumPoints() == 1 and p1 == "BOTTOMRIGHT" and rel == other,
+        "tooltip: a character after a book is no longer at the mouse, one anchor only")
+    tt.GetUnit = oldUnit
+    local oldUse = DWE.PadInUse
+    DWE.PadInUse = function() return true end
+    _G.GameTooltipTextLeft1 = _G.GameTooltipTextLeft1 or CreateFrame("Frame")
+    local oldGT = GameTooltipTextLeft1.GetText
+    DWE.MarkBook("Tooltip Test Stele", true)
+    GameTooltipTextLeft1.GetText = function() return "Tooltip Test Stele" end
+    DialogueWheelE_BookTipCursor = true
+    tt.GetOwner = function() return UIParent end
+    DWE.TipEvaluate(tt)
+    check(tt.dweAtCursor == true and tt:GetNumPoints() == 1, "tooltip: a book's tooltip still follows the cursor (mouse or gamepad)")
+    DialogueWheelE_BookTipCursor = nil
+    GameTooltipTextLeft1.GetText = oldGT
+    DWE.PadInUse = oldUse
+end
+-- Curseurs des options : boutons - et + (la navigation manette ne s'arrete que sur des boutons).
+do
+    local sl = rawget(_G, "DWESliderFont")
+    if sl and sl.dwePlus then
+        local before = sl:GetValue()
+        sl.dwePlus._scripts.OnClick(sl.dwePlus)
+        check(sl:GetValue() == math.min(22, before + 1), "options slider: + steps up")
+        sl.dweMinus._scripts.OnClick(sl.dweMinus)
+        check(sl:GetValue() == before, "options slider: - steps back")
+    else
+        check(false, "options slider has - and + buttons")
+    end
+end
+-- Fenetre de livre du jeu cachee : les boutons de Spoken Readables posees dessus ne prennent
+-- plus la souris (leur infobulle apparaissait a gauche de l'ecran).
+do
+    local itf = rawget(_G, "ItemTextFrame") or CreateFrame("Frame", "ItemTextFrame", UIParent)
+    _G.ItemTextFrame = itf
+    local oldSR = rawget(_G, "SpokenReadables")
+    local btn = CreateFrame("Button", nil, itf)
+    local refreshed = false
+    _G.SpokenReadables = { playButton = btn, RefreshPlayButton = function() refreshed = true; btn:Show() end }
+    btn:Show()
+    DWE.HideExtras(itf, true)
+    check(not btn:IsShown(), "hidden game book: Spoken Readables' Play button hidden (no gamepad focus, no tooltip)")
+    DWE.HideExtras(itf, false)
+    check(refreshed and btn:IsShown(), "game book shown again: Spoken Readables puts its button back")
+    _G.SpokenReadables = oldSR
+end
+-- Options a la manette : droite va a l'option voisine sur la meme ligne, pas sur celle du dessous.
+do
+    local got = {}
+    local oldSet, oldDirs, oldScroll = rawget(_G, "SmartNavigation_AddJumpNavigationOverride"), rawget(_G, "SMART_NAV_INPUT_DIRECTION"), rawget(_G, "DialogueWheelEOptionsScroll")
+    _G.SMART_NAV_INPUT_DIRECTION = { LEFT = { dirKey = "left" }, RIGHT = { dirKey = "right" }, UP = { dirKey = "up" }, DOWN = { dirKey = "down" } }
+    _G.SmartNavigation_AddJumpNavigationOverride = function(b, d, t) got[b] = got[b] or {}; got[b][d.dirKey] = t end
+    local child = CreateFrame("Frame", nil, UIParent)
+    local function Box(x, y) local c = CreateFrame("CheckButton", nil, child); c._cx, c._cy = x, y; c:SetSize(26, 26); return c end
+    local a, b, below, belowRight = Box(100, 500), Box(400, 500), Box(100, 470), Box(250, 460)
+    _G.DialogueWheelEOptionsScroll = { GetScrollChild = function() return child end }
+    DWE.OptionsPadRows()
+    check(got[a] and got[a].right == b, "options pad: right goes to the option on the same line")
+    check(got[b] and got[b].left == a and got[b].right == true, "options pad: left back; nothing further right = stay")
+    check(got[below] and got[below].right == true, "options pad: no same-line option on the right = stay, never drop to another line")
+    _G.SmartNavigation_AddJumpNavigationOverride, _G.SMART_NAV_INPUT_DIRECTION, _G.DialogueWheelEOptionsScroll = oldSet, oldDirs, oldScroll
+    child:Hide()
 end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))

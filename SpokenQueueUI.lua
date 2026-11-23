@@ -41,7 +41,8 @@ local function BuildList()
     f:SetBackdropColor(.07, .065, .05, .98)
     f:SetBackdropBorderColor(.6, .57, .48, 1)
     f:Hide()
-    table.insert(UISpecialFrames, "StorytaleSpokenQueue")
+    -- Echap la ferme (sans UISpecialFrames : voir DWE.EscapeKeys).
+    if DWE.EscapeKeys then DWE.EscapeKeys(f, function(self) self:Hide() end) end
     -- Fermee (souris, Echap, manette ou vide) : la manette rend ses boutons au jeu.
     f:SetScript("OnHide", function()
         UI.padIdx = nil
@@ -445,7 +446,7 @@ end
 function UI.UpdateNotice()
     local fo = Focus()
     local n = fo and fo.HeldOnly and fo.HeldOnly() or 0
-    if DWE.SetSpokenHeldHide then DWE.SetSpokenHeldHide(n > 0) end
+    if DWE.SetSpokenHeldHide then DWE.SetSpokenHeldHide(n > 0 or (fo and fo.QuestWaiting and fo.QuestWaiting()) or false) end
     if n == 0 then
         if notice:IsShown() then notice:Hide() end
         return

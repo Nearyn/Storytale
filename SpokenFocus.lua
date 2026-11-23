@@ -85,13 +85,17 @@ local function PushSpeaker(who)
     while #st > 8 do table.remove(st) end
 end
 local function Rank(clip)
+    -- Une replique choisie dans la file passe devant tout, meme les autres du meme PNJ.
+    if Focus.forcedClip and clip == Focus.forcedClip then return -1 end
     if Focus.forced and GroupKey(clip) == Focus.forced then return 0 end
     if IsBook(clip) then return 2000 end
+    -- Entre deux repliques d'un meme PNJ : sa quete passe avant sa salutation.
+    local greet = IsGreeting(clip) and 0.5 or 0
     local who = SpeakerOf(clip)
     if who then
-        for i, s in ipairs(Focus.stack) do if s == who then return i end end
+        for i, s in ipairs(Focus.stack) do if s == who then return i + greet end end
     end
-    return 1000
+    return 1000 + greet
 end
 local function FocusLineQueued(queue)
     local who = Focus.speaker
@@ -105,7 +109,10 @@ end
 local function Reorder(queue)
     local t = queue.sounds
     if type(t) ~= "table" or #t < 2 then return end
-    local from = (queue.IsPlaying and queue:IsPlaying()) and 2 or 1
+    -- La replique qui joue (ou demarre) reste en tete : Spoken montre celle-la.
+    local playing = (queue.IsPlaying and queue:IsPlaying())
+        or (queue.GetNowPlaying and queue:GetNowPlaying() ~= nil)
+    local from = playing and 2 or 1
     local rest = {}
     for i = from, #t do rest[#rest + 1] = t[i] end
     table.sort(rest, function(a, b)
@@ -393,6 +400,21 @@ function Focus.Install()
         local origAdd = queue.Add
         queue.Add = function(self, clip, source, front)
             if not Focus.Smart() then return origAdd(self, clip, source, front) end
+            -- La meme replique redemandee (on reparle au PNJ) alors que sa copie attend, retenue,
+            -- dans la file : Spoken refuserait le doublon et le PNJ resterait muet. La nouvelle
+            -- remplace l'ancienne (seulement la meme replique, et jamais celle qui parle).
+            if type(clip) == "table" and clip.key ~= nil then
+                for _, c in ipairs(self.sounds or {}) do
+                    if c ~= clip and c.key == clip.key then
+                        local now = self.GetNowPlaying and self:GetNowPlaying()
+                        if c.dweManual and c ~= now and type(self.RemoveSoundFromQueue) == "function" then
+                            Log("held line replaced: " .. tostring(SpeakerOf(c)))
+                            pcall(self.RemoveSoundFromQueue, self, c)
+                        end
+                        break
+                    end
+                end
+            end
             -- Ligne de quete d'un PNJ que l'on vient de quitter (Spoken la lit ~0.4 s apres
             -- l'ouverture de la fenetre) : on parle deja a quelqu'un d'autre, elle n'a pas
             -- commence, on l'ignore. Sauf si Spoken lit les quetes a la fermeture (voulu).
@@ -614,6 +636,11 @@ end
 function Focus.WatchPage(event)
     event = event or "GOSSIP_SHOW"
     local quest = event == "QUEST_DETAIL" or event == "QUEST_PROGRESS" or event == "QUEST_COMPLETE"
+    if quest and GetTime then
+        Focus.questWaitUntil, Focus.questWaitSeq = GetTime() + 2, Focus.lineSeq or 0
+        local ui = DWE.SpokenQueueUI
+        if ui and ui.installed and ui.UpdateNotice then pcall(ui.UpdateNotice) end
+    end
     if not (C_Timer and C_Timer.After and UnitGUID) or not Focus.Smart() then return end
     local guid, seq = UnitGUID("npc"), Focus.lineSeq or 0
     if not guid then return end
@@ -731,6 +758,23 @@ end
 
 -- Plus rien ne parle et tout ce qui attend est "a la demande" : le lecteur de Spoken n'a rien
 -- a montrer (Storytale le cache et affiche a la place un petit bouton discret).
+-- Page de quete ouverte : Spoken ne lit son texte qu'un peu apres (~0.5 s). Entre-temps, son
+-- lecteur montrerait la salutation arretee (fenetre vide) : on le cache jusqu'a ce que la ligne
+-- de la quete arrive (2 s au plus).
+function Focus.QuestWaiting()
+    if not Focus.questWaitUntil then return false end
+    if not Focus.npc or (Focus.lineSeq or 0) ~= Focus.questWaitSeq
+        or (GetTime and GetTime() or 0) > Focus.questWaitUntil then
+        Focus.questWaitUntil = nil
+        return false
+    end
+    local _, queue = Env()
+    local now = queue and queue.GetNowPlaying and queue:GetNowPlaying()
+    if now and not IsGreeting(now) then return false end
+    local head = queue and queue.sounds and queue.sounds[1]
+    return head == nil or IsGreeting(head)
+end
+
 function Focus.HeldOnly()
     local _, queue = Env()
     if not queue then return 0 end
@@ -746,13 +790,27 @@ end
 
 -- File de lecture (petit lecteur de Spoken) ------------------------------------------------
 -- Les groupes en attente, dans l'ordre de lecture : { key, label, book, count, current }.
+-- Les livres restent groupes (toutes leurs pages) ; chaque replique d'un PNJ a sa propre ligne,
+-- pour pouvoir en retirer ou en ecouter une seule.
+Focus.lineClips = {}
 function Focus.Groups()
     local _, queue = Env()
     local list, byKey = {}, {}
+    Focus.lineClips = {}
     if not queue then return list end
     for i, c in ipairs(queue.sounds or {}) do
         local key = GroupKey(c)
-        if key then
+        if key and not IsBook(c) then
+            local p = type(c.present) == "table" and c.present or {}
+            local who = SpeakerOf(c)
+            local what = p.label ~= "" and p.label or p.title
+            local label = who and what and what ~= who and (who .. " - " .. tostring(what)) or who or what or p.header
+            local lk = "line:" .. tostring(c.id or i) .. ":" .. tostring(c)
+            Focus.lineClips[lk] = c
+            list[#list + 1] = { key = lk, label = tostring(label or "?"), book = false, count = 1,
+                current = (i == 1 and queue.IsPlaying and queue:IsPlaying()) and true or false,
+                manual = c.dweManual and true or false }
+        elseif key then
             local g = byKey[key]
             if not g then
                 local p = type(c.present) == "table" and c.present or {}
@@ -773,6 +831,11 @@ function Focus.Groups()
 end
 -- Ecouter ce groupe maintenant : il passe devant, celui qui parlait attend sa place.
 function Focus.PlayGroup(key)
+    local line = type(key) == "string" and key:match("^line:") and Focus.lineClips[key]
+    if line then
+        Focus.forcedClip = line
+        key = GroupKey(line)
+    end
     local api, queue = Env()
     if not queue or not GroupQueued(queue, key) then return end
     Focus.Install()
@@ -796,6 +859,14 @@ end
 function Focus.CloseGroup(key)
     local _, queue = Env()
     if not queue or type(queue.RemoveSoundFromQueue) ~= "function" then return end
+    local line = type(key) == "string" and key:match("^line:") and Focus.lineClips[key]
+    if line then
+        Log("close line " .. key)
+        if Focus.forcedClip == line then Focus.forcedClip = nil end
+        pcall(queue.RemoveSoundFromQueue, queue, line)
+        Wake()
+        return
+    end
     Log("close group " .. key)
     if Focus.forced == key then Focus.forced = nil end
     for i = #(queue.sounds or {}), 1, -1 do

@@ -39,6 +39,10 @@ function Object:GetParent() return self._parent end
 function Object:SetParent(p) self._parent = p end
 function Object:IsForbidden() return false end
 function Object:GetObjectType() return self._kind end
+function Object:SetValue(v) self._value = v end
+function Object:GetValue() return self._value end
+function Object:EnableGamePadButton(on) self._padBtn = on and true or false end
+function Object:IsGamePadButtonEnabled() return self._padBtn == true end
 function Object:Show() local was = self._shown; self._shown = true; if not was then M.Fire(self, "OnShow") end end
 function Object:Hide() local was = self._shown; self._shown = false; if was then M.Fire(self, "OnHide") end end
 function Object:SetShown(v) if v then self:Show() else self:Hide() end end
@@ -64,7 +68,8 @@ function Object:UnregisterAllEvents() self._events = {} end
 function Object:IsEventRegistered(e) return self._events[e] == true end
 function Object:SetText(t) self._text = t end
 function Object:SetTextColor(r, g, b) self._color = string.format("%.2f,%.2f,%.2f", r, g, b) end
-function Object:SetShadowOffset(x, y) self._shadow = x end
+function Object:SetShadowOffset(x, y) self._shadow = x; self._shadowY = y end
+function Object:GetShadowOffset() return self._shadow or 0, self._shadowY or 0 end
 if os.getenv("NOGRADIENT") ~= "1" then
     function Object:SetAlphaGradient(start, len) self._grad = start; self._gradLen = len; return true end
 end
@@ -92,6 +97,7 @@ function Object:SetPoint(...)
     table.insert(self._points, { ... })
 end
 function Object:ClearAllPoints() self._points = {} end
+function Object:GetNumPoints() return #(self._points or {}) end
 function Object:GetPoint(i)
     local p = self._points and self._points[i or 1]
     if not p then return "CENTER", nil, "CENTER", 0, 0 end

@@ -1017,6 +1017,36 @@ for loc, v in pairs({
 }) do if T[loc] then T[loc].GRAVE_READ, T[loc].GRAVE_NEW = v[1], v[2] end end
 for loc, v in pairs({ frFR = "Je me recueille…", deDE = "Ich halte inne…", esES = "Estoy presentando mis respetos…", esMX = "Estoy presentando mis respetos…", itIT = "Sto rendendo omaggio…", ptBR = "Estou prestando minhas homenagens…", ruRU = "Я чту память…", koKR = "추모하는 중이다…", zhCN = "我正在致敬……", zhTW = "我正在致敬……" }) do if T[loc] then T[loc].GRAVE_READING = v end end
 
+-- Astuce sous "File de lecture intelligente".
+enUS.SPOKEN_SMART_HINT = "Tip: to let NPCs finish their line when you close the window, uncheck \"Stop When Window Closes\" in Spoken's options."
+for loc, v in pairs({
+    frFR = "Astuce : pour laisser les PNJ finir leur phrase quand vous fermez la fenêtre, décochez « Stop When Window Closes » dans les options de Spoken.",
+    deDE = "Tipp: Damit NPCs ihren Satz beim Schließen des Fensters beenden, deaktiviere „Stop When Window Closes“ in den Optionen von Spoken.",
+    esES = "Consejo: para que los PNJ terminen su frase al cerrar la ventana, desmarca «Stop When Window Closes» en las opciones de Spoken.",
+    esMX = "Consejo: para que los PNJ terminen su frase al cerrar la ventana, desmarca «Stop When Window Closes» en las opciones de Spoken.",
+    itIT = "Suggerimento: per lasciare che i PNG finiscano la frase quando chiudi la finestra, deseleziona «Stop When Window Closes» nelle opzioni di Spoken.",
+    ptBR = "Dica: para os NPCs terminarem a frase ao fechar a janela, desmarque «Stop When Window Closes» nas opções do Spoken.",
+    ruRU = "Совет: чтобы NPC договаривали фразу при закрытии окна, снимите «Stop When Window Closes» в настройках Spoken.",
+    koKR = "팁: 창을 닫아도 NPC가 말을 끝내게 하려면 Spoken 설정에서 「Stop When Window Closes」를 해제하세요.",
+    zhCN = "提示：若要在关闭窗口时让 NPC 说完，请在 Spoken 的选项中取消勾选「Stop When Window Closes」。",
+    zhTW = "提示：若要在關閉視窗時讓 NPC 說完，請在 Spoken 的選項中取消勾選「Stop When Window Closes」。",
+}) do if T[loc] then T[loc].SPOKEN_SMART_HINT = v end end
+
+-- Message unique dans le chat quand Spoken n'est pas installe.
+enUS.SPOKEN_TIP = "Storytale pairs well with |cffffd200Spoken|r, which gives a voice to NPCs, quests and books. You'll find it on CurseForge."
+for loc, v in pairs({
+    frFR = "Storytale s'accorde très bien avec |cffffd200Spoken|r, qui donne une voix aux PNJ, aux quêtes et aux livres. Vous le trouverez sur CurseForge.",
+    deDE = "Storytale passt wunderbar zu |cffffd200Spoken|r, das NPCs, Quests und Büchern eine Stimme gibt. Du findest es auf CurseForge.",
+    esES = "Storytale combina muy bien con |cffffd200Spoken|r, que da voz a los PNJ, las misiones y los libros. Lo encontrarás en CurseForge.",
+    esMX = "Storytale combina muy bien con |cffffd200Spoken|r, que da voz a los PNJ, las misiones y los libros. Lo encontrarás en CurseForge.",
+    itIT = "Storytale si abbina benissimo a |cffffd200Spoken|r, che dà voce a PNG, missioni e libri. Lo trovi su CurseForge.",
+    ptBR = "Storytale combina muito bem com o |cffffd200Spoken|r, que dá voz aos NPCs, às missões e aos livros. Você o encontra no CurseForge.",
+    ruRU = "Storytale отлично сочетается со |cffffd200Spoken|r, который озвучивает NPC, задания и книги. Его можно найти на CurseForge.",
+    koKR = "Storytale은 NPC, 퀘스트, 책에 목소리를 입혀 주는 |cffffd200Spoken|r과 잘 어울립니다. CurseForge에서 찾을 수 있습니다.",
+    zhCN = "Storytale 与 |cffffd200Spoken|r 搭配效果很好，它能为 NPC、任务和书籍配音。可在 CurseForge 上找到。",
+    zhTW = "Storytale 與 |cffffd200Spoken|r 搭配效果很好，它能為 NPC、任務和書籍配音。可在 CurseForge 上找到。",
+}) do if T[loc] then T[loc].SPOKEN_TIP = v end end
+
 local own = T[LOCALE] or {}
 DWE.L = setmetatable({}, { __index = function(_, k)
     return GAME[k] or own[k] or enUS[k]

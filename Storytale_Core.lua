@@ -1295,6 +1295,30 @@ end
 -- infobulles) et sans portrait flottant ; remontree : tout revient.
 function DWE.HideExtras(frame, hidden)
     if DWE.IsDUIFrame(frame) then DWE.CutMouse(frame, hidden) return end
+    -- Fenetre de livre du jeu, invisible sous le livre de Storytale : les boutons que Spoken
+    -- Readables y pose (Lire / Arreter, Compendium) restaient actifs, invisibles. La navigation
+    -- manette du jeu (et la souris) s'y posait, et leur infobulle ("Stop reading this")
+    -- apparaissait un instant a gauche de l'ecran. Ils sont caches tant que la fenetre l'est.
+    if frame == rawget(_G, "ItemTextFrame") then
+        DWE.itfCut = hidden or nil
+        local sr = rawget(_G, "SpokenReadables")
+        if type(sr) ~= "table" then return end
+        for _, b in ipairs({ sr.playButton, sr.openButton }) do
+            if type(b) == "table" and b.Hide then
+                if not b.dweShowHooked and hooksecurefunc then
+                    b.dweShowHooked = true
+                    hooksecurefunc(b, "Show", function(self) if DWE.itfCut then self:Hide() end end)
+                    if b.SetShown then
+                        hooksecurefunc(b, "SetShown", function(self, on) if on and DWE.itfCut then self:Hide() end end)
+                    end
+                end
+                if hidden then b:Hide() end
+            end
+        end
+        -- Fenetre du jeu visible a nouveau : Spoken Readables remet ses boutons comme il faut.
+        if not hidden and type(sr.RefreshPlayButton) == "function" then pcall(sr.RefreshPlayButton, sr) end
+        return
+    end
     if DWE.IsSpokenFrame(frame) then
         DWE.CutMouse(frame, hidden)
         DWE.HideModels(frame, hidden)
@@ -1313,13 +1337,30 @@ local function WatchFrame(frame, alwaysWithWheel)
         if a > 0 and ShouldHide(alwaysWithWheel, s) then
             s:SetAlpha(0)
             DWE.HideExtras(s, true)
-        elseif a > 0 and (s.dweMouseCut or s.dweModelsHidden) then
+        elseif a > 0 and (s.dweMouseCut or s.dweModelsHidden or (DWE.itfCut and s == rawget(_G, "ItemTextFrame"))) then
             DWE.HideExtras(s, false)
         end
     end))
     if frame.HookScript then
         frame:HookScript("OnShow", function(s) ApplyAlpha(s, alwaysWithWheel) end)
     end
+end
+
+-- Echap pour une fenetre de l'addon, sans UISpecialFrames (le jeu lit cette liste dans du code
+-- protege : nos noms y propageaient la "contamination" jusqu'a la navigation manette). Le cadre,
+-- affiche, recoit les touches avant le jeu : il garde Echap, laisse passer tout le reste.
+-- En combat, le jeu interdit de garder une touche : Echap passe aussi au jeu.
+function DWE.EscapeKeys(fr, onEscape)
+    if not (fr and fr.EnableKeyboard) then return end
+    fr:EnableKeyboard(true)
+    if fr.SetPropagateKeyboardInput then pcall(fr.SetPropagateKeyboardInput, fr, true) end
+    fr:SetScript("OnKeyDown", function(self, key)
+        local mine = key == "ESCAPE"
+        if self.SetPropagateKeyboardInput and not InCombatLockdown() then
+            pcall(self.SetPropagateKeyboardInput, self, not mine)
+        end
+        if mine then onEscape(self) end
+    end)
 end
 
 -- Cache / remontre les lecteurs de Spoken (bascule "rien que des lignes a la demande").
@@ -1522,7 +1563,7 @@ function DWE.SpokenStamp()
     return clip.dweStamp
 end
 -- Mot lu par Spoken sur une plaque de l'addon : couleur propre a la matiere (neutre, aucun camp).
-DWE.PLATE_MARK = { Stone = "|cff7a5a1e", Marble = "|cff8c6a1a", Silver = "|cff6e5418", Bronze = "|cff1f4a3a" }
+DWE.PLATE_MARK = { Stone = "|cff7a5a1e", Marble = "|cff8c6a1a", Silver = "|cff6e5418", Bronze = "|cff1f4a3a", Dalaran = "|cffd9c2ff" }
 function DWE.SpokenPlateMat()
     local st = DWE.SpokenStamp()
     if st then return st.override and st.mat or nil end
@@ -1608,13 +1649,16 @@ local SPOKEN_STYLE_ALIAS = { bubble = "spk_bubble", bubble_fantasy = "spk_fantas
     transparent = "spk_transparent", cinema = "spk_cinema" }
 -- Style "plaque" de la matiere `mat` (petite taille : texture S, marges divisees par 2).
 local function PlateStyle(mat)
+    -- Disque rond : la petite fenetre (etiree en largeur) prend sa version rectangulaire, ou
+    -- la plaque de pierre.
+    if mat and DWE.PLATES[mat] and DWE.PLATES[mat].round and not DWE.PLATES[mat].mini then mat = "Stone" end
     local pl = mat and DWE.PLATES[mat]
     if not pl then return nil end
     local id = "plate_" .. mat
     if not THEME_STYLES[id] then
-        local sl = pl.slice
+        local sl = pl.mini and pl.mini.slice or pl.slice
         local h = { math.floor(sl[1] / 2), math.floor(sl[2] / 2), math.floor(sl[3] / 2), math.floor(sl[4] / 2) }
-        local ins = pl.inner or sl
+        local ins = pl.mini and pl.mini.inner or pl.inner or sl
         local q = { math.floor(ins[1] / 2), math.floor(ins[2] / 2), math.floor(ins[3] / 2), math.floor(ins[4] / 2) }
         THEME_STYLES[id] = {
             tex = ADDON_PATH .. pl.tex .. "S.png", slice = h,
@@ -2876,6 +2920,9 @@ DWE.PLATES = {
     Marble = { tex = "PlateMarble", slice = { 62, 66, 62, 67 }, body = { 0.22, 0.22, 0.25 }, hdr = { 0.14, 0.14, 0.17 }, rule = { 0.35, 0.35, 0.40, 0.45 }, engrave = { 1, 1, 1, 0.6 } },
     Bronze = { tex = "PlateBronze", slice = { 68, 68, 68, 66 }, body = { 0.20, 0.13, 0.03 }, hdr = { 0.14, 0.09, 0.02 }, rule = { 0.30, 0.20, 0.05, 0.45 }, engrave = { 1, 0.94, 0.75, 0.55 } },
     Silver = { tex = "PlateSilver", slice = { 48, 48, 48, 55 }, body = { 0.16, 0.17, 0.19 }, hdr = { 0.10, 0.11, 0.13 }, rule = { 0.25, 0.26, 0.30, 0.45 }, engrave = { 1, 1, 1, 0.6 } },
+    -- Disque grave de Dalaran (plaques des statues des heros) : rond, il ne s'etire pas, il grandit.
+    Dalaran = { tex = "PlateDalaran", round = true, slice = { 0, 0, 0, 0 }, body = { 0.62, 0.71, 0.81 }, hdr = { 0.67, 0.76, 0.86 }, rule = { 0.02, 0.04, 0.09, 0.35 }, engrave = { 0.01, 0.02, 0.05, 0.9 }, engraveOffset = { -1, 1 },
+        mini = { slice = { 124, 124, 124, 124 }, inner = { 136, 96, 136, 96 } } },
     -- Steles trolles (pas une matiere du jeu : reconnues par les donnees de Spoken Readables).
     Troll = { tex = "PlateTroll", slice = { 124, 124, 124, 124 }, inner = { 92, 96, 92, 96 }, body = { 0.20, 0.11, 0.03 }, hdr = { 0.13, 0.07, 0.02 }, rule = { 0.36, 0.20, 0.06, 0.45 }, engrave = { 1, 0.92, 0.72, 0.5 } },
     Tablet = { tex = "PlateTablet", slice = { 124, 124, 124, 124 }, inner = { 92, 96, 92, 96 }, body = { 0.20, 0.11, 0.03 }, hdr = { 0.13, 0.07, 0.02 }, rule = { 0.36, 0.20, 0.06, 0.45 }, engrave = { 1, 0.92, 0.72, 0.5 } },
@@ -2883,6 +2930,9 @@ DWE.PLATES = {
 -- Zones et donjons des tablettes trolles (Strangleronce, Zul'Farrak).
 DWE.TROLL_ZONES, DWE.TROLL_DUNGEONS = { [1434] = true }, { [209] = true }
 -- La page `pageId` de Spoken Readables est-elle une tablette trolle ?
+-- Supports d'un texte selon la carte ou on le lit : texte de Khadgar (livre 289 de Spoken),
+-- stele ronde dans les montagnes d'Alterac (Dalaran), plaque de bronze a Hurlevent.
+DWE.ROUND_PLAQUES = { [289] = { [1416] = "Dalaran", [1453] = "Bronze" } }
 function DWE.TrollTablet(pageId)
     if not pageId then return false end
     local sr = rawget(_G, "SpokenReadables")
@@ -2891,20 +2941,48 @@ function DWE.TrollTablet(pageId)
     local ok, data = pcall(sr.Data, sr)
     local page = ok and type(data) == "table" and type(data.pages) == "table" and data.pages[pageId]
     local entry = type(page) == "table" and places.books[page.book]
-    if type(entry) ~= "table" or entry.type ~= "tablet" then return false end
+    if type(entry) ~= "table" then return false end
+    -- Plaque ou tombe que le jeu donne pour du parchemin : de la pierre gravee. Un meme texte
+    -- peut exister sur deux supports : c'est l'endroit ou on le lit qui decide (le texte de
+    -- Khadgar est une stele ronde a Dalaran, une plaque de bronze a Hurlevent).
+    if entry.type == "plaque" then
+        local where = DWE.ROUND_PLAQUES[page.book]
+        local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+        if where and map then
+            if where[map] then return where[map], "plaque" end
+        end
+    end
+    if entry.type == "plaque" or entry.type == "grave" then return "Stone", entry.type end
+    if entry.type ~= "tablet" then return false end
     for _, z in ipairs(entry.zones or {}) do if DWE.TROLL_ZONES[z] then return "Troll" end end
     for _, d in ipairs(entry.dungeons or {}) do if DWE.TROLL_DUNGEONS[d] then return "Troll" end end
     return "Tablet" -- autre tablette (quetes de classe) : la stele sans gravures
 end
 -- Le texte ouvert est-il une tablette trolle ? (sans Spoken : d'apres son titre)
+-- Sans Spoken Readables, le texte de Khadgar se reconnait a son titre (toutes langues).
+DWE.KHADGAR_NAMES = { "Khadgar", "Кадгар", "카드가", "卡德加" }
 function DWE.OpenTrollTablet()
     local sr = rawget(_G, "SpokenReadables")
     if type(sr) == "table" and sr.PageOnScreen then
         local ok, id = pcall(sr.PageOnScreen, sr)
-        if ok and id then return DWE.TrollTablet(id) end
+        if ok and id then
+            local plate, kind = DWE.TrollTablet(id)
+            if plate then return plate, kind end
+        end
     end
+    -- Storytale seul : d'apres le titre et l'endroit.
     local title = ItemTextGetItem and ItemTextGetItem()
-    return type(title) == "string" and not (issecretvalue and issecretvalue(title)) and title:find("Troll Legend", 1, true) and "Troll" or false
+    if type(title) ~= "string" or (issecretvalue and issecretvalue(title)) then return false end
+    if title:find("Troll Legend", 1, true) then return "Troll" end
+    for _, w in ipairs(DWE.KHADGAR_NAMES) do
+        if title:find(w, 1, true) then
+            local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+            local where = map and DWE.ROUND_PLAQUES[289][map]
+            if where then return where, "plaque" end
+            break
+        end
+    end
+    return false
 end
 function DWE.RawPlate()
     if DWE.testPlate and (DWE.bookMode or (ItemTextGetMaterial and ItemTextGetMaterial())) then
@@ -2916,7 +2994,9 @@ function DWE.RawPlate()
     -- du meme texte (le lecteur Spoken se redessine apres).
     local ok, m = pcall(ItemTextGetMaterial)
     -- Tablette trolle : le jeu la donne pour du parchemin (ou rien) ; on lui met sa stele.
-    if ok and DWE.bookMode and not (type(m) == "string" and DWE.PLATES[m]) then m = DWE.OpenTrollTablet() or m end
+    if ok and DWE.bookMode and not (type(m) == "string" and DWE.PLATES[m]) then
+        m = DWE.OpenTrollTablet() or m
+    end
     if ok and type(m) == "string" and m ~= "" then
         -- Matiere choisie dans les options pour toutes les plaques (sinon celle du jeu).
         local pick = DialogueWheelE_PlateLook
@@ -2970,7 +3050,7 @@ DWE.SplitHalf = SplitHalf
 
 local function BookPosition()
     if textBox.dweMoving then return end
-    local p = DialogueWheelE_BookPos
+    local p = DWE.BookPosGet()
     if type(p) == "table" and p.x then
         textBox:ClearAllPoints()
         textBox:SetPoint(p.point, UIParent, p.relPoint, p.x, p.y)
@@ -2981,6 +3061,16 @@ local function BookPosition()
     local okW, uw = pcall(UIParent.GetWidth, UIParent)
     uw = (okW and type(uw) == "number") and uw or 1600
     textBox:ClearAllPoints()
+    if DWE.RoundNow() and textBox.dweOuter and textBox.dwePadL then
+        local okH, uh = pcall(UIParent.GetHeight, UIParent)
+        uh = (okH and type(uh) == "number") and uh or 768
+        local sc, d = DWE.NoteScale(), DWE.ROUND_DEFAULT
+        local o = textBox.dweOuter
+        local x = uw * d.cx / sc - (o / 2 - textBox.dwePadL)
+        local y = uh * d.cy / sc + (o / 2 - textBox.dwePadT)
+        textBox:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x, y)
+        return
+    end
     if textBox.dweBook == "note" then
         -- Notes et plaques : la place choisie par l'auteur (a droite, un peu au-dessus du milieu).
         local ns = DWE.NoteScale()
@@ -3014,16 +3104,43 @@ end
 -- Appele regulierement : replace le livre quand le lecteur apparait ou s'en va.
 function DWE.BookAvoidSpoken()
     if not (DWE.bookMode and DWE.BookByAddon() and textBox:IsShown()) or textBox.dweBook == "note" then return end
-    if type(DialogueWheelE_BookPos) == "table" and DialogueWheelE_BookPos.x then return end
+    local bp = DWE.BookPosGet()
+    if type(bp) == "table" and bp.x then return end
     local now = DWE.SpokenSideFrame() and true or false
     if now ~= (DWE.bookAvoided or false) then BookPosition() end
 end
 
 -- Echelle du livre ouvert (poignee du coin). Le coin haut-gauche reste en place.
 -- Taille des notes et plaques (poignee), a part de celle des livres ouverts.
+-- La stele ronde (Dalaran) a sa propre taille et sa propre place : son disque est plus grand
+-- que les autres plaques, et il peut descendre bien plus bas.
+-- Par defaut : la taille et la place choisies par l'auteur, en proportions de l'ecran (centre
+-- du disque a 78 % de la largeur, 54 % de la hauteur), pour tomber au meme endroit partout.
+DWE.ROUND_DEFAULT = { scale = 0.57, cx = 0.7818, cy = 0.5386 }
+function DWE.RoundNow() return textBox.dweBook == "note" and textBox.dweRound and true or false end
+-- Plus petite taille de la stele ronde : libre, au choix du joueur.
+function DWE.RoundMinScale()
+    return 0.2
+end
 function DWE.NoteScale()
+    if DWE.RoundNow() then
+        local r = tonumber(DialogueWheelE_RoundScale)
+        r = (r and r <= 2) and r or DWE.ROUND_DEFAULT.scale
+        return math.max(r, DWE.RoundMinScale())
+    end
     local v = tonumber(DialogueWheelE_NoteScale)
     return (v and v >= 0.6 and v <= 2) and v or 0.77 -- taille par defaut : 77 %
+end
+function DWE.BookPosGet()
+    if DWE.RoundNow() then
+        local r = DialogueWheelE_RoundPos
+        if type(r) == "table" and r.x then return r end
+        return DWE.ROUND_DEFAULT.pos
+    end
+    return DialogueWheelE_BookPos
+end
+function DWE.BookPosSet(v)
+    if DWE.RoundNow() then DialogueWheelE_RoundPos = v else DialogueWheelE_BookPos = v end
 end
 function DWE.BookScaleWanted()
     local v = tonumber(DialogueWheelE_BookScale)
@@ -3032,17 +3149,38 @@ end
 -- keepCorner : seulement depuis la poignee (le coin haut-gauche reste sous la souris). Sinon
 -- (ouverture, fermeture) on change juste l'echelle : BookPosition remet la position sauvee,
 -- qui est dans l'echelle du livre.
+-- Boutons sous et sur la stele ronde : jamais sous 80 %, pour rester lisibles quand on la
+-- reduit beaucoup.
+function DWE.BarScale(sc)
+    return DWE.RoundNow() and math.max(sc, 0.8) or sc
+end
 function DWE.SetBookScale(sc, keepCorner)
     local cur = textBox:GetScale() or 1
-    if DWE.bookBar then DWE.bookBar:SetScale(sc) end
+    -- Le triangle de redimensionnement garde la meme taille a l'ecran, quelle que soit l'echelle.
+    if textBox.dweGrip and sc > 0 then textBox.dweGrip:SetScale(1 / sc) end
+    if DWE.bookBar then DWE.bookBar:SetScale(DWE.BarScale(sc)) end
+    if DWE.ribbonBar then DWE.ribbonBar:SetScale(DWE.BarScale(sc) / sc) end
     if math.abs(cur - sc) < 0.001 then return end
     local okL, l = pcall(textBox.GetLeft, textBox)
     local okT, t = pcall(textBox.GetTop, textBox)
     textBox:SetScale(sc)
     if keepCorner and okL and okT and type(l) == "number" and type(t) == "number" and DWE.bookMode then
+        local x, y = l * cur / sc, t * cur / sc
+        -- Stele ronde : c'est le coin haut-gauche du disque qui reste en place (le coin oppose
+        -- suit alors exactement la souris).
+        if DWE.RoundNow() and textBox.dwePadL and textBox.dwePadT then
+            x = (l - textBox.dwePadL) * cur / sc + textBox.dwePadL
+            y = (t + textBox.dwePadT) * cur / sc - textBox.dwePadT
+        end
         textBox:ClearAllPoints()
-        textBox:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", l * cur / sc, t * cur / sc)
-        DialogueWheelE_BookPos = { point = "TOPLEFT", relPoint = "BOTTOMLEFT", x = l * cur / sc, y = t * cur / sc }
+        textBox:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x, y)
+        DWE.BookPosSet({ point = "TOPLEFT", relPoint = "BOTTOMLEFT", x = x, y = y })
+    end
+    -- La barre du bas suit le bas du disque (sans tout reconstruire pendant le glisser).
+    local bb = DWE.bookBar
+    if bb and DWE.RoundNow() and bb:IsShown() then
+        bb:ClearAllPoints()
+        bb:SetPoint("TOP", textBox, "BOTTOM", 0, -((textBox.dwePadB or 0) + 6) * sc / (bb:GetScale() or 1))
     end
 end
 
@@ -3088,6 +3226,13 @@ NOTE.noteText:SetPoint("TOPLEFT", NOTE.noteChild, "TOPLEFT", 0, 0)
 NOTE.noteText:SetWidth(NOTE_W)
 NOTE.noteText:SetTextColor(0.17, 0.10, 0.04)
 NOTE.noteText:SetShadowOffset(0, 0)
+-- Plaque ronde : reflet clair decale en haut a gauche, sous le texte (lettres taillees en biseau).
+NOTE.noteHi = NOTE.noteChild:CreateFontString(nil, "ARTWORK")
+NOTE.noteHi:SetFontObject(questFontObj)
+NOTE.noteHi:SetSpacing(5)
+NOTE.noteHi:SetPoint("TOPLEFT", NOTE.noteChild, "TOPLEFT", -1, 1)
+NOTE.noteHi:SetShadowOffset(0, 0)
+NOTE.noteHi:Hide()
 NOTE.noteThumb = noteScroll:CreateTexture(nil, "OVERLAY")
 NOTE.noteThumb:SetColorTexture(0.42, 0.26, 0.10, 0.45)
 NOTE.noteThumb:SetWidth(3)
@@ -3162,6 +3307,12 @@ noteScroll:SetScript("OnMouseWheel", function(_, delta) DWE.NoteScrollBy(delta) 
 noteScroll:EnableMouse(true)
 noteScroll:SetScript("OnMouseDown", function(self, button)
     if button ~= "LeftButton" then return end
+    -- Rien a faire defiler (stele ronde, note courte) : on deplace la fenetre, comme ailleurs.
+    if DWE.RoundNow() or (NOTE.Range() or 0) <= 0 then
+        self.moveWin = true
+        DWE.DragStart("text")
+        return
+    end
     local _, y = GetCursorPosition()
     self.drag = { y = y / UIParent:GetEffectiveScale(), v = self:GetVerticalScroll() or 0 }
     NOTE.manual, NOTE.manualAt = true, GetTime()
@@ -3175,6 +3326,7 @@ noteScroll:SetScript("OnMouseDown", function(self, button)
     end)
 end)
 noteScroll:SetScript("OnMouseUp", function(self)
+    if self.moveWin then self.moveWin = nil; DWE.DragStop("text") end
     self.drag = nil
     self:SetScript("OnUpdate", nil)
 end)
@@ -3194,13 +3346,23 @@ local function LayoutNote()
     bookL:Hide()
     textBody2:Hide()
     textBox.dweBook = "note"
+    local early = DWE.PLATES[DWE.PlateMaterial() or ""]
+    textBox.dweRound = early and early.round or nil
     DWE.SetBookScale(DWE.NoteScale())
     textBox:SetWidth(NOTE_W)
     MorpheusTitle()
     local plate = DWE.PLATES[DWE.PlateMaterial() or ""]
     -- Plaque : le symbole grave (bouton des reglages) occupe le haut, centre, au-dessus du titre,
     -- comme l'ornement d'un monument.
-    local glyphSpace = plate and 40 or 0
+    local round = plate and plate.round
+    -- Stele ronde reduite : le texte ne descend jamais sous une taille lisible a l'ecran (13).
+    -- Toute la mise en page grossit avec lui, donc le disque garde sa forme ; en dessous, c'est
+    -- le plus petit disque qui contient le texte lisible.
+    local roundK = 1 -- (taille libre : la stele se reduit d'un bloc, texte compris)
+    -- Stele tres reduite (texte sous 12 a l'ecran) : police d'interface nette au lieu de Skurri,
+    -- texte un peu plus clair.
+    local roundSmall = round and ((tonumber(DialogueWheelE_FontSize) or 13) + 9) * DWE.NoteScale() < 12
+    local glyphSpace = (plate and not round) and 40 or 0
     textHeader:ClearAllPoints()
     textHeader:SetPoint("TOPLEFT", textBox, "TOPLEFT", 0, -2 - glyphSpace)
     textHeader:SetPoint("TOPRIGHT", textBox, "TOPRIGHT", 0, -2 - glyphSpace)
@@ -3209,13 +3371,24 @@ local function LayoutNote()
     local hdrC = plate and plate.hdr or { 0.40, 0.16, 0.04 } -- meme rouge-brun que le titre du livre
     local ruleC = plate and plate.rule or { 0.42, 0.26, 0.10, 0.55 }
     textHeader:SetTextColor(hdrC[1], hdrC[2], hdrC[3])
-    NOTE.noteText:SetTextColor(bodyC[1], bodyC[2], bodyC[3])
+    if roundSmall then
+        NOTE.noteText:SetTextColor(math.min(1, bodyC[1] * 1.18), math.min(1, bodyC[2] * 1.18), math.min(1, bodyC[3] * 1.18))
+    else
+        NOTE.noteText:SetTextColor(bodyC[1], bodyC[2], bodyC[3])
+    end
     -- Texte grave : un liseré clair en bas a droite des lettres sombres.
+    if round and not DWE.IS_CJK then
+        local hp = (DWE.IS_CYRILLIC and "Fonts\\MORPHEUS_CYR.TTF") or "Fonts\\MORPHEUS.TTF"
+        SafeSetFont(textHeader, hp, math.floor(((tonumber(DialogueWheelE_FontSize) or 13) + 17) * roundK + 0.5))
+    end
     local eg = plate and plate.engrave
     for _, fs in ipairs({ textHeader, NOTE.noteText }) do
         if eg then
             fs:SetShadowColor(eg[1], eg[2], eg[3], eg[4])
-            fs:SetShadowOffset(1, -1)
+            -- Lettres claires (Dalaran) : l'ombre du creux tombe sur leur bord haut-gauche.
+            local eo = plate.engraveOffset
+            local px = (round and DWE.NoteScale() < 1) and (1 / DWE.NoteScale()) or 1
+            fs:SetShadowOffset((eo and eo[1] or 1) * px, (eo and eo[2] or -1) * px)
         else
             fs:SetShadowColor(0, 0, 0, 1)
             fs:SetShadowOffset(0, 0)
@@ -3249,7 +3422,8 @@ local function LayoutNote()
     noteRule:SetHeight(1)
     noteRule:SetPoint("TOPLEFT", textHeader, "BOTTOMLEFT", 0, -10)
     noteRule:SetPoint("TOPRIGHT", textHeader, "BOTTOMRIGHT", 0, -10)
-    noteRule:Show()
+    -- Pas de trait sous le titre de la stele ronde : il coupait la pierre.
+    noteRule:SetShown(not round)
     notePage:Hide()
     bookPageNum:Hide() -- (numero du livre ouvert : la note montre toutes les pages)
     -- Tout le texte dans une zone qui defile (pas de pages).
@@ -3258,30 +3432,76 @@ local function LayoutNote()
     local font, size = textBody:GetFont()
     local nsc = DWE.NoteScale()
     local nbase = tonumber(DialogueWheelE_FontSize) or size or 13
-    local nsz = nsc < 0.98 and math.floor(nbase / (nsc ^ 0.9) + 0.5) or nbase
+    -- (Pas pour la stele ronde : elle se reduit d'un bloc, sinon le disque grandit autour d'un
+    -- texte devenu enorme.)
+    local nsz = (nsc < 0.98 and not round) and math.floor(nbase / (nsc ^ 0.9) + 0.5) or nbase
+    -- Plaque ronde (Dalaran) : la police anguleuse du jeu (Skurri), proche des runes gravees.
+    if round and not DWE.IS_CJK then
+        font, nsz = (DWE.IS_CYRILLIC and "Fonts\\SKURRI_CYR.TTF") or "Fonts\\SKURRI.TTF", math.floor((nsz + 9) * roundK + 0.5)
+        if roundSmall then font = "Fonts\\FRIZQT__.TTF"; nsz = nsz - 3 end
+    end
     if font then pcall(NOTE.noteText.SetFont, NOTE.noteText, font, nsz, "") end
     local hFont, hSize = textHeader:GetFont()
-    if nsc < 0.98 and hFont and hSize and not DWE.IS_CJK then
+    if nsc < 0.98 and hFont and hSize and not DWE.IS_CJK and not round then
         SafeSetFont(textHeader, hFont, math.floor(hSize / (nsc ^ 0.6) + 0.5))
     end
     local body = DWE.bookRawBody or ""
+    -- Texte centre par le jeu (epitaphe en HTML align="center"), ou plaque ronde : centre ici.
+    NOTE.noteText:SetJustifyH((DWE.bookCentered or round) and "CENTER" or "LEFT")
     if NOTE.noteText.dweLast ~= body then
         NOTE.noteText.dweLast = body
-        -- Texte centre par le jeu (epitaphe en HTML align="center") : centre aussi ici.
-        NOTE.noteText:SetJustifyH(DWE.bookCentered and "CENTER" or "LEFT")
         NOTE.noteText:SetText(body)
         noteScroll:SetVerticalScroll(0)
     end
+    local hi = NOTE.noteHi
+    if round and plate.bevel then
+        local bv = plate.bevel
+        if font then pcall(hi.SetFont, hi, font, nsz, "") end
+        hi:SetJustifyH("CENTER")
+        hi:SetTextColor(bv[1], bv[2], bv[3], bv[4])
+        hi:SetText(body)
+        hi:Show()
+    else
+        hi:Hide()
+    end
+    -- Disque : la largeur du texte est choisie pour que le bloc soit a peu pres carre (il tient
+    -- dans le cercle) ; le disque grandit avec le texte.
+    local noteW = NOTE_W
+    if round then
+        for w = math.floor(220 * roundK), math.floor(520 * roundK), math.floor(20 * roundK) do
+            noteW = w
+            NOTE.noteText:SetWidth(w)
+            NOTE.noteHi:SetWidth(w)
+            textBox:SetWidth(w)
+            local hh = TextHeight(textHeader, 22) + 24 + TextHeight(NOTE.noteText, 20)
+            if hh <= w * 0.9 then break end
+        end
+    else
+        NOTE.noteText:SetWidth(NOTE_W)
+    end
+    NOTE.noteChild:SetWidth(noteW)
     local th = TextHeight(NOTE.noteText, 20)
     NOTE.noteChild:SetHeight(th)
-    local view = math.min(th, NOTE_MAX_H)
+    local view = round and th or math.min(th, NOTE_MAX_H)
     noteScroll:ClearAllPoints()
     noteScroll:SetPoint("TOPLEFT", noteRule, "BOTTOMLEFT", 0, -14)
-    noteScroll:SetSize(NOTE_W, math.max(20, view))
+    noteScroll:SetSize(noteW, math.max(20, view))
     noteScroll:Show()
     NOTE.PlaceThumb()
     local h = TextHeight(textHeader, 22) + 24 + view + glyphSpace
-    textBox:SetHeight(math.max(160, h))
+    textBox:SetHeight(round and h or math.max(160, h))
+    if round then
+        -- Le symbole grave occupe le haut du disque (jusqu'a 28 %) : le texte commence juste
+        -- dessous, et le disque grandit avec le texte.
+        -- (Les runes gravees en bas, la "signature", commencent a 73 % : le texte s'arrete avant.)
+        local outer = math.max(noteW / 0.52, h / 0.42)
+        local side = (outer - noteW) / 2
+        local top = outer * 0.295
+        padL, padR, padT, padB = side, side, top, outer - h - top
+        textBox.dwePadB = padB
+        textBox.dweOuter = outer -- taille du disque (poignee de redimensionnement)
+        textBox.dwePadL, textBox.dwePadT = padL, padT
+    end
     textBox.dweGripAnchor, textBox.dweGripX, textBox.dweGripY = noteBg, 0, 0
     textBox.dweNoGrip = nil
     noteBg:ClearAllPoints()
@@ -3702,12 +3922,15 @@ do
             list[#list + 1] = { label = L.MENU_VOICE, on = not muted,
                 icon = muted and "Interface\\Common\\VoiceChat-Muted" or "Interface\\Common\\VoiceChat-Speaker",
                 click = function() focus.SetBookMuted(not focus.bookMuted) end }
+            -- (Pas sur la stele ronde : tout son texte est affiche, il n'y a rien a faire defiler.)
+            if not DWE.RoundNow() then
             list[#list + 1] = { label = L.AUTOSCROLL_START, on = DialogueWheelE_BookAutoScroll ~= false, off = muted,
                 icon = "Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up",
                 click = function()
                     DialogueWheelE_BookAutoScroll = DialogueWheelE_BookAutoScroll == false
                     if DWE.NoteFollowReset then DWE.NoteFollowReset() end
                 end }
+            end
             if textBox.dweBook == true then
                 list[#list + 1] = { label = L.MENU_VOICE_TURN, on = DialogueWheelE_BookVoiceTurn == true, off = muted,
                     icon = "Interface\\Icons\\INV_Misc_Book_07",
@@ -3856,6 +4079,11 @@ do
     local function Close()
         bar.padIdx = nil
         for _, b in ipairs(bar.items) do b.padHover = nil end
+        -- Menu ouvert a la manette puis referme (Y, choix d'une entree...) : le halo s'eteint.
+        if rib.padGlow then
+            rib.padGlow = nil
+            if rib.SetGlow then rib.SetGlow(rib.marked and 0.35 or 0) end
+        end
         if not bar:IsShown() then return end
         bar.closing, bar.idle = true, nil
         bar.t = math.max(bar.t or 0, FADE + (bar.count or 1) * STAGGER * 0.4)
@@ -3889,6 +4117,7 @@ do
         if not rib:IsShown() then return false end
         rib.pulse = nil
         DialogueWheelE_RibbonSeen = true
+        -- A la manette, le halo reste allume tant que le menu est ouvert (comme le survol a la souris).
         if rib.open then
             bar.padIdx = nil
             PadPaint()
@@ -3897,6 +4126,7 @@ do
             Open()
             bar.padIdx = 1
             PadPaint()
+            if rib.open and rib.SetGlow then rib.padGlow = true; rib.SetGlow(0.55) end
         end
         return true
     end
@@ -3913,7 +4143,12 @@ do
         PadPaint()
     end
 
+    -- Glisser depuis le symbole / le ruban : la fenetre bouge (un clic ouvre toujours le menu).
+    rib:RegisterForDrag("LeftButton")
+    rib:SetScript("OnDragStart", function() rib.dragged = true; DWE.DragStart("text") end)
+    rib:SetScript("OnDragStop", function() DWE.DragStop("text") end)
     rib:SetScript("OnClick", function()
+        if rib.dragged then rib.dragged = nil; return end
         rib.pulse = nil
         DialogueWheelE_RibbonSeen = true
         if rib.open then Close() else Open() end
@@ -3939,6 +4174,7 @@ do
         end)
     end
     local function Glow(target)
+        rib.pulse = nil
         rib.glowTarget = target
         rib:SetScript("OnUpdate", function(self, elapsed)
             local a = self.glow:GetAlpha() or 0
@@ -3960,6 +4196,7 @@ do
         GameTooltip:Hide()
     end)
 
+    rib.SetGlow = Glow
     -- Page marquee affichee : le ruban garde un leger halo (c'est lui, le marque-page).
     function DWE.UpdateRibbonMark()
         local mark = textBox.dweBook == true and DWE.BookmarkInfo and { DWE.BookmarkInfo() }
@@ -3998,14 +4235,28 @@ do
             -- matiere (creux sombre, aretes eclairees), qui s'illumine au survol.
             local plate = DWE.PlateMaterial and DWE.PlateMaterial()
             rib.tex:SetVertexColor(1, 1, 1)
-            if plate then
+            if rib.tex.SetDesaturated then rib.tex:SetDesaturated(false) end
+            local roundPl = plate and DWE.PLATES[plate] and DWE.PLATES[plate].round
+            if roundPl and textBox.dweOuter then
+                -- Stele ronde : son propre symbole grave ouvre le menu ; il s'illumine au survol
+                -- (lueur a sa forme), sans rien ajouter sur la pierre.
+                local o = textBox.dweOuter
+                rib.tex:SetTexture(ADDON_PATH .. "PlateDalaranGlow.png")
+                rib.glow:SetTexture(ADDON_PATH .. "PlateDalaranGlow.png")
+                rib.baseAlpha = 0
+                rib:SetSize(o * 0.458, o * 0.224)
+                rib.glow:SetSize(o * 0.458, o * 0.224)
+                rib:SetPoint("CENTER", noteBg, "TOP", 0, -o * 0.2005)
+            elseif plate then
                 -- Triquetra (noeud a trois pointes) entrelacee avec un cercle.
-                rib.tex:SetTexture(ADDON_PATH .. "EngraveKnot.png")
-                rib.glow:SetTexture(ADDON_PATH .. "EngraveKnotGlow.png")
-                rib:SetSize(40, 40)
-                rib:SetPoint("CENTER", textBox, "TOP", 0, -12)
-                rib.baseAlpha = 0.8 -- gravure un peu plus discrete
-                rib.glow:SetSize(40, 40)
+                do
+                    rib.tex:SetTexture(ADDON_PATH .. "EngraveKnot.png")
+                    rib.glow:SetTexture(ADDON_PATH .. "EngraveKnotGlow.png")
+                    rib:SetSize(40, 40)
+                    rib:SetPoint("CENTER", textBox, "TOP", 0, -12)
+                    rib.baseAlpha = 0.8 -- gravure un peu plus discrete
+                    rib.glow:SetSize(40, 40)
+                end
             else
                 -- Parchemin : la signature (illisible) du scribe ou de l'auteur, a l'encre, dans la
                 -- marge en bas a droite. Une parmi 8, toujours la meme pour un meme texte.
@@ -4032,7 +4283,17 @@ do
         rib:SetFrameLevel((textBox:GetFrameLevel() or 1) + 6)
         rib:Show()
         if not (DWE.ribbonFade and DWE.ribbonFade:GetScript("OnUpdate")) then rib.tex:SetAlpha(rib.baseAlpha or 1) end
-        if not DialogueWheelE_RibbonSeen and not rib.pulse then Pulse() end
+        -- Le symbole de la stele ronde a son propre "premiere fois" : un joueur qui connait deja
+        -- le ruban des livres ne devinerait pas qu'il s'ouvre aussi.
+        if DWE.RoundNow() then
+            if not DialogueWheelE_RoundRibbonSeen and not rib.pulse then
+                DialogueWheelE_RoundRibbonSeen = true
+                if not (DWE.PadInUse and DWE.PadInUse()) then Pulse() end
+            end
+        elseif not DialogueWheelE_RibbonSeen and not rib.pulse then
+            -- A la manette, l'astuce a l'ecran dit deja "Y : menu du ruban" : pas de battement.
+            if DWE.PadInUse and DWE.PadInUse() then DialogueWheelE_RibbonSeen = true else Pulse() end
+        end
         DWE.UpdateRibbonMark()
         if bar:IsShown() and not bar.closing then DWE.RibbonBarRefresh() end
     end
@@ -4051,7 +4312,8 @@ function DWE.UpdateBookBar()
     bookBar:ClearAllPoints()
     local below = (textBox.dweBook == true and (BOOK_H - BOOK_TOP - BOOK_TEXT_H + 4))
         or (textBox.dweBook == "note" and ((textBox.dwePadB or NOTE_PAD_Y) + 6)) or 26
-    bookBar:SetPoint("TOP", textBox, "BOTTOM", 0, -below)
+    -- (Decalage dans l'echelle de la barre, qui peut differer de celle du texte.)
+    bookBar:SetPoint("TOP", textBox, "BOTTOM", 0, -below * (textBox:GetScale() or 1) / (bookBar:GetScale() or 1))
     local x = 0
     for i, opt in ipairs(DWE.currentOptions) do
         local b = bookBar.buttons[i]
@@ -4632,7 +4894,7 @@ function DWE.DragStop(which)
     if frame == textBox and DWE.bookMode then
         -- Livre : sa propre position, separee de celle du texte des PNJ.
         local ok, point, _, relPoint, x, y = pcall(textBox.GetPoint, textBox)
-        if ok and point then DialogueWheelE_BookPos = { point = point, relPoint = relPoint, x = x, y = y } end
+        if ok and point then DWE.BookPosSet({ point = point, relPoint = relPoint, x = x, y = y }) end
     elseif frame == textBox then DWE.SaveTextPosition() else DWE.SavePosition() end
 end
 
@@ -4663,6 +4925,7 @@ function DWE.ResetNPCOffset()
     DialogueWheelE_DUIPos = nil
     if DWE.DUIToLeft then DWE.DUIToLeft() end
     DialogueWheelE_BookScale, DialogueWheelE_NoteScale = nil, nil
+    DialogueWheelE_RoundScale, DialogueWheelE_RoundPos = nil, nil
     DialogueWheelE_QuestWidth = nil
     DialogueWheelE_TextW, DialogueWheelE_TextH = nil, nil
     DialogueWheelE_WheelWidth, DialogueWheelE_BubbleWidth = nil, nil
@@ -4818,7 +5081,11 @@ DWE.MakeResizeGrip(choiceBox, {
 DWE.MakeResizeGrip(textBox, {
     get = function()
         if textBox.dweBook == true then return BOOK_W * DWE.BookScaleWanted(), 0 end
-        if textBox.dweBook == "note" then return NOTE_W * DWE.NoteScale(), 0 end
+        if textBox.dweBook == "note" then
+            -- Stele ronde : la poignee suit le disque entier, pas la largeur du texte.
+            if DWE.RoundNow() and textBox.dweOuter then return textBox.dweOuter * DWE.NoteScale(), 0 end
+            return NOTE_W * DWE.NoteScale(), 0
+        end
         return textBox.dweW or 380, 0
     end,
     done = function()
@@ -4828,9 +5095,14 @@ DWE.MakeResizeGrip(textBox, {
     end,
     set = function(w)
         if textBox.dweBook == "note" then
-            DialogueWheelE_NoteScale = math.floor(Clamp(w / NOTE_W, 0.6, 2) * 100 + 0.5) / 100
-            DWE.SetBookScale(DialogueWheelE_NoteScale, true)
+            local sc = DWE.RoundNow() and Clamp(w / (textBox.dweOuter or NOTE_W), DWE.RoundMinScale(), 2) or Clamp(w / NOTE_W, 0.6, 2)
+            sc = math.floor(sc * 100 + 0.5) / 100
+            if DWE.RoundNow() then DialogueWheelE_RoundScale = sc else DialogueWheelE_NoteScale = sc end
+            DWE.SetBookScale(sc, true)
             DWE.SetGripCorner(textBox, "BOTTOMRIGHT")
+            -- Stele ronde : pendant le glisser, seulement l'echelle (d'un bloc, sans clignoter) ;
+            -- le texte est remis en page au lacher.
+            if DWE.RoundNow() then return end
             local now = GetTime and GetTime() or 0
             if not DWE.bookRelayoutT or now - DWE.bookRelayoutT > 0.1 then
                 DWE.bookRelayoutT = now
@@ -6132,7 +6404,7 @@ DWE.THEME_LIST = THEME_LIST
 -- deja entendus avec Spoken (ce n'est pas un reglage).
 -- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
 DWE.OPTION_VARS = {}
-for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart CustomColors HideUI ZoneArt ZoneArtPaper MinimapHide DefaultsV"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
+for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart CustomColors HideUI ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
@@ -6146,6 +6418,45 @@ function DWE.AskResetAll()
         timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
     }
     StaticPopup_Show("STORYTALE_RESET_ALL")
+end
+
+-- Manette, droite / gauche dans les options : la navigation du jeu prend le plus proche dans un
+-- large cone, et descendait souvent sur la ligne du dessous au lieu d'aller a l'option voisine.
+-- On lui indique, pour chaque reglage, son voisin sur la meme ligne (ou rien : on reste).
+-- (Valeurs que le jeu autorise aux addons hors combat.)
+function DWE.OptionsPadRows()
+    local set = rawget(_G, "SmartNavigation_AddJumpNavigationOverride")
+    local dirs = rawget(_G, "SMART_NAV_INPUT_DIRECTION")
+    local scroll = rawget(_G, "DialogueWheelEOptionsScroll")
+    local child = scroll and scroll.GetScrollChild and scroll:GetScrollChild()
+    if not (set and dirs and dirs.LEFT and dirs.RIGHT and child) or InCombatLockdown() then return end
+    local items = {}
+    local function Walk(fr)
+        for _, c in ipairs({ fr:GetChildren() }) do
+            local ok, kind = pcall(c.GetObjectType, c)
+            if ok and (kind == "Button" or kind == "CheckButton" or kind == "EditBox") then
+                if c:IsVisible() then
+                    local x, y = c:GetCenter()
+                    local _, h = c:GetSize()
+                    if x and y then items[#items + 1] = { f = c, x = x, y = y, h = h or 20 } end
+                end
+            elseif ok and c:IsVisible() then
+                Walk(c)
+            end
+        end
+    end
+    Walk(child)
+    for _, it in ipairs(items) do
+        local right, left
+        for _, o in ipairs(items) do
+            if o ~= it and math.abs(o.y - it.y) <= 8 then
+                if o.x > it.x + 2 and (not right or o.x < right.x) then right = o end
+                if o.x < it.x - 2 and (not left or o.x > left.x) then left = o end
+            end
+        end
+        pcall(set, it.f, dirs.RIGHT, right and right.f or true)
+        pcall(set, it.f, dirs.LEFT, left and left.f or nil)
+    end
 end
 
 function DWE.InitOptionsPanel()
@@ -6222,6 +6533,20 @@ function DWE.InitOptionsPanel()
             _G[name .. "Text"]:SetText(label .. " : " .. string.format(fmt, val))
             onSlide(val)
         end)
+        -- Boutons - et + de part et d'autre : la navigation manette du jeu ne s'arrete que sur
+        -- des boutons (pas sur un curseur) ; a la souris, ils reglent aussi pas a pas.
+        for _, d in ipairs({ -1, 1 }) do
+            local b = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+            b:SetSize(20, 18)
+            b:SetText(d < 0 and "-" or "+")
+            if d < 0 then b:SetPoint("RIGHT", sl, "LEFT", -4, 0) else b:SetPoint("LEFT", sl, "RIGHT", 4, 0) end
+            b:SetScript("OnClick", function()
+                local v = math.max(minV, math.min(maxV, (sl:GetValue() or curV) + d * step))
+                sl:SetValue(v)
+            end)
+            sl[d < 0 and "dweMinus" or "dwePlus"] = b
+        end
+        return sl
     end
 
     AddText("Storytale", 16, -12, "GameFontNormalHuge")
@@ -6887,25 +7212,31 @@ function DWE.InitOptionsPanel()
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(L.SPOKEN_SMART, 1, 0.82, 0)
         GameTooltip:AddLine(L.SPOKEN_SMART_TIP, 1, 1, 1, true)
+        -- (L'infobulle cache l'astuce ecrite dessous : on la redit ici.)
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(L.SPOKEN_SMART_HINT, 0.6, 0.8, 1, true)
         GameTooltip:Show()
     end)
     smartCheck:HookScript("OnLeave", function() GameTooltip:Hide() end)
     Grey(smartCheck, spokenOn)
+    -- Astuce : Spoken coupe la replique a la fermeture tant que son reglage est coche.
+    local smartTip = AddText(L.SPOKEN_SMART_HINT, 42, y - 316, "GameFontDisableSmall")
+    if smartTip.SetWidth then smartTip:SetWidth(520); smartTip:SetJustifyH("LEFT") end
     -- Page tournee a la main dans un livre lu par Spoken : la voix reprend a cette page.
-    Grey(AddCheck(L.BOOK_VOICE_TURN, 16, y - 318, DialogueWheelE_BookVoiceTurn == true, function(self)
+    Grey(AddCheck(L.BOOK_VOICE_TURN, 16, y - 348, DialogueWheelE_BookVoiceTurn == true, function(self)
         DialogueWheelE_BookVoiceTurn = self:GetChecked() and true or nil
     end), spokenOn)
     -- Livre ferme : Spoken arrete de le lire (decoche par defaut : la lecture continue).
-    Grey(AddCheck(L.BOOK_STOP_CLOSE, 16, y - 344, DialogueWheelE_BookStopOnClose == true, function(self)
+    Grey(AddCheck(L.BOOK_STOP_CLOSE, 16, y - 374, DialogueWheelE_BookStopOnClose == true, function(self)
         DialogueWheelE_BookStopOnClose = self:GetChecked() and true or nil
     end), spokenOn)
     -- Illustration du lieu au-dessus de la petite fenetre de Spoken (narrations de Spoken Places).
-    Grey(AddCheck(L.ZONE_ART, 16, y - 370, DialogueWheelE_ZoneArt ~= false, function(self)
+    Grey(AddCheck(L.ZONE_ART, 16, y - 400, DialogueWheelE_ZoneArt ~= false, function(self)
         DialogueWheelE_ZoneArt = self:GetChecked() and true or false
         if DWE.ZoneArtRefresh then DWE.ZoneArtRefresh() end
     end), spokenOn)
     -- Bord de papier peint dans l'illustration (decoche : la scene seule, dans le fond du theme).
-    Grey(AddCheck(L.ZONE_ART_PAPER, 36, y - 396, DialogueWheelE_ZoneArtPaper == true, function(self)
+    Grey(AddCheck(L.ZONE_ART_PAPER, 36, y - 426, DialogueWheelE_ZoneArtPaper == true, function(self)
         DialogueWheelE_ZoneArtPaper = self:GetChecked() and true or nil
         if DWE.ZoneArtRefresh then DWE.ZoneArtRefresh() end
     end), spokenOn)
@@ -6962,7 +7293,7 @@ function DWE.InitOptionsPanel()
         RefreshTiles()
     end)
     RefreshKeyButtons()
-    p:SetHeight(-(y - 424) + 30)
+    p:SetHeight(-(y - 454) + 30)
 
     ---------------------------------------------------------------- Recherche
     -- Une barre en haut du panneau (hors du defilement) : chaque frappe amene la vue sur la
@@ -7083,6 +7414,23 @@ function DWE.InitOptionsPanel()
     search:SetScript("OnEnterPressed", function(self) DWE.OptionsSearch(self:GetText(), true) end)
     search:SetScript("OnEscapePressed", function(self)
         self:SetText(""); self:ClearFocus(); DWE.OptionsSearch("")
+    end)
+
+    -- Manette : la navigation du jeu ne relit le contenu d'une fenetre que quand un cadre y est
+    -- cree. Notre page est construite une fois pour toutes, avant d'etre posee dans les options :
+    -- a chaque affichage, un petit cadre vide y est cree pour qu'elle trouve nos reglages.
+    panel:HookScript("OnShow", function(self)
+        if not (C_Timer and C_Timer.After) then return end
+        -- (Plusieurs fois : la page n'est pas toujours deja en place a la premiere.)
+        for _, t in ipairs({ 0, 0.2, 0.6 }) do
+            C_Timer.After(t, function()
+                if self:IsVisible() then
+                    local nudge = CreateFrame("Frame", nil, self)
+                    nudge:Hide()
+                    DWE.OptionsPadRows()
+                end
+            end)
+        end
     end)
 
     if Settings and Settings.RegisterCanvasLayoutCategory then
