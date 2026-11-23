@@ -480,6 +480,9 @@ local function Reveal()
     local n = math.floor(state.typed or 0)
     if n == state.shownN then return end -- rien de nouveau a afficher : on ne touche pas au texte
     state.shownN = n
+    -- Rien d'ecrit encore (on attend la voix) : texte cache. Un fondu qui commence a 0 lettre
+    -- montrait tout le texte d'un coup pendant l'attente, avant qu'il ne s'ecrive.
+    text:SetAlpha(n > 0 and 1 or 0)
     if state.dots then
         -- Points de suspension : un point net apres l'autre (pas de fondu), place gardee.
         -- La bulle est taillee pour "..." : texte cale a gauche, les points s'ajoutent un a un.
@@ -505,6 +508,7 @@ local function FinishTyping()
     state.phase, state.readT = "reading", 0
     state.duration = math.max(READ_MIN, math.min(READ_MAX, len * READ_PER_CHAR))
     state.typed = len
+    text:SetAlpha(1)
     text:SetText(seg)
     if hasGradient then text:SetAlphaGradient(len + FADE_LETTERS + 1, 1) end
 end
@@ -802,6 +806,7 @@ function DWE.Bubble.SetText(s)
     state.voiced, state.age, state.holdT, state.waitT = nil, 0, 0, 0
     state.lastTarget, state.tvel, state.spd = nil, nil, nil
     state.setAt = GetTime and GetTime() or nil
+    text:SetAlpha(1)
     if IsSecret(s) then
         -- Valeur protegee par le jeu : impossible a decouper, affichee telle quelle.
         state.segs, state.phase = {}, "idle"
