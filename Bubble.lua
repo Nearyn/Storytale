@@ -72,6 +72,18 @@ do
         end, owner)
     end
 end
+-- Filet de securite : la bulle cachee par quelqu'un d'autre que Storytale (gestionnaire de
+-- fenetres du jeu, autre addon) pendant une conversation revient a l'image suivante.
+bubble:HookScript("OnHide", function()
+    if bubble.dweOff then return end
+    local function Back()
+        if not bubble.dweOff and DWE.choiceBox and DWE.choiceBox:IsShown() and not bubble:IsShown() then
+            bubble:Show()
+            if DWE.bubbleLog then print("|cff33ff99Storytale|r bulle remise") end
+        end
+    end
+    if C_Timer and C_Timer.After then C_Timer.After(0, Back) end
+end)
 -- Diagnostic (/storytale bubblelog) : qui cache la bulle, et quand.
 do
     local function Where()
@@ -802,6 +814,7 @@ function DWE.Bubble.Refit()
 end
 
 function DWE.Bubble.SetShown(show)
+    bubble.dweOff = not show
     if not show then
         bubble:Hide()
         return
