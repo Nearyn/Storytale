@@ -2746,6 +2746,20 @@ do
     DWE.profile = nil
     DWE.ProfileLoad()
 end
+-- Sans Spoken : textes graves reconnus a leur titre, seulement si le jeu dit "parchemin".
+do
+    local oldGet, oldSR = ItemTextGetItem, rawget(_G, "SpokenReadables")
+    _G.SpokenReadables = nil
+    ItemTextGetItem = function() return "Pteradon Skeleton" end
+    check(DWE.OpenTrollTablet() == "Tablet", "standalone: Ironforge exhibit gets its tablet")
+    ItemTextGetItem = function() return "Tombe d'Eliza" end
+    check(DWE.OpenTrollTablet() == "Stone", "standalone: tombstones recognized in other languages")
+    ItemTextGetItem = function() return "Les empires jumeaux" end
+    check(DWE.OpenTrollTablet() == "Troll", "standalone: troll stele recognized by its title")
+    ItemTextGetItem = function() return "The Seven Kingdoms" end
+    check(DWE.OpenTrollTablet() == false, "standalone: books stay books")
+    ItemTextGetItem, _G.SpokenReadables = oldGet, oldSR
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end
