@@ -2120,7 +2120,9 @@ if DWE.padCatcher.EnableGamePadButton then
     -- En combat, on ne peut plus choisir quels boutons laisser passer : on se retire.
     DWE.padCatcher:RegisterEvent("PLAYER_REGEN_DISABLED")
     DWE.padCatcher:SetScript("OnEvent", function(self) self:Hide() end)
+    DWE.padHeld = {}
     DWE.padCatcher:SetScript("OnGamePadButtonDown", function(self, button)
+        DWE.padHeld[button] = true
         DWE.padUsed, DWE.padUsedAt = true, GetTime and GetTime() or 0
         -- Le lecteur Spoken garde ses boutons pendant une conversation ou un livre : Share (pause,
         -- passer) et, Share tenu ou file ouverte, sa liste (croix, A, Y, B).
@@ -2176,6 +2178,7 @@ end
 
 if DWE.padCatcher.EnableGamePadButton then
     DWE.padCatcher:SetScript("OnGamePadButtonUp", function(self, button)
+        if DWE.padHeld then DWE.padHeld[button] = nil end
         if DWE.PAD_PLAYER_KEYS[button] and DWE.padPlayer.downAt then DWE.PadShareFire(false) end
         -- Un bouton garde pour Storytale coupait la manette au jeu jusqu'au bouton suivant : le
         -- stick droit (camera) restait sans effet dans la conversation ou le livre. Relache, on
@@ -2503,7 +2506,13 @@ DWE.padCatcher:HookScript("OnHide", function() DWE.PadStickRestore(); if DWE.Pad
 -- le jeu zoome deja (on regarde d'abord si la camera bouge seule).
 local padZoom = {}
 function DWE.PadZoomTick(el)
-    local down = IsKeyDown and IsKeyDown("PADLSHOULDER") and IsKeyDown("PADRSHOULDER")
+    local held = DWE.padHeld or {}
+    local function Down(k)
+        if held[k] then return true end
+        local ok, d = pcall(IsKeyDown, k)
+        return ok and d == true
+    end
+    local down = Down("PADLSHOULDER") and Down("PADRSHOULDER")
     local gp = rawget(_G, "C_GamePad")
     if not (down and gp and gp.GetDeviceMappedState and GetCameraZoom and CameraZoomIn) then
         padZoom.t, padZoom.drive, padZoom.game = nil, nil, nil
@@ -2511,11 +2520,19 @@ function DWE.PadZoomTick(el)
     end
     local okS, st = pcall(gp.GetDeviceMappedState)
     local y = 0
+    local found
     if okS and st and st.sticks then
         for i = 1, (st.stickCount or #st.sticks) do
             local okN, name = pcall(gp.StickIndexToConfigName, i - 1)
-            if okN and name == "Camera" and st.sticks[i] then y = st.sticks[i].y or 0 end
+            if okN and name == "Camera" and st.sticks[i] then y, found = st.sticks[i].y or 0, true end
         end
+        -- Pas de nom de configuration : le 2e stick est le droit.
+        if not found and st.sticks[2] then y = st.sticks[2].y or 0 end
+    end
+    padZoom.logT = (padZoom.logT or 0) + el
+    if DWE.FLog and padZoom.logT > 0.5 then
+        padZoom.logT = 0
+        DWE.FLog(("zoom : L1+R1 tenus, stick=%.2f (%s) jeu=%s nous=%s"):format(y, found and "Camera" or "2e", tostring(padZoom.game), tostring(padZoom.drive)))
     end
     if math.abs(y) < 0.25 then padZoom.t = nil return end
     if padZoom.game then return end

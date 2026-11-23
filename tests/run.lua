@@ -764,7 +764,9 @@ local function vis()
 end
 local function full() return bt:GetText() end
 check(vis() == "H", "bubble starts with its first letter, then writes: '" .. vis() .. "'")
-check(not DWE.bubble.dweWaitHide, "bubble shown at once with its first letter (no empty bubble, no delay)")
+check(DWE.bubble.dweWaitHide == true, "bubble hidden one frame while the game lays out the fade (no full-text flash)")
+DWE.bubble._scripts.OnUpdate(DWE.bubble, 0.001)
+check(DWE.bubble.dweWaitHide == false, "bubble shown the next frame with its first letter")
 local function tick(sec) for _ = 1, math.floor(sec / 0.05 + 0.5) do DWE.bubble._scripts.OnUpdate(DWE.bubble, 0.05) end end
 tick(0.4)
 check(DWE.bubble.dweWaitHide == false, "bubble shown with the first letters")

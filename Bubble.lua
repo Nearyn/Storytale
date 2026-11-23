@@ -498,8 +498,11 @@ local function Reveal()
     state.shownN = n
     -- Rien d'ecrit encore (on attend la voix) : texte cache. Un fondu qui commence a 0 lettre
     -- montrait tout le texte d'un coup pendant l'attente, avant qu'il ne s'ecrive.
-    text:SetAlpha(n > 0 and 1 or 0)
-    bubble:DWEWaitHide(n == 0 and (state.index or 1) <= 1)
+    -- Juste apres un nouveau texte, le fondu du jeu n'est applique qu'a l'image suivante : le
+    -- texte entier se voyait une fraction de seconde. On attend cette image, cache.
+    local show = n > 0 and not state.fresh
+    text:SetAlpha(show and 1 or 0)
+    bubble:DWEWaitHide(not show and (state.index or 1) <= 1)
     if state.dots then
         -- Points de suspension : un point net apres l'autre (pas de fondu), place gardee.
         -- La bulle est taillee pour "..." : texte cale a gauche, les points s'ajoutent un a un.
@@ -516,6 +519,7 @@ local function StartSegment(i)
     local seg = state.segs[i]
     -- Premiere lettre tout de suite : la bulle apparait avec son texte, sans delai.
     state.index, state.phase, state.typed, state.shownN = i, "typing", (i == 1) and 1 or 0, nil
+    state.fresh = (i == 1) or nil
     FitTo(seg, seg)
     Reveal()
 end
@@ -730,6 +734,7 @@ end
 bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
     state.t = state.t + elapsed
     state.age = (state.age or 0) + elapsed
+    if state.fresh then state.fresh = nil state.shownN = nil Reveal() end
     if state.phase == "idle" then return end
 
     local share, length = SpokenShare(state)

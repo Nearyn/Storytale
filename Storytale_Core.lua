@@ -5393,6 +5393,9 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
         pcall(AnchorTo, follow.plate) -- zoom en cours ou taille du PNJ connue : on suit
     end
     if follow.plate and follow.plate ~= DWE.npcGhost then pcall(DWE.GhostRecord, follow.plate) end
+    -- Le jeu remet l'opacite de certaines plaques apres leur apparition : on les recache a
+    -- chaque image (sinon elles se voyaient une demi-seconde a l'entree en conversation).
+    pcall(MaskFriendlyPlates)
     follow.wait = (follow.wait or 0) + elapsed
     if follow.plate and not follow.revealed then Reveal() end
     follow.scan = (follow.scan or 0) + elapsed
