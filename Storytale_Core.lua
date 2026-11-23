@@ -7739,7 +7739,37 @@ function DWE.InitOptionsPanel()
             end)
         end
     end
-    for _, pg in ipairs(pages) do pg.panel:HookScript("OnShow", Nudge) end
+    -- Page qui tient entiere dans la fenetre : pas de barre de defilement, et jamais decalee
+    -- (sinon la molette ou la manette la faisaient sortir de la vue, page vide).
+    local function FitScroll(pg)
+        local sc = pg.scroll
+        local okH, viewH = pcall(sc.GetHeight, sc)
+        local okC, childH = pcall(pg.child.GetHeight, pg.child)
+        if not (okH and okC and viewH and childH) then return end
+        local fits = childH <= viewH + 1
+        local bar = sc.ScrollBar or (sc.GetName and sc:GetName() and _G[sc:GetName() .. "ScrollBar"])
+        if bar and bar.SetShown then bar:SetShown(not fits) end
+        if fits then
+            sc:SetVerticalScroll(0)
+            sc:EnableMouseWheel(false)
+        else
+            sc:EnableMouseWheel(true)
+        end
+    end
+    for _, pg in ipairs(pages) do
+        pg.panel:HookScript("OnShow", Nudge)
+        pg.panel:HookScript("OnShow", function()
+            FitScroll(pg)
+            if C_Timer and C_Timer.After then C_Timer.After(0, function() FitScroll(pg) end) end
+        end)
+        pg.scroll:HookScript("OnVerticalScroll", function(self)
+            local okC, childH = pcall(pg.child.GetHeight, pg.child)
+            local okH, viewH = pcall(self.GetHeight, self)
+            if okC and okH and childH and viewH and childH <= viewH + 1 and (self:GetVerticalScroll() or 0) ~= 0 then
+                self:SetVerticalScroll(0)
+            end
+        end)
+    end
 
     if Settings and Settings.RegisterCanvasLayoutCategory then
         local cat = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
