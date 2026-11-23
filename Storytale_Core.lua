@@ -4852,8 +4852,9 @@ function DWE.NPCTitle(token)
     return line
 end
 
--- Taille du nom imitant le nom habituel des PNJ (reglable : /run DWE.NEAR_NAME_SIZE = 34).
-DWE.NEAR_NAME_SIZE = 34
+-- Taille du nom imitant le nom habituel des PNJ (reglable : /run DWE.NEAR_NAME_SIZE = 45).
+DWE.NEAR_NAME_SIZE = 45
+DWE.NEAR_NAME_Y = -26 -- decalage vertical (reglable : /run DWE.NEAR_NAME_Y = -20)
 DWE.ownNames = setmetatable({}, { __mode = "k" })
 -- Habille un texte a nous, pose sur le nom de la plaque (cache), comme le nom habituel du PNJ :
 -- police du jeu, vert vif (jaune si neutre), ombre, titre en dessous, sans limite de largeur.
@@ -4879,15 +4880,17 @@ function DWE.PlateNameStyle(parts, token)
         parts.nameHidden = true
     end
     local font = "Fonts\\FRIZQT__.TTF"
-    if fs.dweSize ~= DWE.NEAR_NAME_SIZE then
-        fs.dweSize = DWE.NEAR_NAME_SIZE
+    if fs.dweSize ~= DWE.NEAR_NAME_SIZE or fs.dweY ~= DWE.NEAR_NAME_Y then
+        fs.dweSize, fs.dweY = DWE.NEAR_NAME_SIZE, DWE.NEAR_NAME_Y
+        -- Les plaques non ciblees sont semi-transparentes : le nom habituel, lui, ne l'est pas.
+        if fs.SetIgnoreParentAlpha then pcall(fs.SetIgnoreParentAlpha, fs, true) end
         pcall(fs.SetFont, fs, font, DWE.NEAR_NAME_SIZE, "")
         pcall(fs.SetShadowOffset, fs, 2, -2)
         pcall(fs.SetShadowColor, fs, 0, 0, 0, 1)
         pcall(fs.SetJustifyH, fs, "CENTER")
         pcall(fs.SetSpacing, fs, 0)
         pcall(fs.ClearAllPoints, fs)
-        pcall(fs.SetPoint, fs, "BOTTOM", name, "BOTTOM", 0, 0)
+        pcall(fs.SetPoint, fs, "BOTTOM", name, "BOTTOM", 0, DWE.NEAR_NAME_Y)
     end
     local text = parts.title and (nm .. "\n<" .. parts.title .. ">") or nm
     if fs.dweText ~= text then fs.dweText = text pcall(fs.SetText, fs, text) end
