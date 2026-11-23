@@ -163,6 +163,15 @@ for _, k in ipairs({ "ACCEPT","CONTINUE","INCOMPLETE","COMPLETE","CHOOSE_HDR","R
     check(type(DWE.L[k]) == "string" and DWE.L[k] ~= "", "string " .. k .. " exists")
 end
 check(DWE.optionsPanel ~= nil, "options panel created")
+check(DWE.optionPages and #DWE.optionPages == 6, "options split into 6 categories (" .. tostring(DWE.optionPages and #DWE.optionPages) .. ")")
+do
+    local names = {}
+    for k = 2, #(DWE.optionPages or {}) do names[#names + 1] = DWE.optionPages[k].panel.name end
+    check(names[1] == DWE.L.SEC_BOOKS and names[3] == DWE.L.CAT_KEYS and names[5] == DWE.L.SEC_PROFILES, "category names: " .. table.concat(names, ", "))
+    local found = false
+    for _, c in ipairs({ DWE.optionPages[6].content:GetChildren() }) do if c.GetText and c:GetText() == DWE.L.PROFILE_USE then found = true end end
+    check(found, "profiles controls live on the Profiles page")
+end
 do -- recherche dans les options
     check(DWE.OptionsSearch and DWE.OptionsSearch(DWE.L.SEC_PAD) > 0, "options search finds a section")
     check(DWE.OptionsSearch("zzqqxx") == 0, "options search: no match")

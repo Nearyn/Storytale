@@ -6555,6 +6555,10 @@ function DWE.OptionsPadRows()
     local dirs = rawget(_G, "SMART_NAV_INPUT_DIRECTION")
     local scroll = rawget(_G, "DialogueWheelEOptionsScroll")
     local child = scroll and scroll.GetScrollChild and scroll:GetScrollChild()
+    -- Categories : la page affichee.
+    for _, pg in ipairs(DWE.optionPages or {}) do
+        if pg.panel ~= DWE.optionsPanel and pg.panel:IsVisible() then child = pg.child end
+    end
     if not (set and dirs and dirs.LEFT and dirs.RIGHT and child) or InCombatLockdown() then return end
     local items = {}
     local function Walk(fr)
@@ -6598,6 +6602,31 @@ function DWE.InitOptionsPanel()
     local p = CreateFrame("Frame", nil, scroll)
     p:SetSize(600, 1100)
     scroll:SetScrollChild(p)
+
+    -- Categories (comme Spoken) : la page principale, puis une sous-page par groupe de reglages.
+    -- Les reglages gardent leurs positions d'origine : chaque sous-page decale son contenu pour
+    -- que sa section commence en haut. `p` (ou tout se construit) passe d'une page a l'autre.
+    local pages = { { panel = panel, scroll = scroll, child = p, top = 0 } }
+    DWE.optionPages = pages
+    local function NewPage(name, sectionY)
+        local last = pages[#pages]
+        last.child:SetHeight((last.top or 0) - sectionY + 20)
+        local sub = CreateFrame("Frame")
+        sub.name, sub.parent = name, panel.name
+        sub:Hide()
+        local sc = CreateFrame("ScrollFrame", nil, sub, "UIPanelScrollFrameTemplate")
+        sc:SetPoint("TOPLEFT", 0, -34)
+        sc:SetPoint("BOTTOMRIGHT", -28, 4)
+        local child = CreateFrame("Frame", nil, sc)
+        child:SetSize(600, 400)
+        sc:SetScrollChild(child)
+        local content = CreateFrame("Frame", nil, child)
+        content:SetSize(600, 10)
+        content:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -12 - sectionY)
+        pages[#pages + 1] = { panel = sub, scroll = sc, child = child, content = content, top = sectionY - 12 }
+        p = content
+        return sub
+    end
 
     local function AddText(txt, x, y, font)
         local fs = p:CreateFontString(nil, "ARTWORK", font)
@@ -7008,6 +7037,7 @@ function DWE.InitOptionsPanel()
 
     ---------------------------------------------------------------- Livres et lettres
     y = y - 76
+    NewPage(L.SEC_BOOKS, y)
     AddSection(L.SEC_BOOKS, y)
     -- Livres et lettres : qui les affiche, puis leur style (seulement pour Storytale).
     AddText(L.BOOKS_HDR, 16, y - 32, "GameFontNormal")
@@ -7110,6 +7140,7 @@ function DWE.InitOptionsPanel()
 
     ---------------------------------------------------------------- Placement
     y = y - 390
+    NewPage(L.SEC_PLACE, y)
     AddSection(L.SEC_PLACE, y)
     AddCheck(L.ATTACH_NPC, 16, y - 32, DialogueWheelE_AttachNPC ~= false, function(self)
         DialogueWheelE_AttachNPC = self:GetChecked() and true or false
@@ -7146,6 +7177,7 @@ function DWE.InitOptionsPanel()
 
     ---------------------------------------------------------------- Commandes
     y = y - 178
+    local keysPage = NewPage(L.CAT_KEYS, y)
     AddSection(L.SEC_KEYS, y)
     local keysY = y - 32
     local useBlizzCb = AddCheck(L.KEY_USE_BLIZZ, 16, keysY, DialogueWheelE_UseBlizzKey ~= false, nil)
@@ -7176,6 +7208,7 @@ function DWE.InitOptionsPanel()
 
     ---------------------------------------------------------------- Spoken
     y = y - 170
+    NewPage(L.SEC_SPOKEN, y)
     AddSection(L.SEC_SPOKEN, y)
     local spokenOn = DWE.SpokenFocus and DWE.SpokenFocus.Available()
     local function Grey(w, on)
@@ -7434,6 +7467,7 @@ function DWE.InitOptionsPanel()
     ---------------------------------------------------------------- Profils
     -- Que des boutons (navigables a la manette) : < et > choisissent un profil, Utiliser l'applique.
     local py = y - 484
+    local profilesPage = NewPage(L.SEC_PROFILES, py)
     AddSection(L.SEC_PROFILES, py)
     local pLbl = AddText(L.PROFILE_CUR, 16, py - 38, "GameFontNormal")
     local function PBtn(text, w)
@@ -7500,42 +7534,57 @@ function DWE.InitOptionsPanel()
     end)
     AddText(L.PROFILE_HINT, 16, py - 126, "GameFontDisableSmall")
     AddText(L.PROFILE_FACTORY_NOTE, 16, py - 142, "GameFontDisableSmall")
-    panel:HookScript("OnShow", function() pick = nil; RefreshProfiles() end)
+    profilesPage:HookScript("OnShow", function() pick = nil; RefreshProfiles() end)
     RefreshProfiles()
-    p:SetHeight(-(py - 156) + 30)
+    pages[#pages].child:SetHeight((py - 12) - (py - 156) + 30)
+    keysPage:HookScript("OnShow", function() RefreshKeyButtons() end)
 
     ---------------------------------------------------------------- Recherche
     -- Une barre en haut du panneau (hors du defilement) : chaque frappe amene la vue sur la
     -- premiere option dont le nom (ou l'aide) contient le texte, et l'eclaire un instant.
     -- Entree passe a la suivante. Majuscules et accents ne comptent pas.
-    local okT, search = pcall(CreateFrame, "EditBox", "DialogueWheelEOptionsSearch", panel, "SearchBoxTemplate")
-    if not okT or not search then search = CreateFrame("EditBox", "DialogueWheelEOptionsSearch", panel, "InputBoxTemplate") end
-    search:SetSize(260, 20)
-    search:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -40, -8)
-    search:SetAutoFocus(false)
-    if type(search.Instructions) == "table" then
-        search.Instructions:SetText(L.OPT_SEARCH)
-    else -- sans le modele de recherche du jeu : un texte d'invite a nous
-        local hint = search:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-        hint:SetPoint("LEFT", 6, 0)
-        hint:SetText(L.OPT_SEARCH)
-        local function Hint(self) hint:SetShown(self:GetText() == "" and not self:HasFocus()) end
-        search:HookScript("OnEditFocusGained", function() hint:Hide() end)
-        search:HookScript("OnEditFocusLost", Hint)
-        search:HookScript("OnTextChanged", Hint)
+    local counts, boxes = {}, {}
+    local function MakeSearch(host, gname)
+        local okT, search = pcall(CreateFrame, "EditBox", gname, host, "SearchBoxTemplate")
+        if not okT or not search then search = CreateFrame("EditBox", gname, host, "InputBoxTemplate") end
+        search:SetSize(260, 20)
+        search:SetPoint("TOPRIGHT", host, "TOPRIGHT", -40, -8)
+        search:SetAutoFocus(false)
+        if type(search.Instructions) == "table" then
+            search.Instructions:SetText(L.OPT_SEARCH)
+        else -- sans le modele de recherche du jeu : un texte d'invite a nous
+            local hint = search:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+            hint:SetPoint("LEFT", 6, 0)
+            hint:SetText(L.OPT_SEARCH)
+            local function Hint(self) hint:SetShown(self:GetText() == "" and not self:HasFocus()) end
+            search:HookScript("OnEditFocusGained", function() hint:Hide() end)
+            search:HookScript("OnEditFocusLost", Hint)
+            search:HookScript("OnTextChanged", Hint)
+        end
+        local c = host:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+        c:SetPoint("RIGHT", search, "LEFT", -10, 0)
+        counts[#counts + 1] = c
+        boxes[#boxes + 1] = search
+        return search
     end
-    local count = panel:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-    count:SetPoint("RIGHT", search, "LEFT", -10, 0)
-    local glow = p:CreateTexture(nil, "BACKGROUND")
-    glow:SetColorTexture(1, 0.82, 0, 0.22)
-    glow:Hide()
-    local fader = CreateFrame("Frame", "DialogueWheelEOptionsSearchGlow", p)
+    for k, pg in ipairs(pages) do pg.search = MakeSearch(pg.panel, k == 1 and "DialogueWheelEOptionsSearch" or nil) end
+    -- Texte du compteur, sur toutes les pages.
+    local count = { SetText = function(_, t) for _, c in ipairs(counts) do c:SetText(t) end end }
+    local glow, glowPage
+    local fader = CreateFrame("Frame", "DialogueWheelEOptionsSearchGlow", panel)
     fader:Hide()
     fader:SetScript("OnUpdate", function(self, el)
         self.t = (self.t or 0) + el
-        if self.t > 2 then glow:Hide(); self:Hide()
-        elseif self.t > 1.2 then glow:SetAlpha((2 - self.t) / 0.8) end
+        if self.t > 2 then if glow then glow:Hide() end; self:Hide()
+        elseif self.t > 1.2 and glow then glow:SetAlpha((2 - self.t) / 0.8) end
     end)
+    local function GlowOn(pg)
+        if glow and glowPage ~= pg then glow:Hide() end
+        pg.glow = pg.glow or pg.child:CreateTexture(nil, "BACKGROUND")
+        pg.glow:SetColorTexture(1, 0.82, 0, 0.22)
+        glow, glowPage = pg.glow, pg
+        return glow
+    end
     local FOLD = { ["à"] = "a", ["â"] = "a", ["ä"] = "a", ["á"] = "a", ["é"] = "e", ["è"] = "e", ["ê"] = "e",
         ["ë"] = "e", ["î"] = "i", ["ï"] = "i", ["í"] = "i", ["ô"] = "o", ["ö"] = "o", ["ó"] = "o", ["ù"] = "u",
         ["û"] = "u", ["ü"] = "u", ["ú"] = "u", ["ç"] = "c", ["ñ"] = "n", ["ß"] = "ss",
@@ -7563,13 +7612,35 @@ function DWE.InitOptionsPanel()
             end
             for _, c in ipairs({ f:GetChildren() }) do Walk(c) end
         end
-        Walk(p)
+        for k, pg in ipairs(pages) do
+            local from = #list
+            Walk(pg.child)
+            for n = from + 1, #list do list[n].page, list[n].pageN = pg, k end
+        end
         return list
     end
     local found, at = {}, 0
+    local Place
     local function Show(i)
         local e = found[i]
         if not e then return end
+        count:SetText(i .. " / " .. #found)
+        -- Option d'une autre categorie : on ouvre sa page, puis on y va (une fois affichee).
+        local pg = e.page or pages[1]
+        if not pg.panel:IsVisible() and pg.cat and Settings and Settings.OpenToCategory then
+            local id = pg.cat.GetID and pg.cat:GetID() or pg.cat.ID
+            pcall(Settings.OpenToCategory, id)
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0.05, function() Place(e) end)
+                return
+            end
+        end
+        Place(e)
+    end
+    Place = function(e)
+        local pg = e.page or pages[1]
+        local p, scroll = pg.child, pg.scroll
+        local glow = GlowOn(pg)
         local top, pTop = e.fs:GetTop(), p:GetTop()
         if top and pTop then
             local range = scroll:GetVerticalScrollRange() or 0
@@ -7578,7 +7649,7 @@ function DWE.InitOptionsPanel()
             -- Ajustee a l'option trouvee : sa case ou son bouton compris, jusqu'au bout de son texte.
             glow:ClearAllPoints()
             local owner = e.fs:GetParent()
-            local isBox = owner and owner.GetObjectType and owner ~= p
+            local isBox = owner and owner.GetObjectType and owner ~= p and owner ~= pg.content
                 and (owner:GetObjectType() == "CheckButton" or owner:GetObjectType() == "Button")
             local pLeft = p:GetLeft() or 0
             local left = (isBox and owner:GetLeft()) or e.fs:GetLeft() or (pLeft + 8)
@@ -7590,14 +7661,13 @@ function DWE.InitOptionsPanel()
             glow:SetAlpha(1); glow:Show()
             fader.t = 0; fader:Show()
         end
-        count:SetText(i .. " / " .. #found)
     end
     function DWE.OptionsSearch(text, nextOne)
         local q = Fold(text):gsub("^%s+", ""):gsub("%s+$", "")
         if q == "" then
             found, at = {}, 0
             count:SetText("")
-            glow:Hide()
+            if glow then glow:Hide() end
             return 0
         end
         if not nextOne then
@@ -7606,29 +7676,38 @@ function DWE.InitOptionsPanel()
                 if e.text:find(q, 1, true) then found[#found + 1] = e end
             end
             -- De haut en bas, dans l'ordre du panneau.
-            table.sort(found, function(a, b) return (a.fs:GetTop() or 0) > (b.fs:GetTop() or 0) end)
+            table.sort(found, function(a, b)
+                if a.pageN ~= b.pageN then return (a.pageN or 0) < (b.pageN or 0) end
+                return (a.fs:GetTop() or 0) > (b.fs:GetTop() or 0)
+            end)
         end
         if #found == 0 then
             count:SetText(L.OPT_SEARCH_NONE)
-            glow:Hide()
+            if glow then glow:Hide() end
             return 0
         end
         at = (nextOne and at or 0) % #found + 1
         Show(at)
         return #found, at
     end
-    search:HookScript("OnTextChanged", function(self, user)
-        if user then DWE.OptionsSearch(self:GetText()) end
-    end)
-    search:SetScript("OnEnterPressed", function(self) DWE.OptionsSearch(self:GetText(), true) end)
-    search:SetScript("OnEscapePressed", function(self)
-        self:SetText(""); self:ClearFocus(); DWE.OptionsSearch("")
-    end)
+    for _, search in ipairs(boxes) do
+        search:HookScript("OnTextChanged", function(self, user)
+            if not user then return end
+            -- Meme recherche dans la barre de chaque page.
+            for _, o in ipairs(boxes) do if o ~= self then o:SetText(self:GetText()) end end
+            DWE.OptionsSearch(self:GetText())
+        end)
+        search:SetScript("OnEnterPressed", function(self) DWE.OptionsSearch(self:GetText(), true) end)
+        search:SetScript("OnEscapePressed", function(self)
+            for _, o in ipairs(boxes) do o:SetText("") end
+            self:ClearFocus(); DWE.OptionsSearch("")
+        end)
+    end
 
     -- Manette : la navigation du jeu ne relit le contenu d'une fenetre que quand un cadre y est
     -- cree. Notre page est construite une fois pour toutes, avant d'etre posee dans les options :
     -- a chaque affichage, un petit cadre vide y est cree pour qu'elle trouve nos reglages.
-    panel:HookScript("OnShow", function(self)
+    local function Nudge(self)
         if not (C_Timer and C_Timer.After) then return end
         -- (Plusieurs fois : la page n'est pas toujours deja en place a la premiere.)
         for _, t in ipairs({ 0, 0.2, 0.6 }) do
@@ -7640,12 +7719,20 @@ function DWE.InitOptionsPanel()
                 end
             end)
         end
-    end)
+    end
+    for _, pg in ipairs(pages) do pg.panel:HookScript("OnShow", Nudge) end
 
     if Settings and Settings.RegisterCanvasLayoutCategory then
         local cat = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
         Settings.RegisterAddOnCategory(cat)
         DWE.optionsCategory = cat
+        pages[1].cat = cat
+        if Settings.RegisterCanvasLayoutSubcategory then
+            for k = 2, #pages do
+                local okS, sub = pcall(Settings.RegisterCanvasLayoutSubcategory, cat, pages[k].panel, pages[k].panel.name)
+                if okS then pages[k].cat = sub end
+            end
+        end
     end
 end
 
