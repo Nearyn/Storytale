@@ -1,5 +1,29 @@
 # Changelog / Journal des versions
 
+## 1.8.1
+
+**English**
+
+### Improved
+- With Spoken, the bubble now follows the narrator much more closely: it pauses where the voice pauses (commas, sentences, paragraphs) and waits for the voice before turning to the next page.
+- When a Spoken voice provides word timings, the bubble follows it word for word.
+- The bubble starts writing smoothly as the voice begins, with no frozen first word.
+
+### Fixed
+- Gamepad: the wheel and bubble stay on the NPC when picking a quest from a quest list.
+
+---
+
+**Français**
+
+### Améliorations
+- Avec Spoken, la bulle suit le narrateur de bien plus près : elle marque les mêmes pauses que la voix (virgules, phrases, paragraphes) et attend la voix avant de passer à la page suivante.
+- Quand une voix de Spoken fournit la durée de chaque mot, la bulle la suit mot par mot.
+- La bulle commence à écrire en douceur dès que la voix démarre, sans premier mot figé.
+
+### Corrections
+- Manette : la roue et la bulle restent sur le PNJ quand on choisit une quête dans une liste de quêtes.
+
 ## 1.8.0
 
 **English**
