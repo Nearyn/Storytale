@@ -4863,12 +4863,12 @@ DWE.ownNames = setmetatable({}, { __mode = "k" })
 -- Le nom habituel d'un PNJ grossit quand la camera s'approche, puis ne rapetisse plus au-dela
 -- d'un certain recul. Mesure sur captures (Tannok, largeur du nom) : 560 px au zoom 1,9 ;
 -- 261 px au zoom 6,4 ; ~200 px de loin (taille minimale, zoom 50 et zoom ~15). Notre texte : ~7,4 px par point.
--- Taille = 281 / (zoom + 1,6) (recale sur la capture au zoom 1,5), au moins 26,8 ; NEAR_NAME_SIZE (40 = reference) l'ajuste.
+-- Taille = 281 / (zoom + 1,6) (recale sur la capture au zoom 1,5), au moins 26,7 (de loin) ; NEAR_NAME_SIZE (40 = reference) l'ajuste.
 function DWE.NearNameSize()
     local okZ, z = pcall(GetCameraZoom)
     z = (okZ and type(z) == "number") and z or 6
     -- (+3 % : hauteur des lettres mesuree sur capture, original contre le notre.)
-    local size = math.max(281 / (z + 1.6), 26.8) * 1.03 * (DWE.NEAR_NAME_SIZE / 40)
+    local size = math.max(281 / (z + 1.6) * 1.03, 26.7) * (DWE.NEAR_NAME_SIZE / 40)
     if size < 12 then size = 12 elseif size > 110 then size = 110 end
     return size
 end
