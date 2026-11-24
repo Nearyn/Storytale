@@ -652,6 +652,13 @@ do
         local own = DWE.ownNames[nb.UnitFrame]
         check(own ~= nil and own:GetText() == "Tannok" and own:IsShown() and nb.UnitFrame.name:GetAlpha() == 0, "neighbour NPC name drawn by Storytale over the hidden plate name")
         check(not DWE.ownNames[plate.UnitFrame] or not DWE.ownNames[plate.UnitFrame]:IsShown(), "conversation NPC plate never gets a drawn name")
+        -- Le jeu redessine la plaque (barre et petit nom visibles) : recaches a l'image suivante.
+        bar:SetAlpha(1); nb.UnitFrame.name:SetAlpha(1)
+        UnitExists = function() return true end
+        UnitIsUnit = function(a, b) if a == "nameplate5" or b == "nameplate5" then return false end return oUU2(a, b) end
+        UnitCanAttack = function() return false end
+        follower._scripts.OnUpdate(follower, 0.2)
+        check(bar:GetAlpha() == 0 and nb.UnitFrame.name:GetAlpha() == 0, "neighbour plate redrawn by the game: hidden again")
         UnitExists, UnitIsUnit, UnitCanAttack, UnitName = oE2, oUU2, oCA, oUN
         DWE.choiceBox:Hide(); M.RunTimers()
         check(M.cvars.nameplateShowAll == "0" and M.cvars.nameplateMaxDistance == "41" and DWE.softSaved == nil, "near plates setting restored after the conversation")

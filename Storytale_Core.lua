@@ -4895,6 +4895,12 @@ function DWE.PlateNameStyle(parts, token)
         if pcall(name.SetAlpha, name, 0) then parts[#parts + 1] = { name, okA and a or 1 } end
         parts.nameHidden = true
     end
+    -- Le jeu redessine parfois la plaque (fermeture de la quete...) et rend visibles son petit nom
+    -- et sa barre : tout ce que nous avons cache le reste, a chaque image.
+    for _, e in ipairs(parts) do
+        local okA, a = pcall(e[1].GetAlpha, e[1])
+        if okA and a and a > 0 then pcall(e[1].SetAlpha, e[1], 0) end
+    end
     local font = "Fonts\\FRIZQT__.TTF"
     local size = DWE.NearNameSize()
     if not fs.dweInit or fs.dweY ~= DWE.NEAR_NAME_Y then
