@@ -1,5 +1,45 @@
 # Changelog / Journal des versions
 
+## 1.8.0
+
+**English**
+
+### New
+- Options sorted into pages (Storytale, Books, Placement, Keys and gamepad, Spoken, Profiles), with a search across all of them.
+- A "Defaults" button on each page resets only that page. Profiles and defaults apply at once, without reloading the interface.
+- Gamepad: hold L1 + R1 and use the right stick to zoom during a conversation.
+
+### Improved
+- Shorter option labels, with details in their tooltips.
+- The options can be browsed row by row with a gamepad.
+- The bubble appears with its first letter: never empty, never showing the whole text first.
+
+### Fixed
+- Gamepad: the wheel and bubble stay on the NPC when a quest opens after a conversation.
+- Gamepad: no more brief camera freezes during conversations.
+- Gamepad: the chat no longer keeps the interface selected during a conversation.
+- The bubble comes back if the game hides it during a conversation.
+
+---
+
+**Français**
+
+### Nouveautés
+- Options rangées en pages (Storytale, Livres, Placement, Touches et manette, Spoken, Profils), avec une recherche sur toutes les pages.
+- Un bouton "Par défaut" sur chaque page ne remet que cette page. Les profils et les remises par défaut s'appliquent tout de suite, sans recharger l'interface.
+- Manette : maintenez L1 + R1 et utilisez le stick droit pour zoomer pendant une conversation.
+
+### Améliorations
+- Libellés des options plus courts, avec les détails dans leurs infobulles.
+- Les options se parcourent ligne par ligne à la manette.
+- La bulle apparaît avec sa première lettre : jamais vide, jamais avec tout le texte d'abord.
+
+### Corrections
+- Manette : la roue et la bulle restent sur le PNJ quand une quête s'ouvre après une conversation.
+- Manette : plus de petits blocages de la caméra pendant les conversations.
+- Manette : la discussion ne garde plus l'interface sélectionnée pendant une conversation.
+- La bulle revient si le jeu la cache pendant une conversation.
+
 ## 1.7.0
 
 **English**
