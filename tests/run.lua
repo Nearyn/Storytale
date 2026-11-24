@@ -893,6 +893,20 @@ clip = { length = 10, spokenAt = now + 10, text = "Greetings <name>, the road is
 DWE.SetDialogueText("x", body2)
 for _ = 1, 100 do now = now + 0.05; tick(0.05) end
 check(#vis() >= 34 and #vis() <= 52, "voice started with this text (wording differs): writing follows it: " .. #vis())
+-- Texte rouvert pendant que la voix le lit deja (revenu voir le PNJ) : la bulle s'ouvre la ou
+-- en est la voix, pas au debut.
+local body3 = "One two three four five six seven eight nine ten. Eleven twelve thirteen fourteen fifteen."
+clip = { length = 10, spokenAt = now + 4, text = body3, present = { transcript = body3 } } -- 6 s deja lues
+DWE.SetDialogueText("x", body3)
+for _ = 1, 2 do now = now + 0.05; tick(0.05) end
+check(vis():find("eight") or vis():find("nine") or vis():find("ten") or vis():find("Eleven"),
+    "reopened while the voice reads it: bubble joins the voice, not the start: '" .. vis() .. "'")
+-- Voix qui vient de commencer ce texte : on part du debut, comme avant.
+local body4 = "Alpha one two three four five six seven eight nine ten. Eleven twelve thirteen fourteen."
+clip = { length = 10, spokenAt = now + 9.5, text = body4, present = { transcript = body4 } }
+DWE.SetDialogueText("x", body4)
+for _ = 1, 2 do now = now + 0.05; tick(0.05) end
+check(not vis():find("five"), "voice just started: bubble starts at the beginning: '" .. vis() .. "'")
 
 Spoken = nil
 -- Fantasy bubble
@@ -3052,7 +3066,52 @@ do
     t = t + 2.5
     M.FireEvent("GOSSIP_SHOW")
     check(DWE.bookRawBody == M.questText, "came back while the voice still reads the quest: quest text kept")
+    -- Spoken en pause : on garde la quete.
+    local sayQuest, isPaused = true, true
+    _G.Spoken = { GetNowPlaying = function() return { text = sayQuest and M.questText or "I'm the master tinker." } end,
+        IsPaused = function() return isPaused end }
+    M.RunTimers()
+    check(DWE.bookRawBody == M.questText, "voice paused on the held quest: quest text stays")
+    -- La voix a fini la quete et lit la salutation : la bulle passe a la salutation.
+    isPaused = false
+    M.RunTimers()
+    sayQuest = false
+    M.RunTimers()
+    check(DWE.bookRawBody == "I'm the master tinker.", "voice done with the held quest: bubble shows the greeting")
     M.FireEvent("GOSSIP_CLOSED")
+    -- Spoken lit la quete paragraphe par paragraphe : revenu pendant le 2e paragraphe, la quete reste.
+    local oQ = M.questText
+    M.questText = "I suppose my poor Techbot got a stray spark.\n\nBring its memory core to Master Mechanic Overspark, please."
+    local said = M.questText
+    _G.Spoken = { GetNowPlaying = function() return { text = said } end, IsPaused = function() return false end }
+    M.FireEvent("QUEST_DETAIL")
+    M.FireEvent("QUEST_FINISHED")
+    said = "Bring its memory core to Master Mechanic Overspark, please."
+    t = t + 3
+    M.FireEvent("GOSSIP_SHOW")
+    check(DWE.bookRawBody == M.questText, "came back during a later paragraph of the quest voice: quest text kept")
+    -- Reparti puis revenu encore, la voix lit toujours : la quete reste a chaque retour.
+    M.FireEvent("GOSSIP_CLOSED")
+    t = t + 3
+    M.FireEvent("GOSSIP_SHOW")
+    check(DWE.bookRawBody == M.questText, "came back a second time while the voice still reads: quest text kept")
+    said = "I'm the master tinker."
+    M.RunTimers()
+    check(DWE.bookRawBody == "I'm the master tinker.", "later paragraph done, voice reads the greeting: bubble shows the greeting")
+    M.FireEvent("GOSSIP_CLOSED")
+    M.questText = oQ
+    -- Conversation fermee avant la fin de la voix : rien ne change ensuite.
+    sayQuest = true
+    M.FireEvent("QUEST_DETAIL")
+    M.FireEvent("QUEST_FINISHED")
+    t = t + 2.5
+    M.FireEvent("GOSSIP_SHOW")
+    M.RunTimers()
+    M.FireEvent("GOSSIP_CLOSED")
+    local after = DWE.bookRawBody
+    sayQuest = false
+    M.RunTimers()
+    check(DWE.bookRawBody == after, "conversation closed: no greeting pushed afterwards")
     _G.Spoken = oSp
     M.FireEvent("QUEST_DETAIL")
     M.FireEvent("QUEST_FINISHED")

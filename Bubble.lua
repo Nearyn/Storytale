@@ -887,6 +887,27 @@ local function MoveTo(pos)
     end
 end
 
+-- Rejoindre une voix deja en cours (au moins JOIN_AFTER secondes entendues avant l'ouverture de
+-- ce texte) : on place l'ecriture a l'endroit lu par la voix, une seule fois, a l'ouverture.
+DWE.JOIN_AFTER = 1.5
+function DWE.BubbleJoinVoice(st, share, length)
+    local clip = st.clip
+    if type(clip) ~= "table" or not st.setAt or share <= 0 then return end
+    local spokenAt, len = tonumber(clip.spokenAt), tonumber(clip.length)
+    if not (spokenAt and len) then return end
+    local lead = math.max(0, math.min(len * 0.3, tonumber(DWE.VOICE_LEAD) or 0))
+    if st.setAt - (spokenAt - len) - lead < DWE.JOIN_AFTER then return end
+    local map = not st.timed and st.wmap
+    local pos
+    if map then
+        st.posW = share * map.totalW
+        pos = MapLookup(map.w, map.c, st.posW)
+    else
+        pos = share * (st.total or 0)
+    end
+    if pos > CurrentPos() then MoveTo(math.min(st.total or pos, pos)) end
+end
+
 -- Journal image par image des premieres images d'un texte (/storytale followlog).
 local frameLog = { n = 0 }
 local function LogFrames(tag)
@@ -964,6 +985,10 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
         waitVoice = "slow"
     end
     if share and length then
+        -- Voix deja bien partie quand ce texte s'ouvre (on revient voir le PNJ pendant qu'il lit
+        -- encore ce texte) : la bulle s'ouvre directement la ou en est la voix, au lieu de
+        -- repartir du debut et de rester tres loin derriere elle.
+        if not state.voiced and type(share) == "number" then DWE.BubbleJoinVoice(state, share, length) end
         -- Voix de Spoken : on suit son rythme, en rattrapant les ecarts en douceur.
         state.voiced = true
         MoveTo(math.min(state.total, VoiceStep(state, CurrentPos(), share, length, elapsed)))

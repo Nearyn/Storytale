@@ -1128,11 +1128,15 @@ function DWE.SpokenReading(body)
     local function norm(x) return (x:lower():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("[%s%p%c]", "")) end
     local a, b = norm(said), norm(body)
     local n = math.min(24, #a, #b)
-    return n >= 6 and a:sub(1, n) == b:sub(1, n)
+    if n < 6 then return false end
+    -- Spoken lit un long texte de quete paragraphe par paragraphe : la voix peut lire la suite
+    -- du texte, pas seulement son debut.
+    return b:find(a:sub(1, n), 1, true) ~= nil or a:find(b:sub(1, n), 1, true) ~= nil
 end
 -- Delai maximal (secondes) entre la fin de la quete et la salutation rouverte par le jeu.
 DWE.QUEST_HOLD_REOPEN = 1.5
 local function UpdateDialogueText(event)
+    DWE.heldWatch = nil -- nouveau texte : on ne surveille plus l'ancien
     local npcName = NonEmpty(UnitName("npc")) or NonEmpty(UnitName("target")) or ""
     local questTitle = GetTitleText and NonEmpty(GetTitleText())
     local header, body = npcName, nil
@@ -1170,10 +1174,46 @@ local function UpdateDialogueText(event)
         local quick = now < hold.untilT and hold.closedAt and (now - hold.closedAt) < DWE.QUEST_HOLD_REOPEN
         -- ... ou la voix lit encore ce texte de quete : on le garde, la bulle suit la voix.
         if hold.npc and npc == hold.npc and (quick or DWE.SpokenReading(hold.body)) then
+            -- Quand la voix aura fini ce texte de quete, la bulle passera a la salutation.
+            DWE.WatchHeldQuest(hold, header, body)
             header, body = hold.header, hold.body
+            -- Gardee pour les retours suivants (on peut repartir et revenir plusieurs fois pendant
+            -- que la voix lit) ; ensuite, seule la voix decide (plus de "retour rapide").
+            hold.closedAt = nil
+            DWE.questHold = hold
         end
     end
     DWE.SetDialogueText(header, body)
+end
+
+-- Texte de quete garde a la place de la salutation : des que Spoken a fini de le lire (et passe
+-- par exemple a la salutation, option "Read NPC Chat After Quests"), la bulle affiche la
+-- salutation. Seulement si la voix a bien lu ce texte : sans voix, rien ne change.
+DWE.HELD_WATCH_STEP, DWE.HELD_WATCH_MAX = 0.25, 120
+function DWE.WatchHeldQuest(hold, header, body)
+    DWE.heldWatch = nil
+    if type(rawget(_G, "Spoken")) ~= "table" or not (C_Timer and C_Timer.After) then return end
+    if type(body) ~= "string" or (issecretvalue and issecretvalue(body)) or body == "" then return end
+    local w = { quest = hold.body, header = header, body = body, npc = hold.npc,
+        heard = DWE.SpokenReading(hold.body), startT = GetTime and GetTime() or 0 }
+    DWE.heldWatch = w
+    local function Check()
+        if DWE.heldWatch ~= w then return end
+        local now = GetTime and GetTime() or 0
+        local npc = UnitGUID and UnitGUID("npc") or nil
+        if npc ~= w.npc or now - w.startT > DWE.HELD_WATCH_MAX then DWE.heldWatch = nil return end
+        local api = rawget(_G, "Spoken")
+        local okP, paused = pcall(function() return api.IsPaused(api) end)
+        if DWE.SpokenReading(w.quest) then
+            w.heard = true
+        elseif w.heard and not (okP and paused) then
+            DWE.heldWatch = nil
+            DWE.SetDialogueText(w.header, w.body)
+            return
+        end
+        C_Timer.After(DWE.HELD_WATCH_STEP, Check)
+    end
+    C_Timer.After(DWE.HELD_WATCH_STEP, Check)
 end
 
 --------------------------------------------------------------------------------
@@ -3536,6 +3576,9 @@ f:SetScript("OnEvent", function(_, event)
         if event == "QUEST_FINISHED" and DWE.questHold and not DWE.questHold.closedAt then
             DWE.questHold.closedAt = GetTime and GetTime() or 0
         end
+        -- Conversation fermee : on ne passe plus a la salutation (QUEST_FINISHED peut arriver
+        -- juste apres la salutation rouverte par le jeu : on ne s'y fie pas).
+        if event ~= "ITEM_TEXT_CLOSED" and event ~= "QUEST_FINISHED" then DWE.heldWatch = nil end
         if event == "ITEM_TEXT_CLOSED" then
             DWE.ForceBlizzBook(event)
             if bookState.reachedEnd then DWE.MarkBook(bookState.title, true) end
