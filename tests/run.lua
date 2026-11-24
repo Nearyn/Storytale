@@ -107,7 +107,7 @@ SlashCmdList = {}
 local chat = {}
 DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) table.insert(chat, m) end }
 -- Load the addon ------------------------------------------------------------
-for _, file in ipairs({ "Locales.lua", "Storytale_Core.lua", "Bubble.lua", "SpokenFocus.lua", "SpokenQueueUI.lua", "Storytale.lua", "MinimapButton.lua" }) do
+for _, file in ipairs({ "Locales.lua", "Storytale_Core.lua", "Bubble.lua", "SpokenFocus.lua", "SpokenQueueUI.lua", "Storytale.lua", "Options_Native.lua", "MinimapButton.lua" }) do
     local chunk, err = loadfile(dir .. "/" .. file)
     check(chunk ~= nil, "compile " .. file .. ": " .. tostring(err))
     local ok, rerr = pcall(chunk, "Storytale", {})
@@ -3023,6 +3023,73 @@ do
         prev = c
     end
     check(prev ~= 1e9, "voice sync: never goes backwards")
+end
+-- Texte de quete garde pour la salutation : seulement si le jeu rouvre le PNJ tout de suite.
+do
+    local oG, oT = UnitGUID, GetTime
+    local t = 1000
+    GetTime = function() return t end
+    UnitGUID = function(u) if u == "npc" then return "Creature-0-1-2-3-4-99" end end
+    local gT, qT = M.gossipText, M.questText
+    M.gossipText, M.questText = "I'm the master tinker.", "I suppose my poor Techbot got a stray spark."
+    M.FireEvent("QUEST_DETAIL")
+    M.FireEvent("QUEST_FINISHED")
+    t = t + 10 -- le joueur s'en va, puis revient lui parler
+    M.FireEvent("GOSSIP_SHOW")
+    check(DWE.bookRawBody == "I'm the master tinker.", "walked away and came back: NPC greeting, not the old quest text")
+    M.FireEvent("GOSSIP_CLOSED")
+    -- Le jeu n'a pas signale la fin de la quete (eloigne) : rien n'est garde non plus.
+    M.FireEvent("QUEST_DETAIL")
+    t = t + 5
+    M.FireEvent("GOSSIP_SHOW")
+    check(DWE.bookRawBody == "I'm the master tinker.", "walked away without a quest-closed event: NPC greeting")
+    M.FireEvent("GOSSIP_CLOSED")
+    -- Revenu pendant que la voix lit encore la quete : la quete reste (la bulle suit la voix).
+    local oSp = rawget(_G, "Spoken")
+    _G.Spoken = { GetNowPlaying = function() return { text = M.questText } end, IsPaused = function() return false end }
+    M.FireEvent("QUEST_DETAIL")
+    M.FireEvent("QUEST_FINISHED")
+    t = t + 2.5
+    M.FireEvent("GOSSIP_SHOW")
+    check(DWE.bookRawBody == M.questText, "came back while the voice still reads the quest: quest text kept")
+    M.FireEvent("GOSSIP_CLOSED")
+    _G.Spoken = oSp
+    M.FireEvent("QUEST_DETAIL")
+    M.FireEvent("QUEST_FINISHED")
+    t = t + 0.4 -- quete acceptee : le jeu rouvre la salutation aussitot
+    M.FireEvent("GOSSIP_SHOW")
+    check(DWE.bookRawBody == "I suppose my poor Techbot got a stray spark.", "quest accepted, greeting reopened at once: quest text kept while the voice reads")
+    M.FireEvent("GOSSIP_CLOSED")
+    M.gossipText, M.questText = gT, qT
+    UnitGUID, GetTime = oG, oT
+    M.RunTimers()
+end
+-- Options en lignes natives : page Placement.
+do
+    local S = M.nativeSettings
+    check(S.Storytale_AttachNPC and S.Storytale_Locked and S.Storytale_WheelSide and S.Storytale_QuestAuto, "native options: placement settings registered")
+    if S.Storytale_WheelSide then
+        local saveSide, saveLock, saveQA, saveAttach = DialogueWheelE_WheelSide, DialogueWheelE_Locked, DialogueWheelE_QuestAuto, DialogueWheelE_AttachNPC
+        S.Storytale_WheelSide:SetValue("left")
+        check(DialogueWheelE_WheelSide == "left" and S.Storytale_WheelSide:GetValue() == "left", "native options: wheel side set to left")
+        S.Storytale_WheelSide:SetValue("right")
+        check(DialogueWheelE_WheelSide == nil and S.Storytale_WheelSide:GetValue() == "right", "native options: wheel side back to right")
+        S.Storytale_Locked:SetValue(true)
+        check(DialogueWheelE_Locked == true and S.Storytale_Locked:GetValue() == true, "native options: lock on")
+        S.Storytale_Locked:SetValue(false)
+        S.Storytale_QuestAuto:SetValue(false)
+        check(DialogueWheelE_QuestAuto == false and tonumber(DialogueWheelE_QuestWidth) ~= nil, "native options: quest width manual keeps a width")
+        S.Storytale_QuestAuto:SetValue(true)
+        check(DialogueWheelE_QuestAuto == nil, "native options: quest width auto")
+        S.Storytale_AttachNPC:SetValue(false)
+        check(DialogueWheelE_AttachNPC == false and S.Storytale_AttachNPC:GetValue() == false, "native options: attach to NPC off")
+        S.Storytale_AttachNPC:SetValue(true)
+        local n0 = S.Storytale_Locked.notified or 0
+        DWE.SettingsChanged()
+        check((S.Storytale_Locked.notified or 0) > n0, "native options: lines refreshed when settings change (profile, defaults)")
+        DialogueWheelE_WheelSide, DialogueWheelE_Locked, DialogueWheelE_QuestAuto, DialogueWheelE_AttachNPC = saveSide, saveLock, saveQA, saveAttach
+        DWE.SettingsChanged()
+    end
 end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))

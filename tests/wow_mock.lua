@@ -263,7 +263,27 @@ function M.Install(locale)
     _G.IsAltKeyDown = function() return false end
     _G.IsModifiedClick = function() return false end
     _G.UnitName = function(u) return u == "npc" and "Theridran" or nil end
-    _G.Settings = { RegisterCanvasLayoutCategory = function() return {} end, RegisterAddOnCategory = noop }
+    -- Lignes natives des options : on garde les reglages crees pour les tester.
+    M.nativeSettings, M.nativeControls = {}, {}
+    local function Layout() return { inits = {}, AddInitializer = function(self, i) self.inits[#self.inits + 1] = i end } end
+    _G.Settings = { RegisterCanvasLayoutCategory = function() return {} end, RegisterAddOnCategory = noop,
+        RegisterCanvasLayoutSubcategory = function() return {} end,
+        RegisterVerticalLayoutSubcategory = function(parent, name) local l = Layout(); M.nativeLayouts = M.nativeLayouts or {}; M.nativeLayouts[name] = l; return { name = name }, l end,
+        RegisterProxySetting = function(cat, var, kind, name, default, get, set)
+            local st = { var = var, kind = kind, name = name, default = default, GetValue = function() return get() end,
+                SetValue = function(self, v) set(v) end, NotifyUpdate = function(self) self.notified = (self.notified or 0) + 1 end }
+            M.nativeSettings[var] = st
+            return st
+        end,
+        CreateCheckbox = function(cat, st, tip) M.nativeControls[#M.nativeControls + 1] = { kind = "check", setting = st, tip = tip } end,
+        CreateDropdown = function(cat, st, opts, tip) M.nativeControls[#M.nativeControls + 1] = { kind = "dropdown", setting = st, options = opts() } end,
+        CreateControlTextContainer = function()
+            local data = {}
+            return { Add = function(_, v, l) data[#data + 1] = { value = v, label = l } end, GetData = function() return data end }
+        end,
+    }
+    _G.CreateSettingsButtonInitializer = function(label, text, onClick) return { kind = "button", label = label, text = text, onClick = onClick } end
+    _G.CreateSettingsListSectionHeaderInitializer = function(text) return { kind = "header", text = text } end
     _G.GetItemQualityColor = function() return 1, 1, 1 end
     _G.C_Item = { GetItemInfo = function() return nil end, GetItemCount = function() return 0 end }
     _G.GetQuestID = function() return M.questID or 0 end

@@ -7101,7 +7101,7 @@ function DWE.SettingsChanged()
     for _, name in ipairs({ "OnThemeChanged", "ApplyFont", "ApplyBubbleOpacity", "RefreshBindings", "ApplyLock",
         "RestorePosition", "RestoreTextPosition", "Repin", "RefreshSpoken", "ZoneArtRefresh", "MinimapButtonRefresh",
         "RefreshBookLookOptions", "RefreshPlateLookOptions", "TextInRefresh", "CustomRefresh", "RefreshOptionsExtra",
-        "RefreshProfilesUI" }) do
+        "RefreshProfilesUI", "NativeRefresh" }) do
         local f = DWE[name]
         if type(f) == "function" then pcall(f) end
     end
@@ -7783,7 +7783,7 @@ function DWE.InitOptionsPanel()
     end
     DWE.RefreshPlateLookOptions()
     AddCheck(L.READ_MARKS, 16, y - 272, function() return DialogueWheelE_ReadMarks ~= false end, function(self)
-        DialogueWheelE_ReadMarks = (not self:GetChecked()) and false or nil
+        if self:GetChecked() then DialogueWheelE_ReadMarks = nil else DialogueWheelE_ReadMarks = false end
     end)
     AddCheck(L.BOOK_TIP_CURSOR, 16, y - 298, function() return DialogueWheelE_BookTipCursor == true end, function(self)
         DialogueWheelE_BookTipCursor = self:GetChecked() and true or false
@@ -7824,7 +7824,8 @@ function DWE.InitOptionsPanel()
         DWE.Repin()
     end, 1, 120)
     AddCheck(L.QUEST_AUTO_W, 16, y - 104, function() return DialogueWheelE_QuestAuto ~= false end, function(self)
-        DialogueWheelE_QuestAuto = (not self:GetChecked()) and false or nil
+        -- ("(not x) and false or nil" donnait toujours nil : la case ne se decochait jamais.)
+        if self:GetChecked() then DialogueWheelE_QuestAuto = nil else DialogueWheelE_QuestAuto = false end
         -- Decochee : on part de la largeur automatique actuelle.
         if DialogueWheelE_QuestAuto == false and not tonumber(DialogueWheelE_QuestWidth) then
             DialogueWheelE_QuestWidth = DWE.AutoQuestWidth()
@@ -8498,6 +8499,11 @@ function DWE.InitOptionsPanel()
                 if okS then pages[k].cat = sub end
             end
         end
+        -- Pages en lignes natives (refonte page par page, voir Options_Native.lua).
+        if DWE.BuildNativeOptions then pcall(DWE.BuildNativeOptions, cat) end
+        -- Sous-pages toujours depliees dans la liste du jeu : a la manette, le petit "+" a cote du
+        -- nom est difficile (voire impossible) a atteindre.
+        if type(cat.SetExpanded) == "function" then pcall(cat.SetExpanded, cat, true) else cat.expanded = true end
     end
 end
 

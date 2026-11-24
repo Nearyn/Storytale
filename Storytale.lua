@@ -1114,6 +1114,24 @@ end
 -- Texte du popup
 --------------------------------------------------------------------------------
 
+-- Spoken est-il en train de lire ce texte ? (meme debut, sans ponctuation ni casse)
+function DWE.SpokenReading(body)
+    local api = rawget(_G, "Spoken")
+    if type(body) ~= "string" or type(api) ~= "table" or type(api.GetNowPlaying) ~= "function" then return false end
+    local ok, clip = pcall(api.GetNowPlaying, api)
+    if not ok or type(clip) ~= "table" or clip.textOnly then return false end
+    local okP, paused = pcall(api.IsPaused, api)
+    if okP and paused then return false end
+    local present = type(clip.present) == "table" and clip.present or {}
+    local said = present.transcript or clip.text
+    if type(said) ~= "string" or (issecretvalue and (issecretvalue(said) or issecretvalue(body))) then return false end
+    local function norm(x) return (x:lower():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("[%s%p%c]", "")) end
+    local a, b = norm(said), norm(body)
+    local n = math.min(24, #a, #b)
+    return n >= 6 and a:sub(1, n) == b:sub(1, n)
+end
+-- Delai maximal (secondes) entre la fin de la quete et la salutation rouverte par le jeu.
+DWE.QUEST_HOLD_REOPEN = 1.5
 local function UpdateDialogueText(event)
     local npcName = NonEmpty(UnitName("npc")) or NonEmpty(UnitName("target")) or ""
     local questTitle = GetTitleText and NonEmpty(GetTitleText())
@@ -1147,7 +1165,11 @@ local function UpdateDialogueText(event)
         DWE.questHold = nil
         -- Seulement pour le meme PNJ : sinon un autre PNJ "parlait" avec la quete du precedent.
         local npc = UnitGUID and UnitGUID("npc") or nil
-        if now < hold.untilT and hold.npc and npc == hold.npc then
+        -- (Sans fin de quete notee, on ne garde rien : le jeu ne signale pas toujours qu'on s'est
+        -- eloigne de la fenetre de quete.)
+        local quick = now < hold.untilT and hold.closedAt and (now - hold.closedAt) < DWE.QUEST_HOLD_REOPEN
+        -- ... ou la voix lit encore ce texte de quete : on le garde, la bulle suit la voix.
+        if hold.npc and npc == hold.npc and (quick or DWE.SpokenReading(hold.body)) then
             header, body = hold.header, hold.body
         end
     end
@@ -3181,6 +3203,30 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         local v = tonumber((string.gsub(msg:match("^%s*pause%s+([%d%.,]+)") or "", ",", ".")))
         if v then DWE.SYNC_STOP = math.max(0, math.min(40, v)) end
         Out(("pause de la bulle a la fin d'une phrase : %g (/storytale pause 12 pour changer, valable pour le texte suivant)."):format(DWE.SYNC_STOP or 0))
+    elseif msg:match("^%s*probe") then
+        -- Diagnostic : ce que le jeu propose pour des options en lignes natives.
+        local S = rawget(_G, "Settings")
+        local function has(t, k) return (type(t) == "table" and type(t[k]) == "function") and "oui" or "non" end
+        local okB, ver, build, _, toc = pcall(GetBuildInfo)
+        Out(("jeu : %s %s toc=%s"):format(tostring(ver), tostring(build), tostring(toc)))
+        for _, k in ipairs({ "RegisterVerticalLayoutCategory", "RegisterVerticalLayoutSubcategory", "RegisterAddOnSetting",
+            "RegisterProxySetting", "CreateCheckbox", "CreateCheckBox", "CreateSlider", "CreateDropdown", "CreateDropDown",
+            "CreateSliderOptions", "CreateControlTextContainer", "SetOnValueChangedCallback", "OpenToCategory" }) do
+            Out("Settings." .. k .. " : " .. has(S, k))
+        end
+        for _, k in ipairs({ "CreateSettingsListSectionHeaderInitializer", "CreateSettingsButtonInitializer",
+            "CreateSettingsCheckboxDropdownInitializer", "CreateSettingsCheckboxSliderInitializer", "CreateColorSwatch" }) do
+            Out(k .. " : " .. ((type(rawget(_G, k)) == "function") and "oui" or "non"))
+        end
+        -- Forme de RegisterAddOnSetting (elle a change selon les versions du jeu) : essai sur une
+        -- categorie jamais affichee.
+        if has(S, "RegisterVerticalLayoutCategory") == "oui" and has(S, "RegisterAddOnSetting") == "oui" then
+            local okC, cat = pcall(S.RegisterVerticalLayoutCategory, "StorytaleProbe")
+            DWE.probeTbl = DWE.probeTbl or { v = true }
+            local okN = okC and pcall(S.RegisterAddOnSetting, cat, "STORYTALE_PROBE_NEW", "v", DWE.probeTbl, type(true), "Probe", true)
+            local okO = okC and not okN and pcall(S.RegisterAddOnSetting, cat, "Probe", "STORYTALE_PROBE_OLD", type(true), true)
+            Out(("RegisterAddOnSetting : forme nouvelle=%s ancienne=%s"):format(tostring(okN), tostring(okO)))
+        end
     elseif msg:match("^%s*page") then
         local v = tonumber((string.gsub(msg:match("^%s*page%s+([%d%.,]+)") or "", ",", ".")))
         -- En secondes pour l'utilisateur ; en lettres pour la bulle (environ 17,5 lettres/s).
@@ -3484,6 +3530,12 @@ f:SetScript("OnEvent", function(_, event)
         DWE.RestoreNameplateCVar()
         return
     elseif CLOSE_EVENTS[event] then
+        -- Fin de la fenetre de quete : on note l'heure. Le texte de quete garde pour la salutation
+        -- ne sert que si le jeu rouvre le PNJ tout de suite (quete acceptee / rendue) ; si le joueur
+        -- s'en va puis revient lui parler, c'est sa salutation normale.
+        if event == "QUEST_FINISHED" and DWE.questHold and not DWE.questHold.closedAt then
+            DWE.questHold.closedAt = GetTime and GetTime() or 0
+        end
         if event == "ITEM_TEXT_CLOSED" then
             DWE.ForceBlizzBook(event)
             if bookState.reachedEnd then DWE.MarkBook(bookState.title, true) end
