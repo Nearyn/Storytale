@@ -5002,15 +5002,25 @@ local function UnmaskPlates(onlyGone)
         if onlyGone then
             -- Plaque encore portee par une unite : le jeu va la retirer (reglages remis) ; la
             -- rendre visible maintenant la faisait apparaitre un instant a la fin de la conversation.
+            -- Le jeu efface l'unite de la plaque un instant avant de la cacher : on attend qu'elle
+            -- soit cachee, puis encore un peu (sinon son petit nom d'origine se voyait un instant).
             local plate = uf:GetParent()
             local okS, shown = pcall(function() return plate and plate:IsShown() end)
-            local tok = plate and plate.namePlateUnitToken
-            gone = not (okS and shown) or not (tok and Check(UnitExists, tok))
+            gone = false
+            if not (okS and shown) then
+                local now = GetTime and GetTime() or 0
+                DWE.goneAt = DWE.goneAt or setmetatable({}, { __mode = "k" })
+                DWE.goneAt[uf] = DWE.goneAt[uf] or now
+                gone = now - DWE.goneAt[uf] >= 0.15
+            elseif DWE.goneAt then
+                DWE.goneAt[uf] = nil
+            end
         end
         if gone then
             DWE.PlateRestoreParts(uf, parts)
             uf:SetAlpha(1)
             maskedFrames[uf] = nil
+            if DWE.goneAt then DWE.goneAt[uf] = nil end
         end
     end
 end

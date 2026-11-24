@@ -655,7 +655,7 @@ do
         UnitExists, UnitIsUnit, UnitCanAttack, UnitName = oE2, oUU2, oCA, oUN
         DWE.choiceBox:Hide(); M.RunTimers()
         check(M.cvars.nameplateShowAll == "0" and M.cvars.nameplateMaxDistance == "41" and DWE.softSaved == nil, "near plates setting restored after the conversation")
-        M.RunTimers()
+        for _ = 1, 40 do M.RunTimers() end
         check(bar:GetAlpha() == 1 and nb.UnitFrame.name:GetAlpha() == 1 and not DWE.ownNames[nb.UnitFrame]:IsShown(), "neighbour plate parts given back after the conversation")
         M.plates = { plate }
         DWE.choiceBox:Show(); follower._scripts.OnUpdate(follower, 0.2)
@@ -708,7 +708,7 @@ end
 DWE.choiceBox:Hide(); M.RunTimers()
 check(M.cvars.nameplateShowFriendlyNPCs == "0", "player setting restored on close")
 check(plate.UnitFrame:GetAlpha() == 0, "plate stays invisible while being removed")
-M.RunTimers()
+for _ = 1, 40 do M.RunTimers() end
 check(plate.UnitFrame:GetAlpha() == 1, "plate alpha restored after removal")
 check(not DWE.IsFollowingNPC(), "not following after close")
 check(DWE.choiceBox._points[1] and DWE.choiceBox._points[1][2] ~= plate, "wheel back to fixed place after close")
