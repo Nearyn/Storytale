@@ -972,14 +972,14 @@ DWE.BubbleGeneratedTimes = GeneratedTimes
 -- Part du texte deja lue d'apres ces durees : temps ecoule depuis le debut du son, mot courant
 -- plus la fraction de ce mot deja dite (comme avec les vraies durees). Un mot ne dure jamais plus
 -- que sa longueur ne le permet : pendant une pause de la voix, l'ecriture attend au bout du mot.
-DWE.GEN_DELAY = 0.4 -- secondes entre le lancement du son et la voix entendue (durees generees)
+DWE.GEN_DELAY = 0.25 -- secondes entre le lancement du son et la voix entendue (durees generees)
 DWE.GEN_EASE = 0.12 -- secondes : retard de l'ecriture sur la lettre dite (durees generees)
 local function GeneratedShare(st, clip, length)
     local t = GeneratedTimes(clip)
     local m = st.words and #st.words or 0
     if not t or m == 0 or not (st.total and st.total > 0) then return nil end
     -- Le son est entendu un peu apres son lancement par Spoken (chargement) : DWE.GEN_DELAY,
-    -- mesure en jeu (bulle a 0,40 s d'avance sans ce delai, video du 24/11).
+    -- mesure en jeu le 24/11 : 0,40 s d'avance sans delai, 0,27 s de retard avec 0,4 s.
     local e = GetTime() - (clip.spokenAt - length) - DWE.GEN_DELAY
     if e <= t[1] then return 0 end
     local n, i = #t, #t
