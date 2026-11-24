@@ -11,7 +11,7 @@ local L = DWE.L
 do
     local EXTRA = { "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose",
         "BookVoiceOff", "RibbonSeen", "GamePad", "PadTipSeen", "PadTips", "DUIPos", "SpokenStyleChosen",
-        "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen", "Profiles", "PlateRestore" }
+        "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen", "Profiles", "PlateRestore", "BubbleHighlight" }
     DWE.EXTRA_VARS = EXTRA
     local me = ...
 

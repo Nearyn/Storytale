@@ -901,6 +901,46 @@ DWE.SetDialogueText("x", body3)
 for _ = 1, 2 do now = now + 0.05; tick(0.05) end
 check(vis():find("eight") or vis():find("nine") or vis():find("ten") or vis():find("Eleven"),
     "reopened while the voice reads it: bubble joins the voice, not the start: '" .. vis() .. "'")
+-- Mot lu surligne : rien par defaut ; avec l'option et "Highlight Words" de Spoken, le mot ecrit
+-- prend la couleur de Spoken ; jamais sans l'option.
+do
+    local oEnv = rawget(_G, "SpokenEnv")
+    local env = type(oEnv) == "table" and oEnv or {}
+    _G.SpokenEnv = env
+    local oAddon = rawget(env, "Addon")
+    env.Addon = { db = { profile = { Transcript = { HighlightWord = true } } } }
+    local hb = "Alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike."
+    clip = { length = 6, spokenAt = now + 6, text = hb, present = { transcript = hb } }
+    DWE.SetDialogueText("x", hb)
+    for _ = 1, 40 do now = now + 0.05; tick(0.05) end
+    check(not (full() or ""):find("|c", 1, true), "word highlight: off by default (Storytale option unchecked)")
+    DialogueWheelE_BubbleHighlight = true
+    DWE.Bubble.RefreshHighlight()
+    for _ = 1, 4 do now = now + 0.05; tick(0.05) end
+    local t = full() or ""
+    -- (Seulement avec le fondu du jeu, que Forever a : sans lui, la bulle ecrit sans couleur.)
+    if os.getenv("NOGRADIENT") ~= "1" then
+        local word = t:match("|cff%x%x%x%x%x%x(.-)|r")
+        check(word ~= nil and hb:find(word, 1, true) ~= nil, "word highlight: the word being written is coloured: " .. tostring(word))
+        check(t:gsub("|cff%x%x%x%x%x%x", ""):gsub("|r", "") == hb, "word highlight: text unchanged apart from the colour")
+        -- Jamais d'image ou le texte vient de changer et se voit (le jeu n'y met le fondu qu'a
+        -- l'image suivante) : le texte change cache, une copie prete prend sa place.
+        local flash, lastText = false, bt:GetText()
+        for _ = 1, 40 do
+            now = now + 0.05; tick(0.05)
+            local cur = bt:GetText()
+            if cur ~= lastText and bt:GetAlpha() > 0 then flash = true end
+            lastText = cur
+        end
+        check(not flash, "word highlight: the bubble text never changes while visible (no full-text flash)")
+    end
+    env.Addon.db.profile.Transcript.HighlightWord = false
+    for _ = 1, 4 do now = now + 0.05; tick(0.05) end
+    check(not (full() or ""):find("|c", 1, true), "word highlight: off when Spoken's Highlight Words is off")
+    DialogueWheelE_BubbleHighlight = nil
+    env.Addon = oAddon
+    if oEnv == nil then _G.SpokenEnv = nil end
+end
 -- Voix qui vient de commencer ce texte : on part du debut, comme avant.
 local body4 = "Alpha one two three four five six seven eight nine ten. Eleven twelve thirteen fourteen."
 clip = { length = 10, spokenAt = now + 9.5, text = body4, present = { transcript = body4 } }

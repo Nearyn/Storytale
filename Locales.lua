@@ -1116,6 +1116,22 @@ for loc, v in pairs({
     zhTW = "Storytale 與 |cffffd200Spoken|r 搭配效果很好，它能為 NPC、任務和書籍配音。可在 CurseForge 上找到。",
 }) do if T[loc] then T[loc].SPOKEN_TIP = v end end
 
+-- Surlignage du mot lu dans la bulle (libelle court + infobulle).
+enUS.BUBBLE_HIGHLIGHT = "Highlight the word being read"
+enUS.BUBBLE_HIGHLIGHT_TIP = "In the bubble, the word the voice is saying is coloured, like in Spoken's window. Only when \"Highlight Words\" is also checked in Spoken's options."
+for loc, v in pairs({
+    frFR = { "Surligner le mot lu", "Dans la bulle, le mot que dit la voix est mis en couleur, comme dans la fenêtre de Spoken. Seulement si « Highlight Words » est aussi coché dans les options de Spoken." },
+    deDE = { "Gelesenes Wort hervorheben", "In der Sprechblase wird das Wort, das die Stimme gerade spricht, farbig hervorgehoben, wie im Fenster von Spoken. Nur wenn „Highlight Words“ auch in den Optionen von Spoken aktiviert ist." },
+    esES = { "Resaltar la palabra leída", "En el bocadillo, la palabra que dice la voz se colorea, como en la ventana de Spoken. Solo si «Highlight Words» también está marcado en las opciones de Spoken." },
+    esMX = { "Resaltar la palabra leída", "En el globo, la palabra que dice la voz se colorea, como en la ventana de Spoken. Solo si «Highlight Words» también está marcado en las opciones de Spoken." },
+    itIT = { "Evidenzia la parola letta", "Nel fumetto, la parola che la voce sta dicendo viene colorata, come nella finestra di Spoken. Solo se «Highlight Words» è selezionato anche nelle opzioni di Spoken." },
+    ptBR = { "Destacar a palavra lida", "No balão, a palavra que a voz está dizendo fica colorida, como na janela do Spoken. Só se «Highlight Words» também estiver marcado nas opções do Spoken." },
+    ruRU = { "Подсвечивать читаемое слово", "В облачке слово, которое произносит голос, выделяется цветом, как в окне Spoken. Только если в настройках Spoken тоже включено «Highlight Words»." },
+    koKR = { "읽는 단어 강조", "말풍선에서 목소리가 읽고 있는 단어에 색을 입힙니다. Spoken 창과 같습니다. Spoken 설정에서 「Highlight Words」도 켜져 있을 때만 작동합니다." },
+    zhCN = { "高亮正在朗读的词", "在气泡中，为语音正在朗读的词着色，与 Spoken 的窗口相同。仅当 Spoken 选项中也勾选了「Highlight Words」时生效。" },
+    zhTW = { "醒目標示正在朗讀的詞", "在對話泡泡中，為語音正在朗讀的詞上色，與 Spoken 的視窗相同。僅當 Spoken 選項中也勾選了「Highlight Words」時生效。" },
+}) do if T[loc] then T[loc].BUBBLE_HIGHLIGHT, T[loc].BUBBLE_HIGHLIGHT_TIP = v[1], v[2] end end
+
 -- Libelles courts des options (details dans l'infobulle de chaque case, cles *_TIP).
 local SHORT = {
     enUS = { DEFAULTS_ALL_BTN = "Default all", PAGE_RESET_CONFIRM = "Reset the options of the page \"%s\" to their defaults?", DEFAULTS_BTN = "Defaults", PROFILE_COPY_FROM = "Copy settings from", PROFILE_DEL_ROW = "Delete profile", PROFILE_NEW_BTN = "New profile", PROFILE_FOR_NEW = "Profile for new characters", PROFILE_CLICK_TIP = "Pick with the arrows, then click to apply.", PROFILE_COPY_CONFIRM = "Copy the options of \"%s\" into this profile?", PROFILE_DEL_CONFIRM = "Delete the profile \"%s\"?\nCharacters using it go back to Main.", LOCK = "Lock windows", LOCK_TIP = "Prevents moving and resizing the wheel, the bubble and books.", ATTACH_NPC = "Wheel and bubble stick to the NPC", READ_MARKS = "Show if already read", READ_MARKS_TIP = "In the tooltip and in Spoken's queue.", BOOK_TIP_CURSOR = "Tooltip at the mouse", BOOK_TIP_CURSOR_TIP = "Instead of the corner of the screen.", BOOK_AUTOSCROLL = "Follow Spoken's voice", BOOK_AUTOSCROLL_TIP = "The text scrolls and the pages turn with the voice.", BOOK_TURN_FX = "Page-turn animation and sound", BOOK_VOICE_TURN = "Voice follows my pages", BOOK_STOP_CLOSE = "Stop the voice when closing a book", PLATE_STYLE = "Engraved plaques", FONT_SIZE = "Text size", HIDE_UI = "Hide UI while talking or reading", HIDE_UI_TIP = "During conversations and books.", PAD_USE = "Use the gamepad", QUEST_AUTO_W = "Automatic quest preview width", QUEST_AUTO_W_TIP = "Uncheck to set it with its grip.", THEME_BUBBLES = "Bubble above the NPC", THEME_BUBBLES_TIP = "Uncheck for a fixed frame.", WHEEL_THEME = "Theme on the wheel too", SPOKEN_THEME = "Theme on Spoken's player too", SPOKEN_BUTTON = "Bubble / Spoken button on the wheel", SPOKEN_BUTTON_TIP = "Switches between the bubble and Spoken's player.", KEY_TOGGLE = "Bubble / Spoken key:", ZONE_ART = "Area pictures (Spoken)", ZONE_ART_TIP = "In Spoken's small window.", ZONE_ART_PAPER = "Painted paper edge", PROFILE_FACTORY_NOTE = "The Defaults profile keeps no changes." },

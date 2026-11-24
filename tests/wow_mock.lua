@@ -83,6 +83,7 @@ function Object:GetStringHeight()
     return 16 * lines
 end
 function Object:GetUnboundedStringWidth() return self._text and #tostring(self._text) * 7 or 0 end
+function Object:GetStringWidth() return self._text and math.min(#tostring(self._text) * 7, self._w or 300) or 0 end
 function Object:SetFont(path, size, flags)
     assert(type(path) == "string", "SetFont path must be a string, got " .. tostring(path))
     assert(type(size) == "number", "SetFont size must be number")

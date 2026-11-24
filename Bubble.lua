@@ -305,6 +305,31 @@ text:SetFontObject(ChatBubbleFont or GameFontHighlight)
 text:SetJustifyH("LEFT")
 text:SetJustifyV("TOP")
 if text.SetWordWrap then text:SetWordWrap(true) end
+-- Copie du texte, pour changer le mot surligne sans eclair : le jeu n'applique le fondu qu'a
+-- l'image qui suit un nouveau texte (le texte entier se voyait une image). La copie recoit le
+-- nouveau texte une image a l'avance, cachee, puis prend la place du texte le temps qu'il se mette a jour.
+local ghost = holder:CreateFontString(nil, "OVERLAY")
+ghost:SetFontObject(ChatBubbleFont or GameFontHighlight)
+ghost:Hide()
+local function SyncGhost()
+    -- Chaque reglage a part : un seul qui echoue ne doit pas laisser la copie invisible.
+    pcall(function() ghost:SetFontObject(text:GetFontObject() or ChatBubbleFont or GameFontHighlight) end)
+    pcall(function()
+        local f, size, flags = text:GetFont()
+        if f and size then ghost:SetFont(f, size, flags or "") end
+    end)
+    pcall(function() ghost:SetTextColor(text:GetTextColor()) end)
+    pcall(function() ghost:SetShadowOffset(text:GetShadowOffset()) end)
+    pcall(function() ghost:SetShadowColor(text:GetShadowColor()) end)
+    pcall(function() ghost:SetJustifyH(text:GetJustifyH()) end)
+    pcall(function() ghost:SetJustifyV(text:GetJustifyV()) end)
+    pcall(function() if ghost.SetWordWrap then ghost:SetWordWrap(true) end end)
+    pcall(function() ghost:SetWidth(text:GetWidth()) end)
+    pcall(function()
+        ghost:ClearAllPoints()
+        ghost:SetPoint("TOPLEFT", text, "TOPLEFT", 0, 0)
+    end)
+end
 
 local function Pad()
     return STYLES[styleName or "game"].pad
@@ -505,9 +530,113 @@ local function FadeLen(n)
     return FADE_LETTERS
 end
 
+-- Mot lu surligne (option de Storytale, decochee par defaut, et "Highlight Words" de Spoken) :
+-- le mot que la bulle ecrit au rythme de la voix prend la couleur de Spoken (or sur fond
+-- sombre, rouge fonce sur fond clair).
+local HL_ON_DARK, HL_ON_LIGHT = "|cffffd100", "|cff9c1a1a"
+local function HighlightOn()
+    if DialogueWheelE_BubbleHighlight ~= true then return false end
+    local env = rawget(_G, "SpokenEnv")
+    local addon = type(env) == "table" and rawget(env, "Addon")
+    if type(addon) ~= "table" then return false end
+    local ok, on = pcall(function()
+        local t = addon.db.profile.Transcript
+        return t.Enabled ~= false and t.HighlightWord == true
+    end)
+    return ok and on == true
+end
+DWE.BubbleHighlightOn = HighlightOn
+
+-- Le mot a surligner dans le morceau affiche : celui que la bulle est en train d'ecrire (nil si
+-- rien a surligner). Rend son debut et sa longueur en lettres dans le morceau.
+local function HighlightWord(n)
+    if not (state.voiced and not state.manual and state.phase == "typing" and not state.dots) then return nil end
+    if n <= 0 or not state.words or not HighlightOn() then return nil end
+    local segStart = 0
+    for k = 1, (state.index or 1) - 1 do segStart = segStart + (state.lens[k] or 0) end
+    local pos, found = segStart + n, nil
+    for _, w in ipairs(state.words) do
+        if w.start >= pos then break end
+        if w.start >= segStart then found = w end
+    end
+    if not found then return nil end
+    return found.start - segStart, found.len
+end
+
+-- Texte du morceau avec le mot lu en couleur (ou sans couleur), et sa cle (nil : sans couleur).
+local function HighlightText(seg, n)
+    local at, len = HighlightWord(n)
+    -- Texte avec ses propres codes (lien, couleur) : on n'y touche pas.
+    if not at or seg:find("|", 1, true) then return seg, nil end
+    local a = #Utf8Prefix(seg, at)
+    local b = #Utf8Prefix(seg, at + len)
+    local okC, r, g = pcall(text.GetTextColor, text)
+    if not okC then r, g = 1, 1 end
+    local light = (r or 1) * 0.6 + (g or 1) * 0.4 > 0.5 -- texte clair : fond sombre
+    return seg:sub(1, a) .. (light and HL_ON_DARK or HL_ON_LIGHT) .. seg:sub(a + 1, b) .. "|r" .. seg:sub(b + 1),
+        state.index .. ":" .. at
+end
+
+-- Changement du mot surligne sans jamais montrer le texte sans son fondu, ni une bulle vide :
+-- 0) la copie (quasi invisible) recoit le nouveau texte ; 1) la copie se montre par-dessus le
+-- texte (le jeu peut ne la dessiner qu'une image plus tard) ; 2) le texte recoit le nouveau
+-- texte, cache derriere la copie ; 3) le texte revient, la copie disparait.
+-- Rend vrai si l'image est prise.
+local function HighlightStep(seg, n)
+    if state.hlStage and state.hlT ~= state.t then
+        state.hlT = state.t
+        local fade = FadeLen(n)
+        if state.hlStage == 1 then
+            GradientAt(ghost, n, fade)
+            ghost:SetAlpha(1)
+            GradientAt(text, n, fade)
+            state.hlStage = 2
+        elseif state.hlStage == 2 then
+            GradientAt(ghost, n, fade)
+            text:SetText(state.hlNext)
+            GradientAt(text, n, fade)
+            -- Copie bien dessinee : le texte se cache derriere elle le temps de se mettre a jour.
+            local okW, gw = pcall(ghost.GetStringWidth, ghost)
+            if okW and (gw or 0) > 0 then text:SetAlpha(0) end
+            state.hlStage = 3
+        else
+            GradientAt(text, n, fade)
+            text:SetAlpha(1)
+            ghost:Hide()
+            state.hlStage = nil
+        end
+        state.shownN = n
+        return true
+    elseif state.hlStage then
+        -- Deja traite a cette image : on garde juste les fondus a jour.
+        local fade = FadeLen(n)
+        if ghost:IsShown() then GradientAt(ghost, n, fade) end
+        GradientAt(text, n, fade)
+        state.shownN = n
+        return true
+    end
+    if n <= 0 or state.fresh then return false end
+    local want, key = HighlightText(seg, n)
+    if key == state.hlKey then return false end
+    state.hlKey, state.hlNext, state.hlStage, state.hlT = key, want, 1, state.t
+    SyncGhost()
+    ghost:SetText(want)
+    GradientAt(ghost, n, FadeLen(n))
+    -- Presque invisible (pas 0) : le jeu prepare ainsi son dessin pour l'image suivante.
+    ghost:SetAlpha(0.01)
+    ghost:Show()
+    return false
+end
+
+local function HighlightReset()
+    state.hlKey, state.hlStage, state.hlNext = nil, nil, nil
+    ghost:Hide()
+end
+
 local function Reveal()
     local seg = state.segs[state.index] or ""
     local n = math.floor(state.typed or 0)
+    if hasGradient and state.phase == "typing" and not state.dots and HighlightStep(seg, n) then return end
 
     if n == state.shownN then
         -- Le jeu peut effacer le fondu quand la bulle devient visible : le texte entier se
@@ -539,6 +668,7 @@ local function StartSegment(i)
     local seg = state.segs[i]
     -- Premiere lettre tout de suite : la bulle apparait avec son texte, sans delai.
     state.index, state.phase, state.typed, state.shownN = i, "typing", (i == 1) and 1 or 0, nil
+    HighlightReset() -- FitTo remet le texte sans couleur
     state.fresh = (i == 1) or nil
     FitTo(seg, seg)
     Reveal()
@@ -550,6 +680,7 @@ local function FinishTyping()
     state.phase, state.readT = "reading", 0
     state.duration = math.max(READ_MIN, math.min(READ_MAX, len * READ_PER_CHAR))
     state.typed = len
+    HighlightReset() -- page finie : plus de mot surligne
     text:SetAlpha(1)
     bubble:DWEWaitHide(false)
     text:SetText(seg)
@@ -1039,6 +1170,11 @@ function DWE.Bubble.RefreshCustom()
 end
 
 -- Nouveau texte : le PNJ recommence a ecrire (sauf si c'est le meme texte, ex. livre recharge).
+-- Option du mot surligne changee : la bulle se redessine a l'image suivante.
+function DWE.Bubble.RefreshHighlight()
+    if not state.hlStage then state.hlKey = "?" end
+end
+
 -- Texte de la bulle si une voix de Spoken l'a deja lu (la bulle l'a suivie), sinon nil.
 function DWE.Bubble.VoicedText()
     return state.voiced and state.raw or nil
@@ -1049,6 +1185,7 @@ function DWE.Bubble.SetText(s)
     if s == nil then s = "" end
     if not IsSecret(s) and s == state.raw then return end
     state.raw = s
+    HighlightReset()
     state.manual, state.clip, state.clipMatch, state.norm = nil, nil, nil, nil
     state.wmap, state.posW, state.timed = nil, nil, nil
     state.voiced, state.age, state.holdT, state.waitT = nil, 0, 0, 0
