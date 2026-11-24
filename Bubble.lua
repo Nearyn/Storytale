@@ -731,17 +731,22 @@ end
 -- Pauses de la voix apres un point, une virgule ou un retour a la ligne (en lettres), comme les
 -- sous-titres de Spoken : la bulle marque un temps au meme endroit que la voix au lieu de
 -- prendre de l'avance a chaque phrase.
-DWE.SYNC_STOP, DWE.SYNC_COMMA, DWE.SYNC_LINE, DWE.SYNC_PARA, DWE.SYNC_PAGE = 7, 3, 10, 20, 17.5
--- En plus, quand un nouveau paragraphe ouvre une nouvelle page (environ 0,2 s).
-DWE.SYNC_PARA_PAGE = 4
+-- Valeurs mesurees sur ~4 600 repliques de Spoken dont on connait les vrais temps des mots
+-- (24/11) : la voix marque ~6-8 lettres apres une virgule ou un tiret, ~8-11 apres un point.
+-- Ecart moyen bulle/voix passe de 0,66 s a 0,39 s sur des repliques mises de cote.
+DWE.SYNC_STOP, DWE.SYNC_COMMA, DWE.SYNC_LINE, DWE.SYNC_PARA, DWE.SYNC_PAGE = 8, 8, 10, 9, 6
+DWE.SYNC_DASH = 9
+-- En plus, quand un nouveau paragraphe ouvre une nouvelle page.
+DWE.SYNC_PARA_PAGE = 0
 -- Douceur des arrets et reprises aux pauses (secondes).
 DWE.SYNC_EASE = 0.1
--- En plus, a la deuxieme page tournee (environ 0,3 s), puis a chacune des suivantes (0,6 s).
-DWE.SYNC_PAGE_LATER, DWE.SYNC_PAGE_NEXT = 5.25, 10.5
+-- En plus, a la deuxieme page tournee, puis a chacune des suivantes (inutile d'apres les mesures).
+DWE.SYNC_PAGE_LATER, DWE.SYNC_PAGE_NEXT = 0, 0
 local SYNC_MARK = { ["."] = "stop", ["!"] = "stop", ["?"] = "stop", ["\226\128\166"] = "stop",
     ["\227\128\130"] = "stop", ["\239\188\129"] = "stop", ["\239\188\159"] = "stop",
     [","] = "comma", [";"] = "comma", [":"] = "comma", ["\239\188\140"] = "comma",
-    ["\227\128\129"] = "comma", ["\239\188\155"] = "comma", ["\239\188\154"] = "comma" }
+    ["\227\128\129"] = "comma", ["\239\188\155"] = "comma", ["\239\188\154"] = "comma",
+    ["-"] = "dash", ["\226\128\148"] = "dash", ["\226\128\147"] = "dash" }
 local SYNC_CLOSE = { ['"'] = true, ["'"] = true, [")"] = true, ["]"] = true, ["\194\187"] = true,
     ["\226\128\157"] = true, ["\226\128\153"] = true, ["\227\128\141"] = true,
     ["\227\128\143"] = true, ["\239\188\137"] = true }
@@ -753,6 +758,7 @@ local function PauseAfter(word, newline)
     local mark = SYNC_MARK[chars[i] or ""]
     if mark == "stop" or newline then return DWE.SYNC_STOP end
     if mark == "comma" then return DWE.SYNC_COMMA end
+    if mark == "dash" and i > 1 then return DWE.SYNC_DASH end
     return 0
 end
 
