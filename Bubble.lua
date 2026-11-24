@@ -15,8 +15,8 @@ local SPOKEN_PACE = TYPE_SPEED
 local FADE_LETTERS = 10        -- nombre de lettres en cours d'apparition (fondu)
 
 -- Lettres 1..n nettes, les FADE_LETTERS suivantes en fondu.
-local function GradientAt(fs, n)
-    fs:SetAlphaGradient(n, FADE_LETTERS)
+local function GradientAt(fs, n, fade)
+    fs:SetAlphaGradient(n, fade or FADE_LETTERS)
 end
 local READ_PER_CHAR, READ_MIN, READ_MAX = 0.05, 2, 8 -- temps de lecture apres ecriture
 
@@ -491,13 +491,28 @@ local hasGradient = text.SetAlphaGradient ~= nil
 
 -- Affiche les `state.typed` premieres lettres du morceau. Avec le fondu du jeu, le texte entier
 -- est deja en place (il ne saute pas d'une ligne a l'autre en cours d'ecriture).
+-- Fondu de la bulle qui suit la voix : il ne deborde pas au-dela de la prochaine pause de la
+-- voix (virgule, point, fin de page). Sinon, pendant la pause, le debut du mot suivant restait
+-- visible a moitie et semblait fige. Il raccourcit en douceur a l'approche de la pause.
+local function FadeLen(n)
+    local stops = state.voiced and state.wmap and state.wmap.stops
+    if not stops then return FADE_LETTERS end
+    local at = n
+    for k = 1, (state.index or 1) - 1 do at = at + (state.lens[k] or 0) end
+    for _, c in ipairs(stops) do
+        if c >= at then return math.max(1, math.min(FADE_LETTERS, c - at)) end
+    end
+    return FADE_LETTERS
+end
+
 local function Reveal()
     local seg = state.segs[state.index] or ""
     local n = math.floor(state.typed or 0)
+
     if n == state.shownN then
         -- Le jeu peut effacer le fondu quand la bulle devient visible : le texte entier se
         -- voyait jusqu'a la lettre suivante. On le remet a chaque image (sans toucher au texte).
-        if hasGradient and not state.dots and state.phase == "typing" and n > 0 then GradientAt(text, n) end
+        if hasGradient and not state.dots and state.phase == "typing" and n > 0 then GradientAt(text, n, FadeLen(n)) end
         return
     end
     state.shownN = n
@@ -514,7 +529,7 @@ local function Reveal()
         if hasGradient then text:SetAlphaGradient(100, 1) end
         text:SetText(Utf8Prefix(seg, n))
     elseif hasGradient then
-        GradientAt(text, n)
+        GradientAt(text, n, FadeLen(n))
     else
         text:SetText(Utf8Prefix(seg, n))
     end
@@ -650,20 +665,29 @@ local function AddLineBreaks(words, raw)
     end
 end
 
+-- Avant que la voix soit entendue : on ecrit au rythme d'une voix (lettres par seconde), en
+-- ralentissant en douceur a l'approche de PRE_VOICE_MAX lettres (jamais d'arret net).
+DWE.PRE_VOICE_SPEED, DWE.PRE_VOICE_MAX = 17, 12
+function DWE.PreVoiceStep(pos, dt)
+    local k = math.max(0.15, 1 - pos / DWE.PRE_VOICE_MAX)
+    return pos + dt * DWE.PRE_VOICE_SPEED * k
+end
+
 -- Correspondance lettres <-> "temps de voix" (lettres + pauses), par segments droits : pendant
 -- une pause, le temps avance mais la lettre reste la meme.
 local function BuildMap(words, total)
-    local c, w, extra = { 0 }, { 0 }, 0
+    local c, w, extra, stops = { 0 }, { 0 }, 0, {}
     for _, wd in ipairs(words or {}) do
         if (wd.pause or 0) > 0 then
             local e = math.min(total, wd.start + wd.len)
+            stops[#stops + 1] = e
             c[#c + 1], w[#w + 1] = e, e + extra
             extra = extra + wd.pause
             c[#c + 1], w[#w + 1] = e, e + extra
         end
     end
     c[#c + 1], w[#w + 1] = total, total + extra
-    return { c = c, w = w, totalW = total + extra }
+    return { c = c, w = w, totalW = total + extra, stops = stops }
 end
 local function MapLookup(from, to, x)
     if x <= from[1] then return to[1] end
@@ -681,8 +705,9 @@ DWE.SyncBuildWords, DWE.SyncBuildMap, DWE.SyncMapLookup, DWE.SyncLineBreaks = Bu
 -- Avance de l'ecriture sur la voix, en "temps de voix" (pauses comprises) ; rend la lettre.
 local VoiceSpeed
 local function VoiceStep(st, pos, share, length, dt)
-    -- La voix n'est pas encore entendue : on attend sans ecrire.
-    if share <= 0 then return pos end
+    -- La voix n'est pas encore entendue : la bulle avance tout doucement sur les premieres
+    -- lettres (ni figee, ni en avance sur la voix).
+    if share <= 0 then return DWE.PreVoiceStep(pos, dt) end
     length = math.max(0.1, length - math.max(0, math.min(length * 0.3, tonumber(DWE.VOICE_LEAD) or 0)))
     local map = st.wmap
     if not map then
@@ -938,12 +963,13 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
 
     -- Sans voix : vitesse fixe, puis temps de lecture avant le morceau suivant.
     if state.phase == "typing" then
-        state.typed = (state.typed or 0) + elapsed * (state.dots and 3 or (SpokenInstalled() and SPOKEN_PACE or TYPE_SPEED))
-            * (waitVoice == "slow" and 0.25 or waitVoice and 0.5 or StartFactor(state))
-        -- En attendant que la voix de Spoken demarre, la bulle s'affiche avec sa premiere lettre
-        -- et n'ecrit rien de plus : la voix part du debut, le texte ne doit pas la devancer.
         if waitVoice and not state.voiced and (state.age or 0) < DWE.VOICE_WAIT then
-            state.typed = math.min(state.typed, 1)
+            -- En attendant que la voix de Spoken demarre : on ecrit deja, au rythme d'une voix,
+            -- en ralentissant doucement (quelques lettres d'avance au plus, rattrapees ensuite).
+            state.typed = DWE.PreVoiceStep(state.typed or 0, elapsed)
+        else
+            state.typed = (state.typed or 0) + elapsed * (state.dots and 3 or (SpokenInstalled() and SPOKEN_PACE or TYPE_SPEED))
+                * (waitVoice == "slow" and 0.25 or waitVoice and 0.5 or StartFactor(state))
         end
         -- On va jusqu'au bout du fondu pour que les dernieres lettres apparaissent aussi en douceur.
         if state.typed >= (state.lens[state.index] or 0) then FinishTyping() else Reveal() end
