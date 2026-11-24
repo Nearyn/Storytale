@@ -4867,9 +4867,10 @@ DWE.ownNames = setmetatable({}, { __mode = "k" })
 function DWE.NearNameSize()
     local okZ, z = pcall(GetCameraZoom)
     z = (okZ and type(z) == "number") and z or 6
-    local size = math.max(281 / (z + 1.6), 26.8) * (DWE.NEAR_NAME_SIZE / 40)
+    -- (+3 % : hauteur des lettres mesuree sur capture, original contre le notre.)
+    local size = math.max(281 / (z + 1.6), 26.8) * 1.03 * (DWE.NEAR_NAME_SIZE / 40)
     if size < 12 then size = 12 elseif size > 110 then size = 110 end
-    return math.floor(size + 0.5)
+    return size
 end
 -- Habille un texte a nous, pose sur le nom de la plaque (cache), comme le nom habituel du PNJ :
 -- police du jeu, vert vif (jaune si neutre), ombre, titre en dessous, sans limite de largeur.
@@ -4896,24 +4897,36 @@ function DWE.PlateNameStyle(parts, token)
     end
     local font = "Fonts\\FRIZQT__.TTF"
     local size = DWE.NearNameSize()
-    if fs.dweSize ~= size or fs.dweY ~= DWE.NEAR_NAME_Y then
-        fs.dweSize, fs.dweY = size, DWE.NEAR_NAME_Y
+    if not fs.dweInit or fs.dweY ~= DWE.NEAR_NAME_Y then
+        fs.dweInit, fs.dweY, fs.dweSize = true, DWE.NEAR_NAME_Y, nil
         -- Les plaques non ciblees sont semi-transparentes : le nom habituel, lui, ne l'est pas.
         if fs.SetIgnoreParentAlpha then pcall(fs.SetIgnoreParentAlpha, fs, true) end
-        pcall(fs.SetFont, fs, font, size, "")
-        pcall(fs.SetShadowOffset, fs, 2, -2)
-        pcall(fs.SetShadowColor, fs, 0, 0, 0, 1)
+        -- Le nom habituel a des traits plus epais et presque pas d'ombre noire : une "ombre"
+        -- verte decalee d'un pixel epaissit les traits comme lui (mesure sur captures).
+        pcall(fs.SetShadowOffset, fs, 1, -1)
         pcall(fs.SetJustifyH, fs, "CENTER")
         pcall(fs.SetSpacing, fs, 0)
         pcall(fs.ClearAllPoints, fs)
         pcall(fs.SetPoint, fs, "BOTTOM", name, "BOTTOM", 0, DWE.NEAR_NAME_Y)
+        -- Taille continue (sans paliers) si le jeu sait mettre un texte a l'echelle.
+        fs.dweScaled = fs.SetTextScale and pcall(fs.SetFont, fs, font, 40, "") and pcall(fs.SetTextScale, fs, 1)
+    end
+    if fs.dweScaled then
+        if not fs.dweSize or math.abs(fs.dweSize - size) > 0.05 then
+            fs.dweSize = size
+            pcall(fs.SetTextScale, fs, size / 40)
+        end
+    else
+        local rs = math.floor(size + 0.5)
+        if fs.dweSize ~= rs then fs.dweSize = rs pcall(fs.SetFont, fs, font, rs, "") end
     end
     local text = parts.title and (nm .. "\n<" .. parts.title .. ">") or nm
     if fs.dweText ~= text then fs.dweText = text pcall(fs.SetText, fs, text) end
-    local r, g, b = 0.1, 1, 0.1
+    local r, g, b = 0, 1, 0 -- vert pur, comme le nom habituel (mesure : 0, 251, 0)
     local okR, react = pcall(UnitReaction, token, "player")
     if okR and react == 4 then r, g, b = 1, 1, 0 end
     pcall(fs.SetTextColor, fs, r, g, b, 1)
+    pcall(fs.SetShadowColor, fs, r, g, b, 1)
     if not fs:IsShown() then fs:Show() end
     -- Journal : de quoi caler la taille sur la distance de la camera (le nom habituel en depend).
     if DWE.followLog and parts.loggedFor ~= token then
@@ -4921,7 +4934,7 @@ function DWE.PlateNameStyle(parts, token)
         local okZ, z = pcall(GetCameraZoom)
         local function cv(k) local ok, v = pcall(GetCVar, k) return ok and tostring(v) or "?" end
         DWE.FLog(("nom maquille : %s | zoom camera=%s | taille=%s | echelle plaques min=%s max=%s dist=%s"):format(
-            nm, tostring(okZ and z and string.format("%.2f", z)), tostring(DWE.NearNameSize()),
+            nm, tostring(okZ and z and string.format("%.2f", z)), string.format("%.1f", DWE.NearNameSize()),
             cv("nameplateMinScale"), cv("nameplateMaxScale"), cv("nameplateMinScaleDistance")))
     end
 end
