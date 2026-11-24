@@ -5368,7 +5368,9 @@ function DWE.KeepNPCPlate()
 end
 
 follower:SetScript("OnEvent", function(_, event, unit)
-    if event == "GOSSIP_CLOSED" then
+    -- Fin du gossip, mais aussi fin de la liste de quetes (QUEST_GREETING -> QUEST_DETAIL) ou
+    -- cible enlevee par le jeu (manette) : la plaque du PNJ allait disparaitre pareil.
+    if event == "GOSSIP_CLOSED" or event == "QUEST_FINISHED" or event == "PLAYER_TARGET_CHANGED" then
         pcall(DWE.KeepNPCPlate)
     end
     pcall(MaskFriendlyPlates)
@@ -5756,6 +5758,8 @@ local function StartFollow()
     follower:RegisterEvent("NAME_PLATE_UNIT_ADDED")
     pcall(follower.RegisterEvent, follower, "NAME_PLATE_UNIT_REMOVED")
     pcall(follower.RegisterEvent, follower, "GOSSIP_CLOSED")
+    pcall(follower.RegisterEvent, follower, "QUEST_FINISHED")
+    pcall(follower.RegisterEvent, follower, "PLAYER_TARGET_CHANGED")
     DWE.npcGhost.valid = false
     pcall(StartMeasure)
     SetFriendlyPlates(true)
@@ -5779,6 +5783,8 @@ local function StopFollow()
     follower:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
     pcall(follower.UnregisterEvent, follower, "NAME_PLATE_UNIT_REMOVED")
     pcall(follower.UnregisterEvent, follower, "GOSSIP_CLOSED")
+    pcall(follower.UnregisterEvent, follower, "QUEST_FINISHED")
+    pcall(follower.UnregisterEvent, follower, "PLAYER_TARGET_CHANGED")
     DWE.npcGhost.valid = false
     if savedPlateCVar or DWE.savedShowAll or DWE.softSaved then SetFriendlyPlates(false) else UnmaskPlates() end
 end

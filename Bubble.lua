@@ -600,6 +600,8 @@ end
 DWE.SYNC_STOP, DWE.SYNC_COMMA, DWE.SYNC_LINE, DWE.SYNC_PARA, DWE.SYNC_PAGE = 7, 3, 10, 20, 17.5
 -- En plus, quand un nouveau paragraphe ouvre une nouvelle page (environ 0,2 s).
 DWE.SYNC_PARA_PAGE = 4
+-- Douceur des arrets et reprises aux pauses (secondes).
+DWE.SYNC_EASE = 0.1
 -- En plus, a la deuxieme page tournee (environ 0,3 s), puis a chacune des suivantes (0,6 s).
 DWE.SYNC_PAGE_LATER, DWE.SYNC_PAGE_NEXT = 5.25, 10.5
 local SYNC_MARK = { ["."] = "stop", ["!"] = "stop", ["?"] = "stop", ["\226\128\166"] = "stop",
@@ -708,18 +710,25 @@ local function VoiceStep(st, pos, share, length, dt)
     -- La voix n'est pas encore entendue : la bulle avance tout doucement sur les premieres
     -- lettres (ni figee, ni en avance sur la voix).
     if share <= 0 then return DWE.PreVoiceStep(pos, dt) end
-    length = math.max(0.1, length - math.max(0, math.min(length * 0.3, tonumber(DWE.VOICE_LEAD) or 0)))
-    local map = st.wmap
+    local map = not st.timed and st.wmap
     if not map then
         local rate = st.total / length
         return pos + VoiceSpeed(st, pos, share * st.total, rate, dt) * dt
     end
-    if not st.posW or math.abs(MapLookup(map.w, map.c, st.posW) - pos) > 1.5 then
+    -- (pos suit la cible avec un petit retard voulu, voir plus bas : on ne recale que si
+    -- l'ecriture est passee devant, ex. clic pour finir la page.)
+    if not st.posW or pos - MapLookup(map.w, map.c, st.posW) > 1.5 then
         st.posW = MapLookup(map.c, map.w, pos)
     end
+    length = math.max(0.1, length - math.max(0, math.min(length * 0.3, tonumber(DWE.VOICE_LEAD) or 0)))
     local speed = VoiceSpeed(st, st.posW, share * map.totalW, map.totalW / length, dt)
     st.posW = math.min(map.totalW, st.posW + speed * dt)
-    return math.max(pos, MapLookup(map.w, map.c, st.posW))
+    -- Arrets et reprises en douceur aux pauses (virgule, point) : l'ecriture ralentit puis
+    -- repart sur un dixieme de seconde au lieu de s'arreter net, ce qui donnait des a-coups.
+    local target = MapLookup(map.w, map.c, st.posW)
+    local new = pos + (target - pos) * math.min(1, dt / DWE.SYNC_EASE)
+    if target - new < 0.3 then new = target end
+    return math.max(pos, new)
 end
 
 -- Part du texte deja lue d'apres le mot courant des sous-titres de Spoken (SpokenEnv.Transcript),
@@ -750,7 +759,6 @@ local function WordShare(st, clip)
         local ow = st.words[j]
         pos = ow.start + math.min(1, x - (j - 1)) * ow.len
     end
-    if st.wmap then return math.max(0, math.min(1, MapLookup(st.wmap.c, st.wmap.w, pos) / st.wmap.totalW)) end
     return math.max(0, math.min(1, pos / st.total))
 end
 
@@ -798,13 +806,14 @@ local function SpokenShare(st)
     -- fichier) : la voix parle pendant (duree - delai), a partir du delai.
     local lead = math.max(0, math.min(length * 0.3, tonumber(DWE.VOICE_LEAD) or 0))
     local timeShare = math.max(0, math.min(1, (now - (clip.spokenAt - length) - lead) / (length - lead)))
+    -- Vraies durees des mots fournies par la voix : on suit directement le mot lu (pauses
+    -- comprises), sans rien deviner ni ajouter (ni delai, ni pauses de page).
     local share = WordShare(st, clip)
     if share then
-        local dt = st.offAt and math.max(0, math.min(0.2, now - st.offAt)) or 0
-        st.offAt = now
-        st.wordOff = (st.wordOff or (share - timeShare)) + ((share - timeShare) - (st.wordOff or 0)) * math.min(1, dt * 1.5)
-        return math.max(0, math.min(1, timeShare + st.wordOff)), length
+        st.timed = true
+        return share, length
     end
+    st.timed = nil
     return timeShare, length
 end
 
@@ -1011,7 +1020,7 @@ function DWE.Bubble.SetText(s)
     if not IsSecret(s) and s == state.raw then return end
     state.raw = s
     state.manual, state.clip, state.clipMatch, state.norm = nil, nil, nil, nil
-    state.wmap, state.posW = nil, nil
+    state.wmap, state.posW, state.timed = nil, nil, nil
     state.voiced, state.age, state.holdT, state.waitT = nil, 0, 0, 0
     state.lastTarget, state.tvel, state.spd = nil, nil, nil
     state.setAt = GetTime and GetTime() or nil
@@ -1134,7 +1143,7 @@ function DWE.Bubble.PopupText(s)
     if s == pop.raw and not IsSecret(s) then return end
     pop.raw = s
     pop.manual, pop.clip, pop.clipMatch = nil, nil, nil
-    pop.wmap, pop.posW = nil, nil
+    pop.wmap, pop.posW, pop.timed = nil, nil, nil
     pop.voiced, pop.age, pop.holdT = nil, 0, 0
     pop.lastTarget, pop.tvel, pop.spd = nil, nil, nil
     pop.setAt = GetTime and GetTime() or nil

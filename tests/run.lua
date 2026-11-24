@@ -679,6 +679,14 @@ do
         follower._scripts.OnEvent(follower, "GOSSIP_CLOSED")
         UnitIsUnit, UnitGUID = oUU, oG4
         check(M.cvars.nameplateShowAll == "0", "mouse: target is the NPC (npc unit gone), plate settings untouched")
+        -- Liste de quetes (QUEST_GREETING -> QUEST_DETAIL) a la manette : la cible est enlevee
+        -- sans GOSSIP_CLOSED -> plaques proches gardees aussi.
+        UnitIsUnit = function(a, b) if a == "target" then return false end return oUU(a, b) end
+        follower._scripts.OnEvent(follower, "PLAYER_TARGET_CHANGED")
+        UnitIsUnit = oUU
+        check(M.cvars.nameplateShowAll == "1" and M.cvars.nameplateMaxDistance == "5", "gamepad quest list: target cleared, near plates kept")
+        DWE.choiceBox:Hide(); M.RunTimers()
+        check(M.cvars.nameplateShowAll == "0" and M.cvars.nameplateMaxDistance == "41", "quest list: plate settings restored after the conversation")
         M.cvars.nameplateShowAll, M.cvars.nameplateMaxDistance = nil, nil
     end
     -- "Toujours afficher les plaques" coupe (manette) : active pendant la conversation, puis remis.
