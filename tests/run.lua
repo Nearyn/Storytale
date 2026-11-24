@@ -2973,6 +2973,39 @@ do
     DWE.EnsureTextPlaced()
     check(DWE.textBox:GetNumPoints() > 0, "text frame always gets a place back (bubble never left without a position)")
 end
+-- Synchro voix : la bulle marque une pause apres un point ou une virgule, comme la voix.
+do
+    local txt = "Hello there, friend. Go now !\nBye"
+    local words, total = DWE.SyncBuildWords({ txt })
+    local map = DWE.SyncBuildMap(words, total)
+    check(map.totalW == total + DWE.SYNC_COMMA + DWE.SYNC_STOP + DWE.SYNC_STOP, "voice sync: pauses after comma, period and line break")
+    -- Paragraphe : texte de bulle sans retours a la ligne, pause reprise du texte d'origine.
+    local raw = "One two.\n\nThree four.\nFive"
+    local flat = "One two. Three four. Five"
+    local w2, t2 = DWE.SyncBuildWords({ flat })
+    DWE.SyncLineBreaks(w2, raw)
+    check(w2[2].pause == DWE.SYNC_PARA and w2[4].pause == DWE.SYNC_LINE and w2[5].pause == 0,
+        "voice sync: longer pause between paragraphs than between lines")
+    local w4 = DWE.SyncBuildWords({ "One two.", "Three four." })
+    check(w4[2].pause == DWE.SYNC_STOP + DWE.SYNC_PAGE and w4[4].pause == DWE.SYNC_STOP,
+        "voice sync: extra wait before turning the bubble page")
+    local w3 = DWE.SyncBuildWords({ flat })
+    DWE.SyncLineBreaks(w3, "Other text entirely\n\nhere")
+    check(w3[2].pause == DWE.SYNC_STOP, "voice sync: different text leaves pauses alone")
+    local L = DWE.SyncMapLookup
+    local afterComma = 12 -- "Hello there,"
+    local wA = L(map.c, map.w, afterComma)
+    check(L(map.w, map.c, wA + 2) == afterComma, "voice sync: text waits during the comma pause")
+    check(L(map.w, map.c, wA + DWE.SYNC_COMMA + 0.5) > afterComma, "voice sync: text goes on after the pause")
+    check(L(map.w, map.c, map.totalW) == total and L(map.c, map.w, 0) == 0, "voice sync: ends match")
+    local prev = -1
+    for x = 0, map.totalW, 0.25 do
+        local c = L(map.w, map.c, x)
+        if c < prev then prev = 1e9 break end
+        prev = c
+    end
+    check(prev ~= 1e9, "voice sync: never goes backwards")
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end

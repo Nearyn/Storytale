@@ -3177,6 +3177,14 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
     elseif msg:match("^%s*bubblelog") then
         DWE.bubbleLog = not DWE.bubbleLog
         Out("journal de la bulle : " .. (DWE.bubbleLog and "active" or "coupe") .. ".")
+    elseif msg:match("^%s*pause") then
+        local v = tonumber((string.gsub(msg:match("^%s*pause%s+([%d%.,]+)") or "", ",", ".")))
+        if v then DWE.SYNC_STOP = math.max(0, math.min(40, v)) end
+        Out(("pause de la bulle a la fin d'une phrase : %g (/storytale pause 12 pour changer, valable pour le texte suivant)."):format(DWE.SYNC_STOP or 0))
+    elseif msg:match("^%s*delai") then
+        local v = tonumber((string.gsub(msg:match("^%s*delai%s+([%d%.,]+)") or "", ",", ".")))
+        if v then DWE.VOICE_LEAD = math.max(0, math.min(3, v)) end
+        Out(("delai de la voix : %.1f s (/storytale delai 0.8 pour changer)."):format(DWE.VOICE_LEAD or 0))
     elseif msg:match("^%s*sync") then
         DWE.bubbleSyncDebug = not DWE.bubbleSyncDebug
         Out("suivi de la voix (bulle) : diagnostic " .. (DWE.bubbleSyncDebug and "active" or "coupe") .. ".")

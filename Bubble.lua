@@ -579,15 +579,112 @@ end
 -- est a l'arret ; nil si Spoken ne lit pas ce texte.
 -- Position des mots dans le texte affiche, en lettres depuis le debut (pour retrouver le mot
 -- que lit la voix).
+-- Pauses de la voix apres un point, une virgule ou un retour a la ligne (en lettres), comme les
+-- sous-titres de Spoken : la bulle marque un temps au meme endroit que la voix au lieu de
+-- prendre de l'avance a chaque phrase.
+DWE.SYNC_STOP, DWE.SYNC_COMMA, DWE.SYNC_LINE, DWE.SYNC_PARA, DWE.SYNC_PAGE = 7, 3, 10, 20, 14
+local SYNC_MARK = { ["."] = "stop", ["!"] = "stop", ["?"] = "stop", ["\226\128\166"] = "stop",
+    ["\227\128\130"] = "stop", ["\239\188\129"] = "stop", ["\239\188\159"] = "stop",
+    [","] = "comma", [";"] = "comma", [":"] = "comma", ["\239\188\140"] = "comma",
+    ["\227\128\129"] = "comma", ["\239\188\155"] = "comma", ["\239\188\154"] = "comma" }
+local SYNC_CLOSE = { ['"'] = true, ["'"] = true, [")"] = true, ["]"] = true, ["\194\187"] = true,
+    ["\226\128\157"] = true, ["\226\128\153"] = true, ["\227\128\141"] = true,
+    ["\227\128\143"] = true, ["\239\188\137"] = true }
+local function PauseAfter(word, newline)
+    local chars = {}
+    for ch in word:gmatch("[%z\1-\127\194-\244][\128-\191]*") do chars[#chars + 1] = ch end
+    local i = #chars
+    while i > 1 and SYNC_CLOSE[chars[i]] do i = i - 1 end
+    local mark = SYNC_MARK[chars[i] or ""]
+    if mark == "stop" or newline then return DWE.SYNC_STOP end
+    if mark == "comma" then return DWE.SYNC_COMMA end
+    return 0
+end
+
 local function BuildWords(pieces)
     local words, offset = {}, 0
-    for _, piece in ipairs(pieces) do
-        for at, word in piece:gmatch("()(%S+)") do
-            words[#words + 1] = { start = offset + Utf8Len(piece:sub(1, at - 1)), len = Utf8Len(word) }
+    for pi, piece in ipairs(pieces) do
+        for at, word, after in piece:gmatch("()(%S+)()") do
+            local newline = piece:match("^%s*", after):find("\n") ~= nil
+            words[#words + 1] = { start = offset + Utf8Len(piece:sub(1, at - 1)), len = Utf8Len(word),
+                pause = PauseAfter(word, newline) }
+        end
+        -- Fin d'une page de la bulle : la page suivante efface le texte que la voix finit
+        -- peut-etre de lire. On garde une marge avant de tourner la page.
+        if words[#words] and pi < #pieces then
+            local w = words[#words]
+            w.pause = math.max(w.pause or 0, DWE.SYNC_STOP) + DWE.SYNC_PAGE
         end
         offset = offset + Utf8Len(piece)
     end
     return words, offset
+end
+
+-- Les sauts de ligne sont retires du texte de la bulle, mais la voix y marque un vrai temps
+-- (surtout entre deux paragraphes) : on les reprend dans le texte d'origine, mot pour mot.
+local function AddLineBreaks(words, raw)
+    if type(raw) ~= "string" then return end
+    raw = raw:gsub("\r", "")
+    local count = 0
+    for _ in raw:gmatch("%S+") do count = count + 1 end
+    if count ~= #words then return end -- texte different : on ne devine pas
+    local i = 0
+    for after in raw:gmatch("%S+()") do
+        i = i + 1
+        local w = words[i]
+        if not w then return end
+        local gap = raw:match("^%s*", after)
+        local _, n = gap:gsub("\n", "")
+        if n >= 2 then w.pause = math.max(w.pause or 0, DWE.SYNC_PARA)
+        elseif n == 1 then w.pause = math.max(w.pause or 0, DWE.SYNC_LINE) end
+    end
+end
+
+-- Correspondance lettres <-> "temps de voix" (lettres + pauses), par segments droits : pendant
+-- une pause, le temps avance mais la lettre reste la meme.
+local function BuildMap(words, total)
+    local c, w, extra = { 0 }, { 0 }, 0
+    for _, wd in ipairs(words or {}) do
+        if (wd.pause or 0) > 0 then
+            local e = math.min(total, wd.start + wd.len)
+            c[#c + 1], w[#w + 1] = e, e + extra
+            extra = extra + wd.pause
+            c[#c + 1], w[#w + 1] = e, e + extra
+        end
+    end
+    c[#c + 1], w[#w + 1] = total, total + extra
+    return { c = c, w = w, totalW = total + extra }
+end
+local function MapLookup(from, to, x)
+    if x <= from[1] then return to[1] end
+    for i = 2, #from do
+        if x <= from[i] then
+            local a, b = from[i - 1], from[i]
+            if b - a <= 0 then return to[i - 1] end
+            return to[i - 1] + (x - a) / (b - a) * (to[i] - to[i - 1])
+        end
+    end
+    return to[#to]
+end
+DWE.SyncBuildWords, DWE.SyncBuildMap, DWE.SyncMapLookup, DWE.SyncLineBreaks = BuildWords, BuildMap, MapLookup, AddLineBreaks
+
+-- Avance de l'ecriture sur la voix, en "temps de voix" (pauses comprises) ; rend la lettre.
+local VoiceSpeed
+local function VoiceStep(st, pos, share, length, dt)
+    -- La voix n'est pas encore entendue : on attend sans ecrire.
+    if share <= 0 then return pos end
+    length = math.max(0.1, length - math.max(0, math.min(length * 0.3, tonumber(DWE.VOICE_LEAD) or 0)))
+    local map = st.wmap
+    if not map then
+        local rate = st.total / length
+        return pos + VoiceSpeed(st, pos, share * st.total, rate, dt) * dt
+    end
+    if not st.posW or math.abs(MapLookup(map.w, map.c, st.posW) - pos) > 1.5 then
+        st.posW = MapLookup(map.c, map.w, pos)
+    end
+    local speed = VoiceSpeed(st, st.posW, share * map.totalW, map.totalW / length, dt)
+    st.posW = math.min(map.totalW, st.posW + speed * dt)
+    return math.max(pos, MapLookup(map.w, map.c, st.posW))
 end
 
 -- Part du texte deja lue d'apres le mot courant des sous-titres de Spoken (SpokenEnv.Transcript),
@@ -618,6 +715,7 @@ local function WordShare(st, clip)
         local ow = st.words[j]
         pos = ow.start + math.min(1, x - (j - 1)) * ow.len
     end
+    if st.wmap then return math.max(0, math.min(1, MapLookup(st.wmap.c, st.wmap.w, pos) / st.wmap.totalW)) end
     return math.max(0, math.min(1, pos / st.total))
 end
 
@@ -661,7 +759,10 @@ local function SpokenShare(st)
     -- a la fois) : suivre ses sauts faisait hacher l'ecriture. Il ne sert plus qu'a corriger
     -- doucement l'ecart (rythme reel de la voix), sans a-coup.
     local now = GetTime()
-    local timeShare = math.max(0, math.min(1, (now - (clip.spokenAt - length)) / length))
+    -- Le son met un instant a etre entendu apres son lancement (chargement, silence au debut du
+    -- fichier) : la voix parle pendant (duree - delai), a partir du delai.
+    local lead = math.max(0, math.min(length * 0.3, tonumber(DWE.VOICE_LEAD) or 0))
+    local timeShare = math.max(0, math.min(1, (now - (clip.spokenAt - length) - lead) / (length - lead)))
     local share = WordShare(st, clip)
     if share then
         local dt = st.offAt and math.max(0, math.min(0.2, now - st.offAt)) or 0
@@ -675,7 +776,7 @@ end
 -- Vitesse d'ecriture qui suit la voix en douceur, sans saut : la vitesse de la voix (mesuree,
 -- lissee) plus un rattrapage de l'ecart. En avance, on ralentit jusqu'a attendre la voix.
 local CATCH_TIME = 1.2
-local function VoiceSpeed(st, pos, target, rate, dt)
+function VoiceSpeed(st, pos, target, rate, dt)
     -- Vitesse = rythme moyen de la voix (constant) + rattrapage doux de l'ecart. Pas de mesure
     -- de vitesse instantanee : elle variait d'une image a l'autre et faisait hacher l'ecriture.
     -- Zone morte : tant que l'ecart reste petit (quelques mots), on garde exactement le rythme de
@@ -696,6 +797,10 @@ end
 
 -- Voix a l'arret (pause de Spoken) : on attend un peu, puis on continue seul.
 local HOLD_MAX = 1.0
+-- Temps maximum d'attente de la voix au debut d'un texte (ensuite on ecrit seul).
+DWE.VOICE_WAIT = 1.2
+-- Delai entre le lancement du son par Spoken et la voix entendue (secondes).
+DWE.VOICE_LEAD = 0.4
 -- Juste apres un nouveau texte, la voix de Spoken met un instant a partir : on demarre
 -- doucement plutot que de prendre de l'avance, pour ne pas avoir a ralentir ensuite.
 local SLOW_START, SLOW_FACTOR = 0.4, 0.6
@@ -723,7 +828,9 @@ end
 local function MoveTo(pos)
     local start = 0
     for i, len in ipairs(state.lens) do
-        if pos < start + len or i == #state.lens then
+        -- Pile a la fin d'une page (pause de la voix) : on reste sur cette page, la suivante
+        -- ne s'ouvre qu'au moment d'ecrire sa premiere lettre (pas de bulle vide qui attend).
+        if pos <= start + len or i == #state.lens then
             if i > state.index then StartSegment(i) end
             if i == state.index and state.phase == "typing" then
                 local off = pos - start
@@ -772,6 +879,17 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
             local clip = state.clip
             local present = type(clip) == "table" and type(clip.present) == "table" and clip.present or {}
             local who = type(clip) == "table" and DWE.SpokenFocus and DWE.SpokenFocus.SpeakerOf and DWE.SpokenFocus.SpeakerOf(clip)
+            local env = rawget(_G, "SpokenEnv")
+            local T = type(env) == "table" and rawget(env, "Transcript")
+            local tw = type(T) == "table" and rawequal(T.clip, clip) and T.words
+            local wi = "-"
+            if tw and type(T.GetProgress) == "function" and type(T.WordAt) == "function" then
+                local okP, prog = pcall(T.GetProgress, T)
+                local okW, i = pcall(T.WordAt, T, prog)
+                if okW and type(i) == "number" and tw[i] then wi = i .. ":" .. tostring(tw[i].text) end
+            end
+            print(("|cff33ff99Storytale|r sync: minutage=%s motSpoken=%s"):format(
+                tostring(type(T) == "table" and T.timed), wi))
             print(("|cff33ff99Storytale|r sync: %s pos=%d/%d voix=%s match=%s duree=%s qui=%s texte=%s"):format(
                 tostring(state.phase), CurrentPos(), state.total or 0,
                 type(share) == "number" and string.format("%.0f%%", share * 100) or tostring(share),
@@ -798,16 +916,13 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
     -- Avec Spoken, la voix met un instant a partir apres l'ouverture : on l'attend un peu au
     -- lieu d'ecrire seul (l'avance prise la n'etait jamais rattrapee).
     if share == nil and not state.voiced and state.phase == "typing" and SpokenInstalled()
-        and not state.manual and (state.age or 0) < 0.8 then
+        and not state.manual and (state.age or 0) < DWE.VOICE_WAIT then
         waitVoice = "slow"
     end
     if share and length then
         -- Voix de Spoken : on suit son rythme, en rattrapant les ecarts en douceur.
         state.voiced = true
-        local rate = state.total / length
-        local pos = CurrentPos()
-        local speed = VoiceSpeed(state, pos, share * state.total, rate, elapsed)
-        MoveTo(math.min(state.total, pos + speed * elapsed))
+        MoveTo(math.min(state.total, VoiceStep(state, CurrentPos(), share, length, elapsed)))
         return
     end
 
@@ -815,6 +930,11 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
     if state.phase == "typing" then
         state.typed = (state.typed or 0) + elapsed * (state.dots and 3 or (SpokenInstalled() and SPOKEN_PACE or TYPE_SPEED))
             * (waitVoice == "slow" and 0.25 or waitVoice and 0.5 or StartFactor(state))
+        -- En attendant que la voix de Spoken demarre, la bulle s'affiche avec sa premiere lettre
+        -- et n'ecrit rien de plus : la voix part du debut, le texte ne doit pas la devancer.
+        if waitVoice and not state.voiced and (state.age or 0) < DWE.VOICE_WAIT then
+            state.typed = math.min(state.typed, 1)
+        end
         -- On va jusqu'au bout du fondu pour que les dernieres lettres apparaissent aussi en douceur.
         if state.typed >= (state.lens[state.index] or 0) then FinishTyping() else Reveal() end
     elseif state.phase == "reading" and state.index < #state.segs then
@@ -855,6 +975,7 @@ function DWE.Bubble.SetText(s)
     if not IsSecret(s) and s == state.raw then return end
     state.raw = s
     state.manual, state.clip, state.clipMatch, state.norm = nil, nil, nil, nil
+    state.wmap, state.posW = nil, nil
     state.voiced, state.age, state.holdT, state.waitT = nil, 0, 0, 0
     state.lastTarget, state.tvel, state.spd = nil, nil, nil
     state.setAt = GetTime and GetTime() or nil
@@ -874,6 +995,8 @@ function DWE.Bubble.SetText(s)
     end
     state.norm = Normalize(s)
     state.words = BuildWords(state.segs)
+    AddLineBreaks(state.words, s)
+    state.wmap, state.posW = BuildMap(state.words, state.total), nil
     -- Pas de texte : "..." affiche d'un coup, centre dans la bulle.
     state.dots = nil
     text:SetJustifyH(#state.segs == 0 and "CENTER" or "LEFT")
@@ -975,6 +1098,7 @@ function DWE.Bubble.PopupText(s)
     if s == pop.raw and not IsSecret(s) then return end
     pop.raw = s
     pop.manual, pop.clip, pop.clipMatch = nil, nil, nil
+    pop.wmap, pop.posW = nil, nil
     pop.voiced, pop.age, pop.holdT = nil, 0, 0
     pop.lastTarget, pop.tvel, pop.spd = nil, nil, nil
     pop.setAt = GetTime and GetTime() or nil
@@ -985,6 +1109,8 @@ function DWE.Bubble.PopupText(s)
     end
     pop.norm = Normalize(s)
     pop.words, pop.total = BuildWords({ s }), pop.len
+    AddLineBreaks(pop.words, s)
+    pop.wmap, pop.posW = BuildMap(pop.words, pop.len), nil
     pop.typed, pop.phase, pop.shownN = 0, "typing", 0
     GradientAt(textBody, 0)
     popFrame:Show()
@@ -1010,8 +1136,7 @@ popFrame:SetScript("OnUpdate", DWE.Prof("texte progressif", function(_, elapsed)
     end
     if share and length then
         pop.voiced = true
-        local rate = pop.len / length
-        pop.typed = pop.typed + VoiceSpeed(pop, pop.typed, share * pop.len, rate, elapsed) * elapsed
+        pop.typed = VoiceStep(pop, pop.typed, share, length, elapsed)
     else
         pop.typed = pop.typed + elapsed * SPOKEN_PACE * StartFactor(pop) -- le popup ne s'ecrit qu'avec Spoken
     end
