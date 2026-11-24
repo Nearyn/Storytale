@@ -866,6 +866,17 @@ local function VoiceStep(st, pos, share, length, dt)
     local map = not st.timed and st.wmap
     if not map then
         local rate = st.total / length
+        -- Durees generees : l'ecriture suit directement la lettre que dit la voix, en douceur
+        -- (DWE.GEN_EASE), sans jamais la depasser. Pendant une pause de la voix (fin de phrase,
+        -- changement de page), elle attend ; ensuite elle repart avec la voix. (Avec le suivi au
+        -- rythme moyen, la bulle avait jusqu'a 1 s d'avance apres chaque pause, mesure en jeu.)
+        if st.generated then
+            local target = share * st.total
+            if target <= pos then return pos end
+            local new = pos + (target - pos) * math.min(1, dt / DWE.GEN_EASE)
+            if target - new < 0.3 then new = target end
+            return new
+        end
         return pos + VoiceSpeed(st, pos, share * st.total, rate, dt) * dt
     end
     -- (pos suit la cible avec un petit retard voulu, voir plus bas : on ne recale que si
@@ -961,6 +972,7 @@ DWE.BubbleGeneratedTimes = GeneratedTimes
 -- Part du texte deja lue d'apres ces durees : temps ecoule depuis le debut du son, mot courant
 -- plus la fraction de ce mot deja dite (comme avec les vraies durees). Un mot ne dure jamais plus
 -- que sa longueur ne le permet : pendant une pause de la voix, l'ecriture attend au bout du mot.
+DWE.GEN_EASE = 0.12 -- secondes : retard de l'ecriture sur la lettre dite (durees generees)
 local function GeneratedShare(st, clip, length)
     local t = GeneratedTimes(clip)
     local m = st.words and #st.words or 0

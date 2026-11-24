@@ -971,7 +971,7 @@ do
     DWE.SetDialogueText("x", gb)
     for _ = 1, 50 do now = now + 0.05; tick(0.05) end -- 2,5 s : la voix est dans sa pause
     if en then
-        check(vis():find("^Hello") and not vis():find("bravo"), "generated timings: writing waits during the voice's pause: '" .. vis() .. "'")
+        check(vis():find("^Hello") and not vis():find("Alpha"), "generated timings: writing waits during the voice's pause (never past the word being said): '" .. vis() .. "'")
     else
         check(vis():find("Alpha b"), "generated timings: not used outside English: '" .. vis() .. "'")
     end
