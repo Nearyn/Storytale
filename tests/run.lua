@@ -960,6 +960,14 @@ do
     local bad = { length = 5, spokenAt = now + 5, text = "Hello. Alpha bravo.", present = {},
         path = "sounds/gossip/test-generated-clip.ogg" }
     check(DWE.BubbleGeneratedTimes(bad) == nil, "generated timings: ignored when the word count differs")
+    -- Mots comptes comme Spoken (CaptionWords) : un nombre different de durees est ignore.
+    Spoken.CaptionWords = function(_, txt) local w = {} for x in txt:gmatch("%a+") do w[#w + 1] = x end w[#w + 1] = "extra" return w end
+    local c2 = { length = 5, spokenAt = now + 5, text = gb, present = { transcript = gb }, path = clip.path }
+    check(DWE.BubbleGeneratedTimes(c2) == nil, "generated timings: counted with Spoken:CaptionWords when it exists")
+    Spoken.CaptionWords = function(_, txt) local w = {} for x in txt:gmatch("%S+") do w[#w + 1] = x end return w end
+    local c3 = { length = 5, spokenAt = now + 5, text = gb, present = { transcript = gb }, path = clip.path }
+    check((DWE.BubbleGeneratedTimes(c3) ~= nil) == en, "generated timings: used when Spoken:CaptionWords gives the same count")
+    Spoken.CaptionWords = nil
     DWE.SetDialogueText("x", gb)
     for _ = 1, 50 do now = now + 0.05; tick(0.05) end -- 2,5 s : la voix est dans sa pause
     if en then

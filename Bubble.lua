@@ -919,17 +919,21 @@ end
 -- pas. Cle : nom du fichier son de la replique, sans .ogg. Seulement si le nombre de mots
 -- correspond au texte de la voix, et pour un jeu en anglais (les packs de voix sont en anglais).
 local genCache = setmetatable({}, { __mode = "k" })
+-- Spoken : clip.path = Interface\AddOns\SpokenQuestsAudio<pack>\generated\sounds\<dossier>\<nom>.ogg
 local function ClipSoundName(clip)
-    for _, f in ipairs({ "path", "file", "sound" }) do
-        local ok, v = pcall(function() return clip[f] end)
-        if ok and type(v) == "string" then
-            local name = v:match("([^/\\]+)$")
-            if name then return (name:gsub("%.[Oo][Gg][Gg]$", "")) end
-        end
-    end
+    local v = clip.path
+    local name = type(v) == "string" and v:match("([^/\\]+)$")
+    return name and (name:gsub("%.[Oo][Gg][Gg]$", "")) or nil
 end
+-- Nombre de mots du texte de la voix, comptes comme Spoken les compte (un temps par mot de
+-- Spoken:CaptionWords) ; sans cette fonction, mots separes par des espaces.
 local function CountWords(s)
     if type(s) ~= "string" then return 0 end
+    local api = rawget(_G, "Spoken")
+    if type(api) == "table" and type(api.CaptionWords) == "function" then
+        local ok, words = pcall(api.CaptionWords, api, s)
+        if ok and type(words) == "table" then return #words end
+    end
     s = s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
     local n = 0
     for _ in s:gmatch("%S+") do n = n + 1 end
