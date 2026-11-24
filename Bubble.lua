@@ -554,7 +554,10 @@ local function HighlightWord(n)
     if n <= 0 or not state.words or not HighlightOn() then return nil end
     local segStart = 0
     for k = 1, (state.index or 1) - 1 do segStart = segStart + (state.lens[k] or 0) end
-    local pos, found = segStart + n, nil
+    -- Le mot qui est en train d'apparaitre (vers le milieu du fondu), pas le dernier mot fini :
+    -- la couleur suit les lettres qui naissent, sans "doublon" entre le mot colore et le fondu.
+    local ahead = math.max(1, math.floor(FadeLen(n) * 0.4))
+    local pos, found = segStart + math.min(n + ahead, state.lens[state.index or 1] or n), nil
     for _, w in ipairs(state.words) do
         if w.start >= pos then break end
         if w.start >= segStart then found = w end
