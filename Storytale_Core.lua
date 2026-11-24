@@ -4867,8 +4867,8 @@ DWE.ownNames = setmetatable({}, { __mode = "k" })
 function DWE.NearNameSize()
     local okZ, z = pcall(GetCameraZoom)
     z = (okZ and type(z) == "number") and z or 6
-    -- (+3 % : hauteur des lettres mesuree sur capture, original contre le notre.)
-    local size = math.max(281 / (z + 1.6) * 1.03, 26.7) * (DWE.NEAR_NAME_SIZE / 40)
+    -- (+15 % : PNJ voisin colle au joueur, cas le plus courant ; mesure sur captures proche et habituelle.)
+    local size = math.max(281 / (z + 1.6) * 1.15, 26.7) * (DWE.NEAR_NAME_SIZE / 40)
     if size < 12 then size = 12 elseif size > 110 then size = 110 end
     return size
 end
