@@ -5071,8 +5071,13 @@ local function SetFriendlyPlates(on)
         -- Avant de rendre ses reglages au jeu : les plaques reduites au nom sont cachees en entier
         -- (le jeu les redessine aussitot et leur petit nom revenait un instant). Notre nom, qui
         -- ignore la transparence de la plaque, reste jusqu'a ce que le jeu la retire.
+        -- Notre nom est cache aussi : la plaque rapetisse en disparaissant et il rapetissait avec.
         for uf, parts in pairs(maskedFrames) do
-            if type(parts) == "table" then pcall(uf.SetAlpha, uf, 0) end
+            if type(parts) == "table" then
+                pcall(uf.SetAlpha, uf, 0)
+                local fs = DWE.ownNames[uf]
+                if fs then fs:Hide() end
+            end
         end
         if DWE.softSaved then
             for k, v in pairs(DWE.softSaved) do pcall(SetCVar, k, v) end
