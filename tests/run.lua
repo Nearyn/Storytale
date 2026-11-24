@@ -664,6 +664,14 @@ do
         follower._scripts.OnEvent(follower, "GOSSIP_CLOSED")
         UnitIsUnit = oUU
         check(M.cvars.nameplateShowAll == "0" and M.cvars.nameplateMaxDistance == "41", "mouse: target kept, plate settings untouched")
+        -- Souris, unite "npc" deja effacee mais cible = le PNJ retenu : rien n'est change non plus.
+        local oG4 = UnitGUID
+        DWE.lastNPC.guid = "Creature-0-1-2-3-4-77"
+        UnitGUID = function(u) if u == "target" then return "Creature-0-1-2-3-4-77" end return oG4(u) end
+        UnitIsUnit = function(a, b) if a == "target" then return false end return oUU(a, b) end
+        follower._scripts.OnEvent(follower, "GOSSIP_CLOSED")
+        UnitIsUnit, UnitGUID = oUU, oG4
+        check(M.cvars.nameplateShowAll == "0", "mouse: target is the NPC (npc unit gone), plate settings untouched")
         M.cvars.nameplateShowAll, M.cvars.nameplateMaxDistance = nil, nil
     end
     -- "Toujours afficher les plaques" coupe (manette) : active pendant la conversation, puis remis.

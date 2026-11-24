@@ -5016,6 +5016,12 @@ local function UnmaskPlates(onlyGone)
                 DWE.goneAt[uf] = nil
             end
         end
+        if not gone and type(parts) == "table" and uf:GetAlpha() ~= 0 then
+            -- Fin de conversation : le jeu remet ses reglages et redessine les plaques encore la
+            -- (leur petit nom revenait un instant). La plaque entiere est cachee ; notre nom, qui
+            -- ignore la transparence de la plaque, reste affiche jusqu'a ce qu'elle disparaisse.
+            uf:SetAlpha(0)
+        end
         if gone then
             DWE.PlateRestoreParts(uf, parts)
             uf:SetAlpha(1)
@@ -5317,7 +5323,11 @@ end
 DWE.NEAR_PLATES = "5"
 function DWE.KeepNPCPlate()
     if not (follow.plate and GetCVar and SetCVar) or (InCombatLockdown and InCombatLockdown()) then return end
-    if Check(UnitIsUnit, "target", "npc") then return end -- cible gardee (souris) : rien a faire
+    -- Cible gardee (souris) : rien a faire. L'unite "npc" n'existe plus a cet instant (fermeture
+    -- du gossip) : on compare la cible au PNJ retenu, par son identifiant.
+    if Check(UnitIsUnit, "target", "npc") then return end
+    local okT, tg = pcall(UnitGUID, "target")
+    if okT and tg and tg == DWE.lastNPC.guid then return end
     if DWE.softSaved and DWE.softSaved.nameplateShowAll then return end
     local okA, all = pcall(GetCVar, "nameplateShowAll")
     local okD, dist = pcall(GetCVar, "nameplateMaxDistance")
