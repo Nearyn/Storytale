@@ -10,6 +10,7 @@
 
 Locales.lua
 Storytale_Core.lua
+GeneratedTimings.lua
 Bubble.lua
 SpokenFocus.lua
 SpokenQueueUI.lua

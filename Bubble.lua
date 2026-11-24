@@ -915,6 +915,74 @@ local function WordShare(st, clip)
     return math.max(0, math.min(1, pos / st.total))
 end
 
+-- Durees des mots generees (GeneratedTimings.lua) pour les repliques dont la voix n'en fournit
+-- pas. Cle : nom du fichier son de la replique, sans .ogg. Seulement si le nombre de mots
+-- correspond au texte de la voix, et pour un jeu en anglais (les packs de voix sont en anglais).
+local genCache = setmetatable({}, { __mode = "k" })
+local function ClipSoundName(clip)
+    for _, f in ipairs({ "path", "file", "sound" }) do
+        local ok, v = pcall(function() return clip[f] end)
+        if ok and type(v) == "string" then
+            local name = v:match("([^/\\]+)$")
+            if name then return (name:gsub("%.[Oo][Gg][Gg]$", "")) end
+        end
+    end
+end
+local function CountWords(s)
+    if type(s) ~= "string" then return 0 end
+    s = s:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    local n = 0
+    for _ in s:gmatch("%S+") do n = n + 1 end
+    return n
+end
+local function GeneratedTimes(clip)
+    local c = genCache[clip]
+    if c ~= nil then return c or nil end
+    c = false
+    local tbl = DWE.GeneratedTimings
+    local loc = GetLocale and GetLocale() or "enUS"
+    local key = type(tbl) == "table" and type(loc) == "string" and loc:sub(1, 2) == "en" and ClipSoundName(clip)
+    local s = key and tbl[key]
+    if type(s) == "string" then
+        local t = {}
+        for x in s:gmatch("%S+") do t[#t + 1] = tonumber(x) end
+        local present = type(clip.present) == "table" and clip.present or {}
+        if #t > 0 and #t == CountWords(present.transcript or clip.text) then c = t end
+    end
+    genCache[clip] = c
+    return c or nil
+end
+DWE.BubbleGeneratedTimes = GeneratedTimes
+
+-- Part du texte deja lue d'apres ces durees : temps ecoule depuis le debut du son, mot courant
+-- plus la fraction de ce mot deja dite (comme avec les vraies durees). Un mot ne dure jamais plus
+-- que sa longueur ne le permet : pendant une pause de la voix, l'ecriture attend au bout du mot.
+local function GeneratedShare(st, clip, length)
+    local t = GeneratedTimes(clip)
+    local m = st.words and #st.words or 0
+    if not t or m == 0 or not (st.total and st.total > 0) then return nil end
+    local e = GetTime() - (clip.spokenAt - length)
+    if e <= t[1] then return 0 end
+    local n, i = #t, #t
+    for k = 1, n - 1 do
+        if e < t[k + 1] then i = k break end
+    end
+    local j = n == m and i or math.min(m, math.floor((i - 1) / n * m) + 1)
+    local ow = st.words[j]
+    local dur = math.min((t[i + 1] or length) - t[i], 0.12 + 0.07 * (ow.len or 5))
+    local frac = math.max(0, math.min(1, (e - t[i]) / math.max(0.05, dur)))
+    local pos
+    if n == m then
+        pos = ow.start + frac * ow.len
+    else
+        local x = (i - 1 + frac) / n * m
+        local jj = math.min(m, math.floor(x) + 1)
+        local w = st.words[jj]
+        pos = w.start + math.min(1, x - (jj - 1)) * w.len
+    end
+    return math.max(0, math.min(1, pos / st.total))
+end
+
 local function SpokenShare(st)
     if st.manual or not st.norm then return nil end
     local api = rawget(_G, "Spoken")
@@ -963,10 +1031,16 @@ local function SpokenShare(st)
     -- comprises), sans rien deviner ni ajouter (ni delai, ni pauses de page).
     local share = WordShare(st, clip)
     if share then
-        st.timed = true
+        st.timed, st.generated = true, nil
         return share, length
     end
-    st.timed = nil
+    -- Pas de durees dans la voix : celles generees pour cette replique, si elles existent.
+    share = GeneratedShare(st, clip, length)
+    if share then
+        st.timed, st.generated = true, true
+        return share, length
+    end
+    st.timed, st.generated = nil, nil
     return timeShare, length
 end
 
@@ -1106,8 +1180,8 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
                 local okW, i = pcall(T.WordAt, T, prog)
                 if okW and type(i) == "number" and tw[i] then wi = i .. ":" .. tostring(tw[i].text) end
             end
-            print(("|cff33ff99Storytale|r sync: minutage=%s motSpoken=%s"):format(
-                tostring(type(T) == "table" and T.timed), wi))
+            print(("|cff33ff99Storytale|r sync: minutage=%s genere=%s motSpoken=%s"):format(
+                tostring(type(T) == "table" and T.timed), tostring(state.generated == true), wi))
             print(("|cff33ff99Storytale|r sync: %s pos=%d/%d voix=%s match=%s duree=%s qui=%s texte=%s"):format(
                 tostring(state.phase), CurrentPos(), state.total or 0,
                 type(share) == "number" and string.format("%.0f%%", share * 100) or tostring(share),
@@ -1209,7 +1283,7 @@ function DWE.Bubble.SetText(s)
     state.raw = s
     HighlightReset()
     state.manual, state.clip, state.clipMatch, state.norm = nil, nil, nil, nil
-    state.wmap, state.posW, state.timed = nil, nil, nil
+    state.wmap, state.posW, state.timed, state.generated = nil, nil, nil, nil
     state.voiced, state.age, state.holdT, state.waitT = nil, 0, 0, 0
     state.lastTarget, state.tvel, state.spd = nil, nil, nil
     state.setAt = GetTime and GetTime() or nil
@@ -1332,7 +1406,7 @@ function DWE.Bubble.PopupText(s)
     if s == pop.raw and not IsSecret(s) then return end
     pop.raw = s
     pop.manual, pop.clip, pop.clipMatch = nil, nil, nil
-    pop.wmap, pop.posW, pop.timed = nil, nil, nil
+    pop.wmap, pop.posW, pop.timed, pop.generated = nil, nil, nil, nil
     pop.voiced, pop.age, pop.holdT = nil, 0, 0
     pop.lastTarget, pop.tvel, pop.spd = nil, nil, nil
     pop.setAt = GetTime and GetTime() or nil

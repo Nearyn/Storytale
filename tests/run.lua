@@ -107,7 +107,7 @@ SlashCmdList = {}
 local chat = {}
 DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) table.insert(chat, m) end }
 -- Load the addon ------------------------------------------------------------
-for _, file in ipairs({ "Locales.lua", "Storytale_Core.lua", "Bubble.lua", "SpokenFocus.lua", "SpokenQueueUI.lua", "Storytale.lua", "Options_Native.lua", "MinimapButton.lua" }) do
+for _, file in ipairs({ "Locales.lua", "Storytale_Core.lua", "GeneratedTimings.lua", "Bubble.lua", "SpokenFocus.lua", "SpokenQueueUI.lua", "Storytale.lua", "Options_Native.lua", "MinimapButton.lua" }) do
     local chunk, err = loadfile(dir .. "/" .. file)
     check(chunk ~= nil, "compile " .. file .. ": " .. tostring(err))
     local ok, rerr = pcall(chunk, "Storytale", {})
@@ -947,6 +947,30 @@ clip = { length = 10, spokenAt = now + 9.5, text = body4, present = { transcript
 DWE.SetDialogueText("x", body4)
 for _ = 1, 2 do now = now + 0.05; tick(0.05) end
 check(not vis():find("five"), "voice just started: bubble starts at the beginning: '" .. vis() .. "'")
+-- Replique sans durees Spoken mais avec durees generees (GeneratedTimings.lua) : la bulle suit
+-- ces durees (jeu en anglais seulement). Ici, longue pause de la voix apres le premier mot.
+do
+    check(type(DWE.GeneratedTimings) == "table" and next(DWE.GeneratedTimings) ~= nil, "generated timings: table loaded")
+    local en = (GetLocale() or ""):sub(1, 2) == "en"
+    local gb = "Hello. Alpha bravo charlie delta echo."
+    DWE.GeneratedTimings["test-generated-clip"] = "0 3 3.3 3.6 3.9 4.2"
+    clip = { length = 5, spokenAt = now + 5, text = gb, present = { transcript = gb },
+        path = "Interface\\AddOns\\SpokenQuestsAudioGossip\\generated\\sounds\\gossip\\test-generated-clip.ogg" }
+    check((DWE.BubbleGeneratedTimes(clip) ~= nil) == en, "generated timings: found for this clip (English game only)")
+    local bad = { length = 5, spokenAt = now + 5, text = "Hello. Alpha bravo.", present = {},
+        path = "sounds/gossip/test-generated-clip.ogg" }
+    check(DWE.BubbleGeneratedTimes(bad) == nil, "generated timings: ignored when the word count differs")
+    DWE.SetDialogueText("x", gb)
+    for _ = 1, 50 do now = now + 0.05; tick(0.05) end -- 2,5 s : la voix est dans sa pause
+    if en then
+        check(vis():find("^Hello") and not vis():find("bravo"), "generated timings: writing waits during the voice's pause: '" .. vis() .. "'")
+    else
+        check(vis():find("Alpha b"), "generated timings: not used outside English: '" .. vis() .. "'")
+    end
+    for _ = 1, 100 do now = now + 0.05; tick(0.05) end
+    check(vis():find("echo%.$"), "generated timings: text complete at the end of the voice: '" .. vis() .. "'")
+    DWE.GeneratedTimings["test-generated-clip"] = nil
+end
 
 Spoken = nil
 -- Fantasy bubble
