@@ -2989,6 +2989,16 @@ do
     local w4 = DWE.SyncBuildWords({ "One two.", "Three four." })
     check(w4[2].pause == DWE.SYNC_STOP + DWE.SYNC_PAGE and w4[4].pause == DWE.SYNC_STOP,
         "voice sync: extra wait before turning the bubble page")
+    local w5 = DWE.SyncBuildWords({ "One two.", "Three four." })
+    DWE.SyncLineBreaks(w5, "One two.\n\nThree four.")
+    check(w5[2].pause == DWE.SYNC_STOP + DWE.SYNC_PAGE + DWE.SYNC_PARA_PAGE,
+        "voice sync: a new paragraph on a new page waits a little longer")
+    local w6 = DWE.SyncBuildWords({ "A b.", "C d.", "E f.", "G h." })
+    local w7 = DWE.SyncBuildWords({ "A b.", "C d.", "E f.", "G h.", "I j." })
+    check(w6[2].pause == DWE.SYNC_STOP + DWE.SYNC_PAGE and w6[4].pause == DWE.SYNC_STOP + DWE.SYNC_PAGE + DWE.SYNC_PAGE_LATER
+        and w6[6].pause == DWE.SYNC_STOP + DWE.SYNC_PAGE + DWE.SYNC_PAGE_NEXT and w6[8].pause == DWE.SYNC_STOP
+        and w7[8].pause == w7[6].pause,
+        "voice sync: every page turn after the first waits a little longer")
     local w3 = DWE.SyncBuildWords({ flat })
     DWE.SyncLineBreaks(w3, "Other text entirely\n\nhere")
     check(w3[2].pause == DWE.SYNC_STOP, "voice sync: different text leaves pauses alone")

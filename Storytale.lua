@@ -3181,6 +3181,11 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         local v = tonumber((string.gsub(msg:match("^%s*pause%s+([%d%.,]+)") or "", ",", ".")))
         if v then DWE.SYNC_STOP = math.max(0, math.min(40, v)) end
         Out(("pause de la bulle a la fin d'une phrase : %g (/storytale pause 12 pour changer, valable pour le texte suivant)."):format(DWE.SYNC_STOP or 0))
+    elseif msg:match("^%s*page") then
+        local v = tonumber((string.gsub(msg:match("^%s*page%s+([%d%.,]+)") or "", ",", ".")))
+        -- En secondes pour l'utilisateur ; en lettres pour la bulle (environ 17,5 lettres/s).
+        if v then DWE.SYNC_PAGE = math.max(0, math.min(3, v)) * 17.5 end
+        Out(("marge avant une nouvelle page : %.1f s (/storytale page 1.0 pour changer, prochain texte)."):format((DWE.SYNC_PAGE or 0) / 17.5))
     elseif msg:match("^%s*delai") then
         local v = tonumber((string.gsub(msg:match("^%s*delai%s+([%d%.,]+)") or "", ",", ".")))
         if v then DWE.VOICE_LEAD = math.max(0, math.min(3, v)) end

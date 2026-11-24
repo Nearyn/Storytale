@@ -582,7 +582,11 @@ end
 -- Pauses de la voix apres un point, une virgule ou un retour a la ligne (en lettres), comme les
 -- sous-titres de Spoken : la bulle marque un temps au meme endroit que la voix au lieu de
 -- prendre de l'avance a chaque phrase.
-DWE.SYNC_STOP, DWE.SYNC_COMMA, DWE.SYNC_LINE, DWE.SYNC_PARA, DWE.SYNC_PAGE = 7, 3, 10, 20, 14
+DWE.SYNC_STOP, DWE.SYNC_COMMA, DWE.SYNC_LINE, DWE.SYNC_PARA, DWE.SYNC_PAGE = 7, 3, 10, 20, 17.5
+-- En plus, quand un nouveau paragraphe ouvre une nouvelle page (environ 0,2 s).
+DWE.SYNC_PARA_PAGE = 4
+-- En plus, a la deuxieme page tournee (environ 0,3 s), puis a chacune des suivantes (0,6 s).
+DWE.SYNC_PAGE_LATER, DWE.SYNC_PAGE_NEXT = 5.25, 10.5
 local SYNC_MARK = { ["."] = "stop", ["!"] = "stop", ["?"] = "stop", ["\226\128\166"] = "stop",
     ["\227\128\130"] = "stop", ["\239\188\129"] = "stop", ["\239\188\159"] = "stop",
     [","] = "comma", [";"] = "comma", [":"] = "comma", ["\239\188\140"] = "comma",
@@ -613,7 +617,11 @@ local function BuildWords(pieces)
         -- peut-etre de lire. On garde une marge avant de tourner la page.
         if words[#words] and pi < #pieces then
             local w = words[#words]
+            -- Des la deuxieme page tournee, la voix prend un peu plus son temps : un peu plus
+            -- d'attente a chacune (meme regle pour tout texte, quelle que soit sa longueur).
             w.pause = math.max(w.pause or 0, DWE.SYNC_STOP) + DWE.SYNC_PAGE
+                + (pi >= 3 and DWE.SYNC_PAGE_NEXT or pi == 2 and DWE.SYNC_PAGE_LATER or 0)
+            w.pageEnd = true
         end
         offset = offset + Utf8Len(piece)
     end
@@ -635,7 +643,9 @@ local function AddLineBreaks(words, raw)
         if not w then return end
         local gap = raw:match("^%s*", after)
         local _, n = gap:gsub("\n", "")
-        if n >= 2 then w.pause = math.max(w.pause or 0, DWE.SYNC_PARA)
+        -- Nouveau paragraphe sur une nouvelle page : la voix y marque son plus long temps.
+        if n >= 2 and w.pageEnd then w.pause = (w.pause or 0) + DWE.SYNC_PARA_PAGE
+        elseif n >= 2 then w.pause = math.max(w.pause or 0, DWE.SYNC_PARA)
         elseif n == 1 then w.pause = math.max(w.pause or 0, DWE.SYNC_LINE) end
     end
 end
@@ -800,7 +810,7 @@ local HOLD_MAX = 1.0
 -- Temps maximum d'attente de la voix au debut d'un texte (ensuite on ecrit seul).
 DWE.VOICE_WAIT = 1.2
 -- Delai entre le lancement du son par Spoken et la voix entendue (secondes).
-DWE.VOICE_LEAD = 0.4
+DWE.VOICE_LEAD = 0.6
 -- Juste apres un nouveau texte, la voix de Spoken met un instant a partir : on demarre
 -- doucement plutot que de prendre de l'avance, pour ne pas avoir a ralentir ensuite.
 local SLOW_START, SLOW_FACTOR = 0.4, 0.6
