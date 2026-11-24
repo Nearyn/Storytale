@@ -3040,7 +3040,7 @@ do
     local txt = "Hello there, friend. Go now !\nBye"
     local words, total = DWE.SyncBuildWords({ txt })
     local map = DWE.SyncBuildMap(words, total)
-    check(map.totalW == total + DWE.SYNC_COMMA + DWE.SYNC_STOP + DWE.SYNC_STOP, "voice sync: pauses after comma, period and line break")
+    check(map.totalW == total + DWE.SYNC_COMMA + DWE.SYNC_STOP + DWE.SYNC_STOP + #words * (DWE.SYNC_WORD or 0), "voice sync: pauses after comma, period and line break")
     -- Paragraphe : texte de bulle sans retours a la ligne, pause reprise du texte d'origine.
     local raw = "One two.\n\nThree four.\nFive"
     local flat = "One two. Three four. Five"

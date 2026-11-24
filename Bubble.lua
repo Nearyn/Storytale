@@ -731,11 +731,14 @@ end
 -- Pauses de la voix apres un point, une virgule ou un retour a la ligne (en lettres), comme les
 -- sous-titres de Spoken : la bulle marque un temps au meme endroit que la voix au lieu de
 -- prendre de l'avance a chaque phrase.
--- Valeurs mesurees sur ~4 600 repliques de Spoken dont on connait les vrais temps des mots
--- (24/11) : la voix marque ~6-8 lettres apres une virgule ou un tiret, ~8-11 apres un point.
--- Ecart moyen bulle/voix passe de 0,66 s a 0,39 s sur des repliques mises de cote.
-DWE.SYNC_STOP, DWE.SYNC_COMMA, DWE.SYNC_LINE, DWE.SYNC_PARA, DWE.SYNC_PAGE = 8, 8, 10, 9, 6
-DWE.SYNC_DASH = 9
+-- Valeurs ajustees (24/11) sur ~20 000 repliques de Spoken (quetes Alliance, Horde, partagees
+-- et dialogues) dont on connait les vrais temps des mots. Ecart moyen bulle/voix, sur des
+-- repliques mises de cote : ~0,5 s avant, ~0,33 s apres (dialogues : 0,38 -> 0,28 s).
+DWE.SYNC_STOP, DWE.SYNC_COMMA, DWE.SYNC_LINE, DWE.SYNC_PARA, DWE.SYNC_PAGE = 5, 7, 10, 9, 6
+DWE.SYNC_DASH = 6
+-- Temps fixe en plus de chaque mot (en lettres) : un mot court prend proportionnellement plus
+-- de temps a dire qu'un long.
+DWE.SYNC_WORD = 1
 -- En plus, quand un nouveau paragraphe ouvre une nouvelle page.
 DWE.SYNC_PARA_PAGE = 0
 -- Douceur des arrets et reprises aux pauses (secondes).
@@ -819,7 +822,17 @@ end
 -- une pause, le temps avance mais la lettre reste la meme.
 local function BuildMap(words, total)
     local c, w, extra, stops = { 0 }, { 0 }, 0, {}
+    local base = tonumber(DWE.SYNC_WORD) or 0
     for _, wd in ipairs(words or {}) do
+        -- Temps fixe du mot : etale sur ses lettres (pas d'arret visible entre les mots).
+        if base > 0 then
+            local s0, e0 = math.min(total, wd.start), math.min(total, wd.start + wd.len)
+            if e0 > s0 then
+                c[#c + 1], w[#w + 1] = s0, s0 + extra
+                extra = extra + base
+                c[#c + 1], w[#w + 1] = e0, e0 + extra
+            end
+        end
         if (wd.pause or 0) > 0 then
             local e = math.min(total, wd.start + wd.len)
             stops[#stops + 1] = e
