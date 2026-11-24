@@ -3133,8 +3133,10 @@ do
     UnitGUID, GetTime = oG, oT
     M.RunTimers()
 end
--- Options en lignes natives : page Placement.
-do
+-- Options en lignes natives : page Placement (cachee dans les versions publiees : DWE.NATIVE_OPTIONS).
+if not DWE.NATIVE_OPTIONS then
+    check(next(M.nativeSettings or {}) == nil, "native options: hidden while the redesign is not finished")
+else
     local S = M.nativeSettings
     check(S.Storytale_AttachNPC and S.Storytale_Locked and S.Storytale_WheelSide and S.Storytale_QuestAuto, "native options: placement settings registered")
     if S.Storytale_WheelSide then

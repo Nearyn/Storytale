@@ -1,5 +1,25 @@
 # Changelog / Journal des versions
 
+## 1.8.2
+
+**English**
+
+### Fixed
+- Talking to an NPC again after walking away from a quest: the bubble shows the NPC's greeting again instead of the quest text.
+- Coming back while the voice is still reading the quest: the bubble keeps the quest text and joins the voice where it is, instead of starting over or showing the greeting.
+- Once the voice has finished the quest and reads the NPC's greeting, the bubble shows the greeting too.
+- Resetting the "quest preview width" and "already read" options now works.
+
+---
+
+**Français**
+
+### Corrections
+- Reparler à un PNJ après s'être éloigné d'une quête : la bulle affiche de nouveau la salutation du PNJ au lieu du texte de la quête.
+- Revenir pendant que la voix lit encore la quête : la bulle garde le texte de la quête et reprend là où en est la voix, au lieu de repartir du début ou d'afficher la salutation.
+- Quand la voix a fini la quête et lit la salutation du PNJ, la bulle affiche aussi la salutation.
+- La remise à zéro des options « largeur de l'aperçu de quête » et « déjà lu » fonctionne de nouveau.
+
 ## 1.8.1
 
 **English**

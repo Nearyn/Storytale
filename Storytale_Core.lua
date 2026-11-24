@@ -8500,7 +8500,8 @@ function DWE.InitOptionsPanel()
             end
         end
         -- Pages en lignes natives (refonte page par page, voir Options_Native.lua).
-        if DWE.BuildNativeOptions then pcall(DWE.BuildNativeOptions, cat) end
+        -- (Cachees dans les versions publiees tant que la refonte n'est pas finie.)
+        if DWE.NATIVE_OPTIONS and DWE.BuildNativeOptions then pcall(DWE.BuildNativeOptions, cat) end
         -- Sous-pages toujours depliees dans la liste du jeu : a la manette, le petit "+" a cote du
         -- nom est difficile (voire impossible) a atteindre.
         if type(cat.SetExpanded) == "function" then pcall(cat.SetExpanded, cat, true) else cat.expanded = true end
