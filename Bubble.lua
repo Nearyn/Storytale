@@ -1039,6 +1039,11 @@ function DWE.Bubble.RefreshCustom()
 end
 
 -- Nouveau texte : le PNJ recommence a ecrire (sauf si c'est le meme texte, ex. livre recharge).
+-- Texte de la bulle si une voix de Spoken l'a deja lu (la bulle l'a suivie), sinon nil.
+function DWE.Bubble.VoicedText()
+    return state.voiced and state.raw or nil
+end
+
 function DWE.Bubble.SetText(s)
     LogFrames("nouveau texte")
     if s == nil then s = "" end

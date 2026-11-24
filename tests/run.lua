@@ -3099,6 +3099,16 @@ do
     M.RunTimers()
     check(DWE.bookRawBody == "I'm the master tinker.", "later paragraph done, voice reads the greeting: bubble shows the greeting")
     M.FireEvent("GOSSIP_CLOSED")
+    -- Revenu tout de suite (< 1,5 s) mais la voix de la quete a ete coupee par Spoken (Stop When
+    -- Window Closes) et lit la salutation : la bulle affiche la salutation, comme la voix.
+    said = M.questText
+    M.FireEvent("QUEST_DETAIL")
+    M.FireEvent("QUEST_FINISHED")
+    said = "I'm the master tinker."
+    t = t + 0.5
+    M.FireEvent("GOSSIP_SHOW")
+    check(DWE.bookRawBody == "I'm the master tinker.", "voice cut on close, quick return: greeting like the voice, not the quest")
+    M.FireEvent("GOSSIP_CLOSED")
     M.questText = oQ
     -- Conversation fermee avant la fin de la voix : rien ne change ensuite.
     sayQuest = true

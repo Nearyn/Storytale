@@ -1171,7 +1171,8 @@ local function UpdateDialogueText(event)
         local npc = UnitGUID and UnitGUID("npc") or nil
         -- (Sans fin de quete notee, on ne garde rien : le jeu ne signale pas toujours qu'on s'est
         -- eloigne de la fenetre de quete.)
-        local quick = now < hold.untilT and hold.closedAt and (now - hold.closedAt) < DWE.QUEST_HOLD_REOPEN
+        -- (Seulement sans voix : si une voix lisait la quete, c'est elle qui decide, voir plus bas.)
+        local quick = not hold.voiced and now < hold.untilT and hold.closedAt and (now - hold.closedAt) < DWE.QUEST_HOLD_REOPEN
         -- ... ou la voix lit encore ce texte de quete : on le garde, la bulle suit la voix.
         if hold.npc and npc == hold.npc and (quick or DWE.SpokenReading(hold.body)) then
             -- Quand la voix aura fini ce texte de quete, la bulle passera a la salutation.
@@ -3574,7 +3575,13 @@ f:SetScript("OnEvent", function(_, event)
         -- ne sert que si le jeu rouvre le PNJ tout de suite (quete acceptee / rendue) ; si le joueur
         -- s'en va puis revient lui parler, c'est sa salutation normale.
         if event == "QUEST_FINISHED" and DWE.questHold and not DWE.questHold.closedAt then
-            DWE.questHold.closedAt = GetTime and GetTime() or 0
+            local hold = DWE.questHold
+            hold.closedAt = GetTime and GetTime() or 0
+            -- Une voix lisait-elle ce texte de quete ? Alors c'est elle qui decidera au retour
+            -- (arretee par Spoken : la salutation), pas le "retour rapide".
+            local vb = DWE.Bubble and DWE.Bubble.VoicedText and DWE.Bubble.VoicedText()
+            local body = type(hold.body) == "string" and hold.body:gsub("^%s+", ""):gsub("%s+$", "") or nil
+            hold.voiced = (vb ~= nil and vb == body) or DWE.SpokenReading(hold.body) or nil
         end
         -- Conversation fermee : on ne passe plus a la salutation (QUEST_FINISHED peut arriver
         -- juste apres la salutation rouverte par le jeu : on ne s'y fie pas).
