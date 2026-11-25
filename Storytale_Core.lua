@@ -8002,9 +8002,19 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_ChoiceSize = v
         if DWE.choiceBox:IsShown() then DWE.UpdateVisuals() end
     end)
+    -- Affichage de la bulle : ecriture progressive (par defaut) ou page entiere (chaque page d'un
+    -- coup ; quand une voix lit, le mot lu en couleur, comme le narrateur de Spoken).
+    AddText(L.BUBBLE_MODE, 16, y - 80, "GameFontHighlightSmall")
+    AddGroup({
+        { id = "type", label = L.BUBBLE_MODE_TYPE },
+        { id = "page", label = L.BUBBLE_MODE_PAGE },
+    }, 300, y - 76, 26, function() return DialogueWheelE_BubbleMode == "page" and "page" or "type" end, function(id)
+        DialogueWheelE_BubbleMode = (id == "page") and "page" or nil
+        if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end
+    end, 1, 190) -- (colonnes plus larges : "Ecriture progressive" est long)
 
     ---------------------------------------------------------------- Livres et lettres
-    y = y - 76
+    y = y - 126
     NewPage(L.SEC_BOOKS, y)
     AddSection(L.SEC_BOOKS, y)
     -- Livres et lettres : qui les affiche, puis leur style (seulement pour Storytale).
@@ -8398,26 +8408,14 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_BubbleHighlight = self:GetChecked() and true or nil
         if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end
     end), spokenOn)
-    -- Affichage de la bulle : ecriture progressive (par defaut) ou page entiere (chaque page d'un
-    -- coup ; quand une voix lit, le mot lu en couleur, comme le narrateur de Spoken).
-    local modeLbl = AddText(L.BUBBLE_MODE, 36, y - 378, "GameFontHighlightSmall")
-    local modeBoxes = AddGroup({
-        { id = "type", label = L.BUBBLE_MODE_TYPE },
-        { id = "page", label = L.BUBBLE_MODE_PAGE },
-    }, 300, y - 374, 26, function() return DialogueWheelE_BubbleMode == "page" and "page" or "type" end, function(id)
-        DialogueWheelE_BubbleMode = (id == "page") and "page" or nil
-        if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end
-    end, 1, 190) -- (colonnes plus larges : "Ecriture progressive" est long)
-    for _, cb in ipairs(modeBoxes) do Grey(cb, spokenOn) end
-    if modeLbl.SetAlpha then modeLbl:SetAlpha(spokenOn and 1 or 0.5) end
     -- (« La voix suit mes pages » et « Arreter la voix en fermant un livre » : page des livres)
     -- Illustration du lieu au-dessus de la petite fenetre de Spoken (narrations de Spoken Places).
-    Grey(AddCheck(L.ZONE_ART, 16, y - 402, function() return DialogueWheelE_ZoneArt ~= false end, function(self)
+    Grey(AddCheck(L.ZONE_ART, 16, y - 378, function() return DialogueWheelE_ZoneArt ~= false end, function(self)
         DialogueWheelE_ZoneArt = self:GetChecked() and true or false
         if DWE.ZoneArtRefresh then DWE.ZoneArtRefresh() end
     end), spokenOn)
     -- Bord de papier peint dans l'illustration (decoche : la scene seule, dans le fond du theme).
-    Grey(AddCheck(L.ZONE_ART_PAPER, 36, y - 428, function() return DialogueWheelE_ZoneArtPaper == true end, function(self)
+    Grey(AddCheck(L.ZONE_ART_PAPER, 36, y - 404, function() return DialogueWheelE_ZoneArtPaper == true end, function(self)
         DialogueWheelE_ZoneArtPaper = self:GetChecked() and true or nil
         if DWE.ZoneArtRefresh then DWE.ZoneArtRefresh() end
     end), spokenOn)
@@ -8628,12 +8626,12 @@ function DWE.InitOptionsPanel()
     for k, pg in ipairs(pages) do pg.search = MakeSearch(pg.panel, k == 1 and "DialogueWheelEOptionsSearch" or nil) end
     -- "Par defaut" en haut de chaque page : remet les reglages de cette page seulement.
     local PAGE_VARS = {
-        { "Theme", "Font", "FontSize", "Opacity", "ThemeFrames", "WheelTheme", "HideUI", "ChoiceSize", "MinimapHide", "MinimapAngle" },
+        { "Theme", "Font", "FontSize", "Opacity", "ThemeFrames", "WheelTheme", "HideUI", "ChoiceSize", "MinimapHide", "MinimapAngle", "BubbleMode" },
         { "BookStyle", "BookLook", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookTurnFX",
             "BookVoiceTurn", "BookStopOnClose", "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos" },
         { "AttachNPC", "Locked", "WheelSide", "QuestAuto", "QuestWidth", "NPCOffset", "Pos", "TextPos", "WheelWidth", "TextW", "TextH", "BubbleWidth" },
         { "UseBlizzKey", "InteractKey", "ToggleKey", "EscClose", "WheelScroll", "GamePad", "PadTips", "PadFreeLook" },
-        { "SpokenTheme", "SpokenSkin", "BookSkin", "PlateSkin", "PlaceSkin", "SpokenButton", "ShowText", "SpokenSmart", "BubbleHighlight", "BubbleMode",
+        { "SpokenTheme", "SpokenSkin", "BookSkin", "PlateSkin", "PlaceSkin", "SpokenButton", "ShowText", "SpokenSmart", "BubbleHighlight",
             "ZoneArt", "ZoneArtPaper" },
     }
     for k, pg in ipairs(pages) do

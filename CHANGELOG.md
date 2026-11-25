@@ -6,6 +6,7 @@
 
 ### Improved
 - Options: "Voice follows my pages" and "Stop the voice when closing a book" moved to the books page, under "Follow Spoken's voice". They are greyed out without Spoken, or when Blizzard or DialogueUI shows the books and plaques.
+- Options: "Bubble display" (Typewriter / Whole page) moved to the General page, under the text sizes: it works with or without a voice, so it is no longer greyed out without Spoken.
 
 ---
 
@@ -13,6 +14,7 @@
 
 ### Améliorations
 - Options : « La voix suit mes pages » et « Couper la voix en fermant un livre » passent dans la page des livres, sous « Suivre la voix de Spoken ». Elles sont grisées sans Spoken, ou quand Blizzard ou DialogueUI affichent les livres et les plaques.
+- Options : « Affichage de la bulle » (Écriture progressive / Page entière) passe dans la page Général, sous les tailles de texte : il marche avec ou sans voix, il n'est donc plus grisé sans Spoken.
 
 ## 1.10.0
 
