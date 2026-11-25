@@ -684,6 +684,40 @@ local function MakeWindow()
         b:SetScript("OnClick", function() f.ShowPage(i) end)
         f.tabs[i] = b
     end
+    -- Le chat de Nearyn, en bas des onglets ; ses yeux brillent quand on le survole (ou que le
+    -- cadre de la manette arrive dessus) ; un clic les fait briller un instant.
+    do
+        local path = "Interface\\AddOns\\Storytale\\"
+        local cat = CreateFrame("Button", nil, f)
+        cat:SetSize(64, 64)
+        cat:SetPoint("BOTTOM", f, "BOTTOMLEFT", 12 + TABS_W / 2, 58)
+        cat.tex = cat:CreateTexture(nil, "ARTWORK")
+        cat.tex:SetAllPoints()
+        cat.tex:SetTexture(path .. "NearynCat.png")
+        cat.glow = cat:CreateTexture(nil, "OVERLAY")
+        cat.glow:SetAllPoints()
+        cat.glow:SetTexture(path .. "NearynCatGlow.png")
+        cat.glow:SetBlendMode("ADD")
+        cat.glow:SetAlpha(0)
+        cat.by = cat:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+        cat.by:SetPoint("TOP", cat, "BOTTOM", 0, -2)
+        cat.by:SetText("by Nearyn")
+        local function Glow(target)
+            cat.target = target
+            cat:SetScript("OnUpdate", function(self, elapsed)
+                local a = self.glow:GetAlpha() + (self.target - self.glow:GetAlpha()) * math.min(1, elapsed * 8)
+                if math.abs(a - self.target) < 0.01 then a = self.target; self:SetScript("OnUpdate", nil) end
+                self.glow:SetAlpha(a)
+            end)
+        end
+        cat:SetScript("OnEnter", function() Glow(1) end)
+        cat:SetScript("OnLeave", function() Glow(0) end)
+        cat:SetScript("OnClick", function()
+            Glow(1)
+            if C_Timer and C_Timer.After then C_Timer.After(0.6, function() if not cat:IsMouseOver() then Glow(0) end end) end
+        end)
+        f.cat = cat
+    end
     local sep = f:CreateTexture(nil, "ARTWORK")
     sep:SetColorTexture(1, 0.82, 0, 0.25)
     sep:SetSize(1, H - 90)
@@ -756,6 +790,7 @@ local function MakeWindow()
         -- Toute la page (boutons "Par defaut" en haut compris), et les onglets a gauche.
         Walk(pg.panel)
         for _, t in ipairs(f.tabs) do list[#list + 1] = t end
+        if f.cat then list[#list + 1] = f.cat end
         return list
     end
     local function Center(w)
