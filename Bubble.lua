@@ -789,7 +789,9 @@ local function Wrapped(seg)
     for at, word, after in seg:gmatch("()(%S+)()") do
         local gap = seg:sub(pos, at - 1)
         local cand = line == "" and word or (line .. gap .. word)
-        if line ~= "" and Width(cand) > width - 1 then
+        -- (petite marge : la bulle est taillee a la largeur du texte + 4 ; sans elle, « paladin. »
+        -- passait seul a la ligne chez Nara alors que le jeu le gardait sur la meme ligne)
+        if line ~= "" and Width(cand) > width + 3 then
             -- retour a la ligne a la place de la premiere espace
             out[#out + 1] = "\n" .. gap:sub(2)
             line = word
@@ -1126,7 +1128,7 @@ DWE.SyncBuildWords, DWE.SyncBuildMap, DWE.SyncMapLookup, DWE.SyncLineBreaks = Bu
 -- Ecriture reguliere sur une voix aux durees generees : pos (lettre ecrite), target (lettre
 -- que dit la voix), rate (rythme moyen de la voix, lettres/s).
 DWE.GEN_SPEED = 1.2 -- vitesse de base : part du rythme moyen (la voix parle plus vite que son rythme moyen, pauses comprises)
-DWE.GEN_CATCH = 1.2 -- secondes pour combler doucement un ecart avec la voix
+DWE.GEN_CATCH = 0.6 -- secondes pour combler doucement un ecart avec la voix
 DWE.GEN_SMOOTH = 0.35 -- secondes : la vitesse change en douceur (jamais d'une image a l'autre)
 DWE.GEN_EARLY = 0.15 -- secondes : on repart d'une pause un instant avant le mot suivant (nos durees le placent souvent un peu tard)
 DWE.GEN_AHEAD = 12 -- lettres d'avance au-dela desquelles on ralentit fort
@@ -1158,7 +1160,7 @@ function DWE.GenSmoothStep(st, pos, target, rate, dt)
     local gap = target - pos
     local want = base + gap / DWE.GEN_CATCH
     if gap < -DWE.GEN_AHEAD then want = base * 0.25 end
-    want = math.max(base * 0.45, math.min(base * 2, want))
+    want = math.max(base * 0.45, math.min(base * 3, want))
     st.spd = st.spd and (st.spd + (want - st.spd) * math.min(1, dt / DWE.GEN_SMOOTH)) or want
     local new = pos + st.spd * dt
     if stop and target < stop + 0.5 and not soon then new = math.min(new, stop) end
