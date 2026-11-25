@@ -908,6 +908,9 @@ local function CustomReveal(seg, n)
         state.bufFront, state.bufPending = state.bufPending, nil
         front = b
     end
+    -- Le jeu efface le fondu d'un texte quand son cadre devient visible : on le remet a chaque
+    -- image sur la copie affichee (comme l'ancienne ecriture le faisait sur le texte).
+    if front and hasGradient and front.n then front.fs:SetAlphaGradient(front.n, math.max(1, front.fade or 1)) end
     if key ~= state.bufKey then
         state.bufKey, state.bufN, state.bufFade = key, n, fade
         local i = (state.bufFront == 1) and 2 or 1
@@ -919,7 +922,7 @@ local function CustomReveal(seg, n)
         if okW and type(tw) == "number" and tw > 0 then b.fs:SetWidth(tw) end
         b.f:SetAlpha(0)
         b.fs:SetText(Utf8Prefix(w, n + fade))
-        b.n = n
+        b.n, b.fade = n, fade
         if hasGradient then b.fs:SetAlphaGradient(n, math.max(1, fade)) end
         if not front then
             -- toute premiere lettre : rien a remplacer, on montre des l'image suivante
