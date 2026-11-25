@@ -3275,7 +3275,7 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
             if DWE.BubbleRestyle then DWE.BubbleRestyle() end
         end
         Out(("pointe : hauteur %s, taille %s, decalage %s (/storytale pointe 6 1.3 0)"):format(
-            tostring(DWE.gameTailY or 3), tostring(DWE.gameTailScale or 1), tostring(DWE.gameTailX or 0)))
+            tostring(DWE.gameTailY or 6), tostring(DWE.gameTailScale or 1.3), tostring(DWE.gameTailX or 0)))
     elseif msg:match("^%s*livrelog") then
         local log = DWE.lookLog or {}
         DWE.PadShowText(#log > 0 and table.concat(log, "\n") or "(rien : ouvre un livre et tourne les pages)")

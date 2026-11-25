@@ -213,13 +213,13 @@ local function ShowGameStyle()
             -- Pointe du jeu : sa place et sa taille reglables (/storytale pointe), pour qu'elle
             -- prolonge le contour comme sur les bulles du jeu.
             -- (a sa taille d'origine dans le jeu ; /storytale pointe peut l'agrandir)
-            local sc = DWE.gameTailScale
-            if sc and sc ~= 1 then
+            local sc = DWE.gameTailScale or 1.3
+            if sc ~= 1 then
                 local w, h = tail:GetSize()
                 tail:SetSize((w or 16) * sc, (h or 16) * sc)
             end
             tail:ClearAllPoints()
-            tail:SetPoint("TOP", bubble, "BOTTOM", DWE.gameTailX or 0, DWE.gameTailY or 3)
+            tail:SetPoint("TOP", bubble, "BOTTOM", DWE.gameTailX or 0, DWE.gameTailY or 6)
             tail:Show()
         else
             tail:Hide()
