@@ -1176,6 +1176,25 @@ for loc, v in pairs(BUBBLE_MODE) do
     end
 end
 
+-- Theme Personnalise : couleur du mot lu par la voix de Spoken (pastille, avec Spoken seulement).
+local CUSTOM_WORD = {
+    enUS = { "Word read", "Colour of the word the voice is saying in the bubble (Spoken). Right-click: automatic (gold on light text, dark red on dark text)." },
+    frFR = { "Mot lu", "Couleur du mot que dit la voix dans la bulle (Spoken). Clic droit : automatique (or sur texte clair, rouge foncé sur texte sombre)." },
+    deDE = { "Gelesenes Wort", "Farbe des Wortes, das die Stimme in der Sprechblase spricht (Spoken). Rechtsklick: automatisch (Gold auf hellem Text, Dunkelrot auf dunklem Text)." },
+    esES = { "Palabra leída", "Color de la palabra que dice la voz en el bocadillo (Spoken). Clic derecho: automático (dorado sobre texto claro, rojo oscuro sobre texto oscuro)." },
+    esMX = { "Palabra leída", "Color de la palabra que dice la voz en el globo (Spoken). Clic derecho: automático (dorado sobre texto claro, rojo oscuro sobre texto oscuro)." },
+    itIT = { "Parola letta", "Colore della parola che la voce sta dicendo nel fumetto (Spoken). Clic destro: automatico (oro su testo chiaro, rosso scuro su testo scuro)." },
+    ptBR = { "Palavra lida", "Cor da palavra que a voz está dizendo no balão (Spoken). Clique direito: automático (dourado em texto claro, vermelho escuro em texto escuro)." },
+    ruRU = { "Читаемое слово", "Цвет слова, которое произносит голос в облачке (Spoken). Правый клик: автоматически (золотой на светлом тексте, тёмно-красный на тёмном)." },
+    koKR = { "읽는 단어", "말풍선에서 목소리가 읽고 있는 단어의 색입니다 (Spoken). 오른쪽 클릭: 자동 (밝은 글자에는 금색, 어두운 글자에는 진한 빨강)." },
+    zhCN = { "朗读的词", "气泡中语音正在朗读的词的颜色（Spoken）。右键：自动（浅色文字用金色，深色文字用深红色）。" },
+    zhTW = { "朗讀的詞", "泡泡中語音正在朗讀的詞的顏色（Spoken）。右鍵：自動（淺色文字用金色，深色文字用深紅色）。" },
+}
+for loc, v in pairs(CUSTOM_WORD) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.CUSTOM_WORD, dest.CUSTOM_WORD_TIP = v[1], v[2] end
+end
+
 -- Libelles courts des options (details dans l'infobulle de chaque case, cles *_TIP).
 local SHORT = {
     enUS = { DEFAULTS_ALL_BTN = "Default all", PAGE_RESET_CONFIRM = "Reset the options of the page \"%s\" to their defaults?", DEFAULTS_BTN = "Defaults", PROFILE_COPY_FROM = "Copy settings from", PROFILE_DEL_ROW = "Delete profile", PROFILE_NEW_BTN = "New profile", PROFILE_FOR_NEW = "Profile for new characters", PROFILE_CLICK_TIP = "Pick with the arrows, then click to apply.", PROFILE_COPY_CONFIRM = "Copy the options of \"%s\" into this profile?", PROFILE_DEL_CONFIRM = "Delete the profile \"%s\"?\nCharacters using it go back to Main.", LOCK = "Lock windows", LOCK_TIP = "Prevents moving and resizing the wheel, the bubble and books.", ATTACH_NPC = "Wheel and bubble stick to the NPC", READ_MARKS = "Show if already read", READ_MARKS_TIP = "In the tooltip and in Spoken's queue.", BOOK_TIP_CURSOR = "Tooltip at the mouse", BOOK_TIP_CURSOR_TIP = "Instead of the corner of the screen.", BOOK_AUTOSCROLL = "Follow Spoken's voice", BOOK_AUTOSCROLL_TIP = "The text scrolls and the pages turn with the voice.", BOOK_TURN_FX = "Page-turn animation and sound", BOOK_VOICE_TURN = "Voice follows my pages", BOOK_STOP_CLOSE = "Stop the voice when closing a book", PLATE_STYLE = "Engraved plaques", FONT_SIZE = "Text size", HIDE_UI = "Hide UI while talking or reading", HIDE_UI_TIP = "During conversations and books.", PAD_USE = "Use the gamepad", QUEST_AUTO_W = "Automatic quest preview width", QUEST_AUTO_W_TIP = "Uncheck to set it with its grip.", THEME_BUBBLES = "Bubble above the NPC", THEME_BUBBLES_TIP = "Uncheck for a fixed frame.", WHEEL_THEME = "Theme on the wheel too", SPOKEN_THEME = "Theme on Spoken's player too", SPOKEN_BUTTON = "Bubble / Spoken button on the wheel", SPOKEN_BUTTON_TIP = "Switches between the bubble and Spoken's player.", KEY_TOGGLE = "Bubble / Spoken key:", ZONE_ART = "Area pictures (Spoken)", ZONE_ART_TIP = "In Spoken's small window.", ZONE_ART_PAPER = "Painted paper edge", PROFILE_FACTORY_NOTE = "The Defaults profile keeps no changes." },

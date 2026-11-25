@@ -999,6 +999,59 @@ do
     env.Addon = oAddon
     if oEnv == nil then _G.SpokenEnv = nil end
 end
+-- Changement de page avec le mot lu surligne : la page suivante apparait une seule image apres
+-- (pas de bulle vide plusieurs images), son premier mot deja en couleur (pas blanc puis colore).
+-- Theme Personnalise : la couleur choisie pour le mot lu (pastille "Mot lu").
+if os.getenv("NOGRADIENT") ~= "1" then
+    local oEnv = rawget(_G, "SpokenEnv")
+    local env = type(oEnv) == "table" and oEnv or {}
+    _G.SpokenEnv = env
+    local oAddon = rawget(env, "Addon")
+    env.Addon = { db = { profile = { Transcript = { HighlightWord = true } } } }
+    DialogueWheelE_BubbleHighlight = true
+    local parts = {}
+    for i = 1, 45 do parts[i] = "mot" .. i end
+    local long = table.concat(parts, " ") .. "."
+    local function first() return ((full() or ""):gsub("|cff%x%x%x%x%x%x", ""):gsub("|r", "")):match("^(%S+)") end
+    local function run(label)
+        clip = { length = 8, spokenAt = now + 8, text = long, present = { transcript = long } }
+        DWE.SetDialogueText("x", long .. " ")
+        DWE.SetDialogueText("x", long)
+        local page1, changed, hidden, coloured = first(), false, 0, nil
+        for _ = 1, 900 do
+            now = now + 0.016; DWE.bubble._scripts.OnUpdate(DWE.bubble, 0.016) -- une image a 60 i/s
+            if not changed and first() ~= page1 then changed = true end
+            if changed then
+                if bt:GetAlpha() == 0 or vis() == "" then
+                    hidden = hidden + 1
+                else
+                    coloured = (full() or ""):match("^|cff%x%x%x%x%x%x") ~= nil
+                    break
+                end
+            end
+        end
+        check(changed, label .. ": the text goes on to its next page")
+        check(hidden <= 1, label .. ": next page shown after one hidden frame at most (" .. hidden .. ")")
+        check(coloured == true, label .. ": first word of the next page already coloured when it appears: '" .. tostring(full()) .. "'")
+    end
+    run("page change")
+    local oTheme, oColors = DialogueWheelE_Theme, DialogueWheelE_CustomColors
+    DialogueWheelE_Theme, DialogueWheelE_CustomColors = "custom", { word = { 0, 1, 0 } }
+    DWE.CustomRefresh(); DWE.OnThemeChanged()
+    clip = { length = 6, spokenAt = now + 6, text = "Alpha bravo charlie delta echo.", present = { transcript = "Alpha bravo charlie delta echo." } }
+    DWE.SetDialogueText("x", "Alpha bravo charlie delta echo.")
+    for _ = 1, 20 do now = now + 0.05; tick(0.05) end
+    check((full() or ""):find("|cff00ff00", 1, true) ~= nil, "custom theme: the word read takes the colour chosen: '" .. tostring(full()) .. "'")
+    DialogueWheelE_CustomColors = {}
+    DWE.CustomRefresh()
+    for _ = 1, 20 do now = now + 0.05; tick(0.05) end
+    check(DWE.CustomWordColor() == nil, "custom theme: no colour chosen = automatic")
+    DialogueWheelE_Theme, DialogueWheelE_CustomColors = oTheme, oColors
+    DWE.CustomRefresh(); DWE.OnThemeChanged()
+    DialogueWheelE_BubbleHighlight = nil
+    env.Addon = oAddon
+    if oEnv == nil then _G.SpokenEnv = nil end
+end
 -- Voix qui vient de commencer ce texte : on part du debut, comme avant.
 local body4 = "Alpha one two three four five six seven eight nine ten. Eleven twelve thirteen fourteen."
 clip = { length = 10, spokenAt = now + 9.5, text = body4, present = { transcript = body4 } }

@@ -656,6 +656,12 @@ do
         local c = Valid(saved) and saved or DWE.CUSTOM_DEFAULT[key]
         return { c[1], c[2], c[3] }
     end
+    -- Couleur du mot lu par la voix de Spoken dans la bulle (pastille "Mot lu"), nil : automatique
+    -- (or sur texte clair, rouge fonce sur texte sombre).
+    function DWE.CustomWordColor()
+        local saved = type(DialogueWheelE_CustomColors) == "table" and DialogueWheelE_CustomColors.word
+        return Valid(saved) and { saved[1], saved[2], saved[3] } or nil
+    end
     THEME_STYLES.custom = { bg = { 0, 0, 0, 0.86 }, border = { 1, 1, 1, 1 }, hdr = { 1, 1, 1 }, body = { 1, 1, 1 }, shadow = 1 }
     -- Lecteur Spoken quand le theme Personnalise est en bulle : la meme bulle (remplissage et
     -- contour blancs, teintes aux couleurs choisies).
@@ -689,7 +695,7 @@ do
     DWE.CustomRefresh()
     -- Themes Personnalises enregistres (DialogueWheelE_CustomPresets) : a part des options, un
     -- "Reinitialiser les options" ne les efface pas. Liste de { name, bg, border, text, sel }.
-    local PRESET_KEYS = { "bg", "border", "text", "sel" }
+    local PRESET_KEYS = { "bg", "border", "text", "sel", "word" }
     function DWE.CustomPresets()
         if type(DialogueWheelE_CustomPresets) ~= "table" then DialogueWheelE_CustomPresets = {} end
         local list = DialogueWheelE_CustomPresets
@@ -706,7 +712,9 @@ do
         name = name:sub(1, 40)
         local list = DWE.CustomPresets()
         local pr = { name = name }
-        for _, k in ipairs(PRESET_KEYS) do pr[k] = DWE.CustomColor(k) end
+        for _, k in ipairs(PRESET_KEYS) do
+            if k == "word" then pr[k] = DWE.CustomWordColor() else pr[k] = DWE.CustomColor(k) end
+        end
         for i, old in ipairs(list) do
             if old.name:lower() == name:lower() then list[i] = pr return i end
         end
@@ -7474,9 +7482,18 @@ function DWE.InitOptionsPanel()
     do
         AddText(L.CUSTOM_COLORS, 16, y, "GameFontHighlightSmall")
         local swatches = {}
+        -- Couleur affichee par une pastille ("Mot lu" sans reglage : la couleur automatique).
+        local function SwatchColor(key)
+            if key ~= "word" then return DWE.CustomColor(key) end
+            local c = DWE.CustomWordColor()
+            if c then return c end
+            local tx = DWE.CustomColor("text")
+            if tx[1] * 0.6 + tx[2] * 0.4 > 0.5 then return { 1, 0.82, 0 } end
+            return { 0.61, 0.10, 0.10 }
+        end
         local function Repaint()
             for _, sw in ipairs(swatches) do
-                local c = DWE.CustomColor(sw.key)
+                local c = SwatchColor(sw.key)
                 sw.fill:SetColorTexture(c[1], c[2], c[3], 1)
             end
         end
@@ -7495,7 +7512,7 @@ function DWE.InitOptionsPanel()
             UseCustom()
         end
         local function Pick(key)
-            local c = DWE.CustomColor(key)
+            local c = SwatchColor(key)
             local cp = ColorPickerFrame
             if not cp then return end
             local function Now()
@@ -7515,11 +7532,15 @@ function DWE.InitOptionsPanel()
             end
         end
         local KEYS = { { "bg", L.CUSTOM_BG }, { "border", L.CUSTOM_BORDER }, { "text", L.CUSTOM_TEXT }, { "sel", L.CUSTOM_SEL } }
+        -- Couleur du mot lu par la voix : seulement si Spoken est la (5 pastilles plus serrees).
+        local withWord = DWE.SpokenFocus and DWE.SpokenFocus.Available and DWE.SpokenFocus.Available()
+        if withWord then KEYS[5] = { "word", L.CUSTOM_WORD } end
+        local STEP = withWord and 120 or 140
         for i, k in ipairs(KEYS) do
             local b = CreateFrame("Button", nil, p, "BackdropTemplate")
             b.key = k[1]
             b:SetSize(22, 22)
-            b:SetPoint("TOPLEFT", 16 + (i - 1) * 140, y - 20)
+            b:SetPoint("TOPLEFT", 16 + (i - 1) * STEP, y - 20)
             b:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 10 })
             b:SetBackdropBorderColor(0.8, 0.8, 0.8, 1)
             b.fill = b:CreateTexture(nil, "ARTWORK")
@@ -7531,7 +7552,27 @@ function DWE.InitOptionsPanel()
             local lbl = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             lbl:SetPoint("LEFT", b, "RIGHT", 6, 0)
             lbl:SetText(k[2])
-            b:SetScript("OnClick", function() Pick(k[1]) end)
+            if k[1] == "word" then
+                -- Clic droit : couleur automatique. Infobulle : a quoi sert cette couleur.
+                b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+                b:SetScript("OnClick", function(_, button)
+                    if button == "RightButton" then
+                        if type(DialogueWheelE_CustomColors) == "table" then DialogueWheelE_CustomColors.word = nil end
+                        UseCustom()
+                    else
+                        Pick("word")
+                    end
+                end)
+                b:HookScript("OnEnter", function(self)
+                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                    GameTooltip:SetText(L.CUSTOM_WORD, 1, 0.82, 0)
+                    GameTooltip:AddLine(L.CUSTOM_WORD_TIP, 1, 1, 1, true)
+                    GameTooltip:Show()
+                end)
+                b:HookScript("OnLeave", function() GameTooltip:Hide() end)
+            else
+                b:SetScript("OnClick", function() Pick(k[1]) end)
+            end
             swatches[i] = b
         end
         local from = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")

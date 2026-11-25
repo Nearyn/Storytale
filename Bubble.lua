@@ -534,6 +534,18 @@ end
 -- le mot que la bulle ecrit au rythme de la voix prend la couleur de Spoken (or sur fond
 -- sombre, rouge fonce sur fond clair).
 local HL_ON_DARK, HL_ON_LIGHT = "|cffffd100", "|cff9c1a1a"
+-- Code couleur du mot lu : celle choisie pour le theme Personnalise (pastille "Mot lu"), sinon
+-- or sur texte clair (fond sombre), rouge fonce sur texte sombre (fond clair).
+local function WordColor()
+    local okC, r, g = pcall(text.GetTextColor, text)
+    if not okC then r, g = 1, 1 end
+    local light = (r or 1) * 0.6 + (g or 1) * 0.4 > 0.5
+    if styleName == "custom" and DWE.CustomWordColor then
+        local c = DWE.CustomWordColor()
+        if c then return string.format("|cff%02x%02x%02x", math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5), math.floor(c[3] * 255 + 0.5)) end
+    end
+    return light and HL_ON_DARK or HL_ON_LIGHT
+end
 local function SpokenHighlightWords()
     local env = rawget(_G, "SpokenEnv")
     local addon = type(env) == "table" and rawget(env, "Addon")
@@ -575,10 +587,7 @@ local function HighlightText(seg, n)
     if not at or seg:find("|", 1, true) then return seg, nil end
     local a = #Utf8Prefix(seg, at)
     local b = #Utf8Prefix(seg, at + len)
-    local okC, r, g = pcall(text.GetTextColor, text)
-    if not okC then r, g = 1, 1 end
-    local light = (r or 1) * 0.6 + (g or 1) * 0.4 > 0.5 -- texte clair : fond sombre
-    return seg:sub(1, a) .. (light and HL_ON_DARK or HL_ON_LIGHT) .. seg:sub(a + 1, b) .. "|r" .. seg:sub(b + 1),
+    return seg:sub(1, a) .. WordColor() .. seg:sub(a + 1, b) .. "|r" .. seg:sub(b + 1),
         state.index .. ":" .. at
 end
 
@@ -673,10 +682,7 @@ local function PageReveal(seg, n)
     local at, len = PageWord(n)
     if at and not seg:find("|", 1, true) and SpokenHighlightWords() then
         local a, b = #Utf8Prefix(seg, at), #Utf8Prefix(seg, at + len)
-        local okC, r, g = pcall(text.GetTextColor, text)
-        if not okC then r, g = 1, 1 end
-        local light = (r or 1) * 0.6 + (g or 1) * 0.4 > 0.5 -- texte clair : fond sombre
-        want = seg:sub(1, a) .. (light and HL_ON_DARK or HL_ON_LIGHT) .. seg:sub(a + 1, b) .. "|r" .. seg:sub(b + 1)
+        want = seg:sub(1, a) .. WordColor() .. seg:sub(a + 1, b) .. "|r" .. seg:sub(b + 1)
         key = state.index .. ":" .. at
     end
     if key ~= state.pgKey then
@@ -719,6 +725,12 @@ local function Reveal()
     local show = n > 0 and not state.fresh
     text:SetAlpha(show and 1 or 0)
     bubble:DWEWaitHide(not show and (state.index or 1) <= 1)
+    -- Image cachee du debut de page : le mot lu prend deja sa couleur (sinon il apparaissait en
+    -- blanc puis passait en couleur une image plus tard).
+    if state.fresh and hasGradient and state.phase == "typing" and not state.dots and n > 0 and HighlightOn() then
+        local want, key = HighlightText(state.segs[state.index] or "", n)
+        if key then text:SetText(want) state.hlKey = key end
+    end
     if state.dots then
         -- Points de suspension : un point net apres l'autre (pas de fondu), place gardee.
         -- La bulle est taillee pour "..." : texte cale a gauche, les points s'ajoutent un a un.
@@ -733,10 +745,12 @@ end
 
 local function StartSegment(i)
     local seg = state.segs[i]
-    -- Premiere lettre tout de suite : la bulle apparait avec son texte, sans delai.
-    state.index, state.phase, state.typed, state.shownN = i, "typing", (i == 1) and 1 or 0, nil
+    -- Premiere lettre tout de suite, a chaque page : la page apparait avec son texte apres une
+    -- seule image cachee (le jeu n'applique le fondu d'un nouveau texte qu'a l'image suivante).
+    -- (Les pages suivantes partaient de 0 lettre : bulle vide 3 ou 4 images, mesure en video.)
+    state.index, state.phase, state.typed, state.shownN = i, "typing", 1, nil
     HighlightReset() -- FitTo remet le texte sans couleur
-    state.fresh = (i == 1) or nil
+    state.fresh = true
     FitTo(seg, seg)
     Reveal()
 end
