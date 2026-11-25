@@ -8065,7 +8065,7 @@ function DWE.InitOptionsPanel()
     }, 300, y - 374, 26, function() return DialogueWheelE_BubbleMode == "page" and "page" or "type" end, function(id)
         DialogueWheelE_BubbleMode = (id == "page") and "page" or nil
         if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end
-    end, 1, 160)
+    end, 1, 190) -- (colonnes plus larges : "Ecriture progressive" est long)
     for _, cb in ipairs(modeBoxes) do Grey(cb, spokenOn) end
     if modeLbl.SetAlpha then modeLbl:SetAlpha(spokenOn and 1 or 0.5) end
     -- Page tournee a la main dans un livre lu par Spoken : la voix reprend a cette page.
