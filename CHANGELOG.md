@@ -1,5 +1,43 @@
 # Changelog / Journal des versions
 
+## 1.10.0
+
+**English**
+
+### New
+- Options in their own window: the same pages with theme previews, one tab per page, and full gamepad support (D-pad to move, A to select, B to close, L1 / R1 to change tab). Open it with /storytale, the minimap button, a key (Keybindings > AddOns > Storytale), or the "Open Storytale options" button in the game's options menu.
+- Keyboard and mouse: the game keeps all your keys while the options are open (move, jump, cast); only Escape closes the window.
+- Themes apply live: click a theme with a conversation open and the bubble, its text and the choices change at once.
+- New theme "Azeroth NPC Bubble": the game's bubble with the pale yellow text of talking NPCs. The original "Azeroth Bubble" keeps its white text.
+- The window takes the colours of your theme (and of your Custom colours), with a little cat.
+- "Hide UI while talking or reading" and the Cinematic theme also hide chat addons such as Chattynator.
+
+### Fixed
+- Gamepad: closing the game's options no longer triggers an "Interface action failed" error.
+- Bubble tails: filled to their outline (no more see-through tail on the dark themes), joined to the bubble on every theme, redrawn on Folio and Night Folio, back to the game's look on Azeroth Bubble.
+- No more lighter band above the tail on parchment themes (Gilded Vellum, Arcane, Sylvan).
+- Bubbles no longer grow a line too tall for a moment when a page changes, and no longer flash empty between two pages.
+- Gamepad: L1 / R1 alone no longer zoom the camera.
+
+---
+
+**Français**
+
+### Nouveautés
+- Les options dans leur propre fenêtre : les mêmes pages avec l'aperçu des thèmes, un onglet par page, et la manette partout (croix pour se déplacer, A pour valider, B pour fermer, L1 / R1 pour changer d'onglet). On l'ouvre avec /storytale, le bouton de la mini-carte, une touche (Raccourcis > AddOns > Storytale) ou le bouton « Ouvrir les options Storytale » du menu d'options du jeu.
+- Clavier et souris : le jeu garde toutes vos touches pendant les options (se déplacer, sauter, lancer des sorts) ; seule Échap ferme la fenêtre.
+- Les thèmes s'appliquent en direct : cliquez sur un thème pendant une conversation, la bulle, son texte et les choix changent aussitôt.
+- Nouveau thème « Bulle d'Azeroth (PNJ) » : la bulle du jeu avec le texte jaune pâle des PNJ qui parlent. La « Bulle d'Azeroth » d'origine garde son texte blanc.
+- La fenêtre prend les couleurs de votre thème (et de vos couleurs Personnalisé), avec un petit chat.
+- « Cacher l'interface en dialogue et en lecture » et le thème Cinématique cachent aussi les addons de chat comme Chattynator.
+
+### Corrections
+- Manette : fermer les options du jeu ne provoque plus d'erreur « Interface action failed ».
+- Pointes des bulles : remplies jusqu'à leur contour (plus de pointe transparente sur les thèmes sombres), raccordées à la bulle sur tous les thèmes, redessinées sur Folio et Folio nocturne, de retour à l'allure du jeu sur la Bulle d'Azeroth.
+- Plus de bande plus claire au-dessus de la pointe sur les thèmes parchemin (Vélin doré, Arcanes, Sylvain).
+- Les bulles ne grandissent plus d'une ligne un instant au changement de page, et ne clignotent plus à vide entre deux pages.
+- Manette : L1 / R1 seuls ne zooment plus la caméra.
+
 ## 1.9.1
 
 **English**
