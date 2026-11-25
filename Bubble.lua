@@ -12,7 +12,6 @@ local SEGMENT_MAX = 150        -- longueur max d'un morceau (en octets)
 local TYPE_SPEED = 30          -- vitesse d'ecriture sans voix, en lettres par seconde
 -- Sans voix reconnue (meme avec Spoken installe) : meme vitesse que sans Spoken.
 local SPOKEN_PACE = TYPE_SPEED
-DWE.BUBBLE_KEEPALIVE = true -- /storytale vivant : couper pour comparer
 local FADE_LETTERS = 10        -- nombre de lettres en cours d'apparition (fondu)
 
 -- Lettres 1..n nettes, les FADE_LETTERS suivantes en fondu.
@@ -732,17 +731,7 @@ local function Reveal()
     if n == state.shownN then
         -- Le jeu peut effacer le fondu quand la bulle devient visible : le texte entier se
         -- voyait jusqu'a la lettre suivante. On le remet a chaque image (sans toucher au texte).
-        if hasGradient and not state.dots and state.phase == "typing" and n > 0 then
-            GradientAt(text, n, FadeLen(n))
-            -- Attente (pause de la voix) : apres un moment sans changement, le jeu ne redessinait
-            -- plus le fondu tout de suite a la reprise (« on » fige 0,45 s puis « one may » d'un
-            -- coup, alors que les lettres avancaient bien : journal du 25/11). Une transparence
-            -- qui bouge d'un rien a chaque image garde le texte « vivant » pour le jeu.
-            if DWE.BUBBLE_KEEPALIVE then
-                state.alive = not state.alive
-                text:SetAlpha(state.alive and 1 or 0.996)
-            end
-        end
+        if hasGradient and not state.dots and state.phase == "typing" and n > 0 then GradientAt(text, n, FadeLen(n)) end
         return
     end
     state.shownN = n

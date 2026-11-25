@@ -3260,9 +3260,6 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         local v = tonumber((string.gsub(msg:match("^%s*delai%s+([%d%.,]+)") or "", ",", ".")))
         if v then DWE.VOICE_LEAD = math.max(0, math.min(3, v)) end
         Out(("delai de la voix : %.1f s (/storytale delai 0.8 pour changer)."):format(DWE.VOICE_LEAD or 0))
-    elseif msg:match("^%s*vivant") then
-        DWE.BUBBLE_KEEPALIVE = not DWE.BUBBLE_KEEPALIVE
-        Out("bulle gardee vivante pendant les pauses : " .. (DWE.BUBBLE_KEEPALIVE and "oui" or "non") .. " (pour comparer).")
     elseif msg:match("^%s*fluide%s+voir") then
         local tr = DWE.fluidTrace or {}
         DWE.PadShowText(#tr > 0 and (tostring(tr.who) .. "\n" .. table.concat(tr, "\n")) or "(rien : /storytale fluide puis parle a un PNJ)")
