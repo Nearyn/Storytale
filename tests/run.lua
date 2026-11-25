@@ -852,7 +852,7 @@ DWE.bubble:SetAlpha(0.5)
 check(DWE.bubble:GetAlpha() == 0.5, "bubble opacity set elsewhere still applies")
 DWE.bubble:SetAlpha(1)
 -- (ecriture de Storytale : la copie preparee s'affiche une image apres, d'ou une lettre ou deux de moins)
-check(vis() == "Hello there, " or (DWE.noGradient and ("Hello there, "):sub(1, #vis()) == vis() and #vis() >= 10), "letter by letter at 30/s: '" .. vis() .. "'")
+check(("Hello there, "):sub(1, #vis()) == vis() and #vis() >= 7 and #vis() <= 10, "letter by letter at 20/s: '" .. vis() .. "'")
 if os.getenv("NOGRADIENT") ~= "1" and not DWE.noGradient then
     check(full():find("^Hello there, traveler!"), "whole segment laid out in advance (no reflow)")
 end
