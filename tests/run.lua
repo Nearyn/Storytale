@@ -3608,6 +3608,12 @@ else
             check(f.pageIndex == 2 and DWE.optionPages[2].panel:GetParent() == f.content, "options window: R1 goes to the next tab")
             pad(f, "PADLSHOULDER")
             check(f.pageIndex == 1, "options window: L1 goes back")
+            f.Select(f.tabs[3])
+            pad(f, "PAD1")
+            check(f.pageIndex == 3, "options window: a tab opens its page")
+            check(f.sel == f.tabs[3], "options window: the cursor stays on the tab it opened")
+            pad(f, "PADRSHOULDER")
+            check(f.pageIndex == 4 and f.sel == f.tabs[4], "options window: the cursor follows the tabs")
             pad(f, "PAD2")
             check(not f:IsShown() and DWE.optionPages[1].panel:GetParent() ~= f.content, "options window: B closes it and gives the page back")
         end

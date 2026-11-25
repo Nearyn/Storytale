@@ -580,7 +580,41 @@ DWE.NativeRefresh = function() Native.Refresh() end
 -- Manette : croix (aller vers l'element voisin ; gauche/droite reglent un curseur), A (cliquer),
 -- B (fermer), L1 / R1 (onglets). Clavier : fleches, Entree / Espace, Echap, Tab. Souris : tout.
 -- Rien ne passe par le panneau d'options du jeu (sa manette se bloquait, voir plus haut).
-local W, H, TABS_W = 860, 640, 170
+local W, H, TABS_W = 860, 660, 170
+
+-- Couleurs de la fenetre selon le theme choisi : un fond sombre teinte (le texte et les cases du
+-- jeu restent lisibles, meme avec un theme clair) et un accent (bord, onglet, curseur, titre).
+local THEME_COLORS = {
+    bubble = { { 1, 0.82, 0 }, { 0.11, 0.11, 0.12 } },
+    bubble_fantasy = { { 0.92, 0.70, 0.36 }, { 0.17, 0.12, 0.07 } },
+    whisper = { { 0.82, 0.58, 1 }, { 0.11, 0.08, 0.15 } },
+    emerald = { { 0.45, 0.95, 0.60 }, { 0.06, 0.13, 0.09 } },
+    ruby = { { 1, 0.45, 0.50 }, { 0.15, 0.06, 0.07 } },
+    sapphire = { { 0.55, 0.78, 1 }, { 0.06, 0.09, 0.16 } },
+    amber = { { 1, 0.75, 0.40 }, { 0.15, 0.10, 0.05 } },
+    transparent = { { 1, 0.82, 0 }, { 0.10, 0.10, 0.10 } },
+    dark = { { 0.88, 0.88, 0.92 }, { 0.08, 0.08, 0.09 } },
+    glass = { { 1, 0.84, 0.50 }, { 0.10, 0.10, 0.11 } },
+    halo = { { 1, 0.84, 0.50 }, { 0.09, 0.09, 0.10 } },
+    inkgold = { { 1, 0.84, 0.47 }, { 0.09, 0.08, 0.06 } },
+    cinema = { { 1, 0.82, 0 }, { 0.07, 0.07, 0.07 } },
+    velin = { { 0.96, 0.86, 0.60 }, { 0.18, 0.15, 0.11 } },
+    arcane = { { 0.72, 0.76, 1 }, { 0.11, 0.11, 0.17 } },
+    sylvan = { { 0.72, 0.92, 0.50 }, { 0.09, 0.13, 0.07 } },
+    starry = { { 0.76, 0.82, 1 }, { 0.07, 0.08, 0.15 } },
+    parchment = { { 0.96, 0.80, 0.50 }, { 0.19, 0.14, 0.09 } },
+    parchment_dark = { { 0.90, 0.70, 0.40 }, { 0.13, 0.09, 0.06 } },
+    folio = { { 0.96, 0.82, 0.55 }, { 0.17, 0.13, 0.09 } },
+    folio_dark = { { 0.86, 0.66, 0.40 }, { 0.11, 0.08, 0.05 } },
+    dui = { { 0.92, 0.74, 0.45 }, { 0.15, 0.11, 0.07 } },
+}
+local function ThemeColors()
+    local id = DialogueWheelE_Theme or "bubble"
+    if id == "scroll" then id = "parchment" end
+    local c = THEME_COLORS[id] or THEME_COLORS.bubble
+    return c[1], c[2]
+end
+Native.ThemeColors = ThemeColors
 
 local function MakeWindow()
     local L = DWE.L
@@ -598,14 +632,29 @@ local function MakeWindow()
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     f:SetClampedToScreen(true)
+    -- Fond plein (on ne voit plus le jeu a travers), bord du jeu teinte par l'accent du theme.
     if f.SetBackdrop then
-        f:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 32, edgeSize = 32,
-            insets = { left = 11, right = 12, top = 12, bottom = 11 } })
+        f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = false, edgeSize = 32,
+            insets = { left = 10, right = 10, top = 10, bottom = 10 } })
     end
+    -- Leger degrade (plus clair en haut) et colonne des onglets un peu plus claire.
+    f.shade = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+    f.shade:SetPoint("TOPLEFT", 10, -10)
+    f.shade:SetPoint("BOTTOMRIGHT", -10, 10)
+    f.shade:SetColorTexture(1, 1, 1, 1)
+    f.tabsBg = f:CreateTexture(nil, "BACKGROUND", nil, 2)
+    f.tabsBg:SetPoint("TOPLEFT", 12, -48)
+    f.tabsBg:SetPoint("BOTTOMLEFT", 12, 34)
+    f.tabsBg:SetWidth(TABS_W)
+    f.tabsBg:SetColorTexture(1, 1, 1, 0.05)
     f.title = f:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     f.title:SetPoint("TOP", 0, -18)
     f.title:SetText("Storytale")
+    f.titleLine = f:CreateTexture(nil, "ARTWORK")
+    f.titleLine:SetHeight(1)
+    f.titleLine:SetPoint("TOPLEFT", 16, -42)
+    f.titleLine:SetPoint("TOPRIGHT", -16, -42)
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", -6, -6)
     close:SetScript("OnClick", function() f:Hide() end)
@@ -642,7 +691,7 @@ local function MakeWindow()
 
     -- Zone de la page
     f.content = CreateFrame("Frame", nil, f)
-    f.content:SetPoint("TOPLEFT", TABS_W + 20, -14)
+    f.content:SetPoint("TOPLEFT", TABS_W + 20, -46)
     f.content:SetPoint("BOTTOMRIGHT", -14, 34)
 
     -- Cadre dore : l'element choisi a la manette / au clavier.
@@ -655,6 +704,27 @@ local function MakeWindow()
     end
     f.cursor:EnableMouse(false)
     f.cursor:Hide()
+
+    function f.ApplyColors()
+        local a, bg = ThemeColors()
+        if f.SetBackdropColor then
+            f:SetBackdropColor(bg[1], bg[2], bg[3], 0.98)
+            f:SetBackdropBorderColor(math.min(1, a[1] * 0.9 + 0.1), math.min(1, a[2] * 0.9 + 0.1), math.min(1, a[3] * 0.9 + 0.1), 1)
+        end
+        if f.shade.SetGradient and CreateColor then
+            pcall(f.shade.SetGradient, f.shade, "VERTICAL", CreateColor(0, 0, 0, 0.25), CreateColor(1, 1, 1, 0.06))
+        else
+            f.shade:SetColorTexture(1, 1, 1, 0.03)
+        end
+        f.title:SetTextColor(a[1], a[2], a[3])
+        f.titleLine:SetColorTexture(a[1], a[2], a[3], 0.35)
+        sep:SetColorTexture(a[1], a[2], a[3], 0.30)
+        for i, t in ipairs(f.tabs) do
+            t.bg:SetColorTexture(a[1], a[2], a[3], 0.22)
+            t.text:SetTextColor(i == f.pageIndex and 1 or a[1], i == f.pageIndex and 1 or a[2], i == f.pageIndex and 1 or a[3])
+        end
+        if f.cursor.SetBackdropBorderColor then f.cursor:SetBackdropBorderColor(a[1], a[2], a[3], 1) end
+    end
 
     f.pageIndex = 1
     local function Page() return pages[f.pageIndex] end
@@ -791,6 +861,7 @@ local function MakeWindow()
         if not w then f.Move(0, -1) return end
         if IsSlider(w) then return end
         if w.Click then pcall(w.Click, w) end
+        f.ApplyColors() -- (theme peut-etre change)
         -- La page a pu changer (theme choisi, case cochee qui en grise d'autres).
         if C_Timer and C_Timer.After then C_Timer.After(0, function() if f.sel and not f.sel:IsVisible() then f.Select(nil) end end) end
     end
@@ -807,9 +878,15 @@ local function MakeWindow()
         if DWE.optionsWindowButton and pg == pages[1] then DWE.optionsWindowButton:Show() end
         f.shown = nil
     end
+    local function IsTab(w)
+        for _, t in ipairs(f.tabs) do if t == w then return true end end
+        return false
+    end
     function f.ShowPage(i)
         local pg = pages[i]
         if not pg then return end
+        -- Cadre sur les onglets : il y reste (sur l'onglet ouvert), pour continuer a les parcourir.
+        local onTabs = f.sel and IsTab(f.sel)
         Detach()
         f.pageIndex = i
         for k, t in ipairs(f.tabs) do t.bg:SetShown(k == i) end
@@ -823,6 +900,8 @@ local function MakeWindow()
         pg.panel:Show()
         f.shown = pg
         if pg.scroll then pg.scroll:SetVerticalScroll(0) end
+        if onTabs and f.tabs[i] then f.Select(f.tabs[i]) end
+        f.ApplyColors()
     end
     local function Tab(dir)
         local n = #pages
@@ -916,3 +995,19 @@ end
 function DWE.ToggleOptionsWindow()
     if Native.window and Native.window:IsShown() then Native.window:Hide() else DWE.OpenOptionsWindow() end
 end
+
+-- Theme change (clic sur une vignette) : la fenetre prend tout de suite ses couleurs.
+do
+    local orig = DWE.OnThemeChanged
+    if type(orig) == "function" then
+        DWE.OnThemeChanged = function(...)
+            local r = { orig(...) }
+            if Native.window and Native.window:IsShown() and Native.window.ApplyColors then pcall(Native.window.ApplyColors) end
+            return unpack(r)
+        end
+    end
+end
+
+-- Raccourci du jeu (Options > Raccourcis > Storytale), pour ouvrir la fenetre a la manette.
+BINDING_HEADER_STORYTALE = "Storytale"
+BINDING_NAME_STORYTALE_OPTIONS = (DWE.L and DWE.L.OPT_WINDOW_OPEN) or "Storytale options"

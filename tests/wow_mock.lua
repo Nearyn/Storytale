@@ -58,6 +58,7 @@ function Object:GetAlpha() return self._alpha end
 function Object:SetVertexColor(r, g, b, a) self._vc = { r, g, b, a or 1 }; self._alpha = a or 1 end
 function Object:SetScript(ev, fn) self._scripts[ev] = fn end
 function Object:GetScript(ev) return self._scripts[ev] end
+function Object:Click(button) local fn = self._scripts.OnClick; if fn then fn(self, button or "LeftButton", false) end end
 function Object:HookScript(ev, fn)
     local old = self._scripts[ev]
     self._scripts[ev] = function(...) if old then old(...) end fn(...) end

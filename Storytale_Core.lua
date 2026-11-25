@@ -7608,7 +7608,8 @@ function DWE.InitOptionsPanel()
     if DWE.NATIVE_OPTIONS then
         local open = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
         open:SetSize(220, 24)
-        open:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -36, -6)
+        -- (sous la barre du haut : "Par defaut" et la recherche y sont deja)
+        open:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -24, -38)
         open:SetText(DWE.L.OPT_WINDOW_OPEN or "Storytale")
         open:SetScript("OnClick", function() if DWE.OpenOptionsWindow then DWE.OpenOptionsWindow() end end)
         DWE.optionsWindowButton = open
