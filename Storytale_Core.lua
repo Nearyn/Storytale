@@ -218,7 +218,7 @@ function DWE.PerfTypingStarted()
     if not perf.armed or perf.on then return end
     perf.armed = false
     perf.out("Ecriture detectee : mesure pendant 8 s...")
-    DWE.StartPerf(perf.out, 8, perf.baseline)
+    DWE.StartPerf(perf.out, 8, perf.baseline, true)
 end
 
 --------------------------------------------------------------------------------

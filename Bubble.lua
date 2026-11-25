@@ -1056,6 +1056,7 @@ DWE.BubbleGeneratedTimes = GeneratedTimes
 -- que sa longueur ne le permet : pendant une pause de la voix, l'ecriture attend au bout du mot.
 DWE.GEN_DELAY = 0.25 -- secondes entre le lancement du son et la voix entendue (durees generees)
 DWE.GEN_EASE = 0.12 -- secondes : retard de l'ecriture sur la lettre dite (durees generees)
+DWE.GEN_FLOW = 0.8 -- secondes : blanc apres un mot sans ponctuation au-dela duquel la bulle attend (souffle)
 local function GeneratedShare(st, clip, length)
     local t = GeneratedTimes(clip)
     local m = st.words and #st.words or 0
@@ -1070,7 +1071,15 @@ local function GeneratedShare(st, clip, length)
     end
     local j = n == m and i or math.min(m, math.floor((i - 1) / n * m) + 1)
     local ow = st.words[j]
-    local dur = math.min((t[i + 1] or length) - t[i], 0.12 + 0.07 * (ow.len or 5))
+    -- Un mot s'ecrit pendant tout le temps qui le separe du suivant : l'ecriture coule d'un mot
+    -- a l'autre. Avant, chaque mot s'ecrivait d'un coup puis attendait le debut du suivant :
+    -- arrets et reprises a chaque mot, la bulle semblait ramer (vu en jeu, Theridran, 25/11).
+    -- Seul un mot suivi d'une ponctuation (virgule, point...) ou d'un tres long blanc fait
+    -- attendre la bulle au bout du mot : la voix y marque une vraie pause.
+    local gap = (t[i + 1] or length) - t[i]
+    local cap = 0.12 + 0.07 * (ow.len or 5)
+    local pause = (ow.pause or 0) > 0 or ow.pageEnd or gap > cap + DWE.GEN_FLOW
+    local dur = pause and math.min(gap, cap) or gap
     local frac = math.max(0, math.min(1, (e - t[i]) / math.max(0.05, dur)))
     local pos
     if n == m then

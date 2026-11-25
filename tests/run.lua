@@ -1133,6 +1133,23 @@ do
     end
     for _ = 1, 100 do now = now + 0.05; tick(0.05) end
     check(vis():find("echo%.$"), "generated timings: text complete at the end of the voice: '" .. vis() .. "'")
+    -- Mots qui s'enchainent (pas de pause) : l'ecriture coule, sans arret entre deux mots.
+    if en then
+        local gf = "Better castle forest garden harbor island."
+        DWE.GeneratedTimings["test-generated-clip"] = "0 0.9 1.8 2.7 3.6 4.5"
+        clip = { length = 5.4, spokenAt = now + 5.4 - DWE.GEN_DELAY, text = gf, present = { transcript = gf }, path = clip.path }
+        DWE.SetDialogueText("y", gf)
+        local last, still, worst = -1, 0, 0
+        for step = 1, 110 do
+            now = now + 0.05; tick(0.05)
+            local n = #vis()
+            -- (voix deja entendue des le debut : on mesure tout, jusqu'a la fin du texte)
+            if n == last and n < #gf then still = still + 0.05 else still = 0 end
+            if still > worst then worst = still end
+            last = n
+        end
+        check(worst <= 0.25 + 1e-6, "generated timings: words flow into each other, no stop between them (longest stop " .. worst .. " s)")
+    end
     DWE.GeneratedTimings["test-generated-clip"] = nil
 end
 
