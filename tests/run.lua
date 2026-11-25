@@ -1197,6 +1197,15 @@ do
         end
         local rep = DWE.bubbleFluid
         check(rep and rep.mode == "durees generees" and rep.count == 0, "fluidity meter: Theridran measured in game with no stop outside punctuation (" .. tostring(rep and rep.count) .. ", " .. tostring(rep and rep.mode) .. ")")
+        -- meme texte une deuxieme fois (autre PNJ, meme replique) : nouvelle mesure, nouveau resume
+        local printed = 0
+        local oldPrint = print
+        print = function(m, ...) if tostring(m):find("fluidite") then printed = printed + 1 end end
+        DWE.Bubble.SetText(nil)
+        DWE.SetDialogueText("t", gt)
+        for _ = 1, 320 do now = now + 0.05; tick(0.05) end
+        print = oldPrint
+        check(printed == 1, "fluidity meter: the same line said again (another NPC) is measured again (" .. printed .. ")")
         DWE.fluidLog = nil
         check(worst <= 0.15 + 1e-6, "generated timings: Theridran flows, stops only at punctuation (longest other stop " .. worst .. " s at '" .. at:sub(-12) .. "')")
     end

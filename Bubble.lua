@@ -1412,8 +1412,12 @@ function DWE.BubbleFluidReport()
 end
 bubble:HookScript("OnUpdate", function(_, elapsed)
     if not DWE.fluidLog then return end
-    if state.raw ~= fluid.raw then
+    -- Chaque nouveau texte (meme identique : les trois maitres druides disent la meme chose)
+    -- commence une nouvelle mesure.
+    state.fluidId = state.fluidId or 0
+    if state.fluidId ~= fluid.id then
         DWE.BubbleFluidReport()
+        fluid.id = state.fluidId
         fluid.raw, fluid.done, fluid.count, fluid.worst, fluid.where, fluid.still, fluid.lastN, fluid.lastI = state.raw, nil, 0, 0, nil, 0, nil, nil
     end
     if state.phase == "reading" and state.index == #state.segs then DWE.BubbleFluidReport() return end
@@ -1483,6 +1487,7 @@ function DWE.Bubble.SetText(s)
     state.voiced, state.age, state.holdT, state.waitT = nil, 0, 0, 0
     state.lastTarget, state.tvel, state.spd, state.genStops = nil, nil, nil, nil
     state.setAt = GetTime and GetTime() or nil
+    state.fluidId = (state.fluidId or 0) + 1
     text:SetAlpha(1)
     if IsSecret(s) then
         -- Valeur protegee par le jeu : impossible a decouper, affichee telle quelle.
