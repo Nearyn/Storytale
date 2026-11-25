@@ -3260,6 +3260,9 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         local v = tonumber((string.gsub(msg:match("^%s*delai%s+([%d%.,]+)") or "", ",", ".")))
         if v then DWE.VOICE_LEAD = math.max(0, math.min(3, v)) end
         Out(("delai de la voix : %.1f s (/storytale delai 0.8 pour changer)."):format(DWE.VOICE_LEAD or 0))
+    elseif msg:match("^%s*sansfondu") then
+        DWE.noGradient = not DWE.noGradient
+        Out("essai : bulle " .. (DWE.noGradient and "SANS le fondu du jeu (lettres posees une a une)" or "avec le fondu (normal)") .. ".")
     elseif msg:match("^%s*fondu2") then
         DWE.fadeWiggle = not DWE.fadeWiggle
         Out("essai : fondu qui bouge pendant les pauses : " .. (DWE.fadeWiggle and "oui" or "non") .. ".")

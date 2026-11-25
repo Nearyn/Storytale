@@ -749,7 +749,7 @@ local function Reveal()
         -- Le jeu peut effacer le fondu quand la bulle devient visible : le texte entier se
         -- voyait jusqu'a la lettre suivante. On le remet a chaque image (sans toucher au texte).
         -- (/storytale fondu : essai sans ce rappel a chaque image, pour comparer)
-        if hasGradient and not state.dots and state.phase == "typing" and n > 0 and not DWE.noFadeRepeat then GradientAt(text, n, FadeLen(n)) end
+        if hasGradient and not state.dots and state.phase == "typing" and n > 0 and not DWE.noFadeRepeat and not DWE.noGradient then GradientAt(text, n, FadeLen(n)) end
         return
     end
     state.shownN = n
@@ -771,9 +771,11 @@ local function Reveal()
         -- La bulle est taillee pour "..." : texte cale a gauche, les points s'ajoutent un a un.
         if hasGradient then text:SetAlphaGradient(100, 1) end
         text:SetText(Utf8Prefix(seg, n))
-    elseif hasGradient then
+    elseif hasGradient and not DWE.noGradient then
         GradientAt(text, n, FadeLen(n))
     else
+        -- (aussi /storytale sansfondu : essai sans le fondu du jeu, lettres posees une a une)
+        if hasGradient then text:SetAlphaGradient(100000, 1) end
         text:SetText(Utf8Prefix(seg, n))
     end
 end
