@@ -3606,6 +3606,34 @@ if DWE.NATIVE_OPTIONS and M.nativeSettings and M.nativeSettings.Storytale_Spoken
     DWE.SettingsChanged()
     if DWE.askFrame then DWE.askFrame:Hide() end
 end
+if DWE.NATIVE_OPTIONS and M.nativeSettings and M.nativeSettings.Storytale_Profile then
+    -- Page native "Profils" : listes du jeu, confirmations dans la fenetre de Storytale.
+    local S = M.nativeSettings
+    local start = DWE.profile
+    check(S.Storytale_ProfileCopyFrom and S.Storytale_ProfileDelete and S.Storytale_ProfileForNew, "native options: profiles page settings registered")
+    check(DWE.ProfileCreate("NativeTest", false), "native profiles: test profile created")
+    check(DWE.profile == "NativeTest", "native profiles: new profile in use")
+    S.Storytale_Profile:SetValue(start)
+    check(DWE.profile == start and S.Storytale_Profile:GetValue() == start, "native profiles: switched back with the list")
+    S.Storytale_ProfileDelete:SetValue("NativeTest")
+    local f = DWE.askFrame
+    check(f and f:IsShown() and f.yes:IsShown(), "native profiles: delete asks first")
+    check(S.Storytale_ProfileDelete:GetValue() == "", "native profiles: delete line back to '-'")
+    if f then f.yes._scripts.OnClick(f.yes) end
+    local still = false
+    for _, n in ipairs(DWE.ProfileList()) do if n == "NativeTest" then still = true end end
+    check(not still, "native profiles: profile deleted after Yes")
+    local reset
+    for _, l in pairs(M.nativeLayouts or {}) do
+        for _, i in ipairs(l.inits) do if i.kind == "button" and i.label == DWE.L.RESET_ALL then reset = i end end
+    end
+    check(reset ~= nil, "native profiles: reset-all button")
+    if reset then
+        reset.data.buttonClick()
+        check(DWE.askFrame:IsShown(), "native profiles: reset-all asks in Storytale's window (gamepad)")
+        DWE.askFrame.no._scripts.OnClick(DWE.askFrame.no)
+    end
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end

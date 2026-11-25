@@ -52,9 +52,10 @@ end
 function Native.Choice(cat, id, label, tip, default, items, get, set)
     local s = Proxy(cat, id, type(""), label, default, get, set)
     if not s then return end
+    -- items : liste fixe, ou fonction relue a chaque ouverture de la liste (profils).
     local function Options()
         local c = Settings.CreateControlTextContainer()
-        for _, it in ipairs(items) do c:Add(it[1], it[2]) end
+        for _, it in ipairs(type(items) == "function" and items() or items) do c:Add(it[1], it[2]) end
         return c:GetData()
     end
     local ok, init = pcall(Settings.CreateDropdown, cat, s, Options, tip)
@@ -379,6 +380,51 @@ local function BuildSpoken(parent)
     return cat
 end
 
+---------------------------------------------------------------------------- Profils
+local function BuildProfiles(parent)
+    local L = DWE.L
+    local cat, layout = Settings.RegisterVerticalLayoutSubcategory(parent, L.SEC_PROFILES .. " (2)")
+    if not (cat and DWE.ProfileList) then return end
+    local function Named(list)
+        local out = {}
+        for _, n in ipairs(list) do out[#out + 1] = { n, DWE.ProfileLabel(n) } end
+        return out
+    end
+    local function Others(withDefault)
+        local l = { { "", "-" } }
+        for _, n in ipairs(DWE.ProfileList()) do
+            if n ~= DWE.profile and (withDefault or n ~= "Default") then l[#l + 1] = { n, DWE.ProfileLabel(n) } end
+        end
+        return l
+    end
+    -- Profil utilise : change tout de suite (rien n'est perdu, on peut revenir).
+    Native.Choice(cat, "Profile", Bare(L.PROFILE_CUR), L.PROFILE_HINT, "Default",
+        function() return Named(DWE.ProfileList()) end,
+        function() return DWE.profile or "Default" end,
+        function(v) if v and v ~= DWE.profile then DWE.AskProfile("switch", v) end end)
+    -- Copier depuis / supprimer : une action, la ligne revient a "-" ; confirmation demandee.
+    Native.Choice(cat, "ProfileCopyFrom", Bare(L.PROFILE_COPY_FROM), nil, "",
+        function() return Others(true) end,
+        function() return "" end,
+        function(v) if v and v ~= "" then DWE.AskProfile("copyfrom", v) end end)
+    Native.Choice(cat, "ProfileDelete", Bare(L.PROFILE_DEL_ROW), nil, "",
+        function() return Others(false) end,
+        function() return "" end,
+        function(v) if v and v ~= "" then DWE.AskProfile("delete", v) end end)
+    Native.Button(layout, L.PROFILE_NEW_BTN, L.PROFILE_NEW_BTN, function() DWE.AskProfile("new") end)
+    Native.Choice(cat, "ProfileForNew", Bare(L.PROFILE_FOR_NEW), nil, "Default",
+        function() return Named(DWE.ProfileList()) end,
+        function() return DWE.ProfileNewCharName and DWE.ProfileNewCharName() or "Default" end,
+        function(v)
+            if v and DWE.ProfileSetForNew then DWE.ProfileSetForNew(v) end
+            if DWE.RefreshProfilesUI then DWE.RefreshProfilesUI() end
+        end)
+    -- Tout remettre par defaut : la fenetre de Storytale (atteignable a la manette).
+    Native.Button(layout, L.RESET_ALL, L.RESET_ALL, function() if DWE.AskResetAll then DWE.AskResetAll() end end)
+    Native.profiles = cat
+    return cat
+end
+
 -- Appele une fois les anciennes pages creees (DWE.InitOptionsPanel).
 function DWE.BuildNativeOptions(parent)
     if Native.built or not parent or not Supported() then return end
@@ -387,6 +433,7 @@ function DWE.BuildNativeOptions(parent)
     pcall(BuildPlacement, parent)
     pcall(BuildKeys, parent)
     pcall(BuildSpoken, parent)
+    pcall(BuildProfiles, parent)
 end
 
 DWE.NativeRefresh = function() Native.Refresh() end
