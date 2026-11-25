@@ -2004,6 +2004,16 @@ end
 function DWE.BubbleRestyle()
     if styleName then local n = styleName; styleName = nil; pcall(ApplyStyle, n) end
 end
+-- Theme change dialogue ouvert : tout est redessine au prochain affichage (style, police,
+-- couleur du texte, lignes deja ecrites et bord adouci gardes en cache avec l'ancienne couleur).
+function DWE.Bubble.Restyle()
+    styleName = nil
+    bubble.fontKey = nil
+    state.wrapKey, state.wrapText = nil, nil
+    soft.key = nil
+    for _, fs in ipairs(soft.lines) do fs:Hide() end
+    DWE.Bubble.RefreshHighlight()
+end
 function DWE.Bubble.SetShown(show)
     bubble.dweOff = not show
     if not show then

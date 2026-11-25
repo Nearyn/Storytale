@@ -7143,8 +7143,13 @@ function DWE.OnThemeChanged()
     DWE.ApplyFont()
     DWE.RefreshSpoken()
     if choiceBox:IsShown() then
-        DWE.UpdateVisuals()
         -- Bulle ou cadre du texte du PNJ : change aussi, dialogue ouvert (theme essaye en direct).
+        -- La bulle est redessinee de zero, sans garder de morceaux de l'ancien theme.
+        if DWE.Bubble and DWE.Bubble.Restyle then
+            DWE.Bubble.Restyle()
+            DWE.Bubble.SetShown(false)
+        end
+        DWE.UpdateVisuals()
         DWE.UpdateTextPanelVisuals()
         if DWE.Bubble and DWE.Bubble.Refit then DWE.Bubble.Refit() end
         if DWE.RefreshPreview then DWE.RefreshPreview() else DWE.PaintWheelTheme() end
