@@ -3643,6 +3643,7 @@ f:SetScript("OnEvent", function(_, event)
         end
     end
 
+    if (event == "ITEM_TEXT_BEGIN" or event == "ITEM_TEXT_READY") and DWE.ForgetOpenText then DWE.ForgetOpenText() end
     if event == "ITEM_TEXT_BEGIN" then
         DWE.bookSpokenView = false
         DWE.bookInfo = nil

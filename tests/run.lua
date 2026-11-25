@@ -2955,9 +2955,17 @@ do
     _G.ItemTextGetMaterial = function() return "Parchment" end
     DWE.bookMode = true
     check(DWE.RawPlate() == "Troll", "an open troll tablet takes the troll stele")
-    onScreen = 2
+    onScreen = 2; DWE.ForgetOpenText() -- le jeu envoie ITEM_TEXT_READY a chaque nouveau texte
     check(DWE.RawPlate() == "Tablet", "another tablet takes the plain stele")
-    onScreen = 5
+    do -- un meme texte ouvert : Spoken n'est interroge qu'une fois (pas a chaque image)
+        local n, pos = 0, _G.SpokenReadables.PageOnScreen
+        _G.SpokenReadables.PageOnScreen = function(...) n = n + 1 return pos(...) end
+        DWE.ForgetOpenText()
+        for _ = 1, 50 do DWE.BookStyleNow() end
+        check(n == 1, "open text: Spoken's page lookup done once, not every frame (" .. n .. ")")
+        _G.SpokenReadables.PageOnScreen = pos
+    end
+    onScreen = 5; DWE.ForgetOpenText() -- le jeu envoie ITEM_TEXT_READY a chaque nouveau texte
     local oldMap = C_Map and C_Map.GetBestMapForUnit
     _G.C_Map = _G.C_Map or {}
     local here = 1416
@@ -2969,12 +2977,12 @@ do
     here = 1429
     check(DWE.RawPlate() == "Stone", "the same text elsewhere: stone")
     here = 1416
-    onScreen = 6
+    onScreen = 6; DWE.ForgetOpenText() -- le jeu envoie ITEM_TEXT_READY a chaque nouveau texte
     check(DWE.RawPlate() == "Stone", "another plaque the game calls parchment stays stone")
-    onScreen = 7
+    onScreen = 7; DWE.ForgetOpenText() -- le jeu envoie ITEM_TEXT_READY a chaque nouveau texte
     check(DWE.RawPlate() == "Stone", "a Stormwind plaque that is not a hero statue stays stone")
     _G.ItemTextGetMaterial = function() return "Bronze" end
-    onScreen = 5
+    onScreen = 5; DWE.ForgetOpenText() -- le jeu envoie ITEM_TEXT_READY a chaque nouveau texte
     check(DWE.RawPlate() == "Bronze", "a plaque the game calls bronze keeps its bronze")
     -- Storytale seul (sans Spoken Readables) : la stele de Khadgar d'apres son titre.
     do

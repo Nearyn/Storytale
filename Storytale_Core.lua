@@ -3102,7 +3102,29 @@ end
 -- Le texte ouvert est-il une tablette trolle ? (sans Spoken : d'apres son titre)
 -- Sans Spoken Readables, le texte de Khadgar se reconnait a son titre (toutes langues).
 DWE.KHADGAR_NAMES = { "Khadgar", "Кадгар", "카드가", "卡德加" }
+-- Appele des centaines de fois par seconde (masquage, style du livre) : Spoken refait a chaque
+-- fois le calcul de la page affichee (texte normalise + somme de controle), tres long sur une
+-- grande page (« Translated Tale of I'lalai » : le jeu ramait). Le resultat ne change qu'avec
+-- le texte ouvert : on le garde pour un meme titre, une meme page et une meme carte.
+DWE.trollCache = {}
 function DWE.OpenTrollTablet()
+    local title = ItemTextGetItem and ItemTextGetItem()
+    local page = ItemTextGetPage and ItemTextGetPage()
+    local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    local sec = rawget(_G, "issecretvalue")
+    if type(title) == "string" and not (sec and (sec(title) or sec(page))) then
+        local key = title .. "\0" .. tostring(page) .. "\0" .. tostring(map) .. "\0" .. tostring(DWE.textSerial)
+        local c = DWE.trollCache
+        if c.key == key then return c.plate, c.kind end
+        local plate, kind = DWE.OpenTrollTabletRaw()
+        c.key, c.plate, c.kind = key, plate, kind
+        return plate, kind
+    end
+    return DWE.OpenTrollTabletRaw()
+end
+-- Texte ouvert change (nouveau livre, page suivante) : on recalcule.
+function DWE.ForgetOpenText() DWE.textSerial = (DWE.textSerial or 0) + 1 end
+function DWE.OpenTrollTabletRaw()
     local sr = rawget(_G, "SpokenReadables")
     if type(sr) == "table" and sr.PageOnScreen then
         local ok, id = pcall(sr.PageOnScreen, sr)
