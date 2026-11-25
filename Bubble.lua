@@ -943,7 +943,8 @@ local function SoftSetup(seg)
             r.cum[k] = Width(acc)
         end
     end
-    for b = 1, SOFT_BANDS + 1 do CopyLook(SoftClip(b).fs) end
+    for b = 1, 2 * SOFT_BANDS + 2 do CopyLook(SoftClip(b).fs) end
+    soft.sp = math.max(0, Width("a a") - Width("aa")) -- largeur d'un espace
 end
 -- pos : lettre en cours (avec sa part deja ecrite), dans le texte avec retours a la ligne ;
 -- limit : derniere lettre que le bord adouci peut toucher (pause a une ponctuation).
@@ -997,6 +998,35 @@ local function SoftShow(pos, limit, hlAt, hlLen)
             c.fs:ClearAllPoints()
             c.fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, row.y)
             if c.fs:GetText() ~= shownText then c.fs:SetText(shownText) end
+            c.f:SetAlpha(a)
+            c.f:Show()
+            c.fs:Show()
+        end
+    end
+    -- Fin de ligne : le bord adouci continue au debut de la ligne suivante (avant, il s'arretait
+    -- au bout de la ligne, puis les premieres lettres de la suivante apparaissaient d'un coup).
+    local nxt = soft.rows[ri + 1]
+    local rowW = row.cum[row.chars] or 0
+    local xmax2 = 0
+    if nxt and limit then
+        local lc2 = math.max(0, math.min(nxt.chars, limit - nxt.start + 1))
+        xmax2 = nxt.cum[math.floor(lc2)] or 0
+    end
+    for b = 2, SOFT_BANDS + 1 do
+        local c = SoftClip(SOFT_BANDS + b)
+        local x0 = x + (b - 2) * bw - rowW - (soft.sp or 0)
+        local s0, s1 = math.max(0, x0), math.min(x0 + bw, xmax2)
+        local a = 1 - (b - 1.5) / SOFT_BANDS
+        if not nxt or s1 - s0 < 0.5 or a <= 0.02 then
+            c.f:Hide()
+        else
+            local t = SoftColored(nxt, hlAt, hlLen)
+            c.f:ClearAllPoints()
+            c.f:SetPoint("TOPLEFT", text, "TOPLEFT", s0, nxt.y + 2)
+            c.f:SetSize(s1 - s0, lh + 4)
+            c.fs:ClearAllPoints()
+            c.fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, nxt.y)
+            if c.fs:GetText() ~= t then c.fs:SetText(t) end
             c.f:SetAlpha(a)
             c.f:Show()
             c.fs:Show()
