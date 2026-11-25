@@ -1441,7 +1441,9 @@ bubble:HookScript("OnUpdate", function(_, elapsed)
     else
         if fluid.still > 0.15 then
             local seg = state.segs[fluid.lastI or 1] or ""
-            local prev = seg:sub(1, fluid.lastN or 0):match("(%S)%s*$") or ""
+            -- derniere lettre montree (une espace apres la virgule n'est plus la pause : la bulle
+            -- est repartie, « town, |one » compte)
+            local prev = seg:sub(fluid.lastN or 0, fluid.lastN or 0)
             -- (juste avant la ponctuation, « fact|, », c'est aussi la pause de la virgule)
             local nextc = seg:sub((fluid.lastN or 0) + 1, (fluid.lastN or 0) + 1)
             if not prev:find("[%.,!?;:%-]") and not nextc:find("[%.,!?;:%-]") then
