@@ -435,6 +435,8 @@ local function ApplyStyle(name)
         customTailEdge:Show()
     else
         customEdge:Hide(); customTailEdge:Hide()
+        -- (contour decoupe du theme Personnalise : sinon il restait par-dessus le theme suivant)
+        for _, t in pairs(splitEdge) do t:Hide() end
         local op = tonumber(DialogueWheelE_Opacity) or 1
         fantasy:SetVertexColor(1, 1, 1, op); fantasyTail:SetVertexColor(1, 1, 1, op)
         for _, t in pairs(split) do t:SetVertexColor(1, 1, 1, 1) end

@@ -2828,6 +2828,7 @@ cineBars.alpha = 0
 -- Restent visibles : l'addon, DialogueUI/Spoken (deja geres), les infobulles et les fenetres
 -- systeme (menu Echap, options, fenetres de confirmation).
 local hiddenUI = {} -- cadre -> opacite d'origine
+local ignoredUI = {} -- cadres remis a suivre l'opacite de leur parent (a rendre a la fin)
 local KEEP_UI = {
     GameTooltip = true, ItemRefTooltip = true, ShoppingTooltip1 = true, ShoppingTooltip2 = true,
     GameMenuFrame = true, SettingsPanel = true, InterfaceOptionsFrame = true, StaticPopup1 = true,
@@ -2858,6 +2859,18 @@ local function CollectUI()
         end
     end
     for _, fr in ipairs(list) do
+        -- Fenetres qui ignorent l'opacite de leur parent (fenetres de chat de Chattynator) : elles
+        -- la suivent de nouveau le temps de la conversation, pour s'effacer avec le reste.
+        if not KeepFrame(fr) and fr.GetChildren then
+            local okC, kids = pcall(function() return { fr:GetChildren() } end)
+            for _, k in ipairs(okC and kids or {}) do
+                local okI, ign = pcall(function() return k.IsIgnoringParentAlpha and k:IsIgnoringParentAlpha() end)
+                local okK, forb = pcall(function() return (k.IsForbidden and k:IsForbidden()) or (k.IsProtected and k:IsProtected()) end)
+                if okI and ign == true and okK and not forb and not ignoredUI[k] and not KeepFrame(k) then
+                    if pcall(k.SetIgnoreParentAlpha, k, false) then ignoredUI[k] = true end
+                end
+            end
+        end
         -- Cadres proteges (fenetres Blizzard interdites aux addons) : on n'y touche pas.
         local okF, forbidden = pcall(function() return fr.IsForbidden and fr:IsForbidden() end)
         local okS, shown = false, false
@@ -2874,6 +2887,9 @@ end
 local function RestoreUI()
     FadeUI(0)
     wipe(hiddenUI)
+    -- (jamais de cadre protege ici : rendu meme en combat)
+    for k in pairs(ignoredUI) do pcall(k.SetIgnoreParentAlpha, k, true) end
+    wipe(ignoredUI)
 end
 DWE.HiddenUI = hiddenUI
 
