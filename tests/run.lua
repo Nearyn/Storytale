@@ -2085,6 +2085,24 @@ if withSpoken then
             queue.sounds = { done }
             ui.UpdateNotice()
             check(ui.NoticeShown() and DWE.spokenHeldHide, "held only: Spoken's player hidden, discreet button shown")
+            -- Le bouton se place a cote du lecteur de Spoken, a une place fixe a l'ecran : il ne le
+            -- suit plus quand on deplace le lecteur, et ne couvre pas son portrait.
+            do
+                ui.notice:Hide()
+                local pf = rawget(_G, "SpokenMinimalPlayerFrame")
+                local made = false
+                if not pf then pf = CreateFrame("Frame", "SpokenMinimalPlayerFrame", UIParent); made = true end
+                local oldL, oldS = pf.GetLeft, pf.IsShown
+                pf._cx, pf._cy = 600, 300
+                pf.GetLeft = function() return 450 end
+                pf.IsShown = function() return true end
+                ui.UpdateNotice()
+                local pt = ui.notice._points and ui.notice._points[#ui.notice._points]
+                check(ui.NoticeShown() and pt and pt[1] == "RIGHT" and pt[2] == UIParent and pt[4] == 444 and pt[5] == 300,
+                    "queue button: fixed screen place left of Spoken's player, not attached to it")
+                pf.GetLeft, pf.IsShown = oldL, oldS
+                if made then pf:Hide(); _G.SpokenMinimalPlayerFrame = nil end
+            end
             queue.sounds = { done, fresh }
             ui.UpdateNotice()
             check(not ui.NoticeShown() and not DWE.spokenHeldHide, "something to play: player back, button gone")
@@ -3386,6 +3404,16 @@ else
         local n0 = S.Storytale_Locked.notified or 0
         DWE.SettingsChanged()
         check((S.Storytale_Locked.notified or 0) > n0, "native options: lines refreshed when settings change (profile, defaults)")
+        -- Options du jeu ouvertes ("Default all" dans la page principale) : pas de NotifyUpdate,
+        -- sinon le jeu note le reglage comme modifie au nom de Storytale et la manette se bloque a la fermeture.
+        do
+            local oldSP = rawget(_G, "SettingsPanel")
+            _G.SettingsPanel = { IsShown = function() return true end }
+            local n1 = S.Storytale_Locked.notified or 0
+            DWE.SettingsChanged()
+            check((S.Storytale_Locked.notified or 0) == n1, "native options: no refresh while the game's options are open (taint on close)")
+            _G.SettingsPanel = oldSP
+        end
         DialogueWheelE_WheelSide, DialogueWheelE_Locked, DialogueWheelE_QuestAuto, DialogueWheelE_AttachNPC = saveSide, saveLock, saveQA, saveAttach
         DWE.SettingsChanged()
     end

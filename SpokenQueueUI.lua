@@ -455,9 +455,15 @@ function UI.UpdateNotice()
     notice.count:SetText(n > 1 and tostring(n) or "")
     if not notice:IsShown() then
         notice:ClearAllPoints()
+        -- Place fixe a l'ecran, prise a cote du lecteur au moment ou le bouton apparait : il n'est
+        -- pas accroche au lecteur (deplacer le lecteur ne l'emmene plus) et ne couvre pas son portrait.
         local fr = PlayerAnchor()
-        if fr then
-            notice:SetPoint("LEFT", fr, "LEFT", 8, 0)
+        local okL, l = pcall(fr and fr.GetLeft or function() end, fr)
+        local okC, _, cy = pcall(fr and fr.GetCenter or function() end, fr)
+        local sec = rawget(_G, "issecretvalue")
+        if fr and okL and okC and type(l) == "number" and type(cy) == "number" and not (sec and (sec(l) or sec(cy))) then
+            local k = (fr:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
+            notice:SetPoint("RIGHT", UIParent, "BOTTOMLEFT", l * k - 6, cy * k)
         else
             notice:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -260, 220)
         end

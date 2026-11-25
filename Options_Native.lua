@@ -78,6 +78,12 @@ end
 
 -- Profil change, page remise a zero... : les lignes affichees relisent leur valeur.
 function Native.Refresh()
+    -- Jamais pendant que les options du jeu sont ouvertes : NotifyUpdate fait noter le reglage
+    -- comme modifie dans la liste du panneau, au nom de Storytale ; a la fermeture (Echap), le jeu
+    -- parcourt cette liste contaminee et la manette se bloque ("Default all" puis Echap). Les
+    -- lignes relisent de toute facon leur valeur quand la page s'affiche.
+    local sp = rawget(_G, "SettingsPanel")
+    if sp and sp.IsShown and sp:IsShown() then return end
     for _, s in ipairs(Native.settings) do
         if s.NotifyUpdate then pcall(s.NotifyUpdate, s) end
     end
