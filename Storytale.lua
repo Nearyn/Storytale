@@ -3411,7 +3411,7 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
     elseif msg:match("perf%s+now") then
         -- Mesure tout de suite, 8 s (ex. ouvrir un livre juste apres).
         Out("Mesure pendant 8 s : ouvre le livre maintenant.")
-        DWE.StartPerf(Out, 8)
+        DWE.StartPerf(Out, 8, nil, true)
     elseif msg:match("perf") then
         Out("Pret : parle a un PNJ, la mesure demarre quand le texte commence a s'ecrire.")
         DWE.ArmPerf(Out)

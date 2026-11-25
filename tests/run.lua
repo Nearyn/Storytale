@@ -3660,6 +3660,20 @@ if DWE.NATIVE_OPTIONS and M.nativeSettings and M.nativeSettings.Storytale_Theme 
     DWE.OnThemeChanged()
     if DWE.ApplyFont then DWE.ApplyFont() end
 end
+do -- /storytale perf now : chaque fonction chronometree pendant la mesure, puis remise telle quelle
+    local hadClock = rawget(_G, "debugprofilestop")
+    _G.debugprofilestop = hadClock or function() return os.clock() * 1000 end
+    local orig, lines = DWE.SetDialogueText, {}
+    DWE.StartPerf(function(l) lines[#lines + 1] = l end, 8, nil, true)
+    check(DWE.SetDialogueText ~= orig, "perf: functions timed during the measure")
+    DWE.SetDialogueText("Perf", "x")
+    DWE.perfFrame._scripts.OnUpdate(DWE.perfFrame, 9)
+    check(DWE.SetDialogueText == orig, "perf: functions put back after the measure")
+    local seen = false
+    for _, l in ipairs(lines) do if l:find("f:SetDialogueText", 1, true) then seen = true end end
+    check(seen, "perf: report names the slow functions")
+    _G.debugprofilestop = hadClock
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end

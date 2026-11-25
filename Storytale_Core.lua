@@ -123,9 +123,51 @@ end
 
 -- Mesure pendant `seconds` secondes, puis affiche les images/s, la pire image (a-coup) et
 -- les ms par seconde de chaque partie de l'addon. `baseline` : images/s juste avant.
-function DWE.StartPerf(out, seconds, baseline)
+do
+-- Pendant la mesure : chaque fonction de DWE (et de ses modules) est chronometree, puis remise
+-- telle quelle. Temps "inclusif" : une fonction compte aussi ce qu'elle appelle.
+local perfWrapped
+local function PerfWrapAll(perf)
+    perfWrapped = {}
+    local mods = { [""] = DWE }
+    for _, m in ipairs({ "SpokenFocus", "Bubble", "Native" }) do
+        if type(DWE[m]) == "table" then mods[m .. "."] = DWE[m] end
+    end
+    for prefix, t in pairs(mods) do
+        for k, fn in pairs(t) do
+            if type(fn) == "function" and k ~= "StartPerf" and k ~= "Guard" then
+                local key = "f:" .. prefix .. k
+                local w = { t, k, fn }
+                perfWrapped[#perfWrapped + 1] = w
+                w[4] = function(...)
+                    if not perf.on then return fn(...) end
+                    local t0 = debugprofilestop()
+                    local r = { n = 0 }
+                    local function keep(...) r.n = select("#", ...); for i = 1, r.n do r[i] = (select(i, ...)) end end
+                    keep(fn(...))
+                    local dt = debugprofilestop() - t0
+                    perf.t[key] = (perf.t[key] or 0) + dt
+                    perf.n[key] = (perf.n[key] or 0) + 1
+                    if dt > (perf.mx[key] or 0) then perf.mx[key] = dt end
+                    return unpack(r, 1, r.n)
+                end
+                t[k] = w[4]
+            end
+        end
+    end
+end
+local function PerfUnwrapAll()
+    for _, w in ipairs(perfWrapped or {}) do
+        -- Remplacee entre-temps par l'addon : on garde la nouvelle.
+        if w[1][w[2]] == w[4] then w[1][w[2]] = w[3] end
+    end
+    perfWrapped = nil
+end
+
+function DWE.StartPerf(out, seconds, baseline, deep)
     local perf = DWE.perf
     perf.t, perf.n, perf.mx, perf.on = {}, {}, {}, true
+    if deep and debugprofilestop then PerfWrapAll(perf) end
     local f = DWE.perfFrame or CreateFrame("Frame")
     DWE.perfFrame = f
     local total, frames, worst, slow = 0, 0, 0, 0
@@ -136,6 +178,7 @@ function DWE.StartPerf(out, seconds, baseline)
         if total < (seconds or 8) then return end
         f:SetScript("OnUpdate", nil)
         perf.on = false
+        PerfUnwrapAll()
         local spoken = type(rawget(_G, "Spoken")) == "table"
         out(("Theme : %s | Spoken detecte : %s | bulle affichee : %s"):format(tostring(DialogueWheelE_Theme),
             spoken and "oui" or "non", (DWE.bubble and DWE.bubble:IsShown()) and "oui" or "non"))
@@ -144,11 +187,13 @@ function DWE.StartPerf(out, seconds, baseline)
         local names = {}
         for k in pairs(perf.t) do names[#names + 1] = k end
         table.sort(names, function(a, b) return perf.t[a] > perf.t[b] end)
-        for _, k in ipairs(names) do
+        for i, k in ipairs(names) do
+            if i > 18 then break end
             -- Total sur la mesure, nombre d'appels et le plus long (un seul gros appel = saccade).
             out(("  %s : %.0f ms en tout, %d appels, le plus long %.0f ms"):format(k, perf.t[k], perf.n[k], perf.mx[k] or 0))
         end
     end)
+end
 end
 
 -- /dwe perf : on attend le debut d'une ecriture (bulle ou popup) pour mesurer pile pendant
