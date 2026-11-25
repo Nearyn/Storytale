@@ -5329,27 +5329,6 @@ local function Unpin()
     RestoreFixed()
 end
 
--- Fantome : un point invisible qui garde la derniere place a l'ecran de la plaque du PNJ.
--- A la manette, le jeu retire la plaque a l'ouverture d'une quete et la deplace (vers le
--- personnage) avant de la reutiliser : on passe alors sur le fantome, qui ne bouge pas.
-DWE.npcGhost = CreateFrame("Frame", nil, UIParent)
-DWE.npcGhost:SetSize(1, 1)
-DWE.npcGhost.valid = false
-
-function DWE.GhostRecord() end -- position de la plaque illisible (le jeu l'interdit)
-
--- Bascule sur le fantome (plaque retiree). Retourne vrai si c'est fait.
-function DWE.GhostTake()
-    if not (follow.plate and DWE.npcGhost.valid) then return false end
-    if follow.plate == DWE.npcGhost then return true end
-    if pcall(AnchorTo, DWE.npcGhost) then
-        follow.plate = DWE.npcGhost
-        DWE.FLog("plaque retiree : la roue garde sa place")
-        return true
-    end
-    return false
-end
-
 -- A la manette, a la fermeture du gossip, le jeu enleve la cible ; la plaque du PNJ n'existait
 -- que parce qu'il etait la cible, et le jeu la retire 0,3 s plus tard (deja le cas en 1.7.0).
 -- Seul "toujours afficher les plaques" la garde. On l'active a ce moment-la seulement, avec une
@@ -5394,23 +5373,6 @@ follower:SetScript("OnEvent", function(_, event, unit)
     pcall(MaskFriendlyPlates)
 end)
 
--- A la manette, entre le gossip et la quete, le jeu retire la plaque du PNJ. En coupant puis
--- remettant les plaques amicales (que Storytale a lui-meme activees), le jeu recree celle du PNJ
--- avec qui l'on parle, et seulement elle. Deux fois au plus par conversation.
-function DWE.RecallNPCPlate()
-    if not (savedPlateCVar and SetCVar and choiceBox:IsShown()) or InCombatLockdown() then return end
-    if not Check(UnitExists, "npc") then return end
-    follow.recalls = (follow.recalls or 0) + 1
-    if follow.recalls > 2 then return end
-    DWE.FLog("plaque du PNJ retiree par le jeu : on la redemande")
-    SetCVar("nameplateShowFriendlyNPCs", "0")
-    local function Back()
-        if savedPlateCVar and follower:IsShown() and not InCombatLockdown() then
-            SetCVar("nameplateShowFriendlyNPCs", "1")
-        end
-    end
-    if C_Timer and C_Timer.After then C_Timer.After(0, Back) else Back() end
-end
 
 local function CursorUI()
     local x, y = GetCursorPosition()
@@ -5784,7 +5746,6 @@ local function StartFollow()
     pcall(follower.RegisterEvent, follower, "GOSSIP_CLOSED")
     pcall(follower.RegisterEvent, follower, "QUEST_FINISHED")
     pcall(follower.RegisterEvent, follower, "PLAYER_TARGET_CHANGED")
-    DWE.npcGhost.valid = false
     pcall(StartMeasure)
     SetFriendlyPlates(true)
     pcall(MaskFriendlyPlates)
@@ -5809,7 +5770,6 @@ local function StopFollow()
     pcall(follower.UnregisterEvent, follower, "GOSSIP_CLOSED")
     pcall(follower.UnregisterEvent, follower, "QUEST_FINISHED")
     pcall(follower.UnregisterEvent, follower, "PLAYER_TARGET_CHANGED")
-    DWE.npcGhost.valid = false
     if savedPlateCVar or DWE.savedShowAll or DWE.softSaved then SetFriendlyPlates(false) else UnmaskPlates() end
 end
 DWE.StopFollow = StopFollow

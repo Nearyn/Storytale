@@ -152,11 +152,6 @@ do
         end
         return true
     end
-    function DWE.ProfileForNew(on)
-        local P = Store()
-        if on then P.newChar = DWE.profile ~= "Default" and DWE.profile or nil
-        elseif P.newChar == DWE.profile then P.newChar = nil end
-    end
     -- Copier les options d'un autre profil dans celui en cours (puis rechargement).
     function DWE.ProfileCopyFrom(name, noReload)
         local P = Store()
@@ -176,9 +171,6 @@ do
         if type(P.sets[name]) ~= "table" then return false end
         P.newChar = name ~= "Default" and name or nil
         return true
-    end
-    function DWE.ProfileIsForNew()
-        return (Store().newChar or "Default") == DWE.profile
     end
 
     local saver = CreateFrame("Frame")
@@ -2495,18 +2487,6 @@ DWE.padFocusWatch:SetScript("OnUpdate", function(self, el)
         DWE.PadRefocusAfterClose()
         -- Fenetre du jeu relachee d'avance mais que Storytale n'a finalement pas prise (elle reste
         -- visible, sans roue) : on la rend a la selection du jeu pour la piloter a la manette.
-        local e = DWE.padEarly
-        if e and GetTime and GetTime() - e.t > 0.6 then
-            DWE.padEarly = nil
-            local okS, shown = pcall(e.f.IsVisible, e.f)
-            local okA, a = pcall(e.f.GetEffectiveAlpha, e.f)
-            local sec = rawget(_G, "issecretvalue")
-            local m = DWE.PadFCM()
-            if m and m.FocusFrame and okS and okA and not (sec and (sec(shown) or sec(a))) and shown and (a or 0) > 0.5
-                and not (DWE.choiceBox and DWE.choiceBox:IsShown()) and not InCombatLockdown() then
-                -- (Plus de selection forcee : seul FrameHidden est appele, en securite.)
-            end
-        end
         DWE.PadLogSample()
         local m = DWE.PadFCM()
         if m and not DWE.padFCMHooked then
@@ -2586,16 +2566,6 @@ end
 -- Une fenetre retiree de la liste du jeu vient de se fermer pour de bon : si une autre fenetre du
 -- jeu est ouverte (marchand, banque...) et que Storytale n'affiche rien, on la reselectionne pour
 -- qu'elle reste pilotable a la manette.
--- Selectionner une fenetre a la manette sans salir le gestionnaire du jeu : seules ses fonctions
--- FrameHidden/FrameShown sont protegees (appelees en securite). Appeler directement FocusFrame
--- depuis Storytale salissait le gestionnaire, puis le jeu refusait de viser les PNJ
--- ("Interface action failed", plus moyen de parler aux PNJ a la manette jusqu'au /reload).
-function DWE.PadSecureFocus(m, f)
-    if not (m and f and m.FrameHidden and m.FrameShown) or InCombatLockdown() then return end
-    pcall(m.FrameHidden, m, f)
-    pcall(m.FrameShown, m, f, false, true)
-end
-
 function DWE.PadRefocusAfterClose()
     local u = DWE.padUntracked
     if not u then return end

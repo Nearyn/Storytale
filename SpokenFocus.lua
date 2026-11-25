@@ -717,7 +717,7 @@ end
 -- /dwe spoken : etat de la file de Spoken et derniers evenements.
 function Focus.Report()
     local api, queue = Env()
-    print("|cff33ff99DWE|r Spoken focus: installed=" .. tostring(Focus.installed) .. " npc=" .. tostring(Focus.npc) .. " speaker=" .. tostring(Focus.speaker) .. " api=" .. tostring(api ~= nil))
+    print("|cff33ff99Storytale|r Spoken focus: installed=" .. tostring(Focus.installed) .. " npc=" .. tostring(Focus.npc) .. " speaker=" .. tostring(Focus.speaker) .. " api=" .. tostring(api ~= nil))
     if queue then
         print(string.format("  paused=%s playing=%s size=%d", tostring(api:IsPaused()), tostring(queue:IsPlaying()), #(queue.sounds or {})))
         for i, clip in ipairs(queue.sounds or {}) do
