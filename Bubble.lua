@@ -12,7 +12,7 @@ local SEGMENT_MAX = 150        -- longueur max d'un morceau (en octets)
 local TYPE_SPEED = 30          -- vitesse d'ecriture sans voix, en lettres par seconde
 -- Sans voix reconnue (meme avec Spoken installe) : meme vitesse que sans Spoken.
 local SPOKEN_PACE = TYPE_SPEED
-DWE.fadeWiggle = true -- /storytale fondu2 : couper pour comparer
+DWE.fadeWiggle = false -- (essai du 25/11, inutile depuis l'ecriture sans le fondu du jeu)
 local FADE_LETTERS = 10        -- nombre de lettres en cours d'apparition (fondu)
 
 -- Lettres 1..n nettes, les FADE_LETTERS suivantes en fondu.
@@ -744,7 +744,7 @@ local measure = holder:CreateFontString(nil, "OVERLAY")
 measure:Hide()
 if measure.SetWordWrap then measure:SetWordWrap(false) end
 local tails = {}
-for i = 1, 2 do
+for i = 1, FADE_LETTERS do
     local t = holder:CreateFontString(nil, "OVERLAY")
     t:SetJustifyH("LEFT")
     t:SetJustifyV("TOP")
@@ -807,32 +807,53 @@ local function Wrapped(seg)
 end
 local function HideTails()
     for _, t in ipairs(tails) do t:Hide() end
+    state.tailKey = nil
 end
 DWE.BubbleHideTails = HideTails
--- Lettres qui arrivent : la n+1 apparait en fondu (part de lettre deja ecrite), la n+2 a peine.
-local function PlaceTails(shown, n, frac)
-    local w = state.wrapText or ""
-    local rest = w:sub(#shown + 1)
-    local c1 = rest:match("^[%z\1-\127\194-\244][\128-\191]*") or ""
-    local c2 = rest:sub(#c1 + 1):match("^[%z\1-\127\194-\244][\128-\191]*") or ""
-    local lineStart = shown:match(".*\n()") or 1
-    local lineText = shown:sub(lineStart)
-    local _, lines = shown:gsub("\n", "")
-    local x = Width(lineText)
-    local y = -lines * (state.lineH or 14)
-    local function put(t, ch, dx, a)
-        if ch == "" or ch:find("^%s") or a <= 0.02 then t:Hide() return end
-        t:ClearAllPoints()
-        t:SetPoint("TOPLEFT", text, "TOPLEFT", x + dx, y)
-        t:SetText(ch)
-        t:SetAlpha(math.min(1, a))
-        t:Show()
+-- Lettres qui arrivent : le meme fondu que celui du jeu (les FADE_LETTERS lettres suivantes, de
+-- plus en plus transparentes), refait avec des lettres a part. Il glisse en continu avec la part
+-- de lettre deja ecrite : pas de saut d'une lettre a l'autre. Positions calculees une fois par
+-- lettre ecrite (mesure du texte de la ligne), transparences a chaque image.
+local function PlaceTails(shown, n, frac, fade)
+    if state.tailKey ~= shown .. "\0" .. fade then
+        state.tailKey = shown .. "\0" .. fade
+        local w = state.wrapText or ""
+        local rest = w:sub(#shown + 1)
+        local lineStart = shown:match(".*\n()") or 1
+        local line = shown:sub(lineStart)
+        local _, lines = shown:gsub("\n", "")
+        local lh = state.lineH or 14
+        local k, i = 0, 1
+        state.tailPos = {}
+        while k < fade and i <= #rest do
+            local ch = rest:match("^[%z\1-\127\194-\244][\128-\191]*", i)
+            if not ch or ch == "" then break end
+            i = i + #ch
+            k = k + 1
+            if ch == "\n" then
+                lines, line = lines + 1, ""
+            else
+                local t = tails[k]
+                if t and not ch:find("^%s") then
+                    t:ClearAllPoints()
+                    t:SetPoint("TOPLEFT", text, "TOPLEFT", Width(line), -lines * lh)
+                    t:SetText(ch)
+                    state.tailPos[k] = true
+                end
+                line = line .. ch
+            end
+        end
+        for j = 1, #tails do if not state.tailPos[j] then tails[j]:Hide() end end
     end
-    put(tails[1], c1, 0, frac)
-    if c1 ~= "" and not c1:find("^%s") then
-        put(tails[2], c2, Width(lineText .. c1) - x, frac * 0.35)
-    else
-        tails[2]:Hide()
+    for k, on in pairs(state.tailPos or {}) do
+        local t = tails[k]
+        local a = 1 - (k - frac) / math.max(1, fade)
+        if on and a > 0.01 then
+            t:SetAlpha(math.min(1, a))
+            t:Show()
+        else
+            t:Hide()
+        end
     end
 end
 local function CustomReveal(seg, n)
@@ -844,7 +865,7 @@ local function CustomReveal(seg, n)
         text:SetText(shown)
     end
     local frac = math.max(0, math.min(1, (state.typed or 0) - n))
-    PlaceTails(shown, n, frac)
+    PlaceTails(shown, n, frac, FadeLen(n))
 end
 
 local function Reveal()
