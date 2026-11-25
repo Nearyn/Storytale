@@ -520,10 +520,13 @@ local hasGradient = text.SetAlphaGradient ~= nil
 -- voix (virgule, point, fin de page). Sinon, pendant la pause, le debut du mot suivant restait
 -- visible a moitie et semblait fige. Il raccourcit en douceur a l'approche de la pause.
 local function FadeLen(n)
-    local stops = state.voiced and state.wmap and state.wmap.stops
+    local stops = state.voiced and ((state.generated and state.genStops) or (state.wmap and state.wmap.stops))
     if not stops then return FADE_LETTERS end
     local at = n
     for k = 1, (state.index or 1) - 1 do at = at + (state.lens[k] or 0) end
+    -- Arret a une ponctuation (on attend la voix) : aucune lettre du mot suivant en fondu (on
+    -- voyait « on » de « one » pendant l'attente : la bulle semblait bloquee sur ce mot).
+    if state.genWaitAt and math.abs(state.genWaitAt - at) < 1 then return 1 end
     for _, c in ipairs(stops) do
         if c >= at then return math.max(1, math.min(FADE_LETTERS, c - at)) end
     end
@@ -944,6 +947,7 @@ DWE.SyncBuildWords, DWE.SyncBuildMap, DWE.SyncMapLookup, DWE.SyncLineBreaks = Bu
 DWE.GEN_SPEED = 1.2 -- vitesse de base : part du rythme moyen (la voix parle plus vite que son rythme moyen, pauses comprises)
 DWE.GEN_CATCH = 1.2 -- secondes pour combler doucement un ecart avec la voix
 DWE.GEN_SMOOTH = 0.35 -- secondes : la vitesse change en douceur (jamais d'une image a l'autre)
+DWE.GEN_EARLY = 0.15 -- secondes : on repart d'une pause un instant avant le mot suivant (nos durees le placent souvent un peu tard)
 DWE.GEN_AHEAD = 12 -- lettres d'avance au-dela desquelles on ralentit fort
 function DWE.GenSmoothStep(st, pos, target, rate, dt)
     local base = rate * DWE.GEN_SPEED
@@ -959,19 +963,22 @@ function DWE.GenSmoothStep(st, pos, target, rate, dt)
     for _, p in ipairs(st.genStops) do
         if p >= pos - 0.01 then stop = p break end
     end
-    if stop and pos >= stop - 0.01 and target < stop + 0.5 then
+    local soon = st.genNextIn and st.genNextIn < DWE.GEN_EARLY
+    if stop and pos >= stop - 0.01 and target < stop + 0.5 and not soon then
+        st.genWaitAt = stop
         -- Arrivee a la ponctuation avant la voix : on l'attend la (pause naturelle). On repartira
         -- a la vitesse de base, sans demarrage lent.
         st.spd = base
-        return pos
+        return math.max(pos, stop) -- pile sur la ponctuation (sinon elle restait cachee : « fact| »)
     end
+    st.genWaitAt = nil
     local gap = target - pos
     local want = base + gap / DWE.GEN_CATCH
     if gap < -DWE.GEN_AHEAD then want = base * 0.25 end
     want = math.max(base * 0.45, math.min(base * 2, want))
     st.spd = st.spd and (st.spd + (want - st.spd) * math.min(1, dt / DWE.GEN_SMOOTH)) or want
     local new = pos + st.spd * dt
-    if stop and target < stop + 0.5 then new = math.min(new, stop) end
+    if stop and target < stop + 0.5 and not soon then new = math.min(new, stop) end
     return new
 end
 
@@ -1098,11 +1105,12 @@ local function GeneratedShare(st, clip, length)
     -- Le son est entendu un peu apres son lancement par Spoken (chargement) : DWE.GEN_DELAY,
     -- mesure en jeu le 24/11 : 0,40 s d'avance sans delai, 0,27 s de retard avec 0,4 s.
     local e = GetTime() - (clip.spokenAt - length) - DWE.GEN_DELAY
-    if e <= t[1] then return 0 end
+    if e <= t[1] then st.genNextIn = t[1] - e return 0 end
     local n, i = #t, #t
     for k = 1, n - 1 do
         if e < t[k + 1] then i = k break end
     end
+    st.genNextIn = (t[i + 1] or length) - e
     local j = n == m and i or math.min(m, math.floor((i - 1) / n * m) + 1)
     local ow = st.words[j]
     -- Un mot s'ecrit pendant tout le temps qui le separe du suivant : l'ecriture coule d'un mot
@@ -1487,7 +1495,7 @@ function DWE.Bubble.SetText(s)
     state.manual, state.clip, state.clipMatch, state.norm = nil, nil, nil, nil
     state.wmap, state.posW, state.timed, state.generated = nil, nil, nil, nil
     state.voiced, state.age, state.holdT, state.waitT = nil, 0, 0, 0
-    state.lastTarget, state.tvel, state.spd, state.genStops = nil, nil, nil, nil
+    state.lastTarget, state.tvel, state.spd, state.genStops, state.genWaitAt, state.genNextIn = nil, nil, nil, nil, nil, nil
     state.setAt = GetTime and GetTime() or nil
     state.fluidId = (state.fluidId or 0) + 1
     text:SetAlpha(1)
@@ -1611,7 +1619,7 @@ function DWE.Bubble.PopupText(s)
     pop.manual, pop.clip, pop.clipMatch = nil, nil, nil
     pop.wmap, pop.posW, pop.timed, pop.generated = nil, nil, nil, nil
     pop.voiced, pop.age, pop.holdT = nil, 0, 0
-    pop.lastTarget, pop.tvel, pop.spd, pop.genStops = nil, nil, nil, nil
+    pop.lastTarget, pop.tvel, pop.spd, pop.genStops, pop.genWaitAt, pop.genNextIn = nil, nil, nil, nil, nil, nil
     pop.setAt = GetTime and GetTime() or nil
     pop.len = (type(s) == "string" and not IsSecret(s)) and Utf8Len(s) or 0
     if not popupHasGradient or not SpokenInstalled() or IsSecret(s) or pop.len == 0 then
