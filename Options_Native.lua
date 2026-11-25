@@ -7,6 +7,98 @@ if not DWE then return end
 
 local Native = {}
 DWE.Native = Native
+
+-- Ligne "liste de choix" (modele StorytaleSettingsChoiceTemplate, Options_Native.xml) :
+-- libelle du jeu a gauche, puis "<  valeur  >" ; un clic sur la valeur ouvre la fenetre de choix.
+StorytaleSettingsChoiceMixin = CreateFromMixins and SettingsListElementMixin
+    and CreateFromMixins(SettingsListElementMixin) or {}
+local ChoiceRow = StorytaleSettingsChoiceMixin
+function ChoiceRow:OnLoad()
+    if SettingsListElementMixin and SettingsListElementMixin.OnLoad then SettingsListElementMixin.OnLoad(self) end
+    local row = self
+    self.Prev:SetScript("OnClick", function() row:Step(-1) end)
+    self.Next:SetScript("OnClick", function() row:Step(1) end)
+    self.Value:SetScript("OnClick", function() row:OpenPicker() end)
+    for _, b in ipairs({ self.Prev, self.Next, self.Value }) do
+        b:SetScript("OnEnter", function(btn)
+            local d = row.data
+            if not d then return end
+            GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
+            GameTooltip:SetText(d.name or "", 1, 0.82, 0)
+            if d.tooltip then GameTooltip:AddLine(d.tooltip, 1, 1, 1, true) end
+            GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+end
+function ChoiceRow:Init(initializer)
+    SettingsListElementMixin.Init(self, initializer)
+    self.init = initializer
+    Native.rows[self] = true
+    self:Refresh()
+end
+function ChoiceRow:Release()
+    Native.rows[self] = nil
+    self.init = nil
+    SettingsListElementMixin.Release(self)
+end
+function ChoiceRow:EvaluateState()
+    SettingsListElementMixin.EvaluateState(self)
+    self:Refresh()
+end
+function ChoiceRow:IsChoiceEnabled()
+    local preds = self.init and self.init.modifyPredicates
+    if type(preds) == "table" then
+        for _, p in ipairs(preds) do
+            local ok, r = pcall(p)
+            if ok and not r then return false end
+        end
+    end
+    return true
+end
+function ChoiceRow:Refresh()
+    local d = self.data
+    if not d then return end
+    local okG, cur = pcall(d.get)
+    cur = okG and cur or nil
+    local shown = cur ~= nil and tostring(cur) or ""
+    for _, it in ipairs(Native.Items(d)) do
+        if it[1] == cur then shown = it[2] or shown break end
+    end
+    self.Value:SetText(shown)
+    local on = self:IsChoiceEnabled()
+    self.Prev:SetEnabled(on)
+    self.Next:SetEnabled(on)
+    self.Value:SetEnabled(on)
+    local c = on and NORMAL_FONT_COLOR or GRAY_FONT_COLOR
+    if c and self.Text then self.Text:SetTextColor(c:GetRGB()) end
+end
+function ChoiceRow:Apply(v)
+    local d = self.data
+    if not d then return end
+    pcall(d.set, v)
+    Native.RefreshRows()
+end
+function ChoiceRow:Step(dir)
+    local d = self.data
+    if not (d and self:IsChoiceEnabled()) then return end
+    local items = Native.Items(d)
+    if #items == 0 then return end
+    local okG, cur = pcall(d.get)
+    local idx = 0
+    for i, it in ipairs(items) do if okG and it[1] == cur then idx = i break end end
+    idx = idx + dir
+    if idx < 1 then idx = #items elseif idx > #items then idx = 1 end
+    self:Apply(items[idx][1])
+end
+function ChoiceRow:OpenPicker()
+    local d = self.data
+    if not (d and self:IsChoiceEnabled() and DWE.PickList) then return end
+    local row = self
+    local okG, cur = pcall(d.get)
+    DWE.PickList({ title = d.name, items = Native.Items(d), current = okG and cur or nil,
+        onPick = function(v) row:Apply(v) end })
+end
 -- Pages natives visibles (branche de travail). A mettre a false dans une version publiee tant
 -- que la refonte n'est pas finie.
 DWE.NATIVE_OPTIONS = true
@@ -49,17 +141,40 @@ function Native.Check(cat, id, label, tip, default, get, set)
     return s, init
 end
 
-function Native.Choice(cat, id, label, tip, default, items, get, set)
-    local s = Proxy(cat, id, type(""), label, default, get, set)
-    if not s then return end
-    -- items : liste fixe, ou fonction relue a chaque ouverture de la liste (profils).
-    local function Options()
-        local c = Settings.CreateControlTextContainer()
-        for _, it in ipairs(type(items) == "function" and items() or items) do c:Add(it[1], it[2]) end
-        return c:GetData()
+-- Page de reglages : on garde sa mise en page pour y ajouter nos propres lignes.
+Native.layouts = {}
+function Native.Sub(parent, name)
+    local cat, layout = Settings.RegisterVerticalLayoutSubcategory(parent, name)
+    if cat then Native.layouts[cat] = layout end
+    return cat, layout
+end
+
+-- Liste de choix : une ligne a nous (fleches + bouton qui ouvre la fenetre de choix de
+-- Storytale), PAS la liste deroulante du jeu. Ouverte a la manette, la liste du jeu cree sa
+-- navigation au nom de Storytale (elle lit nos choix) ; a la fermeture des options, le jeu
+-- refusait de la retirer ("Interface action failed", taint.log du 25/11 18h14).
+-- items : liste { valeur, libelle }, ou fonction relue a chaque fois (profils).
+Native.rows = setmetatable({}, { __mode = "k" })
+function Native.Items(data)
+    local items = data.items
+    if type(items) == "function" then items = items() end
+    return type(items) == "table" and items or {}
+end
+function Native.RefreshRows()
+    for row in pairs(Native.rows) do
+        if row.Refresh and row:IsShown() then pcall(row.Refresh, row) end
     end
-    local ok, init = pcall(Settings.CreateDropdown, cat, s, Options, tip)
-    return s, ok and init or nil
+end
+function Native.Choice(cat, id, label, tip, default, items, get, set)
+    local layout = Native.layouts[cat]
+    local make = Settings.CreateElementInitializer
+    if not (layout and make) then return end
+    local data = { name = label, tooltip = tip, items = items, get = get, set = set, id = id }
+    local ok, init = pcall(make, "StorytaleSettingsChoiceTemplate", data)
+    if not (ok and init) then return end
+    if init.AddSearchTags then pcall(init.AddSearchTags, init, label) end
+    pcall(layout.AddInitializer, layout, init)
+    return nil, init
 end
 
 -- Curseur : min, max, pas ; fmt pour la valeur affichee ("%d pt", "%.2f").
@@ -107,6 +222,7 @@ function Native.Refresh()
     -- comme modifie dans la liste du panneau, au nom de Storytale ; a la fermeture (Echap), le jeu
     -- parcourt cette liste contaminee et la manette se bloque ("Default all" puis Echap). Les
     -- lignes relisent de toute facon leur valeur quand la page s'affiche.
+    Native.RefreshRows() -- (nos lignes : sans risque, meme options ouvertes)
     local sp = rawget(_G, "SettingsPanel")
     if sp and sp.IsShown and sp:IsShown() then return end
     for _, s in ipairs(Native.settings) do
@@ -117,7 +233,7 @@ end
 ---------------------------------------------------------------------------- Placement
 local function BuildPlacement(parent)
     local L = DWE.L
-    local cat, layout = Settings.RegisterVerticalLayoutSubcategory(parent, L.SEC_PLACE .. " (2)")
+    local cat, layout = Native.Sub(parent, L.SEC_PLACE .. " (2)")
     if not cat then return end
     Native.Check(cat, "AttachNPC", L.ATTACH_NPC, L.ATTACH_TIP, true,
         function() return DialogueWheelE_AttachNPC ~= false end,
@@ -158,7 +274,7 @@ end
 ---------------------------------------------------------------------------- Livres, lettres et plaques
 local function BuildBooks(parent)
     local L = DWE.L
-    local cat = Settings.RegisterVerticalLayoutSubcategory(parent, L.SEC_BOOKS .. " (2)")
+    local cat = Native.Sub(parent, L.SEC_BOOKS .. " (2)")
     if not cat then return end
     -- Qui affiche : Storytale, DialogueUI (seulement s'il est actif) ou le jeu.
     local duiOn = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DialogueUI")
@@ -223,7 +339,7 @@ end
 ---------------------------------------------------------------------------- Touches et manette
 local function BuildKeys(parent)
     local L = DWE.L
-    local cat, layout = Settings.RegisterVerticalLayoutSubcategory(parent, L.CAT_KEYS .. " (2)")
+    local cat, layout = Native.Sub(parent, L.CAT_KEYS .. " (2)")
     if not cat then return end
     local Label = DWE.KeyLabel or function(k) return (k and k ~= "") and k or "-" end
     local keyInit
@@ -283,7 +399,7 @@ end
 
 local function BuildSpoken(parent)
     local L = DWE.L
-    local cat, layout = Settings.RegisterVerticalLayoutSubcategory(parent, L.SEC_SPOKEN .. " (2)")
+    local cat, layout = Native.Sub(parent, L.SEC_SPOKEN .. " (2)")
     if not cat then return end
     local function SpokenOn() return DWE.SpokenFocus and DWE.SpokenFocus.Available and DWE.SpokenFocus.Available() and true or false end
     if not SpokenOn() then Native.Header(layout, L.SPOKEN_NEEDED) end
@@ -397,7 +513,7 @@ end
 ---------------------------------------------------------------------------- Profils
 local function BuildProfiles(parent)
     local L = DWE.L
-    local cat, layout = Settings.RegisterVerticalLayoutSubcategory(parent, L.SEC_PROFILES .. " (2)")
+    local cat, layout = Native.Sub(parent, L.SEC_PROFILES .. " (2)")
     if not (cat and DWE.ProfileList) then return end
     local function Named(list)
         local out = {}
@@ -444,7 +560,7 @@ end
 -- (dessins, pas des lignes) ; ici le theme se choisit dans une liste.
 local function BuildLooks(parent)
     local L = DWE.L
-    local cat = Settings.RegisterVerticalLayoutSubcategory(parent, L.SEC_THEME .. " (2)")
+    local cat = Native.Sub(parent, L.SEC_THEME .. " (2)")
     if not cat then return end
     local function Theme()
         if DWE.RefreshOptionsExtra then pcall(DWE.RefreshOptionsExtra) end

@@ -278,6 +278,19 @@ function M.Install(locale)
         end,
         CreateCheckbox = function(cat, st, tip) M.nativeControls[#M.nativeControls + 1] = { kind = "check", setting = st, tip = tip } end,
         CreateDropdown = function(cat, st, opts, tip) M.nativeControls[#M.nativeControls + 1] = { kind = "dropdown", setting = st, options = opts() } end,
+        -- Lignes a nous (liste de choix de Storytale) : un reglage factice pour les tests.
+        CreateElementInitializer = function(template, data)
+            local init = { template = template, data = data, AddSearchTags = noop,
+                AddModifyPredicate = function(self, f) self.modifyPredicates = self.modifyPredicates or {}; table.insert(self.modifyPredicates, f) end,
+                SetParentInitializer = function(self, parent, f) self.parent = parent; if f then self:AddModifyPredicate(f) end end }
+            if data and data.id then
+                M.nativeSettings["Storytale_" .. data.id] = { var = "Storytale_" .. data.id, init = init,
+                    GetValue = function() return data.get() end, SetValue = function(self, v) data.set(v) end,
+                    NotifyUpdate = function(self) self.notified = (self.notified or 0) + 1 end }
+            end
+            M.nativeControls[#M.nativeControls + 1] = { kind = "choice", init = init }
+            return init
+        end,
         CreateSliderOptions = function(min, max, step) return { min = min, max = max, step = step } end,
         CreateSlider = function(cat, st, opts, tip) M.nativeControls[#M.nativeControls + 1] = { kind = "slider", setting = st, options = opts } end,
         CreateControlTextContainer = function()

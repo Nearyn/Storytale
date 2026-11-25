@@ -3556,6 +3556,21 @@ do
     DialogueWheelE_FontSize = saveTheme
     DWE.SettingsChanged()
 end
+-- Fenetre de choix de Storytale (listes des options, a la place de la liste deroulante du jeu).
+do
+    local got
+    local f = DWE.PickList({ title = "T", items = { { "a", "A" }, { "b", "B" }, { "c", "C" } }, current = "b",
+        onPick = function(v) got = v end })
+    check(f and f:IsShown() and f.sel == 2, "pick list opens on the current choice")
+    f.Select(3); f.Choose()
+    check(got == "c" and not f:IsShown(), "pick list returns the chosen value and closes")
+    got = nil
+    DWE.PickList({ items = { { "a", "A" } }, onPick = function(v) got = v end }).Close()
+    check(got == nil, "pick list closed without choosing")
+    local drop = false
+    for _, c in ipairs(M.nativeControls or {}) do if c.kind == "dropdown" then drop = true end end
+    check(not drop, "options never use the game's dropdown list (gamepad taint)")
+end
 -- Options en lignes natives : page Placement (cachee dans les versions publiees : DWE.NATIVE_OPTIONS).
 if not DWE.NATIVE_OPTIONS then
     check(next(M.nativeSettings or {}) == nil, "native options: hidden while the redesign is not finished")
