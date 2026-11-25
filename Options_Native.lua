@@ -9,7 +9,7 @@ local Native = {}
 DWE.Native = Native
 -- Pages natives visibles (branche de travail). A mettre a false dans une version publiee tant
 -- que la refonte n'est pas finie.
-DWE.NATIVE_OPTIONS = true
+DWE.NATIVE_OPTIONS = false
 Native.settings = {}
 
 local function Supported()

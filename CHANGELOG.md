@@ -1,5 +1,41 @@
 # Changelog / Journal des versions
 
+## 1.9.0
+
+**English**
+
+### New
+- Voices without word timings now get them: about 2,000 English quest and gossip lines from Spoken, measured on the recordings. The bubble follows these voices word for word and waits during their pauses.
+- "Highlight the word being read" option: in the bubble, the word the voice is saying is coloured, like in Spoken's window (off by default; needs "Highlight Words" in Spoken's options).
+- "Bubble display" option while a voice reads: typewriter (default) or whole page, with the word being read coloured, like Spoken's narrator.
+- Custom theme: colour of the word read in the bubble (shown when Spoken is installed; right-click for automatic).
+
+### Improved
+- Voices without word timings: the bubble's pace and pauses (commas, sentences, paragraphs) were tuned on about 20,000 Spoken lines.
+- Page turns in the bubble: the next page appears at once, with its first word already highlighted.
+
+### Fixed
+- Gamepad: after opening Storytale's options, spells, targeting and talking to NPCs could be blocked ("Interface action failed") until a /reload.
+- With the same NPC, the choices move to the right place when the next dialogue page has fewer of them (e.g. city guards: "Goodbye" no longer stays at the bottom after choosing a place).
+
+---
+
+**Français**
+
+### Nouveautés
+- Les voix sans minutage des mots en ont maintenant un : environ 2 000 répliques anglaises de quêtes et de dialogues de Spoken, mesurées sur les enregistrements. La bulle suit ces voix mot à mot et attend pendant leurs pauses.
+- Option « Surligner le mot lu » : dans la bulle, le mot que dit la voix est mis en couleur, comme dans la fenêtre de Spoken (désactivée par défaut ; nécessite « Highlight Words » dans les options de Spoken).
+- Option « Affichage de la bulle » pendant une voix : écriture progressive (par défaut) ou page entière, avec le mot lu en couleur, comme le narrateur de Spoken.
+- Thème personnalisé : couleur du mot lu dans la bulle (visible quand Spoken est installé ; clic droit pour l'automatique).
+
+### Améliorations
+- Voix sans minutage des mots : le rythme et les pauses de la bulle (virgules, phrases, paragraphes) ont été réglés sur environ 20 000 répliques de Spoken.
+- Changement de page dans la bulle : la page suivante apparaît tout de suite, avec son premier mot déjà surligné.
+
+### Corrections
+- Manette : après l'ouverture des options de Storytale, les sorts, le ciblage et la parole aux PNJ pouvaient être bloqués (« Interface action failed ») jusqu'à un /reload.
+- Avec un même PNJ, les choix se replacent quand la page de dialogue suivante en a moins (ex. gardes de ville : « Goodbye » ne reste plus en bas après avoir choisi un lieu).
+
 ## 1.8.2
 
 **English**

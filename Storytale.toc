@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: Storytale
 ## IconTexture: Interface\AddOns\Storytale\Logo
-## Version: 1.8.2
+## Version: 1.9.0
 ## Notes: Storytale: dialogue wheel, talking bubbles and books for NPCs, quests and readables (mouse wheel + interact key), with quest preview. Works alone or with DialogueUI and Spoken.
 ## Notes-frFR: Storytale : roue de dialogue, bulles et livres pour PNJ, quêtes et textes à lire (molette + touche d'interaction), avec aperçu des quêtes. Fonctionne seul ou avec DialogueUI et Spoken.
 ## OptionalDeps: DialogueUI, Spoken
