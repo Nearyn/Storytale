@@ -15,6 +15,10 @@ Every theme except Frameless and Cinematic is shown **as a bubble** by default: 
 | <b>Azeroth Bubble</b><br/>Game-style chat bubble above the NPC. Default theme. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/bubble.jpg" width="380" /><br/><sub>illustration</sub> | — |
 | <b>Illuminated Bubble</b><br/>A parchment bubble with dark ink. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/bubble_fantasy.jpg" width="380" /><br/><sub>illustration</sub> | — |
 | <b>Whisper</b><br/>Dark violet with pink text, like in-game whispers. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/whisper.jpg" width="380" /><br/><sub>illustration</sub> | — |
+| <b>Emerald</b><br/>Deep green with pale green text. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/Thumbs/Emerald.png" width="190" /><br/><sub>thumbnail</sub> | — |
+| <b>Ruby</b><br/>Deep red with pale rose text. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/Thumbs/Ruby.png" width="190" /><br/><sub>thumbnail</sub> | — |
+| <b>Sapphire</b><br/>Deep blue with pale blue text. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/Thumbs/Sapphire.png" width="190" /><br/><sub>thumbnail</sub> | — |
+| <b>Amber</b><br/>Warm amber with pale gold text. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/Thumbs/Amber.png" width="190" /><br/><sub>thumbnail</sub> | — |
 
 ## Dark and frameless
 
@@ -50,6 +54,20 @@ Every theme except Frameless and Cinematic is shown **as a bubble** by default: 
 | <b>Folio</b><br/>A worn, gently curved parchment sheet. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/folio_bubble.png" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/folio.png" width="380" /><br/><sub>illustration</sub> |
 | <b>Night Folio</b><br/>Translucent black paper with frayed edges and a soft shadow. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/folio_dark_bubble.png" width="380" /><br/><sub>illustration</sub> | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/folio_dark.png" width="380" /><br/><sub>illustration</sub> |
 
+
+## Custom
+
+| Theme | Preview |
+| :--- | :---: |
+| <b>Custom</b><br/>Your own colours: background, border, text, highlighted choice and, with Spoken, the word being read. Save your colours as presets, or start from another theme's colours. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/Thumbs/Custom.png" width="190" /><br/><sub>thumbnail</sub> |
+
+
+## Personnalisé
+
+| Thème | Aperçu |
+| :--- | :---: |
+| <b>Personnalisé</b><br/>Vos propres couleurs : fond, bordure, texte, choix en surbrillance et, avec Spoken, le mot lu. Enregistrez vos couleurs en préréglages, ou partez des couleurs d'un autre thème. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/Thumbs/Custom.png" width="190" /><br/><sub>vignette</sub> |
+
 ## Notes
 
 - **Books and letters** are never shown in a bubble: they use a page (Gilded Vellum if a bubble theme is chosen).
@@ -72,6 +90,10 @@ Tous les thèmes sauf Sans cadre et Cinématique s'affichent **en bulle** par d�
 | <b>Bulle d'Azeroth</b><br/>Bulle comme celles du jeu, au-dessus du PNJ. Thème par défaut. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/bubble.jpg" width="380" /><br/><sub>illustration</sub> | — |
 | <b>Bulle enluminée</b><br/>Une bulle en parchemin à l'encre foncée. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/bubble_fantasy.jpg" width="380" /><br/><sub>illustration</sub> | — |
 | <b>Murmure</b><br/>Violet sombre au texte rose, comme les chuchotements du jeu. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/docs/themes/v2/whisper.jpg" width="380" /><br/><sub>illustration</sub> | — |
+| <b>Émeraude</b><br/>Vert profond au texte vert pâle. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/Thumbs/Emerald.png" width="190" /><br/><sub>vignette</sub> | — |
+| <b>Rubis</b><br/>Rouge profond au texte rose pâle. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/Thumbs/Ruby.png" width="190" /><br/><sub>vignette</sub> | — |
+| <b>Saphir</b><br/>Bleu profond au texte bleu pâle. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/Thumbs/Sapphire.png" width="190" /><br/><sub>vignette</sub> | — |
+| <b>Ambre</b><br/>Ambre chaud au texte or pâle. | <img src="https://raw.githubusercontent.com/Nearyn/Storytale/main/Thumbs/Amber.png" width="190" /><br/><sub>vignette</sub> | — |
 
 ## Sombres et sans cadre
 

@@ -15,7 +15,7 @@
 - Page turns in the bubble: the next page appears at once, with its first word already highlighted.
 
 ### Fixed
-- Gamepad: after opening Storytale's options, spells, targeting and talking to NPCs could be blocked ("Interface action failed") until a /reload.
+- Gamepad: opening Storytale's options no longer blocks spells, targeting and talking to NPCs ("Interface action failed"). A rarer case after some gamepad conversations remains and will be fixed in a later version.
 - With the same NPC, the choices move to the right place when the next dialogue page has fewer of them (e.g. city guards: "Goodbye" no longer stays at the bottom after choosing a place).
 
 ---
@@ -33,7 +33,7 @@
 - Changement de page dans la bulle : la page suivante apparaît tout de suite, avec son premier mot déjà surligné.
 
 ### Corrections
-- Manette : après l'ouverture des options de Storytale, les sorts, le ciblage et la parole aux PNJ pouvaient être bloqués (« Interface action failed ») jusqu'à un /reload.
+- Manette : ouvrir les options de Storytale ne bloque plus les sorts, le ciblage ni la parole aux PNJ (« Interface action failed »). Un cas plus rare, après certaines conversations à la manette, reste à corriger dans une prochaine version.
 - Avec un même PNJ, les choix se replacent quand la page de dialogue suivante en a moins (ex. gardes de ville : « Goodbye » ne reste plus en bas après avoir choisi un lieu).
 
 ## 1.8.2
