@@ -938,7 +938,16 @@ local function SoftSetup(seg)
 end
 -- pos : lettre en cours (avec sa part deja ecrite), dans le texte avec retours a la ligne ;
 -- limit : derniere lettre que le bord adouci peut toucher (pause a une ponctuation).
-local function SoftShow(pos, limit)
+-- Ligne avec le mot lu en couleur (codes de couleur : la largeur des lettres ne change pas).
+local function SoftColored(row, hlAt, hlLen)
+    if not hlAt or row.text:find("|", 1, true) then return row.text end
+    local rel = hlAt - (row.start - 1)
+    if rel < 0 or rel >= row.chars then return row.text end
+    local a = #Utf8Prefix(row.text, rel)
+    local b = #Utf8Prefix(row.text, math.min(row.chars, rel + hlLen))
+    return row.text:sub(1, a) .. WordColor() .. row.text:sub(a + 1, b) .. "|r" .. row.text:sub(b + 1)
+end
+local function SoftShow(pos, limit, hlAt, hlLen)
     local row, ri
     for i, r in ipairs(soft.rows) do
         if pos < r.start + r.chars + 1 or i == #soft.rows then row, ri = r, i break end
@@ -946,8 +955,13 @@ local function SoftShow(pos, limit)
     if not row then return end
     for i, r in ipairs(soft.rows) do
         local fs = soft.lines[i]
-        if i < ri then fs:SetAlpha(1) fs:Show() else fs:Hide() end
+        if i < ri then
+            if fs:GetText() ~= r.text then fs:SetText(r.text) end
+            fs:SetAlpha(1)
+            fs:Show()
+        else fs:Hide() end
     end
+    local shownText = SoftColored(row, hlAt, hlLen)
     local col = math.max(0, math.min(row.chars, pos - row.start + 1))
     local c0 = math.floor(col)
     local x = row.cum[c0] + (col - c0) * ((row.cum[math.min(row.chars, c0 + 1)] or row.cum[c0]) - row.cum[c0])
@@ -973,7 +987,7 @@ local function SoftShow(pos, limit)
             c.f:SetSize(x1 - x0, lh + 4)
             c.fs:ClearAllPoints()
             c.fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, row.y)
-            if c.fs:GetText() ~= row.text then c.fs:SetText(row.text) end
+            if c.fs:GetText() ~= shownText then c.fs:SetText(shownText) end
             c.f:SetAlpha(a)
             c.f:Show()
             c.fs:Show()
@@ -1006,7 +1020,10 @@ local function CustomReveal(seg, n)
     end
     local typed = math.max(n, math.min(n + 1, state.typed or n))
     local fade = hasGradient and FadeLen(n) or 0
-    SoftShow(typed, n + fade)
+    -- Mot lu surligne (option) : en couleur dans la ligne, toujours au meme rendu.
+    local hlAt, hlLen
+    if HighlightOn() then hlAt, hlLen = HighlightWord(n) end
+    SoftShow(typed, n + fade, hlAt, hlLen)
 end
 -- Fin de la page : toutes les lignes nettes (memes textes que pendant l'ecriture : rien ne bouge).
 local function SoftFinish(seg)
@@ -1028,7 +1045,7 @@ local function Reveal()
         text:SetText(seg)
         state.shownN = nil
     end
-    if DWE.noGradient and state.phase == "typing" and not state.dots and not HighlightOn() and n > 0 and not state.fresh then
+    if DWE.noGradient and state.phase == "typing" and not state.dots and n > 0 and not state.fresh then
         state.shownN = n
         text:SetAlpha(1)
         bubble:DWEWaitHide(false)

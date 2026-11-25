@@ -955,6 +955,15 @@ do
         end
         check(not flash, "word highlight: the bubble text never changes while visible (no full-text flash)")
     end
+    if DWE.noGradient and DWE.bubbleSoft then
+        -- ecriture de Storytale : le mot lu est en couleur dans la ligne en cours
+        local colored
+        for _, c in pairs(DWE.bubbleSoft.bands) do
+            local tx = c.fs:GetText() or ""
+            if c.f:IsShown() and tx:find("|cff%x%x%x%x%x%x") then colored = tx:match("|cff%x%x%x%x%x%x(.-)|r") end
+        end
+        check(colored ~= nil and hb:find(colored, 1, true) ~= nil, "word highlight (smooth writing): the word being said is coloured: " .. tostring(colored))
+    end
     env.Addon.db.profile.Transcript.HighlightWord = false
     for _ = 1, 4 do now = now + 0.05; tick(0.05) end
     check(not (full() or ""):find("|c", 1, true), "word highlight: off when Spoken's Highlight Words is off")
