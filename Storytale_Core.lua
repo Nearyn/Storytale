@@ -7144,6 +7144,9 @@ function DWE.OnThemeChanged()
     DWE.RefreshSpoken()
     if choiceBox:IsShown() then
         DWE.UpdateVisuals()
+        -- Bulle ou cadre du texte du PNJ : change aussi, dialogue ouvert (theme essaye en direct).
+        DWE.UpdateTextPanelVisuals()
+        if DWE.Bubble and DWE.Bubble.Refit then DWE.Bubble.Refit() end
         if DWE.RefreshPreview then DWE.RefreshPreview() else DWE.PaintWheelTheme() end
     else
         DWE.PaintWheelTheme()
@@ -7320,133 +7323,6 @@ function DWE.Ask(opts)
     return f
 end
 
--- Fenetre de choix de Storytale (listes des options) : a la place de la liste deroulante du jeu,
--- qui bloquait la manette a la fermeture des options. Souris (clic, molette), clavier (fleches,
--- Entree, Echap), manette (croix haut/bas, A choisir, B fermer, gachettes = page).
--- opts = { title, items = { { valeur, libelle }, ... }, current, onPick(valeur) }
-local PICK_ROWS = 12
-function DWE.PickList(opts)
-    local f = DWE.pickFrame
-    if not f then
-        f = CreateFrame("Frame", "StorytalePickFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-        DWE.pickFrame = f
-        f:SetFrameStrata("FULLSCREEN_DIALOG")
-        f:SetToplevel(true)
-        f:SetWidth(300)
-        f:SetPoint("TOP", UIParent, "TOP", 0, -140)
-        f:EnableMouse(true)
-        if f.SetBackdrop then
-            f:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-                edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 32, edgeSize = 32,
-                insets = { left = 11, right = 12, top = 12, bottom = 11 } })
-        end
-        f.title = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-        f.title:SetPoint("TOP", 0, -20)
-        f.title:SetWidth(260)
-        f.rows = {}
-        for i = 1, PICK_ROWS do
-            local b = CreateFrame("Button", nil, f)
-            b:SetSize(256, 22)
-            b:SetPoint("TOP", f, "TOP", 0, -40 - (i - 1) * 23)
-            b.bg = b:CreateTexture(nil, "BACKGROUND")
-            b.bg:SetAllPoints()
-            b.bg:SetColorTexture(1, 0.82, 0, 0.18)
-            b.bg:Hide()
-            b.hl = b:CreateTexture(nil, "HIGHLIGHT")
-            b.hl:SetAllPoints()
-            b.hl:SetColorTexture(1, 1, 1, 0.08)
-            b.text = b:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-            b.text:SetPoint("LEFT", 26, 0)
-            b.text:SetPoint("RIGHT", -6, 0)
-            b.text:SetJustifyH("LEFT")
-            b.check = b:CreateTexture(nil, "ARTWORK")
-            b.check:SetSize(16, 16)
-            b.check:SetPoint("LEFT", 6, 0)
-            b.check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
-            b:SetScript("OnClick", function(btn) f.Choose(btn.index) end)
-            b:SetScript("OnEnter", function(btn) f.Select(btn.index) end)
-            f.rows[i] = b
-        end
-        f.more = f:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-        f.more:SetPoint("BOTTOM", 0, 18)
-        local function Draw()
-            local n = #f.items
-            f.offset = math.max(0, math.min(f.offset or 0, n - PICK_ROWS))
-            for i, b in ipairs(f.rows) do
-                local k = f.offset + i
-                local it = f.items[k]
-                if it then
-                    b.index = k
-                    b.text:SetText(it[2] or tostring(it[1]))
-                    b.check:SetShown(it[1] == f.current)
-                    b.bg:SetShown(k == f.sel)
-                    b:Show()
-                else
-                    b:Hide()
-                end
-            end
-            local shown = math.min(n, PICK_ROWS)
-            f.more:SetText(n > PICK_ROWS and ((f.offset + 1) .. "-" .. (f.offset + shown) .. " / " .. n) or "")
-            f:SetHeight(64 + shown * 23 + (n > PICK_ROWS and 14 or 0))
-        end
-        f.Draw = Draw
-        function f.Select(k)
-            if not k or #f.items == 0 then return end
-            k = math.max(1, math.min(#f.items, k))
-            f.sel = k
-            if k <= f.offset then f.offset = k - 1 elseif k > f.offset + PICK_ROWS then f.offset = k - PICK_ROWS end
-            Draw()
-        end
-        function f.Close() f.onPick = nil f:Hide() end
-        function f.Choose(k)
-            local it = f.items[k or f.sel or 0]
-            local cb = f.onPick
-            f.Close()
-            if it and cb then cb(it[1]) end
-        end
-        f:EnableMouseWheel(true)
-        f:SetScript("OnMouseWheel", function(_, d)
-            f.offset = (f.offset or 0) - d
-            Draw()
-        end)
-        f:EnableKeyboard(true)
-        f:SetScript("OnKeyDown", function(self, key)
-            local mine = key == "ESCAPE" or key == "ENTER" or key == "UP" or key == "DOWN" or key == "PAGEUP" or key == "PAGEDOWN"
-            if self.SetPropagateKeyboardInput and not InCombatLockdown() then pcall(self.SetPropagateKeyboardInput, self, not mine) end
-            if key == "ESCAPE" then f.Close()
-            elseif key == "ENTER" then f.Choose()
-            elseif key == "UP" then f.Select((f.sel or 1) - 1)
-            elseif key == "DOWN" then f.Select((f.sel or 0) + 1)
-            elseif key == "PAGEUP" then f.Select((f.sel or 1) - PICK_ROWS)
-            elseif key == "PAGEDOWN" then f.Select((f.sel or 0) + PICK_ROWS) end
-        end)
-        if f.EnableGamePadButton then
-            pcall(f.EnableGamePadButton, f, true)
-            if f.SetPropagateGamePadInput then pcall(f.SetPropagateGamePadInput, f, false) end
-            f:SetScript("OnGamePadButtonDown", function(_, b)
-                if DWE.OptionsPadActive and DWE.OptionsPadActive() and not f.fromOptions then return end
-                if b == "PAD1" then f.Choose()
-                elseif b == "PAD2" then f.Close()
-                elseif b == "PADDUP" then f.Select((f.sel or 1) - 1)
-                elseif b == "PADDDOWN" then f.Select((f.sel or 0) + 1)
-                elseif b == "PADLSHOULDER" or b == "PADLTRIGGER" then f.Select((f.sel or 1) - PICK_ROWS)
-                elseif b == "PADRSHOULDER" or b == "PADRTRIGGER" then f.Select((f.sel or 0) + PICK_ROWS) end
-            end)
-        end
-        f:Hide()
-    end
-    f.items = opts.items or {}
-    f.current = opts.current
-    f.onPick = opts.onPick
-    f.title:SetText(opts.title or "")
-    f.sel, f.offset = 1, 0
-    for i, it in ipairs(f.items) do if it[1] == opts.current then f.sel = i end end
-    f:Show()
-    f:Raise()
-    f.Select(f.sel)
-    return f
-end
-
 -- Choisir une touche : fenetre "Appuyez sur une touche" ; set(k) recoit la touche ("" = aucune).
 function DWE.AskKey(label, current, set)
     local L = DWE.L
@@ -7607,15 +7483,6 @@ function DWE.InitOptionsPanel()
     panel.name = "Storytale"
     DWE.optionsPanel = panel
     -- Bouton vers la fenetre d'options de Storytale (faite pour la manette).
-    if false then -- (remplace par la page d'ouverture du menu du jeu, plus bas)
-        local open = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-        open:SetSize(220, 24)
-        -- (sous la barre du haut : "Par defaut" et la recherche y sont deja)
-        open:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -24, -38)
-        open:SetText(DWE.L.OPT_WINDOW_OPEN or "Storytale")
-        open:SetScript("OnClick", function() if DWE.OpenOptionsWindow then DWE.OpenOptionsWindow() end end)
-        DWE.optionsWindowButton = open
-    end
 
     -- Tout le contenu defile (le panneau est plus haut que la fenetre des options).
     local scroll = CreateFrame("ScrollFrame", "DialogueWheelEOptionsScroll", panel, "UIPanelScrollFrameTemplate")
@@ -8953,7 +8820,6 @@ function DWE.InitOptionsPanel()
         end)
         Settings.RegisterAddOnCategory(cat)
         DWE.optionsCategory = cat
-        if DWE.optionsWindowButton then DWE.optionsWindowButton:Hide() end
     elseif Settings and Settings.RegisterCanvasLayoutCategory then
         local cat = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
         Settings.RegisterAddOnCategory(cat)

@@ -3556,275 +3556,30 @@ do
     DialogueWheelE_FontSize = saveTheme
     DWE.SettingsChanged()
 end
--- Fenetre de choix de Storytale (listes des options, a la place de la liste deroulante du jeu).
+-- Fenetre d'options de Storytale (pages d'options de toujours, un onglet chacune ; manette).
+if DWE.NATIVE_OPTIONS then
+-- La fenetre : les pages d'options de toujours, un onglet chacune ; manette.
 do
-    local got
-    local f = DWE.PickList({ title = "T", items = { { "a", "A" }, { "b", "B" }, { "c", "C" } }, current = "b",
-        onPick = function(v) got = v end })
-    check(f and f:IsShown() and f.sel == 2, "pick list opens on the current choice")
-    f.Select(3); f.Choose()
-    check(got == "c" and not f:IsShown(), "pick list returns the chosen value and closes")
-    got = nil
-    DWE.PickList({ items = { { "a", "A" } }, onPick = function(v) got = v end }).Close()
-    check(got == nil, "pick list closed without choosing")
-    local drop = false
-    for _, c in ipairs(M.nativeControls or {}) do if c.kind == "dropdown" then drop = true end end
-    check(not drop, "options never use the game's dropdown list (gamepad taint)")
-end
--- Options en lignes natives : page Placement (cachee dans les versions publiees : DWE.NATIVE_OPTIONS).
-if not DWE.NATIVE_OPTIONS then
-    check(#DWE.Native.pages == 0, "native options: hidden while the redesign is not finished")
-else
-    -- Fenetre d'options de Storytale : ses lignes, vues comme des reglages (GetValue / SetValue)
-    -- et des boutons (data.buttonText / buttonClick) pour les tests ci-dessous.
-    DWE.BuildNativeOptions()
-    M.nativeSettings, M.nativeLayouts = {}, {}
-    for _, page in ipairs(DWE.Native.pages) do
-        local l = { inits = {} }
-        M.nativeLayouts[page.name] = l
-        for _, r in ipairs(page.rows) do
-            if r.id then
-                M.nativeSettings["Storytale_" .. r.id] = setmetatable({ row = r,
-                    GetValue = function() return r:Value() end, SetValue = function(_, v) r:Set(v) end },
-                    { __index = function(_, k) if k == "notified" then return DWE.Native.refreshCount or 0 end end })
-            end
-            if r.kind == "button" then
-                l.inits[#l.inits + 1] = setmetatable({ kind = "button", label = r.label, row = r },
-                    { __index = function(_, k)
-                        if k == "data" then return { buttonText = r.text, buttonClick = function() r:Activate() end } end
-                    end })
-            end
-        end
-    end
-    -- La fenetre : les pages d'options de toujours, un onglet chacune ; manette.
-    do
-        local f = DWE.OpenOptionsWindow()
-        local n = #(DWE.optionPages or {})
-        check(f and f:IsShown() and n >= 5 and #f.tabs == n, "options window opens with one tab per options page")
-        check(DWE.optionPages[1].panel:GetParent() == f.content, "options window shows the original page")
-        local pad = f.Pad and function(_, b) f.Pad(b) end
-        if pad then
-            pad(f, "PADRSHOULDER")
-            check(f.pageIndex == 2 and DWE.optionPages[2].panel:GetParent() == f.content, "options window: R1 goes to the next tab")
-            pad(f, "PADLSHOULDER")
-            check(f.pageIndex == 1, "options window: L1 goes back")
-            f.Select(f.tabs[3])
-            pad(f, "PAD1")
-            check(f.pageIndex == 3, "options window: a tab opens its page")
-            check(f.sel == f.tabs[3], "options window: the cursor stays on the tab it opened")
-            pad(f, "PADRSHOULDER")
-            check(f.pageIndex == 4 and f.sel == f.tabs[4], "options window: the cursor follows the tabs")
-            pad(f, "PAD2")
-            check(not f:IsShown() and DWE.optionPages[1].panel:GetParent() ~= f.content, "options window: B closes it and gives the page back")
-        end
-    end
-    local S = M.nativeSettings
-    check(S.Storytale_AttachNPC and S.Storytale_Locked and S.Storytale_WheelSide and S.Storytale_QuestAuto, "native options: placement settings registered")
-    if S.Storytale_WheelSide then
-        local saveSide, saveLock, saveQA, saveAttach = DialogueWheelE_WheelSide, DialogueWheelE_Locked, DialogueWheelE_QuestAuto, DialogueWheelE_AttachNPC
-        S.Storytale_WheelSide:SetValue("left")
-        check(DialogueWheelE_WheelSide == "left" and S.Storytale_WheelSide:GetValue() == "left", "native options: wheel side set to left")
-        S.Storytale_WheelSide:SetValue("right")
-        check(DialogueWheelE_WheelSide == nil and S.Storytale_WheelSide:GetValue() == "right", "native options: wheel side back to right")
-        S.Storytale_Locked:SetValue(true)
-        check(DialogueWheelE_Locked == true and S.Storytale_Locked:GetValue() == true, "native options: lock on")
-        S.Storytale_Locked:SetValue(false)
-        S.Storytale_QuestAuto:SetValue(false)
-        check(DialogueWheelE_QuestAuto == false and tonumber(DialogueWheelE_QuestWidth) ~= nil, "native options: quest width manual keeps a width")
-        S.Storytale_QuestAuto:SetValue(true)
-        check(DialogueWheelE_QuestAuto == nil, "native options: quest width auto")
-        S.Storytale_AttachNPC:SetValue(false)
-        check(DialogueWheelE_AttachNPC == false and S.Storytale_AttachNPC:GetValue() == false, "native options: attach to NPC off")
-        S.Storytale_AttachNPC:SetValue(true)
-        local n0 = S.Storytale_Locked.notified or 0
-        DWE.SettingsChanged()
-        check((S.Storytale_Locked.notified or 0) > n0, "native options: lines refreshed when settings change (profile, defaults)")
-        DialogueWheelE_WheelSide, DialogueWheelE_Locked, DialogueWheelE_QuestAuto, DialogueWheelE_AttachNPC = saveSide, saveLock, saveQA, saveAttach
-        DWE.SettingsChanged()
-    end
-    -- Page "Livres, lettres et plaques (2)" : memes variables que l'ancienne page.
-    check(S.Storytale_BookStyle and S.Storytale_BookLook and S.Storytale_PlateStyle and S.Storytale_PlateLook
-        and S.Storytale_ReadMarks and S.Storytale_BookTipCursor and S.Storytale_BookAutoScroll and S.Storytale_BookTurnFX,
-        "native options: books page settings registered")
-    if S.Storytale_BookStyle then
-        local save = { DialogueWheelE_BookStyle, DialogueWheelE_BookLook, DialogueWheelE_PlateStyle, DialogueWheelE_PlateLook,
-            DialogueWheelE_ReadMarks, DialogueWheelE_BookTipCursor, DialogueWheelE_BookAutoScroll, DialogueWheelE_BookTurnFX }
-        S.Storytale_BookStyle:SetValue("blizzard")
-        check(DialogueWheelE_BookStyle == "blizzard" and S.Storytale_BookStyle:GetValue() == "blizzard", "native options: books shown by the game")
-        S.Storytale_BookStyle:SetValue("addon")
-        check(DialogueWheelE_BookStyle == "addon", "native options: books shown by Storytale")
-        S.Storytale_BookLook:SetValue("book")
-        check(DialogueWheelE_BookLook == "book" and S.Storytale_BookLook:GetValue() == "book", "native options: book style open book")
-        S.Storytale_PlateStyle:SetValue("blizzard")
-        check(DialogueWheelE_PlateStyle == "blizzard", "native options: plaques shown by the game")
-        S.Storytale_PlateStyle:SetValue("addon")
-        check(DialogueWheelE_PlateStyle == nil and S.Storytale_PlateStyle:GetValue() == "addon", "native options: plaques shown by Storytale")
-        S.Storytale_PlateLook:SetValue("Marble")
-        check(DialogueWheelE_PlateLook == "Marble", "native options: plaque material marble")
-        S.Storytale_PlateLook:SetValue("auto")
-        check(DialogueWheelE_PlateLook == nil, "native options: plaque material automatic")
-        S.Storytale_ReadMarks:SetValue(false)
-        check(DialogueWheelE_ReadMarks == false and S.Storytale_ReadMarks:GetValue() == false, "native options: read marks off")
-        S.Storytale_ReadMarks:SetValue(true)
-        check(DialogueWheelE_ReadMarks == nil, "native options: read marks on")
-        S.Storytale_BookTipCursor:SetValue(true)
-        check(DialogueWheelE_BookTipCursor == true, "native options: tooltip at the mouse")
-        S.Storytale_BookAutoScroll:SetValue(false)
-        check(DialogueWheelE_BookAutoScroll == false and S.Storytale_BookAutoScroll:GetValue() == false, "native options: follow the voice off")
-        S.Storytale_BookTurnFX:SetValue(false)
-        check(DialogueWheelE_BookTurnFX == false, "native options: page-turn animation off")
-        DialogueWheelE_BookStyle, DialogueWheelE_BookLook, DialogueWheelE_PlateStyle, DialogueWheelE_PlateLook,
-            DialogueWheelE_ReadMarks, DialogueWheelE_BookTipCursor, DialogueWheelE_BookAutoScroll, DialogueWheelE_BookTurnFX = unpack(save, 1, 8)
-        DWE.SettingsChanged()
+    local f = DWE.OpenOptionsWindow()
+    local n = #(DWE.optionPages or {})
+    check(f and f:IsShown() and n >= 5 and #f.tabs == n, "options window opens with one tab per options page")
+    check(DWE.optionPages[1].panel:GetParent() == f.content, "options window shows the original page")
+    local pad = f.Pad and function(_, b) f.Pad(b) end
+    if pad then
+        pad(f, "PADRSHOULDER")
+        check(f.pageIndex == 2 and DWE.optionPages[2].panel:GetParent() == f.content, "options window: R1 goes to the next tab")
+        pad(f, "PADLSHOULDER")
+        check(f.pageIndex == 1, "options window: L1 goes back")
+        f.Select(f.tabs[3])
+        pad(f, "PAD1")
+        check(f.pageIndex == 3, "options window: a tab opens its page")
+        check(f.sel == f.tabs[3], "options window: the cursor stays on the tab it opened")
+        pad(f, "PADRSHOULDER")
+        check(f.pageIndex == 4 and f.sel == f.tabs[4], "options window: the cursor follows the tabs")
+        pad(f, "PAD2")
+        check(not f:IsShown() and DWE.optionPages[1].panel:GetParent() ~= f.content, "options window: B closes it and gives the page back")
     end
 end
-if DWE.NATIVE_OPTIONS and M.nativeSettings and M.nativeSettings.Storytale_UseBlizzKey then
-    -- Page native "Touches et manette" : memes variables que l'ancienne page.
-    local S = M.nativeSettings
-    check(S.Storytale_EscClose and S.Storytale_WheelScroll and S.Storytale_GamePad, "native options: keys page settings registered")
-    local save = { DialogueWheelE_UseBlizzKey, DialogueWheelE_InteractKey, DialogueWheelE_EscClose, DialogueWheelE_WheelScroll, DialogueWheelE_GamePad }
-    local btn
-    for _, l in pairs(M.nativeLayouts or {}) do
-        for _, i in ipairs(l.inits) do if i.kind == "button" and i.label == DWE.Native.Bare(DWE.L.KEY_CUSTOM) then btn = i end end
-    end
-    check(btn ~= nil, "native options: custom key button")
-    if btn then
-        S.Storytale_UseBlizzKey:SetValue(false)
-        check(DialogueWheelE_UseBlizzKey == false, "native options: own interact key")
-        btn.data.buttonClick()
-        local f = DWE.askFrame
-        check(f and f:IsShown() and not f.yes:IsShown(), "custom key: the key dialog opens with Cancel only")
-        if f then
-            M.keys = M.keys or {}
-            f._scripts.OnKeyDown(f, "LSHIFT")
-            check(f:IsShown(), "custom key: a modifier alone is not a key")
-            f._scripts.OnKeyDown(f, "F")
-            check(DialogueWheelE_InteractKey == "F" and not f:IsShown(), "custom key: F chosen (" .. tostring(DialogueWheelE_InteractKey) .. ")")
-            check(btn.data.buttonText == "F", "custom key: button shows the new key: " .. tostring(btn.data.buttonText))
-            btn.data.buttonClick()
-            f._scripts.OnKeyDown(f, "ESCAPE")
-            check(DialogueWheelE_InteractKey == "", "custom key: Escape = no key")
-            btn.data.buttonClick()
-            f.no._scripts.OnClick(f.no)
-            check(DialogueWheelE_InteractKey == "" and not f:IsShown(), "custom key: Cancel keeps the key")
-        end
-        S.Storytale_UseBlizzKey:SetValue(true)
-        check(tostring(btn.data.buttonText):find(DWE.L.KEY_BLIZZ_TAG, 1, true), "native options: Blizzard key shown on the button")
-        S.Storytale_EscClose:SetValue(false)
-        check(DialogueWheelE_EscClose == false, "native options: Escape does not close")
-        S.Storytale_GamePad:SetValue(false)
-        check(DialogueWheelE_GamePad == false, "native options: gamepad off")
-    end
-    DialogueWheelE_UseBlizzKey, DialogueWheelE_InteractKey, DialogueWheelE_EscClose, DialogueWheelE_WheelScroll, DialogueWheelE_GamePad = unpack(save, 1, 5)
-    DWE.SettingsChanged()
-    if DWE.askFrame then DWE.askFrame:Hide() end
-end
-if DWE.NATIVE_OPTIONS and M.nativeSettings and M.nativeSettings.Storytale_SpokenTheme then
-    -- Page native "Spoken" : memes variables que l'ancienne page.
-    local S = M.nativeSettings
-    local vars = { "SpokenTheme", "SpokenSkin", "PlaceSkin", "BookSkin", "PlateSkin", "SpokenButton", "ShowText", "ToggleKey",
-        "SpokenSmart", "BubbleHighlight", "BubbleMode", "BookVoiceTurn", "BookStopOnClose", "ZoneArt", "ZoneArtPaper" }
-    local save = {}
-    for i, v in ipairs(vars) do save[i] = _G["DialogueWheelE_" .. v] end
-    check(S.Storytale_SpokenSkin and S.Storytale_PlaceSkin and S.Storytale_BookSkin and S.Storytale_PlateSkin
-        and S.Storytale_TextIn and S.Storytale_SpokenSmart and S.Storytale_BubbleMode and S.Storytale_ZoneArtPaper,
-        "native options: Spoken page settings registered")
-    DialogueWheelE_SpokenSkin = nil
-    check(S.Storytale_SpokenSkin:GetValue() == "follow", "native Spoken: voices follow the theme by default")
-    S.Storytale_SpokenSkin:SetValue("parchment")
-    check(DialogueWheelE_SpokenSkin == "parchment", "native Spoken: voices in a chosen theme")
-    S.Storytale_SpokenSkin:SetValue("follow")
-    check(DialogueWheelE_SpokenSkin == nil, "native Spoken: back to following the theme")
-    DialogueWheelE_BookSkin = "paper"
-    check(S.Storytale_BookSkin:GetValue() == "follow", "native Spoken: book page shown as the default choice")
-    S.Storytale_PlateSkin:SetValue("mat:Bronze")
-    check(DialogueWheelE_PlateSkin == "mat:Bronze", "native Spoken: plaques in bronze")
-    S.Storytale_BubbleMode:SetValue("page")
-    check(DialogueWheelE_BubbleMode == "page", "native Spoken: whole page")
-    S.Storytale_BubbleMode:SetValue("type")
-    check(DialogueWheelE_BubbleMode == nil, "native Spoken: typewriter")
-    S.Storytale_SpokenSmart:SetValue(false)
-    check(DialogueWheelE_SpokenSmart == false, "native Spoken: smart queue off")
-    S.Storytale_ZoneArt:SetValue(false)
-    check(DialogueWheelE_ZoneArt == false, "native Spoken: zone art off")
-    local before = DialogueWheelE_ShowText == true
-    S.Storytale_TextIn:SetValue(before and "spoken" or "storytale")
-    check((DialogueWheelE_ShowText == true) ~= before, "native Spoken: line shown in the other place")
-    S.Storytale_TextIn:SetValue(before and "storytale" or "spoken")
-    check((DialogueWheelE_ShowText == true) == before, "native Spoken: line shown back where it was")
-    local tb
-    for _, l in pairs(M.nativeLayouts or {}) do
-        for _, i in ipairs(l.inits) do if i.kind == "button" and i.label == DWE.Native.Bare(DWE.L.KEY_TOGGLE) then tb = i end end
-    end
-    check(tb ~= nil, "native Spoken: dialogue key button")
-    if tb then
-        local on = DWE.SpokenFocus and DWE.SpokenFocus.Available()
-        DialogueWheelE_ToggleKey = "H"
-        tb.data.buttonClick()
-        if on then
-            DWE.askFrame._scripts.OnKeyDown(DWE.askFrame, "G")
-            check(DialogueWheelE_ToggleKey == "G" and tb.data.buttonText == "G", "native Spoken: dialogue key G")
-        else
-            check(not (DWE.askFrame and DWE.askFrame:IsShown()) and DialogueWheelE_ToggleKey == "H", "native Spoken: no key window without Spoken")
-        end
-    end
-    for i, v in ipairs(vars) do _G["DialogueWheelE_" .. v] = save[i] end
-    DWE.SettingsChanged()
-    if DWE.askFrame then DWE.askFrame:Hide() end
-end
-if DWE.NATIVE_OPTIONS and M.nativeSettings and M.nativeSettings.Storytale_Profile then
-    -- Page native "Profils" : listes du jeu, confirmations dans la fenetre de Storytale.
-    local S = M.nativeSettings
-    local start = DWE.profile
-    check(S.Storytale_ProfileCopyFrom and S.Storytale_ProfileDelete and S.Storytale_ProfileForNew, "native options: profiles page settings registered")
-    check(DWE.ProfileCreate("NativeTest", false), "native profiles: test profile created")
-    check(DWE.profile == "NativeTest", "native profiles: new profile in use")
-    S.Storytale_Profile:SetValue(start)
-    check(DWE.profile == start and S.Storytale_Profile:GetValue() == start, "native profiles: switched back with the list")
-    S.Storytale_ProfileDelete:SetValue("NativeTest")
-    local f = DWE.askFrame
-    check(f and f:IsShown() and f.yes:IsShown(), "native profiles: delete asks first")
-    check(S.Storytale_ProfileDelete:GetValue() == "", "native profiles: delete line back to '-'")
-    if f then f.yes._scripts.OnClick(f.yes) end
-    local still = false
-    for _, n in ipairs(DWE.ProfileList()) do if n == "NativeTest" then still = true end end
-    check(not still, "native profiles: profile deleted after Yes")
-    local reset
-    for _, l in pairs(M.nativeLayouts or {}) do
-        for _, i in ipairs(l.inits) do if i.kind == "button" and i.label == DWE.L.RESET_ALL then reset = i end end
-    end
-    check(reset ~= nil, "native profiles: reset-all button")
-    if reset then
-        reset.data.buttonClick()
-        check(DWE.askFrame:IsShown(), "native profiles: reset-all asks in Storytale's window (gamepad)")
-        DWE.askFrame.no._scripts.OnClick(DWE.askFrame.no)
-    end
-end
-if DWE.NATIVE_OPTIONS and M.nativeSettings and M.nativeSettings.Storytale_Theme then
-    -- Page native "Apparence" : theme en liste, cases, curseurs.
-    local S = M.nativeSettings
-    local save = { DialogueWheelE_Theme, DialogueWheelE_Opacity, DialogueWheelE_FontSize, DialogueWheelE_ChoiceSize, DialogueWheelE_Font, DialogueWheelE_ThemeFrames }
-    check(S.Storytale_Opacity and S.Storytale_FontSize and S.Storytale_ChoiceSize and S.Storytale_ThemeFrames, "native options: appearance page settings registered")
-    S.Storytale_Theme:SetValue("parchment")
-    check(DialogueWheelE_Theme == "parchment" and S.Storytale_Theme:GetValue() == "parchment", "native looks: parchment theme")
-    S.Storytale_Opacity:SetValue(0.5)
-    check(DialogueWheelE_Opacity == 0.5, "native looks: opacity 0.5")
-    S.Storytale_FontSize:SetValue(18)
-    check(DialogueWheelE_FontSize == 18, "native looks: font size 18")
-    S.Storytale_ChoiceSize:SetValue(20)
-    check(DWE.ChoiceSize() == 20, "native looks: choice size 20")
-    S.Storytale_ThemeFrames:SetValue(false)
-    check(DialogueWheelE_ThemeFrames == true, "native looks: themes as frames")
-    if S.Storytale_Font then
-        S.Storytale_Font:SetValue("lora")
-        check(DialogueWheelE_Font == "lora", "native looks: Lora font")
-    else
-        check(DWE.IS_CJK, "native looks: font list only hidden in CJK")
-    end
-    DialogueWheelE_Theme, DialogueWheelE_Opacity, DialogueWheelE_FontSize, DialogueWheelE_ChoiceSize, DialogueWheelE_Font, DialogueWheelE_ThemeFrames = unpack(save, 1, 6)
-    DWE.SettingsChanged()
-    DWE.OnThemeChanged()
-    if DWE.ApplyFont then DWE.ApplyFont() end
 end
 do -- /storytale perf now : chaque fonction chronometree pendant la mesure, puis remise telle quelle
     local hadClock = rawget(_G, "debugprofilestop")

@@ -40,7 +40,7 @@ local STYLES = {
 }
 -- Bulles 64x64 dont la pointe (32x32) a ses bords a partir de la 10e ligne : le bas de la bulle
 -- est ouvert a l'endroit de la pointe pour que ses bords prolongent le contour (voir SplitArt).
-local SPLIT = { Arcane = true, Glass = true, Ink = true, ParchDark = true, Parch = true, Starry = true,
+local SPLIT = { Arcane = true, Folio = true, FolioDark = true, Glass = true, Ink = true, ParchDark = true, Parch = true, Starry = true,
     Sylvan = true, Veil = true, Velin = true, Whisper = true }
 -- Les autres themes en bulle : leur image Bubble<art>.png et la couleur de texte du theme.
 for id, sk in pairs(DWE.BUBBLE_SKINS) do
