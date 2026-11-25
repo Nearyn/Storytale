@@ -7014,6 +7014,98 @@ function DWE.ResetAllOptions()
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
     DWE.SettingsChanged()
 end
+-- Fenetre de confirmation de Storytale (a la place de StaticPopup) : une StaticPopup ouverte par
+-- un addon est enregistree dans la navigation manette du jeu au nom de l'addon ; a "Oui", la
+-- manette du jeu etait bloquee ("Interface action failed", ex. "Default all"). Celle-ci n'est pas
+-- connue du jeu : souris, Entree / Echap, et manette (A valider, B annuler, croix gauche/droite).
+-- opts = { text, arg, yes, no, edit (texte de depart ou true), maxLetters, onAccept(text) }
+function DWE.Ask(opts)
+    local f = DWE.askFrame
+    if not f then
+        f = CreateFrame("Frame", "StorytaleAskFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+        DWE.askFrame = f
+        f:SetFrameStrata("FULLSCREEN_DIALOG")
+        f:SetToplevel(true)
+        f:SetSize(360, 120)
+        f:SetPoint("TOP", UIParent, "TOP", 0, -160)
+        f:EnableMouse(true)
+        if f.SetBackdrop then
+            f:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+                edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 32, edgeSize = 32,
+                insets = { left = 11, right = 12, top = 12, bottom = 11 } })
+        end
+        f.text = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        f.text:SetPoint("TOP", 0, -22)
+        f.text:SetWidth(320)
+        f.edit = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+        f.edit:SetSize(240, 22)
+        f.edit:SetAutoFocus(false)
+        f.edit:SetPoint("TOP", f.text, "BOTTOM", 0, -10)
+        f.yes = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+        f.no = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+        f.yes:SetSize(120, 22); f.no:SetSize(120, 22)
+        f.yes:SetPoint("BOTTOMRIGHT", f, "BOTTOM", -6, 16)
+        f.no:SetPoint("BOTTOMLEFT", f, "BOTTOM", 6, 16)
+        local function Done(ok)
+            local cb, txt = f.onAccept, f.edit:IsShown() and f.edit:GetText() or nil
+            f.onAccept = nil
+            f:Hide()
+            if ok and cb then cb(txt) end
+        end
+        f.Done = Done
+        f.yes:SetScript("OnClick", function() Done(true) end)
+        f.no:SetScript("OnClick", function() Done(false) end)
+        f.edit:SetScript("OnEnterPressed", function() Done(true) end)
+        f.edit:SetScript("OnEscapePressed", function() Done(false) end)
+        local function Pick(i)
+            f.sel = i
+            if f.yes.LockHighlight then
+                if i == 1 then f.yes:LockHighlight(); f.no:UnlockHighlight() else f.no:LockHighlight(); f.yes:UnlockHighlight() end
+            end
+        end
+        f.Pick = Pick
+        f:EnableKeyboard(true)
+        f:SetScript("OnKeyDown", function(self, key)
+            local mine = key == "ESCAPE" or key == "ENTER"
+            if self.SetPropagateKeyboardInput and not InCombatLockdown() then pcall(self.SetPropagateKeyboardInput, self, not mine) end
+            if key == "ESCAPE" then Done(false) elseif key == "ENTER" then Done(f.sel ~= 2) end
+        end)
+        if f.EnableGamePadButton then
+            pcall(f.EnableGamePadButton, f, true)
+            if f.SetPropagateGamePadInput then pcall(f.SetPropagateGamePadInput, f, false) end
+            f:SetScript("OnGamePadButtonDown", function(_, b)
+                if b == "PAD1" then Done(f.sel ~= 2)
+                elseif b == "PAD2" then Done(false)
+                elseif b == "PADDLEFT" then Pick(1)
+                elseif b == "PADDRIGHT" then Pick(2) end
+            end)
+        end
+        f:Hide()
+    end
+    local text = opts.text or ""
+    if opts.arg ~= nil then text = text:format(opts.arg) end
+    f.text:SetText(text)
+    f.yes:SetText(opts.yes or YES or "Yes")
+    f.no:SetText(opts.no or NO or "No")
+    f.onAccept = opts.onAccept
+    local th = f.text:GetStringHeight() or 14
+    if opts.edit then
+        f.edit:Show()
+        f.edit:SetMaxLetters(opts.maxLetters or 32)
+        f.edit:SetText(type(opts.edit) == "string" and opts.edit or "")
+        f.edit:HighlightText()
+        f:SetHeight(100 + th + 32)
+    else
+        f.edit:Hide()
+        f:SetHeight(100 + th)
+    end
+    f.Pick(1)
+    f:Show()
+    f:Raise()
+    if opts.edit then f.edit:SetFocus() end
+    return f
+end
+
 -- Profils : confirmation (changer, supprimer) ou nom a saisir (nouveau, copie).
 function DWE.AskProfile(kind, name)
     local L = DWE.L
@@ -7028,42 +7120,19 @@ function DWE.AskProfile(kind, name)
     end
     if kind == "switch" then return Do() end -- (tout de suite : rien n'est perdu, on peut revenir)
     local confirm = kind == "delete" or kind == "copyfrom"
-    if not (StaticPopupDialogs and StaticPopup_Show) then
-        if confirm then Do() end
-        return
-    end
     if confirm then
-        StaticPopupDialogs.STORYTALE_PROFILE_ASK = {
-            text = (kind == "switch" and L.PROFILE_SWITCH_CONFIRM) or (kind == "copyfrom" and L.PROFILE_COPY_CONFIRM) or L.PROFILE_DEL_CONFIRM,
-            button1 = YES or "Yes", button2 = NO or "No",
-            OnAccept = Do,
-            timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-        }
-        StaticPopup_Show("STORYTALE_PROFILE_ASK", DWE.ProfileLabel(name))
+        DWE.Ask({ text = (kind == "copyfrom" and L.PROFILE_COPY_CONFIRM) or L.PROFILE_DEL_CONFIRM,
+            arg = DWE.ProfileLabel(name), onAccept = function() Do() end })
         return
     end
     local copy = kind == "copy"
-    local function Accept(self)
-        local eb = self.editBox or self.EditBox or (self.GetParent and self:GetParent() and (self:GetParent().editBox or self:GetParent().EditBox))
-        local text = eb and eb.GetText and eb:GetText()
-        if not DWE.ProfileCreate(text, copy) and UIErrorsFrame and UIErrorsFrame.AddMessage then
-            UIErrorsFrame:AddMessage(ERR_NAME_INVALID or "Invalid name", 1, 0.2, 0.2)
-        end
-    end
-    StaticPopupDialogs.STORYTALE_PROFILE_NAME = {
-        text = copy and L.PROFILE_NAME_COPY or L.PROFILE_NAME_NEW,
-        button1 = ACCEPT or OKAY or "OK", button2 = CANCEL or "Cancel",
-        hasEditBox = 1, maxLetters = 32,
-        OnAccept = Accept,
-        EditBoxOnEnterPressed = function(self)
-            local parent = self:GetParent()
-            Accept(parent)
-            parent:Hide()
-        end,
-        EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
-        timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-    }
-    StaticPopup_Show("STORYTALE_PROFILE_NAME")
+    DWE.Ask({ text = copy and L.PROFILE_NAME_COPY or L.PROFILE_NAME_NEW, edit = true, maxLetters = 32,
+        yes = ACCEPT or OKAY or "OK", no = CANCEL or "Cancel",
+        onAccept = function(text)
+            if not DWE.ProfileCreate(text, copy) and UIErrorsFrame and UIErrorsFrame.AddMessage then
+                UIErrorsFrame:AddMessage(ERR_NAME_INVALID or "Invalid name", 1, 0.2, 0.2)
+            end
+        end })
 end
 
 -- Valeurs par defaut donnees une fois a l'installation (voir PLAYER_LOGIN) : une page remise
@@ -7094,22 +7163,12 @@ function DWE.SettingsChanged()
     if DWE.UpdateTextPanelVisuals then pcall(DWE.UpdateTextPanelVisuals) end
 end
 function DWE.AskResetPage(name, vars)
-    if not (StaticPopupDialogs and StaticPopup_Show) then DWE.ResetPage(vars) return end
-    StaticPopupDialogs.STORYTALE_RESET_PAGE = {
-        text = DWE.L.PAGE_RESET_CONFIRM, button1 = YES or "Yes", button2 = NO or "No",
-        OnAccept = function() DWE.ResetPage(vars) end,
-        timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-    }
-    StaticPopup_Show("STORYTALE_RESET_PAGE", name)
+    DWE.Ask({ text = DWE.L.PAGE_RESET_CONFIRM, arg = name, onAccept = function() DWE.ResetPage(vars) end })
 end
 function DWE.AskResetAll()
-    if not StaticPopupDialogs then DWE.ResetAllOptions() return end
-    StaticPopupDialogs.STORYTALE_RESET_ALL = StaticPopupDialogs.STORYTALE_RESET_ALL or {
-        text = DWE.L.RESET_ALL_CONFIRM, button1 = YES or "Yes", button2 = NO or "No",
-        OnAccept = function() DWE.ResetAllOptions() end,
-        timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-    }
-    StaticPopup_Show("STORYTALE_RESET_ALL", DWE.ProfileLabel and DWE.ProfileLabel(DWE.profile or "Default") or "")
+    DWE.Ask({ text = DWE.L.RESET_ALL_CONFIRM,
+        arg = DWE.ProfileLabel and DWE.ProfileLabel(DWE.profile or "Default") or "",
+        onAccept = function() DWE.ResetAllOptions() end })
 end
 
 -- Manette, droite / gauche dans les options : la navigation du jeu prend le plus proche dans un
@@ -7569,27 +7628,10 @@ function DWE.InitOptionsPanel()
 
         -- Themes enregistres : "Enregistrer" (demande un nom) et une petite liste deroulante.
         local list
-        local function Popup(key, text, accept, edit)
-            if not StaticPopupDialogs then return end
-            StaticPopupDialogs[key] = {
-                text = text, button1 = ACCEPT or OKAY or "OK", button2 = CANCEL or "Cancel",
-                hasEditBox = edit or nil, maxLetters = edit and 40 or nil,
-                OnShow = edit and function(self)
-                    local eb = self.editBox or self.EditBox
-                    if eb then eb:SetText(edit); eb:HighlightText(); eb:SetFocus() end
-                end or nil,
-                OnAccept = function(self)
-                    local eb = self.editBox or self.EditBox
-                    accept(eb and eb:GetText())
-                end,
-                EditBoxOnEnterPressed = edit and function(eb)
-                    accept(eb:GetText())
-                    eb:GetParent():Hide()
-                end or nil,
-                EditBoxOnEscapePressed = edit and function(eb) eb:GetParent():Hide() end or nil,
-                timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
-            }
-            StaticPopup_Show(key)
+        local function Popup(_, text, accept, edit)
+            DWE.Ask({ text = text, edit = edit or nil, maxLetters = edit and 40 or nil,
+                yes = ACCEPT or OKAY or "OK", no = CANCEL or "Cancel",
+                onAccept = function(t) accept(t) end })
         end
         local save = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
         save:SetSize(100, 22)

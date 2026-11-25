@@ -3379,6 +3379,36 @@ do
     UnitGUID, GetTime = oG, oT
     M.RunTimers()
 end
+-- Confirmations : fenetre de Storytale, jamais StaticPopup (une StaticPopup d'addon bloquait la
+-- manette du jeu apres "Oui", ex. "Default all").
+do
+    local used = false
+    local oldShow = rawget(_G, "StaticPopup_Show")
+    _G.StaticPopup_Show = function() used = true end
+    local saveTheme = DialogueWheelE_FontSize
+    DialogueWheelE_FontSize = 18
+    DWE.AskResetAll()
+    local f = DWE.askFrame
+    check(f and f:IsShown() and not used, "confirm: Storytale's own dialog, no StaticPopup")
+    f.no._scripts.OnClick(f.no)
+    check(not f:IsShown() and DialogueWheelE_FontSize == 18, "confirm: No keeps the options")
+    DWE.AskResetAll()
+    f._scripts.OnGamePadButtonDown(f, "PAD1")
+    check(not f:IsShown() and DialogueWheelE_FontSize ~= 18, "confirm: gamepad A confirms (options reset)")
+    local got
+    DWE.Ask({ text = "Name?", edit = "Abc", onAccept = function(txt) got = txt end })
+    check(f.edit:IsShown() and f.edit:GetText() == "Abc", "confirm: name box with its starting text")
+    f.edit:SetText("New name")
+    f._scripts.OnKeyDown(f, "ENTER")
+    check(got == "New name" and not f:IsShown(), "confirm: Enter accepts the typed name")
+    DWE.Ask({ text = "Sure?", onAccept = function() got = "yes" end })
+    f._scripts.OnGamePadButtonDown(f, "PADDRIGHT")
+    f._scripts.OnGamePadButtonDown(f, "PAD1")
+    check(got == "New name", "confirm: gamepad right then A = No")
+    _G.StaticPopup_Show = oldShow
+    DialogueWheelE_FontSize = saveTheme
+    DWE.SettingsChanged()
+end
 -- Options en lignes natives : page Placement (cachee dans les versions publiees : DWE.NATIVE_OPTIONS).
 if not DWE.NATIVE_OPTIONS then
     check(next(M.nativeSettings or {}) == nil, "native options: hidden while the redesign is not finished")
