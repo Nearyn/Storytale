@@ -75,8 +75,14 @@ function DWE.GuardScripts(frame, name)
                 if not (perf and perf.on and debugprofilestop) then return g(...) end
                 local t0 = debugprofilestop()
                 g(...)
-                perf.t[key] = (perf.t[key] or 0) + (debugprofilestop() - t0)
-                perf.n[key] = (perf.n[key] or 0) + 1
+                local dt = debugprofilestop() - t0
+                -- Evenements : detail par evenement (lequel coute a l'ouverture d'un livre).
+                local k = key
+                if s == "OnEvent" then k = name .. ":" .. tostring((select(2, ...))) end
+                perf.t[k] = (perf.t[k] or 0) + dt
+                perf.n[k] = (perf.n[k] or 0) + 1
+                perf.mx = perf.mx or {}
+                if dt > (perf.mx[k] or 0) then perf.mx[k] = dt end
             end)
         end
     end
@@ -119,7 +125,7 @@ end
 -- les ms par seconde de chaque partie de l'addon. `baseline` : images/s juste avant.
 function DWE.StartPerf(out, seconds, baseline)
     local perf = DWE.perf
-    perf.t, perf.n, perf.on = {}, {}, true
+    perf.t, perf.n, perf.mx, perf.on = {}, {}, {}, true
     local f = DWE.perfFrame or CreateFrame("Frame")
     DWE.perfFrame = f
     local total, frames, worst, slow = 0, 0, 0, 0
@@ -139,7 +145,8 @@ function DWE.StartPerf(out, seconds, baseline)
         for k in pairs(perf.t) do names[#names + 1] = k end
         table.sort(names, function(a, b) return perf.t[a] > perf.t[b] end)
         for _, k in ipairs(names) do
-            out(("  %s : %.2f ms/s (%d appels/s)"):format(k, perf.t[k] / total, math.floor(perf.n[k] / total + 0.5)))
+            -- Total sur la mesure, nombre d'appels et le plus long (un seul gros appel = saccade).
+            out(("  %s : %.0f ms en tout, %d appels, le plus long %.0f ms"):format(k, perf.t[k], perf.n[k], perf.mx[k] or 0))
         end
     end)
 end
@@ -3722,8 +3729,11 @@ function DWE.BookSubPaginate(raw, fsz, header)
     st.cache[key] = st.spreads
     end
     if t0 then
-        perf.t.bookPaginate = (perf.t.bookPaginate or 0) + (debugprofilestop() - t0)
+        local dt = debugprofilestop() - t0
+        perf.t.bookPaginate = (perf.t.bookPaginate or 0) + dt
         perf.n.bookPaginate = (perf.n.bookPaginate or 0) + 1
+        perf.mx = perf.mx or {}
+        if dt > (perf.mx.bookPaginate or 0) then perf.mx.bookPaginate = dt end
     end
     if st.wantLast then
         st.index, st.wantLast = #st.spreads, nil
