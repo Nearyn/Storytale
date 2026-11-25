@@ -2846,40 +2846,27 @@ local function CollectUI()
     if InCombatLockdown and InCombatLockdown() then return end
     if not UIParent.GetChildren then return end
     local list = { UIParent:GetChildren() }
-    -- Fenetres posees hors de UIParent (certains addons de chat comme Chattynator, barres...) :
-    -- les cadres sans parent sont aussi effaces (jamais le monde du jeu ni UIParent).
-    if EnumerateFrames then
-        local fr = EnumerateFrames()
-        local n = 0
-        while fr and n < 20000 do
-            n = n + 1
-            local okP, parent = pcall(fr.GetParent, fr)
-            if okP and parent == nil and fr ~= UIParent and fr ~= WorldFrame then list[#list + 1] = fr end
-            fr = EnumerateFrames(fr)
-        end
-    end
-    for _, fr in ipairs(list) do
+    -- (chaque cadre dans un pcall : un cadre interdit aux addons ne doit rien casser)
+    local function One(fr)
+        if fr.IsForbidden and fr:IsForbidden() then return end
+        if KeepFrame(fr) then return end
         -- Fenetres qui ignorent l'opacite de leur parent (fenetres de chat de Chattynator) : elles
         -- la suivent de nouveau le temps de la conversation, pour s'effacer avec le reste.
-        if not KeepFrame(fr) and fr.GetChildren then
-            local okC, kids = pcall(function() return { fr:GetChildren() } end)
-            for _, k in ipairs(okC and kids or {}) do
-                local okI, ign = pcall(function() return k.IsIgnoringParentAlpha and k:IsIgnoringParentAlpha() end)
-                local okK, forb = pcall(function() return (k.IsForbidden and k:IsForbidden()) or (k.IsProtected and k:IsProtected()) end)
-                if okI and ign == true and okK and not forb and not ignoredUI[k] and not KeepFrame(k) then
-                    if pcall(k.SetIgnoreParentAlpha, k, false) then ignoredUI[k] = true end
+        for _, k in ipairs({ fr:GetChildren() }) do
+            pcall(function()
+                if k:IsForbidden() or k:IsProtected() or ignoredUI[k] or KeepFrame(k) then return end
+                if k:IsIgnoringParentAlpha() then
+                    k:SetIgnoreParentAlpha(false)
+                    ignoredUI[k] = true
                 end
-            end
+            end)
         end
-        -- Cadres proteges (fenetres Blizzard interdites aux addons) : on n'y touche pas.
-        local okF, forbidden = pcall(function() return fr.IsForbidden and fr:IsForbidden() end)
-        local okS, shown = false, false
-        if okF and not forbidden then okS, shown = pcall(fr.IsShown, fr) end
-        if okS and shown and not hiddenUI[fr] and fr.GetAlpha and not KeepFrame(fr) then
-            local ok, a = pcall(fr.GetAlpha, fr)
-            if ok and type(a) == "number" and a > 0 then hiddenUI[fr] = a end
+        if fr:IsShown() and not hiddenUI[fr] then
+            local a = fr:GetAlpha()
+            if type(a) == "number" and a > 0 then hiddenUI[fr] = a end
         end
     end
+    for _, fr in ipairs(list) do pcall(One, fr) end
 end
 local function FadeUI(f)
     for fr, a in pairs(hiddenUI) do pcall(fr.SetAlpha, fr, a * (1 - f)) end
