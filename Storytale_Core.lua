@@ -7746,16 +7746,7 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_WheelTheme = self:GetChecked() and true or false
         DWE.OnThemeChanged()
     end)
-    y = y - 30
-    AddCheck(L.HIDE_UI, 16, y, function() return DialogueWheelE_HideUI == true end, function(self)
-        DialogueWheelE_HideUI = self:GetChecked() and true or false
-    end)
-    y = y - 30
-    -- Bouton de la mini-carte (ouvre ces options).
-    AddCheck(L.MINIMAP_BTN, 16, y, function() return DialogueWheelE_MinimapHide ~= true end, function(self)
-        DialogueWheelE_MinimapHide = (not self:GetChecked()) and true or nil
-        if DWE.MinimapButtonRefresh then DWE.MinimapButtonRefresh() end
-    end)
+    -- (« Cacher l'interface » et le bouton de la mini-carte : section Interface, en bas)
     AddSlider("DWESliderOpacity", L.OPACITY_LBL, 22, y - 50, 0.2, 1, 0.05, function() return tonumber(DialogueWheelE_Opacity) or 1 end, "%.2f", function(v)
         DialogueWheelE_Opacity = v
         DWE.OnThemeChanged()
@@ -8013,8 +8004,20 @@ function DWE.InitOptionsPanel()
         if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end
     end, 1, 190) -- (colonnes plus larges : "Ecriture progressive" est long)
 
-    ---------------------------------------------------------------- Livres et lettres
+    ---------------------------------------------------------------- Interface
     y = y - 126
+    AddSection(L.SEC_UI or "Interface", y)
+    AddCheck(L.HIDE_UI, 16, y - 32, function() return DialogueWheelE_HideUI == true end, function(self)
+        DialogueWheelE_HideUI = self:GetChecked() and true or false
+    end)
+    -- Bouton de la mini-carte (ouvre ces options).
+    AddCheck(L.MINIMAP_BTN, 16, y - 62, function() return DialogueWheelE_MinimapHide ~= true end, function(self)
+        DialogueWheelE_MinimapHide = (not self:GetChecked()) and true or nil
+        if DWE.MinimapButtonRefresh then DWE.MinimapButtonRefresh() end
+    end)
+
+    ---------------------------------------------------------------- Livres et lettres
+    y = y - 100
     NewPage(L.SEC_BOOKS, y)
     AddSection(L.SEC_BOOKS, y)
     -- Livres et lettres : qui les affiche, puis leur style (seulement pour Storytale).
@@ -8201,6 +8204,11 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_WheelScroll = self:GetChecked() and true or false
         DWE.RefreshBindings()
     end)
+    -- (qui cherche une touche regarde ici : la touche Bulle / Spoken est dans la page Spoken)
+    if L.KEY_SPOKEN_HINT then
+        local hint = AddText(L.KEY_SPOKEN_HINT, 300, keysY - 58, "GameFontDisableSmall")
+        if hint and hint.SetWidth then hint:SetWidth(300); hint:SetJustifyH("LEFT") end
+    end
 
     ---------------------------------------------------------------- Manette
     y = keysY - 76
