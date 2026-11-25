@@ -654,7 +654,8 @@ end
 -- lit, le mot qu'elle dit passe en couleur (or sur fond sombre, rouge fonce sur fond clair, ou la
 -- couleur "Mot lu" du theme Personnalise), comme le narrateur de Spoken : le mot suit la position
 -- de la bulle, qui suit la voix (vraies durees de Spoken, durees generees ou estimation). Couleur
--- seulement si "Highlight Words" est coche dans Spoken. (Avant : ecriture progressive tant que la
+-- seulement avec la case "Surligner le mot lu" de Storytale et "Highlight Words" dans Spoken
+-- (sans elles : la page entiere, sans couleur). (Avant : ecriture progressive tant que la
 -- voix n'etait pas partie, puis page entiere d'un coup : le passage se voyait.)
 local function PageMode()
     return DialogueWheelE_BubbleMode == "page" and not state.dots and state.phase == "typing"
@@ -683,7 +684,7 @@ local function PageReveal(seg, n)
     local want, key = seg, "plain"
     local at, len
     if state.voiced and not state.manual then at, len = PageWord(n) end
-    if at and not seg:find("|", 1, true) and SpokenHighlightWords() then
+    if at and not seg:find("|", 1, true) and HighlightOn() then
         local a, b = #Utf8Prefix(seg, at), #Utf8Prefix(seg, at + len)
         want = seg:sub(1, a) .. WordColor() .. seg:sub(a + 1, b) .. "|r" .. seg:sub(b + 1)
         key = state.index .. ":" .. at

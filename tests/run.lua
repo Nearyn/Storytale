@@ -958,6 +958,7 @@ do
     for _ = 1, 20 do now = now + 0.05; tick(0.05) end
     check(not DWE.BubblePageMode(), "page mode: off by default")
     DialogueWheelE_BubbleMode = "page"
+    DialogueWheelE_BubbleHighlight = true -- couleur en page entiere : avec la case "Surligner le mot lu"
     -- Des l'ouverture, avant que la voix parte et sans voix : la page entiere, sans couleur
     -- (pas d'ecriture lettre par lettre puis la page d'un coup). Puis les pages suivantes, entieres.
     local parts = {}
@@ -1011,6 +1012,14 @@ do
     DWE.SetDialogueText("x", pb)
     for _ = 1, 6 do now = now + 0.05; tick(0.05) end
     check(DWE.BubblePageMode() and full() == pb, "page mode: whole page without colour when Spoken's Highlight Words is off: '" .. tostring(full()) .. "'")
+    -- Case "Surligner le mot lu" decochee : la page entiere, sans couleur.
+    env.Addon.db.profile.Transcript.HighlightWord = true
+    DialogueWheelE_BubbleHighlight = nil
+    clip = { length = 8, spokenAt = now + 8, text = pb, present = { transcript = pb } }
+    DWE.SetDialogueText("x", pb .. " ")
+    DWE.SetDialogueText("x", pb)
+    for _ = 1, 6 do now = now + 0.05; tick(0.05) end
+    check(DWE.BubblePageMode() and full() == pb, "page mode: whole page without colour when \"Highlight the word being read\" is unchecked: '" .. tostring(full()) .. "'")
     -- Le joueur tourne la page lui-meme : on quitte la page entiere.
     DWE.bubble._scripts.OnMouseUp(DWE.bubble, "LeftButton")
     check(not DWE.BubblePageMode(), "page mode: off once the player turns the page himself")
