@@ -3260,6 +3260,17 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         local v = tonumber((string.gsub(msg:match("^%s*delai%s+([%d%.,]+)") or "", ",", ".")))
         if v then DWE.VOICE_LEAD = math.max(0, math.min(3, v)) end
         Out(("delai de la voix : %.1f s (/storytale delai 0.8 pour changer)."):format(DWE.VOICE_LEAD or 0))
+    elseif msg:match("^%s*pointe") then
+        -- Pointe de la bulle Azeroth : /storytale pointe <hauteur> <taille> [decalage]
+        local y, sc, x = msg:match("^%s*pointe%s+([%-%d%.]+)%s*([%d%.]*)%s*([%-%d%.]*)")
+        if y then
+            DWE.gameTailY = tonumber(y)
+            DWE.gameTailScale = tonumber(sc) or DWE.gameTailScale
+            DWE.gameTailX = tonumber(x) or DWE.gameTailX
+            if DWE.BubbleRestyle then DWE.BubbleRestyle() end
+        end
+        Out(("pointe : hauteur %s, taille %s, decalage %s (/storytale pointe 6 1.3 0)"):format(
+            tostring(DWE.gameTailY or 3), tostring(DWE.gameTailScale or 1), tostring(DWE.gameTailX or 0)))
     elseif msg:match("^%s*livrelog") then
         local log = DWE.lookLog or {}
         DWE.PadShowText(#log > 0 and table.concat(log, "\n") or "(rien : ouvre un livre et tourne les pages)")

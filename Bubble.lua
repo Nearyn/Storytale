@@ -32,7 +32,8 @@ local READ_PER_CHAR, READ_MIN, READ_MAX = 0.05, 2, 8 -- temps de lecture apres e
 
 -- Reglages propres a chaque style de bulle.
 local STYLES = {
-    game = { pad = 14, color = { 1, 1, 1 }, shadow = false },
+    -- (texte jaune pale des PNJ qui parlent, comme les bulles du jeu : ChatTypeInfo.MONSTER_SAY)
+    game = { pad = 14, color = { 1, 1, 0.624 }, shadow = false },
     fantasy = { pad = 20, color = { 0.18, 0.10, 0.04 }, shadow = false, art = "BubbleFantasy", slice = 24 },
     whisper = { pad = 14, color = { 1, 0.66, 1 }, shadow = false, art = "BubbleWhisper", slice = 16, split = true },
 }
@@ -208,6 +209,12 @@ local function ShowGameStyle()
         bubble.art:Show()
         if AtlasExists("ChatBubble-Tail") then
             tail:SetAtlas("ChatBubble-Tail", true)
+            -- Pointe du jeu : sa place et sa taille reglables (/storytale pointe), pour qu'elle
+            -- prolonge le contour comme sur les bulles du jeu.
+            local sc = DWE.gameTailScale or 1
+            tail:SetSize(16 * sc, 16 * sc)
+            tail:ClearAllPoints()
+            tail:SetPoint("TOP", bubble, "BOTTOM", DWE.gameTailX or 0, DWE.gameTailY or 3)
             tail:Show()
         else
             tail:Hide()
@@ -1986,6 +1993,9 @@ function DWE.Bubble.Refit()
     end
 end
 
+function DWE.BubbleRestyle()
+    if styleName then local n = styleName; styleName = nil; pcall(ApplyStyle, n) end
+end
 function DWE.Bubble.SetShown(show)
     bubble.dweOff = not show
     if not show then
