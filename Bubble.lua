@@ -858,16 +858,76 @@ local function PlaceTails(shown, n, frac, fade)
         end
     end
 end
+-- Deux copies du texte qui se relaient (double tampon) : la copie cachee recoit le texte jusqu'a
+-- la lettre n + fondu et son fondu, puis s'affiche a l'image suivante (le jeu n'applique le fondu
+-- d'un nouveau texte qu'a l'image d'apres : sinon on voyait ces lettres en entier une image).
+-- Chaque lettre = un nouveau texte : le jeu le remet en page a chaque fois, il ne peut plus figer
+-- l'affichage apres une pause (le probleme de « one »), et le fondu est le vrai fondu du jeu
+-- (des lettres a part, posees au pixel pres, scintillaient). On cache une copie par la
+-- transparence de son cadre, jamais par celle du texte (qui efface le fondu).
+local bufs = {}
+for i = 1, 2 do
+    local f = CreateFrame("Frame", nil, holder)
+    f:SetAllPoints(holder)
+    f:SetAlpha(0)
+    local fs = f:CreateFontString(nil, "OVERLAY")
+    fs:SetJustifyH("LEFT")
+    fs:SetJustifyV("TOP")
+    if fs.SetWordWrap then fs:SetWordWrap(true) end
+    bufs[i] = { f = f, fs = fs }
+end
+local function HideBufs()
+    for _, b in ipairs(bufs) do b.f:SetAlpha(0) end
+    state.bufFront, state.bufKey, state.bufPending = nil, nil, nil
+    text:Show()
+end
+DWE.BubbleHideBufs = HideBufs
+-- Ce qui se lit dans la bulle (lettres nettes) : la copie devant, sinon le texte (tests, journal).
+DWE.bubbleBufs = bufs
+function DWE.BubbleVisibleText()
+    local b = state.customShown == "buf" and state.bufFront and bufs[state.bufFront]
+    if b then return Utf8Prefix(b.fs:GetText() or "", b.n or 0), true end
+    return nil, false
+end
 local function CustomReveal(seg, n)
     local w = Wrapped(seg)
-    local shown = Utf8Prefix(w, n)
-    if shown ~= state.customShown then
-        state.customShown = shown
-        if hasGradient then text:SetAlphaGradient(100000, 1) end
-        text:SetText(shown)
+    local fade = hasGradient and FadeLen(n) or 0 -- (jeu sans fondu : lettres nettes seulement)
+    local key = n .. ":" .. fade .. ":" .. (state.wrapKey or "")
+    if state.customShown ~= "buf" then
+        -- le texte de la bulle se cache (son cadre reste : taille, pointe) ; les copies prennent le relais
+        state.customShown = "buf"
+        text:Hide()
     end
-    local frac = math.max(0, math.min(1, (state.typed or 0) - n))
-    PlaceTails(shown, n, frac, FadeLen(n))
+    local front = state.bufFront and bufs[state.bufFront]
+    if state.bufPending then
+        -- image d'apres : la copie preparee (fondu applique) passe devant
+        local b = bufs[state.bufPending]
+        if hasGradient then b.fs:SetAlphaGradient(state.bufN, math.max(1, state.bufFade)) end
+        b.f:SetAlpha(1)
+        if front and front ~= b then front.f:SetAlpha(0) end
+        state.bufFront, state.bufPending = state.bufPending, nil
+        front = b
+    end
+    if key ~= state.bufKey then
+        state.bufKey, state.bufN, state.bufFade = key, n, fade
+        local i = (state.bufFront == 1) and 2 or 1
+        local b = bufs[i]
+        CopyLook(b.fs)
+        b.fs:ClearAllPoints()
+        b.fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, 0)
+        local okW, tw = pcall(text.GetWidth, text)
+        if okW and type(tw) == "number" and tw > 0 then b.fs:SetWidth(tw) end
+        b.f:SetAlpha(0)
+        b.fs:SetText(Utf8Prefix(w, n + fade))
+        b.n = n
+        if hasGradient then b.fs:SetAlphaGradient(n, math.max(1, fade)) end
+        if not front then
+            -- toute premiere lettre : rien a remplacer, on montre des l'image suivante
+            state.bufPending = i
+        else
+            state.bufPending = i
+        end
+    end
 end
 
 local function Reveal()
@@ -884,10 +944,12 @@ local function Reveal()
         state.shownN = n
         text:SetAlpha(1)
         bubble:DWEWaitHide(false)
+        HideTails()
         CustomReveal(seg, n)
         return
     end
     HideTails()
+    if state.customShown == "buf" then HideBufs() end
     if state.customShown then
         -- retour au chemin du fondu du jeu (surlignage, points de suspension...) : texte entier
         state.customShown, state.shownN = nil, nil
@@ -937,6 +999,7 @@ local function StartSegment(i)
     -- (Les pages suivantes partaient de 0 lettre : bulle vide 3 ou 4 images, mesure en video.)
     state.index, state.phase, state.typed, state.shownN, state.customShown = i, "typing", 1, nil, nil
     HideTails()
+    HideBufs()
     HighlightReset() -- FitTo remet le texte sans couleur
     state.fresh = true
     FitTo(seg, seg)
@@ -953,6 +1016,7 @@ local function FinishTyping()
     text:SetAlpha(1)
     bubble:DWEWaitHide(false)
     HideTails()
+    HideBufs()
     state.customShown = nil
     text:SetText((DWE.noGradient and state.wrapText and state.wrapKey and state.wrapKey:sub(1, #seg) == seg) and state.wrapText or seg)
     if hasGradient then text:SetAlphaGradient(len + FADE_LETTERS + 1, 1) end
