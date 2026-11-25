@@ -62,6 +62,20 @@ function Native.Choice(cat, id, label, tip, default, items, get, set)
     return s, ok and init or nil
 end
 
+-- Curseur : min, max, pas ; fmt pour la valeur affichee ("%d pt", "%.2f").
+function Native.Slider(cat, id, label, tip, default, min, max, step, fmt, get, set)
+    local s = Proxy(cat, id, Settings.VarType and Settings.VarType.Number or type(1), label, default, get, set)
+    if not (s and type(Settings.CreateSliderOptions) == "function" and type(Settings.CreateSlider) == "function") then return s end
+    local okO, opts = pcall(Settings.CreateSliderOptions, min, max, step)
+    if not okO or not opts then return s end
+    local side = rawget(_G, "MinimalSliderWithSteppersMixin")
+    if fmt and opts.SetLabelFormatter and side and side.Label then
+        pcall(opts.SetLabelFormatter, opts, side.Label.Right, function(v) return fmt:format(v) end)
+    end
+    local ok, init = pcall(Settings.CreateSlider, cat, s, opts, tip)
+    return s, ok and init or nil
+end
+
 -- La ligne `child` n'est active que si when() est vrai (grisee sinon), comme dans les options du jeu.
 function Native.DependsOn(child, parent, when)
     if type(child) == "table" and type(parent) == "table" and type(child.SetParentInitializer) == "function" then
@@ -425,10 +439,83 @@ local function BuildProfiles(parent)
     return cat
 end
 
+---------------------------------------------------------------------------- Apparence
+-- Les vignettes des themes et les couleurs du theme Personnalise restent sur la page Storytale
+-- (dessins, pas des lignes) ; ici le theme se choisit dans une liste.
+local function BuildLooks(parent)
+    local L = DWE.L
+    local cat = Settings.RegisterVerticalLayoutSubcategory(parent, L.SEC_THEME .. " (2)")
+    if not cat then return end
+    local function Theme()
+        if DWE.RefreshOptionsExtra then pcall(DWE.RefreshOptionsExtra) end
+        if DWE.OnThemeChanged then DWE.OnThemeChanged() end
+    end
+    local function Wheel()
+        if DWE.choiceBox and DWE.choiceBox:IsShown() and DWE.UpdateVisuals then DWE.UpdateVisuals() end
+    end
+    Native.Choice(cat, "Theme", Bare(L.SEC_THEME), L.THEME_HINT, "bubble",
+        function()
+            local list = {}
+            for _, t in ipairs(DWE.THEME_LIST or {}) do list[#list + 1] = { t.id, L[t.key] or t.id } end
+            return list
+        end,
+        function()
+            local v = DialogueWheelE_Theme or "bubble"
+            if v == "scroll" then v = "parchment" end
+            return v
+        end,
+        function(v) DialogueWheelE_Theme = v; Theme() end)
+    Native.Check(cat, "ThemeFrames", L.THEME_BUBBLES, Tip("THEME_BUBBLES"), true,
+        function() return DialogueWheelE_ThemeFrames ~= true end,
+        function(v) DialogueWheelE_ThemeFrames = not v; Theme() end)
+    Native.Check(cat, "WheelTheme", L.WHEEL_THEME, nil, false,
+        function() return DialogueWheelE_WheelTheme == true end,
+        function(v) DialogueWheelE_WheelTheme = v and true or false; if DWE.OnThemeChanged then DWE.OnThemeChanged() end end)
+    Native.Slider(cat, "Opacity", L.OPACITY_LBL, nil, 1, 0.2, 1, 0.05, "%.2f",
+        function() return tonumber(DialogueWheelE_Opacity) or 1 end,
+        function(v)
+            DialogueWheelE_Opacity = v
+            if DWE.OnThemeChanged then DWE.OnThemeChanged() end
+            if DWE.ApplyBubbleOpacity then DWE.ApplyBubbleOpacity() end
+            Wheel()
+        end)
+    Native.Check(cat, "HideUI", L.HIDE_UI, Tip("HIDE_UI"), false,
+        function() return DialogueWheelE_HideUI == true end,
+        function(v) DialogueWheelE_HideUI = v and true or false end)
+    Native.Check(cat, "MinimapHide", L.MINIMAP_BTN, L.MINIMAP_TIP, true,
+        function() return DialogueWheelE_MinimapHide ~= true end,
+        function(v)
+            DialogueWheelE_MinimapHide = (not v) and true or nil
+            if DWE.MinimapButtonRefresh then DWE.MinimapButtonRefresh() end
+        end)
+    -- Texte : police (pas en chinois/coreen : la police du jeu est imposee), tailles.
+    if not DWE.IS_CJK then
+        Native.Choice(cat, "Font", Bare(L.FONT_FAMILY), nil, "friz",
+            function()
+                local list = {}
+                for _, f in ipairs(DWE.FONTS or {}) do
+                    list[#list + 1] = { f.id, f.default and (f.name .. " (" .. (L.FONT_DEFAULT or "") .. ")") or f.name }
+                end
+                return list
+            end,
+            function() return DialogueWheelE_Font or "friz" end,
+            function(v) DialogueWheelE_Font = v; if DWE.ApplyFont then DWE.ApplyFont() end end)
+    end
+    Native.Slider(cat, "FontSize", L.FONT_SIZE, nil, 14, 10, 22, 1, "%d pt",
+        function() return tonumber(DialogueWheelE_FontSize) or 14 end,
+        function(v) DialogueWheelE_FontSize = v; if DWE.ApplyFont then DWE.ApplyFont() end end)
+    Native.Slider(cat, "ChoiceSize", L.CHOICE_SIZE, nil, 15, 10, 24, 1, "%d pt",
+        function() return DWE.ChoiceSize and DWE.ChoiceSize() or 15 end,
+        function(v) DialogueWheelE_ChoiceSize = v; Wheel() end)
+    Native.looks = cat
+    return cat
+end
+
 -- Appele une fois les anciennes pages creees (DWE.InitOptionsPanel).
 function DWE.BuildNativeOptions(parent)
     if Native.built or not parent or not Supported() then return end
     Native.built = true
+    pcall(BuildLooks, parent)
     pcall(BuildBooks, parent)
     pcall(BuildPlacement, parent)
     pcall(BuildKeys, parent)

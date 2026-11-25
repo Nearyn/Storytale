@@ -278,6 +278,8 @@ function M.Install(locale)
         end,
         CreateCheckbox = function(cat, st, tip) M.nativeControls[#M.nativeControls + 1] = { kind = "check", setting = st, tip = tip } end,
         CreateDropdown = function(cat, st, opts, tip) M.nativeControls[#M.nativeControls + 1] = { kind = "dropdown", setting = st, options = opts() } end,
+        CreateSliderOptions = function(min, max, step) return { min = min, max = max, step = step } end,
+        CreateSlider = function(cat, st, opts, tip) M.nativeControls[#M.nativeControls + 1] = { kind = "slider", setting = st, options = opts } end,
         CreateControlTextContainer = function()
             local data = {}
             return { Add = function(_, v, l) data[#data + 1] = { value = v, label = l } end, GetData = function() return data end }

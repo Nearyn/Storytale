@@ -3634,6 +3634,32 @@ if DWE.NATIVE_OPTIONS and M.nativeSettings and M.nativeSettings.Storytale_Profil
         DWE.askFrame.no._scripts.OnClick(DWE.askFrame.no)
     end
 end
+if DWE.NATIVE_OPTIONS and M.nativeSettings and M.nativeSettings.Storytale_Theme then
+    -- Page native "Apparence" : theme en liste, cases, curseurs.
+    local S = M.nativeSettings
+    local save = { DialogueWheelE_Theme, DialogueWheelE_Opacity, DialogueWheelE_FontSize, DialogueWheelE_ChoiceSize, DialogueWheelE_Font, DialogueWheelE_ThemeFrames }
+    check(S.Storytale_Opacity and S.Storytale_FontSize and S.Storytale_ChoiceSize and S.Storytale_ThemeFrames, "native options: appearance page settings registered")
+    S.Storytale_Theme:SetValue("parchment")
+    check(DialogueWheelE_Theme == "parchment" and S.Storytale_Theme:GetValue() == "parchment", "native looks: parchment theme")
+    S.Storytale_Opacity:SetValue(0.5)
+    check(DialogueWheelE_Opacity == 0.5, "native looks: opacity 0.5")
+    S.Storytale_FontSize:SetValue(18)
+    check(DialogueWheelE_FontSize == 18, "native looks: font size 18")
+    S.Storytale_ChoiceSize:SetValue(20)
+    check(DWE.ChoiceSize() == 20, "native looks: choice size 20")
+    S.Storytale_ThemeFrames:SetValue(false)
+    check(DialogueWheelE_ThemeFrames == true, "native looks: themes as frames")
+    if S.Storytale_Font then
+        S.Storytale_Font:SetValue("lora")
+        check(DialogueWheelE_Font == "lora", "native looks: Lora font")
+    else
+        check(DWE.IS_CJK, "native looks: font list only hidden in CJK")
+    end
+    DialogueWheelE_Theme, DialogueWheelE_Opacity, DialogueWheelE_FontSize, DialogueWheelE_ChoiceSize, DialogueWheelE_Font, DialogueWheelE_ThemeFrames = unpack(save, 1, 6)
+    DWE.SettingsChanged()
+    DWE.OnThemeChanged()
+    if DWE.ApplyFont then DWE.ApplyFont() end
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end
