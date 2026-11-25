@@ -12,6 +12,7 @@ local SEGMENT_MAX = 150        -- longueur max d'un morceau (en octets)
 local TYPE_SPEED = 30          -- vitesse d'ecriture sans voix, en lettres par seconde
 -- Sans voix reconnue (meme avec Spoken installe) : meme vitesse que sans Spoken.
 local SPOKEN_PACE = TYPE_SPEED
+DWE.fadeWiggle = true -- /storytale fondu2 : couper pour comparer
 local FADE_LETTERS = 10        -- nombre de lettres en cours d'apparition (fondu)
 
 -- Lettres 1..n nettes, les FADE_LETTERS suivantes en fondu.
@@ -536,9 +537,25 @@ local function FadeLen(n)
     for k = 1, (state.index or 1) - 1 do at = at + (state.lens[k] or 0) end
     -- Arret a une ponctuation (on attend la voix) : aucune lettre du mot suivant en fondu (on
     -- voyait « on » de « one » pendant l'attente : la bulle semblait bloquee sur ce mot).
-    if state.genWaitAt and math.abs(state.genWaitAt - at) < 1 then return 1 end
+    -- On alterne 1 et 2 a chaque image : la lettre d'apres est l'espace qui suit la ponctuation
+    -- (rien ne se voit), mais le fondu change sans cesse. Essai : apres une longue attente au
+    -- meme fondu, le jeu ne redessinait plus tout de suite a la reprise (« on » fige 0,45 s).
+    if state.genWaitAt and math.abs(state.genWaitAt - at) < 1 then
+        if DWE.fadeWiggle then
+            state.wiggle = not state.wiggle
+            return state.wiggle and 2 or 1
+        end
+        return 1
+    end
     for _, c in ipairs(stops) do
-        if c >= at then return math.max(1, math.min(FADE_LETTERS, c - at)) end
+        if c >= at then
+            -- pile sur la ponctuation (attente de la voix) : meme essai qu'au-dessus
+            if c - at < 1 and DWE.fadeWiggle then
+                state.wiggle = not state.wiggle
+                return state.wiggle and 2 or 1
+            end
+            return math.max(1, math.min(FADE_LETTERS, c - at))
+        end
     end
     return FADE_LETTERS
 end
