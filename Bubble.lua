@@ -1430,7 +1430,9 @@ bubble:HookScript("OnUpdate", function(_, elapsed)
         if fluid.still > 0.15 then
             local seg = state.segs[fluid.lastI or 1] or ""
             local prev = seg:sub(1, fluid.lastN or 0):match("(%S)%s*$") or ""
-            if not prev:find("[%.,!?;:%-]") then
+            -- (juste avant la ponctuation, « fact|, », c'est aussi la pause de la virgule)
+            local nextc = seg:sub((fluid.lastN or 0) + 1, (fluid.lastN or 0) + 1)
+            if not prev:find("[%.,!?;:%-]") and not nextc:find("[%.,!?;:%-]") then
                 fluid.count = fluid.count + 1
                 if fluid.still > fluid.worst then fluid.worst, fluid.where = fluid.still, FluidWord(seg, fluid.lastN or 0) end
             end
