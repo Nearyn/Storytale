@@ -18,6 +18,7 @@
 - No more lighter band above the tail on parchment themes (Gilded Vellum, Arcane, Sylvan).
 - Bubbles no longer grow a line too tall for a moment when a page changes, and no longer flash empty between two pages.
 - Gamepad: L1 / R1 alone no longer zoom the camera.
+- Books options: "Follow Spoken's voice" and "Page-turn animation and sound" are greyed out when books and plaques are shown by Blizzard or DialogueUI (they only apply to Storytale's books).
 
 ---
 
@@ -37,6 +38,7 @@
 - Plus de bande plus claire au-dessus de la pointe sur les thèmes parchemin (Vélin doré, Arcanes, Sylvain).
 - Les bulles ne grandissent plus d'une ligne un instant au changement de page, et ne clignotent plus à vide entre deux pages.
 - Manette : L1 / R1 seuls ne zooment plus la caméra.
+- Options des livres : « Suivre la voix de Spoken » et « Animation et son des pages » sont grisées quand les livres et les plaques sont affichés par Blizzard ou DialogueUI (elles ne concernent que les livres de Storytale).
 
 ## 1.9.1
 
