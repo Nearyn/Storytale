@@ -5266,6 +5266,13 @@ local function SetFrameScales(sc)
     end
 end
 
+-- Hauteur de la liste et bulle affichee : ce dont depend la place de la roue sous la bulle.
+function DWE.WheelAnchorKey()
+    local okH, h = pcall(choiceBox.GetHeight, choiceBox)
+    h = (okH and type(h) == "number") and math.floor(h + 0.5) or 0
+    return h, (DWE.bubble and DWE.bubble:IsShown()) and true or false
+end
+
 -- Les ecarts sont en unites d'UIParent : multiplies par le facteur de zoom et de taille du
 -- PNJ, divises par l'echelle de chaque cadre.
 local function AnchorTo(plate)
@@ -5285,6 +5292,9 @@ local function AnchorTo(plate)
     -- Milieu de la roue au niveau du bras ; avec la bulle, la roue reste sous la bulle si elles
     -- se touchent sur le cote (la bulle grandit vers le haut, son bas ne bouge pas).
     local wy = o.wheelY * k
+    -- Ce qui a servi a placer la roue : si la liste change de hauteur (nouvelle page de dialogue
+    -- du meme PNJ) ou si la bulle apparait ou disparait, le suivi replace la roue (voir plus bas).
+    follow.wheelH, follow.bubbleOn = DWE.WheelAnchorKey()
     if DWE.bubble and DWE.bubble:IsShown() and DWE.BubbleMaxWidth then
         local bubbleRight = o.bubbleX * k + DWE.BubbleMaxWidth() * bs / 2
         if bubbleRight > o.wheelX * k - 4 then
@@ -5688,6 +5698,12 @@ follower:SetScript("OnUpdate", DWE.Prof("suivi du PNJ", function(_, elapsed)
         UpdateDrag()
     elseif follow.plate and (measured or math.abs(ZoomFactor() - (follow.zoomF or 1)) > 0.003) then
         pcall(AnchorTo, follow.plate) -- zoom en cours ou taille du PNJ connue : on suit
+    elseif follow.plate then
+        -- Meme PNJ, page de dialogue suivante : la liste n'a plus la meme hauteur (ex. garde de
+        -- Hurlevent, 12 choix puis "Au revoir" seul), ou la bulle vient d'apparaitre ou de
+        -- disparaitre. La roue se replace selon la liste actuelle, pas celle du debut.
+        local h, b = DWE.WheelAnchorKey()
+        if h ~= follow.wheelH or b ~= follow.bubbleOn then pcall(AnchorTo, follow.plate) end
     end
     -- Le jeu remet l'opacite de certaines plaques apres leur apparition : on les recache a
     -- chaque image (sinon elles se voyaient une demi-seconde a l'entree en conversation).

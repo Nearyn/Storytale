@@ -583,6 +583,23 @@ M.npcHeight = 5.5
 DWE.choiceBox:Show()
 for _ = 1, 3 do follower._scripts.OnUpdate(follower, 0.05) end
 check(DWE.choiceBox:GetScale() == 1, "human NPC: normal size")
+-- Meme PNJ, page suivante avec moins de choix : la roue se replace (elle gardait la place
+-- calculee pour la longue liste du debut, ex. garde de Hurlevent puis "Au revoir" seul).
+do
+    local n, orig = 0, DWE.choiceBox.SetPoint
+    DWE.choiceBox.SetPoint = function(...) n = n + 1 return orig(...) end
+    DWE.choiceBox:SetHeight(320)
+    follower._scripts.OnUpdate(follower, 0.016)
+    check(n > 0, "same NPC: wheel re-placed when the list height changes")
+    n = 0
+    follower._scripts.OnUpdate(follower, 0.016)
+    check(n == 0, "same NPC: wheel not re-placed every frame when nothing changes")
+    DWE.choiceBox:SetHeight(44)
+    follower._scripts.OnUpdate(follower, 0.016)
+    check(n > 0, "same NPC: wheel re-placed for a shorter list (Goodbye alone)")
+    DWE.choiceBox.SetPoint = nil
+    if rawget(DWE.choiceBox, "SetPoint") then DWE.choiceBox.SetPoint = orig end
+end
 DWE.UpdateVisuals(); DWE.ToggleDialogueText(); DWE.ToggleDialogueText()
 pt = DWE.textBox._points[#DWE.textBox._points]
 check(pt and pt[2] == plate, "popup stays pinned after refresh")
