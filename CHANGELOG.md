@@ -1,5 +1,19 @@
 # Changelog / Journal des versions
 
+## 1.10.1
+
+**English**
+
+### Improved
+- Options: "Voice follows my pages" and "Stop the voice when closing a book" moved to the books page, under "Follow Spoken's voice". They are greyed out without Spoken, or when Blizzard or DialogueUI shows the books and plaques.
+
+---
+
+**Français**
+
+### Améliorations
+- Options : « La voix suit mes pages » et « Couper la voix en fermant un livre » passent dans la page des livres, sous « Suivre la voix de Spoken ». Elles sont grisées sans Spoken, ou quand Blizzard ou DialogueUI affichent les livres et les plaques.
+
 ## 1.10.0
 
 **English**
