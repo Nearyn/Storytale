@@ -954,7 +954,17 @@ local function VoiceStep(st, pos, share, length, dt)
         -- rythme moyen, la bulle avait jusqu'a 1 s d'avance apres chaque pause, mesure en jeu.)
         if st.generated then
             local target = share * st.total
-            if target <= pos then return pos end
+            -- Lettres ecrites avant que la voix ne soit entendue : la voix les rattrape. Au lieu
+            -- de s'arreter net en les attendant (« Even withi » fige une demi-seconde, vu en jeu
+            -- le 25/11), l'ecriture ralentit puis la voix la rejoint, sans arret visible.
+            if st.preLead == nil then st.preLead = pos end
+            if target <= pos then
+                if st.preLead > 0 and pos < st.preLead + DWE.GEN_LEAD_MAX then
+                    return pos + dt * rate * DWE.GEN_CRAWL
+                end
+                return pos
+            end
+            st.preLead = 0
             local new = pos + (target - pos) * math.min(1, dt / DWE.GEN_EASE)
             if target - new < 0.3 then new = target end
             return new
@@ -1056,6 +1066,7 @@ DWE.BubbleGeneratedTimes = GeneratedTimes
 -- que sa longueur ne le permet : pendant une pause de la voix, l'ecriture attend au bout du mot.
 DWE.GEN_DELAY = 0.25 -- secondes entre le lancement du son et la voix entendue (durees generees)
 DWE.GEN_EASE = 0.12 -- secondes : retard de l'ecriture sur la lettre dite (durees generees)
+DWE.GEN_CRAWL, DWE.GEN_LEAD_MAX = 0.35, 4 -- depart : vitesse reduite (part du rythme de la voix), avance maxi en plus (lettres)
 DWE.GEN_FLOW = 0.8 -- secondes : blanc apres un mot sans ponctuation au-dela duquel la bulle attend (souffle)
 local function GeneratedShare(st, clip, length)
     local t = GeneratedTimes(clip)
@@ -1396,7 +1407,7 @@ function DWE.Bubble.SetText(s)
     state.manual, state.clip, state.clipMatch, state.norm = nil, nil, nil, nil
     state.wmap, state.posW, state.timed, state.generated = nil, nil, nil, nil
     state.voiced, state.age, state.holdT, state.waitT = nil, 0, 0, 0
-    state.lastTarget, state.tvel, state.spd = nil, nil, nil
+    state.lastTarget, state.tvel, state.spd, state.preLead = nil, nil, nil, nil
     state.setAt = GetTime and GetTime() or nil
     text:SetAlpha(1)
     if IsSecret(s) then
@@ -1519,7 +1530,7 @@ function DWE.Bubble.PopupText(s)
     pop.manual, pop.clip, pop.clipMatch = nil, nil, nil
     pop.wmap, pop.posW, pop.timed, pop.generated = nil, nil, nil, nil
     pop.voiced, pop.age, pop.holdT = nil, 0, 0
-    pop.lastTarget, pop.tvel, pop.spd = nil, nil, nil
+    pop.lastTarget, pop.tvel, pop.spd, pop.preLead = nil, nil, nil, nil
     pop.setAt = GetTime and GetTime() or nil
     pop.len = (type(s) == "string" and not IsSecret(s)) and Utf8Len(s) or 0
     if not popupHasGradient or not SpokenInstalled() or IsSecret(s) or pop.len == 0 then

@@ -1150,6 +1150,25 @@ do
         end
         check(worst <= 0.25 + 1e-6, "generated timings: words flow into each other, no stop between them (longest stop " .. worst .. " s)")
     end
+    -- Depart : lettres ecrites avant la voix ; quand elle arrive, l'ecriture ralentit au lieu
+    -- de s'arreter net pour l'attendre (Theridran, « Even withi » fige).
+    if en then
+        local gs = "Even within cold, stone walls such as these."
+        DWE.GeneratedTimings["test-generated-clip"] = "0 .36 .72 1.18 1.6 2.44 2.64 2.8"
+        DWE.SetDialogueText("z", gs)
+        clip = nil
+        for _ = 1, 12 do now = now + 0.05; tick(0.05) end -- Spoken charge le son : la bulle commence seule
+        clip = { length = 3.4, spokenAt = now + 3.4, text = gs, present = { transcript = gs }, path = "sounds/gossip/test-generated-clip.ogg" }
+        local last, still, worst = -1, 0, 0
+        for _ = 1, 40 do
+            now = now + 0.05; tick(0.05)
+            local n = #vis()
+            if n == last then still = still + 0.05 else still = 0 end
+            if still > worst then worst = still end
+            last = n
+        end
+        check(worst <= 0.2 + 1e-6, "generated timings: no freeze when the voice catches up with the first letters (longest stop " .. worst .. " s)")
+    end
     DWE.GeneratedTimings["test-generated-clip"] = nil
 end
 
