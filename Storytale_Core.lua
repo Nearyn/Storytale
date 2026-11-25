@@ -7601,6 +7601,15 @@ function DWE.InitOptionsPanel()
     local panel = CreateFrame("Frame", "DialogueWheelEOptionsPanel")
     panel.name = "Storytale"
     DWE.optionsPanel = panel
+    -- Bouton vers la fenetre d'options de Storytale (faite pour la manette).
+    if DWE.NATIVE_OPTIONS then
+        local open = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+        open:SetSize(220, 24)
+        open:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -36, -6)
+        open:SetText(DWE.L.OPT_WINDOW_OPEN or "Storytale")
+        open:SetScript("OnClick", function() if DWE.OpenOptionsWindow then DWE.OpenOptionsWindow() end end)
+        DWE.optionsWindowButton = open
+    end
 
     -- Tout le contenu defile (le panneau est plus haut que la fenetre des options).
     local scroll = CreateFrame("ScrollFrame", "DialogueWheelEOptionsScroll", panel, "UIPanelScrollFrameTemplate")
@@ -8927,7 +8936,6 @@ function DWE.InitOptionsPanel()
         end
         -- Pages en lignes natives (refonte page par page, voir Options_Native.lua).
         -- (Cachees dans les versions publiees tant que la refonte n'est pas finie.)
-        if DWE.NATIVE_OPTIONS and DWE.BuildNativeOptions then pcall(DWE.BuildNativeOptions, cat) end
         -- Sous-pages toujours depliees dans la liste du jeu : a la manette, le petit "+" a cote du
         -- nom est difficile (voire impossible) a atteindre.
         if type(cat.SetExpanded) == "function" then pcall(cat.SetExpanded, cat, true) else cat.expanded = true end

@@ -3573,8 +3573,57 @@ do
 end
 -- Options en lignes natives : page Placement (cachee dans les versions publiees : DWE.NATIVE_OPTIONS).
 if not DWE.NATIVE_OPTIONS then
-    check(next(M.nativeSettings or {}) == nil, "native options: hidden while the redesign is not finished")
+    check(#DWE.Native.pages == 0, "native options: hidden while the redesign is not finished")
 else
+    -- Fenetre d'options de Storytale : ses lignes, vues comme des reglages (GetValue / SetValue)
+    -- et des boutons (data.buttonText / buttonClick) pour les tests ci-dessous.
+    DWE.BuildNativeOptions()
+    M.nativeSettings, M.nativeLayouts = {}, {}
+    for _, page in ipairs(DWE.Native.pages) do
+        local l = { inits = {} }
+        M.nativeLayouts[page.name] = l
+        for _, r in ipairs(page.rows) do
+            if r.id then
+                M.nativeSettings["Storytale_" .. r.id] = setmetatable({ row = r,
+                    GetValue = function() return r:Value() end, SetValue = function(_, v) r:Set(v) end },
+                    { __index = function(_, k) if k == "notified" then return DWE.Native.refreshCount or 0 end end })
+            end
+            if r.kind == "button" then
+                l.inits[#l.inits + 1] = setmetatable({ kind = "button", label = r.label, row = r },
+                    { __index = function(_, k)
+                        if k == "data" then return { buttonText = r.text, buttonClick = function() r:Activate() end } end
+                    end })
+            end
+        end
+    end
+    -- La fenetre : onglets, ligne choisie a la manette, valeur changee, fermeture.
+    do
+        local f = DWE.OpenOptionsWindow()
+        check(f and f:IsShown() and #DWE.Native.pages >= 6, "options window opens with its tabs")
+        local pad = f._scripts and f._scripts.OnGamePadButtonDown
+        local place
+        for i, pg in ipairs(DWE.Native.pages) do if pg.name == DWE.L.SEC_PLACE then place = i end end
+        f.ShowPage(1)
+        if pad then pad(f, "PADRSHOULDER") end
+        check(f.pageIndex == 2, "options window: shoulder button goes to the next tab")
+        if pad and place then
+            f.ShowPage(place)
+            local wanted
+            for k, r in ipairs(DWE.Native.pages[place].rows) do if r.id == "WheelSide" then wanted = k end end
+            f.Select(wanted)
+            local save = DialogueWheelE_WheelSide
+            pad(f, "PADDRIGHT")
+            check(DialogueWheelE_WheelSide == "left", "options window: D-pad right changes the selected choice")
+            pad(f, "PADDLEFT")
+            check(DialogueWheelE_WheelSide == nil, "options window: D-pad left changes it back")
+            pad(f, "PAD1")
+            check(DWE.pickFrame and DWE.pickFrame:IsShown(), "options window: A opens the choice window")
+            DWE.pickFrame.Close()
+            DialogueWheelE_WheelSide = save
+            pad(f, "PAD2")
+            check(not f:IsShown(), "options window: B closes it")
+        end
+    end
     local S = M.nativeSettings
     check(S.Storytale_AttachNPC and S.Storytale_Locked and S.Storytale_WheelSide and S.Storytale_QuestAuto, "native options: placement settings registered")
     if S.Storytale_WheelSide then
@@ -3596,16 +3645,6 @@ else
         local n0 = S.Storytale_Locked.notified or 0
         DWE.SettingsChanged()
         check((S.Storytale_Locked.notified or 0) > n0, "native options: lines refreshed when settings change (profile, defaults)")
-        -- Options du jeu ouvertes ("Default all" dans la page principale) : pas de NotifyUpdate,
-        -- sinon le jeu note le reglage comme modifie au nom de Storytale et la manette se bloque a la fermeture.
-        do
-            local oldSP = rawget(_G, "SettingsPanel")
-            _G.SettingsPanel = { IsShown = function() return true end }
-            local n1 = S.Storytale_Locked.notified or 0
-            DWE.SettingsChanged()
-            check((S.Storytale_Locked.notified or 0) == n1, "native options: no refresh while the game's options are open (taint on close)")
-            _G.SettingsPanel = oldSP
-        end
         DialogueWheelE_WheelSide, DialogueWheelE_Locked, DialogueWheelE_QuestAuto, DialogueWheelE_AttachNPC = saveSide, saveLock, saveQA, saveAttach
         DWE.SettingsChanged()
     end

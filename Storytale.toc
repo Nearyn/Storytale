@@ -16,5 +16,4 @@ SpokenFocus.lua
 SpokenQueueUI.lua
 Storytale.lua
 Options_Native.lua
-Options_Native.xml
 MinimapButton.lua

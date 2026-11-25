@@ -23,6 +23,8 @@ local function PlaceButton(btn)
 end
 
 local function OpenOptions()
+    -- Fenetre d'options de Storytale (manette, clavier, souris), voir Options_Native.lua.
+    if DWE.NATIVE_OPTIONS and DWE.OpenOptionsWindow then DWE.OpenOptionsWindow() return end
     local cat = DWE.optionsCategory
     if Settings and Settings.OpenToCategory and cat then
         local id = cat.GetID and cat:GetID() or cat.ID

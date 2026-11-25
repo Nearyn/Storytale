@@ -7,110 +7,17 @@ if not DWE then return end
 
 local Native = {}
 DWE.Native = Native
-
--- Ligne "liste de choix" (modele StorytaleSettingsChoiceTemplate, Options_Native.xml) :
--- libelle du jeu a gauche, puis "<  valeur  >" ; un clic sur la valeur ouvre la fenetre de choix.
-StorytaleSettingsChoiceMixin = CreateFromMixins and SettingsListElementMixin
-    and CreateFromMixins(SettingsListElementMixin) or {}
-local ChoiceRow = StorytaleSettingsChoiceMixin
-function ChoiceRow:OnLoad()
-    if SettingsListElementMixin and SettingsListElementMixin.OnLoad then SettingsListElementMixin.OnLoad(self) end
-    local row = self
-    self.Prev:SetScript("OnClick", function() row:Step(-1) end)
-    self.Next:SetScript("OnClick", function() row:Step(1) end)
-    self.Value:SetScript("OnClick", function() row:OpenPicker() end)
-    for _, b in ipairs({ self.Prev, self.Next, self.Value }) do
-        b:SetScript("OnEnter", function(btn)
-            local d = row.data
-            if not d then return end
-            GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
-            GameTooltip:SetText(d.name or "", 1, 0.82, 0)
-            if d.tooltip then GameTooltip:AddLine(d.tooltip, 1, 1, 1, true) end
-            GameTooltip:Show()
-        end)
-        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    end
-end
-function ChoiceRow:Init(initializer)
-    SettingsListElementMixin.Init(self, initializer)
-    self.init = initializer
-    Native.rows[self] = true
-    self:Refresh()
-end
-function ChoiceRow:Release()
-    Native.rows[self] = nil
-    self.init = nil
-    SettingsListElementMixin.Release(self)
-end
-function ChoiceRow:EvaluateState()
-    SettingsListElementMixin.EvaluateState(self)
-    self:Refresh()
-end
-function ChoiceRow:IsChoiceEnabled()
-    local preds = self.init and self.init.modifyPredicates
-    if type(preds) == "table" then
-        for _, p in ipairs(preds) do
-            local ok, r = pcall(p)
-            if ok and not r then return false end
-        end
-    end
-    return true
-end
-function ChoiceRow:Refresh()
-    local d = self.data
-    if not d then return end
-    local okG, cur = pcall(d.get)
-    cur = okG and cur or nil
-    local shown = cur ~= nil and tostring(cur) or ""
-    for _, it in ipairs(Native.Items(d)) do
-        if it[1] == cur then shown = it[2] or shown break end
-    end
-    self.Value:SetText(shown)
-    local on = self:IsChoiceEnabled()
-    self.Prev:SetEnabled(on)
-    self.Next:SetEnabled(on)
-    self.Value:SetEnabled(on)
-    local c = on and NORMAL_FONT_COLOR or GRAY_FONT_COLOR
-    if c and self.Text then self.Text:SetTextColor(c:GetRGB()) end
-end
-function ChoiceRow:Apply(v)
-    local d = self.data
-    if not d then return end
-    pcall(d.set, v)
-    Native.RefreshRows()
-end
-function ChoiceRow:Step(dir)
-    local d = self.data
-    if not (d and self:IsChoiceEnabled()) then return end
-    local items = Native.Items(d)
-    if #items == 0 then return end
-    local okG, cur = pcall(d.get)
-    local idx = 0
-    for i, it in ipairs(items) do if okG and it[1] == cur then idx = i break end end
-    idx = idx + dir
-    if idx < 1 then idx = #items elseif idx > #items then idx = 1 end
-    self:Apply(items[idx][1])
-end
-function ChoiceRow:OpenPicker()
-    local d = self.data
-    if not (d and self:IsChoiceEnabled() and DWE.PickList) then return end
-    local row = self
-    local okG, cur = pcall(d.get)
-    DWE.PickList({ title = d.name, items = Native.Items(d), current = okG and cur or nil,
-        onPick = function(v) row:Apply(v) end })
-end
--- Pages natives visibles (branche de travail). A mettre a false dans une version publiee tant
--- que la refonte n'est pas finie.
+-- Fenetre d'options de Storytale (a la place des pages du panneau d'options du jeu).
+-- A mettre a false dans une version publiee tant qu'elle n'est pas finie.
 DWE.NATIVE_OPTIONS = true
-Native.settings = {}
 
-local function Supported()
-    return type(Settings) == "table" and type(Settings.RegisterVerticalLayoutSubcategory) == "function"
-        and type(Settings.RegisterProxySetting) == "function" and type(Settings.CreateCheckbox) == "function"
-end
-Native.Supported = Supported
+-- Les pages se decrivent ligne par ligne (cases, listes, curseurs, boutons, titres) ; la fenetre
+-- les dessine elle-meme. Rien ne passe par le panneau d'options du jeu : a la manette, ses
+-- listes et sa navigation se bloquaient des qu'un addon y ajoutait des lignes ("Interface action
+-- failed", taint.log du 25/11), et sa liste de categories se parcourait mal.
+Native.pages = {}
+Native.byId = {}
 
--- Libelle de ligne sans les deux-points de l'ancienne page ("Touche Dialogue :" -> "Touche Dialogue").
 local function Bare(text)
     return (tostring(text or ""):gsub("%s*[:：]%s*$", ""))
 end
@@ -121,119 +28,147 @@ local function Tip(key)
     return L[key .. "_TIP"]
 end
 
--- Reglage relie a une valeur de Storytale : get() la lit, set(v) l'applique (memes effets que
--- l'ancienne case ou liste).
-local function Proxy(cat, id, kind, label, default, get, set)
-    local ok, setting = pcall(Settings.RegisterProxySetting, cat, "Storytale_" .. id, kind, label, default, get, set)
-    if ok and setting then
-        Native.settings[#Native.settings + 1] = setting
-        return setting
+-- Une ligne : kind = "check" | "choice" | "slider" | "button" | "header".
+local Row = {}
+Row.__index = Row
+function Row:SetParentInitializer(parent, when)
+    self.parent = parent
+    self.indent = true
+    if when then self:AddModifyPredicate(when) end
+end
+function Row:AddModifyPredicate(when)
+    self.preds = self.preds or {}
+    self.preds[#self.preds + 1] = when
+end
+function Row:IsEnabled()
+    for _, p in ipairs(self.preds or {}) do
+        local ok, r = pcall(p)
+        if ok and not r then return false end
     end
+    return true
 end
-
-function Native.Check(cat, id, label, tip, default, get, set)
-    local s = Proxy(cat, id, type(true), label, default, function() return get() and true or false end, set)
-    local init
-    if s then
-        local ok, r = pcall(Settings.CreateCheckbox, cat, s, tip)
-        if ok then init = r end
+function Row:Value()
+    if not self.get then return nil end
+    local ok, v = pcall(self.get)
+    if ok then return v end
+end
+function Row:Set(v)
+    if self.set then pcall(self.set, v) end
+    Native.Refresh()
+end
+function Row:Items()
+    local items = self.items
+    if type(items) == "function" then
+        local ok, r = pcall(items)
+        items = ok and r or nil
     end
-    return s, init
-end
-
--- Page de reglages : on garde sa mise en page pour y ajouter nos propres lignes.
-Native.layouts = {}
-function Native.Sub(parent, name)
-    local cat, layout = Settings.RegisterVerticalLayoutSubcategory(parent, name)
-    if cat then Native.layouts[cat] = layout end
-    return cat, layout
-end
-
--- Liste de choix : une ligne a nous (fleches + bouton qui ouvre la fenetre de choix de
--- Storytale), PAS la liste deroulante du jeu. Ouverte a la manette, la liste du jeu cree sa
--- navigation au nom de Storytale (elle lit nos choix) ; a la fermeture des options, le jeu
--- refusait de la retirer ("Interface action failed", taint.log du 25/11 18h14).
--- items : liste { valeur, libelle }, ou fonction relue a chaque fois (profils).
-Native.rows = setmetatable({}, { __mode = "k" })
-function Native.Items(data)
-    local items = data.items
-    if type(items) == "function" then items = items() end
     return type(items) == "table" and items or {}
 end
-function Native.RefreshRows()
-    for row in pairs(Native.rows) do
-        if row.Refresh and row:IsShown() then pcall(row.Refresh, row) end
+function Row:ValueText()
+    local v = self:Value()
+    if self.kind == "choice" then
+        for _, it in ipairs(self:Items()) do if it[1] == v then return it[2] or tostring(v) end end
+        return v ~= nil and tostring(v) or "-"
+    elseif self.kind == "slider" then
+        v = tonumber(v) or self.default or 0
+        return self.fmt and self.fmt:format(v) or tostring(v)
+    elseif self.kind == "button" then
+        return self.text or ""
     end
 end
-function Native.Choice(cat, id, label, tip, default, items, get, set)
-    local layout = Native.layouts[cat]
-    local make = Settings.CreateElementInitializer
-    if not (layout and make) then return end
-    local data = { name = label, tooltip = tip, items = items, get = get, set = set, id = id }
-    local ok, init = pcall(make, "StorytaleSettingsChoiceTemplate", data)
-    if not (ok and init) then return end
-    if init.AddSearchTags then pcall(init.AddSearchTags, init, label) end
-    pcall(layout.AddInitializer, layout, init)
-    return nil, init
-end
-
--- Curseur : min, max, pas ; fmt pour la valeur affichee ("%d pt", "%.2f").
-function Native.Slider(cat, id, label, tip, default, min, max, step, fmt, get, set)
-    local s = Proxy(cat, id, Settings.VarType and Settings.VarType.Number or type(1), label, default, get, set)
-    if not (s and type(Settings.CreateSliderOptions) == "function" and type(Settings.CreateSlider) == "function") then return s end
-    local okO, opts = pcall(Settings.CreateSliderOptions, min, max, step)
-    if not okO or not opts then return s end
-    local side = rawget(_G, "MinimalSliderWithSteppersMixin")
-    if fmt and opts.SetLabelFormatter and side and side.Label then
-        pcall(opts.SetLabelFormatter, opts, side.Label.Right, function(v) return fmt:format(v) end)
+-- Gauche / droite (manette, fleches, petites fleches de la ligne).
+function Row:Step(dir)
+    if not self:IsEnabled() then return end
+    if self.kind == "check" then
+        self:Set(not self:Value())
+    elseif self.kind == "choice" then
+        local items = self:Items()
+        if #items == 0 then return end
+        local cur, idx = self:Value(), 0
+        for i, it in ipairs(items) do if it[1] == cur then idx = i break end end
+        idx = idx + dir
+        if idx < 1 then idx = #items elseif idx > #items then idx = 1 end
+        self:Set(items[idx][1])
+    elseif self.kind == "slider" then
+        local v = (tonumber(self:Value()) or self.default or self.min) + dir * self.step
+        v = math.max(self.min, math.min(self.max, v))
+        v = math.floor(v / self.step + 0.5) * self.step
+        self:Set(v)
     end
-    local ok, init = pcall(Settings.CreateSlider, cat, s, opts, tip)
-    return s, ok and init or nil
+end
+-- A / Entree / clic.
+function Row:Activate()
+    if not self:IsEnabled() then return end
+    if self.kind == "check" then
+        self:Set(not self:Value())
+    elseif self.kind == "choice" then
+        local row = self
+        if DWE.PickList then
+            DWE.PickList({ title = self.label, items = self:Items(), current = self:Value(),
+                onPick = function(v) row:Set(v) end })
+        end
+    elseif self.kind == "button" then
+        if self.onClick then pcall(self.onClick) end
+        Native.Refresh()
+    end
 end
 
--- La ligne `child` n'est active que si when() est vrai (grisee sinon), comme dans les options du jeu.
+local function NewRow(page, kind, id, label, tip)
+    local r = setmetatable({ kind = kind, id = id, label = label, tip = tip, page = page }, Row)
+    page.rows[#page.rows + 1] = r
+    if id then Native.byId[id] = r end
+    return r
+end
+
+function Native.Sub(_, name)
+    local page = { name = name, rows = {} }
+    Native.pages[#Native.pages + 1] = page
+    return page, page
+end
+function Native.Check(page, id, label, tip, default, get, set)
+    local r = NewRow(page, "check", id, label, tip)
+    r.default = default
+    r.get = function() return get() and true or false end
+    r.set = set
+    return r, r
+end
+function Native.Choice(page, id, label, tip, default, items, get, set)
+    local r = NewRow(page, "choice", id, label, tip)
+    r.default, r.items, r.get, r.set = default, items, get, set
+    return r, r
+end
+function Native.Slider(page, id, label, tip, default, min, max, step, fmt, get, set)
+    local r = NewRow(page, "slider", id, label, tip)
+    r.default, r.min, r.max, r.step, r.fmt, r.get, r.set = default, min, max, step, fmt, get, set
+    return r, r
+end
+function Native.Button(page, label, text, onClick, tip)
+    local r = NewRow(page, "button", nil, label, tip)
+    r.text, r.onClick = text, onClick
+    return r
+end
+function Native.Header(page, text)
+    return NewRow(page, "header", nil, text)
+end
 function Native.DependsOn(child, parent, when)
-    if type(child) == "table" and type(parent) == "table" and type(child.SetParentInitializer) == "function" then
-        pcall(child.SetParentInitializer, child, parent, when)
-    end
+    if type(child) == "table" and child.SetParentInitializer and parent then child:SetParentInitializer(parent, when) end
 end
-
-function Native.Button(layout, label, text, onClick, tip)
-    local make = rawget(_G, "CreateSettingsButtonInitializer")
-    if not (layout and make) then return end
-    local ok, init = pcall(make, label, text, onClick, tip, true)
-    if ok and init then pcall(layout.AddInitializer, layout, init) return init end
+-- Nouveau texte d'un bouton (touche choisie...).
+function Native.SetButtonText(row, text)
+    if type(row) == "table" then row.text = text end
+    Native.Refresh()
 end
--- Nouveau texte d'un bouton (repris par la ligne a son prochain affichage).
-function Native.SetButtonText(init, text)
-    if type(init) == "table" and type(init.data) == "table" then init.data.buttonText = text end
-end
-
-function Native.Header(layout, text)
-    local make = rawget(_G, "CreateSettingsListSectionHeaderInitializer")
-    if not (layout and make) then return end
-    local ok, init = pcall(make, text)
-    if ok and init then pcall(layout.AddInitializer, layout, init) end
-end
-
--- Profil change, page remise a zero... : les lignes affichees relisent leur valeur.
+-- Profil change, page remise a zero... : la fenetre relit ses valeurs.
 function Native.Refresh()
-    -- Jamais pendant que les options du jeu sont ouvertes : NotifyUpdate fait noter le reglage
-    -- comme modifie dans la liste du panneau, au nom de Storytale ; a la fermeture (Echap), le jeu
-    -- parcourt cette liste contaminee et la manette se bloque ("Default all" puis Echap). Les
-    -- lignes relisent de toute facon leur valeur quand la page s'affiche.
-    Native.RefreshRows() -- (nos lignes : sans risque, meme options ouvertes)
-    local sp = rawget(_G, "SettingsPanel")
-    if sp and sp.IsShown and sp:IsShown() then return end
-    for _, s in ipairs(Native.settings) do
-        if s.NotifyUpdate then pcall(s.NotifyUpdate, s) end
-    end
+    Native.refreshCount = (Native.refreshCount or 0) + 1
+    if Native.window and Native.window:IsShown() and Native.window.Draw then pcall(Native.window.Draw) end
 end
+Native.RefreshRows = Native.Refresh
 
 ---------------------------------------------------------------------------- Placement
 local function BuildPlacement(parent)
     local L = DWE.L
-    local cat, layout = Native.Sub(parent, L.SEC_PLACE .. " (2)")
+    local cat, layout = Native.Sub(parent, L.SEC_PLACE)
     if not cat then return end
     Native.Check(cat, "AttachNPC", L.ATTACH_NPC, L.ATTACH_TIP, true,
         function() return DialogueWheelE_AttachNPC ~= false end,
@@ -274,7 +209,7 @@ end
 ---------------------------------------------------------------------------- Livres, lettres et plaques
 local function BuildBooks(parent)
     local L = DWE.L
-    local cat = Native.Sub(parent, L.SEC_BOOKS .. " (2)")
+    local cat = Native.Sub(parent, L.SEC_BOOKS)
     if not cat then return end
     -- Qui affiche : Storytale, DialogueUI (seulement s'il est actif) ou le jeu.
     local duiOn = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DialogueUI")
@@ -339,7 +274,7 @@ end
 ---------------------------------------------------------------------------- Touches et manette
 local function BuildKeys(parent)
     local L = DWE.L
-    local cat, layout = Native.Sub(parent, L.CAT_KEYS .. " (2)")
+    local cat, layout = Native.Sub(parent, L.CAT_KEYS)
     if not cat then return end
     local Label = DWE.KeyLabel or function(k) return (k and k ~= "") and k or "-" end
     local keyInit
@@ -399,7 +334,7 @@ end
 
 local function BuildSpoken(parent)
     local L = DWE.L
-    local cat, layout = Native.Sub(parent, L.SEC_SPOKEN .. " (2)")
+    local cat, layout = Native.Sub(parent, L.SEC_SPOKEN)
     if not cat then return end
     local function SpokenOn() return DWE.SpokenFocus and DWE.SpokenFocus.Available and DWE.SpokenFocus.Available() and true or false end
     if not SpokenOn() then Native.Header(layout, L.SPOKEN_NEEDED) end
@@ -513,7 +448,7 @@ end
 ---------------------------------------------------------------------------- Profils
 local function BuildProfiles(parent)
     local L = DWE.L
-    local cat, layout = Native.Sub(parent, L.SEC_PROFILES .. " (2)")
+    local cat, layout = Native.Sub(parent, L.SEC_PROFILES)
     if not (cat and DWE.ProfileList) then return end
     local function Named(list)
         local out = {}
@@ -560,7 +495,7 @@ end
 -- (dessins, pas des lignes) ; ici le theme se choisit dans une liste.
 local function BuildLooks(parent)
     local L = DWE.L
-    local cat = Native.Sub(parent, L.SEC_THEME .. " (2)")
+    local cat = Native.Sub(parent, L.SEC_THEME)
     if not cat then return end
     local function Theme()
         if DWE.RefreshOptionsExtra then pcall(DWE.RefreshOptionsExtra) end
@@ -628,15 +563,303 @@ local function BuildLooks(parent)
 end
 
 -- Appele une fois les anciennes pages creees (DWE.InitOptionsPanel).
-function DWE.BuildNativeOptions(parent)
-    if Native.built or not parent or not Supported() then return end
+function DWE.BuildNativeOptions()
+    if Native.built then return end
     Native.built = true
-    pcall(BuildLooks, parent)
-    pcall(BuildBooks, parent)
-    pcall(BuildPlacement, parent)
-    pcall(BuildKeys, parent)
-    pcall(BuildSpoken, parent)
-    pcall(BuildProfiles, parent)
+    for _, b in ipairs({ BuildLooks, BuildSpoken, BuildBooks, BuildPlacement, BuildKeys, BuildProfiles }) do
+        local ok, err = pcall(b)
+        if not ok and DWE.Debug then DWE.Debug("options : " .. tostring(err)) end
+    end
 end
 
 DWE.NativeRefresh = function() Native.Refresh() end
+
+---------------------------------------------------------------------------- Fenetre
+-- Onglets a gauche, lignes a droite. Manette : croix haut/bas (ligne), gauche/droite (valeur),
+-- A (cocher, ouvrir la liste, bouton), B (fermer), gachettes (onglet). Clavier : fleches,
+-- Entree / Espace, Echap, Tab. Souris : tout se clique, molette pour defiler.
+local W, H, TABS_W, ROW_H, VISIBLE = 720, 500, 170, 30, 13
+local CONTROL_X = 300 -- debut des reglages dans la ligne
+
+local function Gold(fs) fs:SetTextColor(1, 0.82, 0) end
+
+local function MakeWindow()
+    local L = DWE.L
+    local f = CreateFrame("Frame", "StorytaleOptionsWindow", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    Native.window = f
+    f:SetSize(W, H)
+    f:SetPoint("CENTER")
+    f:SetFrameStrata("FULLSCREEN")
+    f:SetToplevel(true)
+    f:EnableMouse(true)
+    f:SetMovable(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:SetClampedToScreen(true)
+    if f.SetBackdrop then
+        f:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 32, edgeSize = 32,
+            insets = { left = 11, right = 12, top = 12, bottom = 11 } })
+    end
+    f.title = f:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    f.title:SetPoint("TOP", 0, -18)
+    f.title:SetText("Storytale")
+    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", -6, -6)
+    close:SetScript("OnClick", function() f:Hide() end)
+    f.hint = f:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    f.hint:SetPoint("BOTTOM", 0, 16)
+    f.hint:SetText(L.OPT_WINDOW_HINT or "")
+
+    -- Onglets
+    f.tabs = {}
+    for i, page in ipairs(Native.pages) do
+        local b = CreateFrame("Button", nil, f)
+        b:SetSize(TABS_W - 10, 28)
+        b:SetPoint("TOPLEFT", 18, -48 - (i - 1) * 30)
+        b.bg = b:CreateTexture(nil, "BACKGROUND")
+        b.bg:SetAllPoints()
+        b.bg:SetColorTexture(1, 0.82, 0, 0.16)
+        b.hl = b:CreateTexture(nil, "HIGHLIGHT")
+        b.hl:SetAllPoints()
+        b.hl:SetColorTexture(1, 1, 1, 0.07)
+        b.text = b:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+        b.text:SetPoint("LEFT", 10, 0)
+        b.text:SetPoint("RIGHT", -6, 0)
+        b.text:SetJustifyH("LEFT")
+        b.text:SetText(page.name or "")
+        b:SetScript("OnClick", function() f.ShowPage(i) end)
+        f.tabs[i] = b
+    end
+    local sep = f:CreateTexture(nil, "ARTWORK")
+    sep:SetColorTexture(1, 0.82, 0, 0.25)
+    sep:SetSize(1, H - 90)
+    sep:SetPoint("TOPLEFT", TABS_W + 14, -48)
+
+    -- Lignes
+    f.rows = {}
+    local x0 = TABS_W + 24
+    local rowW = W - x0 - 22
+    for i = 1, VISIBLE do
+        local r = CreateFrame("Button", nil, f)
+        r:SetSize(rowW, ROW_H)
+        r:SetPoint("TOPLEFT", x0, -48 - (i - 1) * ROW_H)
+        r.sel = r:CreateTexture(nil, "BACKGROUND")
+        r.sel:SetAllPoints()
+        r.sel:SetColorTexture(1, 0.82, 0, 0.14)
+        r.hl = r:CreateTexture(nil, "HIGHLIGHT")
+        r.hl:SetAllPoints()
+        r.hl:SetColorTexture(1, 1, 1, 0.05)
+        r.label = r:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        r.label:SetPoint("LEFT", 8, 0)
+        r.label:SetWidth(CONTROL_X - 16)
+        r.label:SetJustifyH("LEFT")
+        r.label:SetWordWrap(false)
+        -- case
+        r.box = r:CreateTexture(nil, "ARTWORK")
+        r.box:SetSize(24, 24)
+        r.box:SetPoint("LEFT", CONTROL_X, 0)
+        r.box:SetTexture("Interface\\Buttons\\UI-CheckBox-Up")
+        r.tick = r:CreateTexture(nil, "OVERLAY")
+        r.tick:SetSize(24, 24)
+        r.tick:SetPoint("CENTER", r.box)
+        r.tick:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+        -- fleches + valeur (listes, curseurs)
+        r.prev = CreateFrame("Button", nil, r)
+        r.prev:SetSize(22, 22)
+        r.prev:SetPoint("LEFT", CONTROL_X, 0)
+        r.prev:SetNormalTexture("Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Up")
+        r.prev:SetPushedTexture("Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Down")
+        r.prev:SetDisabledTexture("Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Disabled")
+        r.value = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
+        r.value:SetSize(170, 22)
+        r.value:SetPoint("LEFT", r.prev, "RIGHT", 2, 0)
+        r.next = CreateFrame("Button", nil, r)
+        r.next:SetSize(22, 22)
+        r.next:SetPoint("LEFT", r.value, "RIGHT", 2, 0)
+        r.next:SetNormalTexture("Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up")
+        r.next:SetPushedTexture("Interface\\Buttons\\UI-SpellbookIcon-NextPage-Down")
+        r.next:SetDisabledTexture("Interface\\Buttons\\UI-SpellbookIcon-NextPage-Disabled")
+        -- bouton seul
+        r.button = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
+        r.button:SetSize(214, 22)
+        r.button:SetPoint("LEFT", CONTROL_X, 0)
+        r.prev:SetScript("OnClick", function() if r.data then f.Select(r.index); r.data:Step(-1) end end)
+        r.next:SetScript("OnClick", function() if r.data then f.Select(r.index); r.data:Step(1) end end)
+        r.value:SetScript("OnClick", function() if r.data then f.Select(r.index); r.data:Activate() end end)
+        r.button:SetScript("OnClick", function() if r.data then f.Select(r.index); r.data:Activate() end end)
+        r:SetScript("OnClick", function() if r.data then f.Select(r.index); if r.data.kind == "check" then r.data:Activate() end end end)
+        local function Enter() if r.data then f.ShowTip(r) end end
+        local function Leave() GameTooltip:Hide() end
+        for _, w in ipairs({ r, r.prev, r.next, r.value, r.button }) do
+            w:HookScript("OnEnter", Enter)
+            w:HookScript("OnLeave", Leave)
+        end
+        f.rows[i] = r
+    end
+    f.more = f:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    f.more:SetPoint("BOTTOMRIGHT", -24, 34)
+
+    f.pageIndex, f.offset, f.selected = 1, 0, nil
+    local function Page() return Native.pages[f.pageIndex] end
+    local function Selectable(row) return row and row.kind ~= "header" end
+
+    function f.ShowTip(r)
+        local d = r.data
+        if not d or not (d.tip or d.label) then return end
+        GameTooltip:SetOwner(f, "ANCHOR_NONE")
+        GameTooltip:SetPoint("TOPLEFT", f, "TOPRIGHT", 4, -40)
+        GameTooltip:SetText(d.label or "", 1, 0.82, 0)
+        if d.tip then GameTooltip:AddLine(d.tip, 1, 1, 1, true) end
+        GameTooltip:Show()
+    end
+
+    function f.Draw()
+        local page = Page()
+        if not page then return end
+        for i, t in ipairs(f.tabs) do t.bg:SetShown(i == f.pageIndex) end
+        local rows = page.rows
+        f.offset = math.max(0, math.min(f.offset or 0, #rows - VISIBLE))
+        for i, r in ipairs(f.rows) do
+            local k = f.offset + i
+            local d = rows[k]
+            r.data, r.index = d, k
+            if not d then
+                r:Hide()
+            else
+                r:Show()
+                local on = d:IsEnabled()
+                local kind = d.kind
+                r.sel:SetShown(k == f.selected)
+                r.label:SetText(d.label or "")
+                r.label:ClearAllPoints()
+                r.label:SetPoint("LEFT", (d.indent and 24 or 8), 0)
+                if kind == "header" then
+                    r.label:SetFontObject("GameFontNormal")
+                    Gold(r.label)
+                    r.label:SetWidth(r:GetWidth() - 16)
+                else
+                    r.label:SetFontObject("GameFontHighlight")
+                    r.label:SetWidth(CONTROL_X - 16 - (d.indent and 16 or 0))
+                    if on then r.label:SetTextColor(1, 1, 1) else r.label:SetTextColor(0.5, 0.5, 0.5) end
+                end
+                local isCheck = kind == "check"
+                r.box:SetShown(isCheck)
+                r.tick:SetShown(isCheck and d:Value() == true)
+                if isCheck then r.box:SetDesaturated(not on); r.tick:SetDesaturated(not on) end
+                local arrows = kind == "choice" or kind == "slider"
+                r.prev:SetShown(arrows); r.next:SetShown(arrows); r.value:SetShown(arrows)
+                if arrows then
+                    r.value:SetText(d:ValueText() or "")
+                    r.prev:SetEnabled(on); r.next:SetEnabled(on); r.value:SetEnabled(on)
+                end
+                r.button:SetShown(kind == "button")
+                if kind == "button" then
+                    r.button:SetText(d:ValueText() or "")
+                    r.button:SetEnabled(on)
+                end
+            end
+        end
+        local n = #rows
+        f.more:SetText(n > VISIBLE and ((f.offset + 1) .. "-" .. math.min(n, f.offset + VISIBLE) .. " / " .. n) or "")
+        local sr = f.selected and f.rows[f.selected - f.offset]
+        if sr and sr:IsShown() and f.padMode then f.ShowTip(sr) end
+    end
+
+    function f.Select(k)
+        local rows = Page() and Page().rows or {}
+        if not k or not rows[k] then return end
+        f.selected = k
+        if k <= f.offset then f.offset = k - 1 elseif k > f.offset + VISIBLE then f.offset = k - VISIBLE end
+        f.Draw()
+    end
+    function f.Move(dir)
+        local rows = Page() and Page().rows or {}
+        local k = f.selected or 0
+        for _ = 1, #rows do
+            k = k + dir
+            if k < 1 then k = #rows elseif k > #rows then k = 1 end
+            if Selectable(rows[k]) then f.Select(k) return end
+        end
+    end
+    function f.ShowPage(i)
+        if not Native.pages[i] then return end
+        f.pageIndex, f.offset, f.selected = i, 0, nil
+        GameTooltip:Hide()
+        f.Move(1)
+        f.Draw()
+    end
+    local function Current()
+        local rows = Page() and Page().rows or {}
+        return f.selected and rows[f.selected]
+    end
+    local function Tab(dir)
+        local n = #Native.pages
+        local i = f.pageIndex + dir
+        if i < 1 then i = n elseif i > n then i = 1 end
+        f.ShowPage(i)
+    end
+    f.Tab = Tab
+
+    f:EnableMouseWheel(true)
+    f:SetScript("OnMouseWheel", function(_, d)
+        f.offset = (f.offset or 0) - d
+        f.Draw()
+    end)
+    f:EnableKeyboard(true)
+    local OWN = { ESCAPE = true, UP = true, DOWN = true, LEFT = true, RIGHT = true, ENTER = true, SPACE = true, TAB = true }
+    f:SetScript("OnKeyDown", function(self, key)
+        -- La fenetre de choix (liste) a la main tant qu'elle est ouverte.
+        if DWE.pickFrame and DWE.pickFrame:IsShown() then
+            if self.SetPropagateKeyboardInput and not InCombatLockdown() then pcall(self.SetPropagateKeyboardInput, self, true) end
+            return
+        end
+        if self.SetPropagateKeyboardInput and not InCombatLockdown() then pcall(self.SetPropagateKeyboardInput, self, not OWN[key]) end
+        f.padMode = true
+        local cur = Current()
+        if key == "ESCAPE" then f:Hide()
+        elseif key == "UP" then f.Move(-1)
+        elseif key == "DOWN" then f.Move(1)
+        elseif key == "LEFT" then if cur then cur:Step(-1) end
+        elseif key == "RIGHT" then if cur then cur:Step(1) end
+        elseif key == "ENTER" or key == "SPACE" then if cur then cur:Activate() end
+        elseif key == "TAB" then Tab(IsShiftKeyDown() and -1 or 1) end
+    end)
+    if f.EnableGamePadButton then
+        pcall(f.EnableGamePadButton, f, true)
+        if f.SetPropagateGamePadInput then pcall(f.SetPropagateGamePadInput, f, false) end
+        f:SetScript("OnGamePadButtonDown", function(_, b)
+            if DWE.pickFrame and DWE.pickFrame:IsShown() then return end
+            f.padMode = true
+            local cur = Current()
+            if b == "PADDUP" then f.Move(-1)
+            elseif b == "PADDDOWN" then f.Move(1)
+            elseif b == "PADDLEFT" then if cur then cur:Step(-1) end
+            elseif b == "PADDRIGHT" then if cur then cur:Step(1) end
+            elseif b == "PAD1" then if cur then cur:Activate() end
+            elseif b == "PAD2" then f:Hide()
+            elseif b == "PADLSHOULDER" or b == "PADLTRIGGER" then Tab(-1)
+            elseif b == "PADRSHOULDER" or b == "PADRTRIGGER" then Tab(1) end
+        end)
+    end
+    f:SetScript("OnHide", function()
+        GameTooltip:Hide()
+        if DWE.pickFrame and DWE.pickFrame:IsShown() then DWE.pickFrame.Close() end
+    end)
+    f:Hide()
+    return f
+end
+
+function DWE.OpenOptionsWindow(pageIndex)
+    DWE.BuildNativeOptions()
+    local f = Native.window or MakeWindow()
+    f.padMode = false
+    f:Show()
+    f:Raise()
+    f.ShowPage(pageIndex or f.pageIndex or 1)
+    return f
+end
+function DWE.ToggleOptionsWindow()
+    if Native.window and Native.window:IsShown() then Native.window:Hide() else DWE.OpenOptionsWindow() end
+end
