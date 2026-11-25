@@ -950,6 +950,8 @@ DWE.GEN_SMOOTH = 0.35 -- secondes : la vitesse change en douceur (jamais d'une i
 DWE.GEN_EARLY = 0.15 -- secondes : on repart d'une pause un instant avant le mot suivant (nos durees le placent souvent un peu tard)
 DWE.GEN_AHEAD = 12 -- lettres d'avance au-dela desquelles on ralentit fort
 function DWE.GenSmoothStep(st, pos, target, rate, dt)
+    st.genDbg = st.genDbg or {}
+    st.genDbg.pos, st.genDbg.target, st.genDbg.next = pos, target, st.genNextIn
     local base = rate * DWE.GEN_SPEED
     -- Pauses : fin des mots suivis d'une ponctuation (ou d'une fin de page de la bulle).
     if not st.genStops then
@@ -1417,6 +1419,7 @@ function DWE.BubbleFluidReport()
     print(("|cff33ff99Storytale|r fluidite : %d arret(s) hors ponctuation (> 0,15 s), le pire %.2f s%s | %s | %s"):format(
         f.count or 0, worst, f.where and (" sur « " .. f.where .. " »") or "", f.mode or "?",
         tostring(UnitName and UnitName("npc") or "?")))
+    if f.detail and (f.count or 0) > 0 then print("|cff33ff99Storytale|r fluidite (detail) : " .. f.detail) end
 end
 bubble:HookScript("OnUpdate", function(_, elapsed)
     if not DWE.fluidLog then return end
@@ -1427,6 +1430,7 @@ bubble:HookScript("OnUpdate", function(_, elapsed)
         DWE.BubbleFluidReport()
         fluid.id = state.fluidId
         fluid.raw, fluid.done, fluid.count, fluid.worst, fluid.where, fluid.still, fluid.lastN, fluid.lastI = state.raw, nil, 0, 0, nil, 0, nil, nil
+        fluid.detail, fluid.dbg0 = nil, nil
     end
     if state.phase == "reading" and state.index == #state.segs then DWE.BubbleFluidReport() return end
     if state.phase ~= "typing" or state.manual then fluid.still = 0 return end
@@ -1442,10 +1446,17 @@ bubble:HookScript("OnUpdate", function(_, elapsed)
             local nextc = seg:sub((fluid.lastN or 0) + 1, (fluid.lastN or 0) + 1)
             if not prev:find("[%.,!?;:%-]") and not nextc:find("[%.,!?;:%-]") then
                 fluid.count = fluid.count + 1
-                if fluid.still > fluid.worst then fluid.worst, fluid.where = fluid.still, FluidWord(seg, fluid.lastN or 0) end
+                if fluid.still > fluid.worst then
+                    fluid.worst, fluid.where = fluid.still, FluidWord(seg, fluid.lastN or 0)
+                    local g0, g = fluid.dbg0, state.genDbg
+                    fluid.detail = (g0 and g) and string.format("ecrit %.1f->%.1f, voix %.1f->%.1f, mot suivant dans %.2f s",
+                        g0.pos or -1, g.pos or -1, g0.target or -1, g.target or -1, g0.next or -1) or nil
+                end
             end
         end
         fluid.still, fluid.lastN, fluid.lastI = 0, n, i
+        local g = state.genDbg
+        fluid.dbg0 = g and { pos = g.pos, target = g.target, next = g.next } or nil
     end
 end)
 
