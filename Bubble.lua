@@ -957,10 +957,20 @@ local function VoiceStep(st, pos, share, length, dt)
             -- Lettres ecrites avant que la voix ne soit entendue : la voix les rattrape. Au lieu
             -- de s'arreter net en les attendant (« Even withi » fige une demi-seconde, vu en jeu
             -- le 25/11), l'ecriture ralentit puis la voix la rejoint, sans arret visible.
-            if st.preLead == nil then st.preLead = pos end
+            -- Ralentir se voyait encore (« within » lettre par lettre) : la bulle garde donc le
+            -- rythme de la voix et c'est a la premiere pause (virgule, point) qu'elle l'attend,
+            -- la ou un arret est naturel.
+            if st.preLead == nil then
+                st.preLead = pos
+                st.preStop = nil
+                for _, w in ipairs(st.words or {}) do
+                    if (w.pause or 0) > 0 or w.pageEnd then st.preStop = w.start + w.len break end
+                end
+            end
             if target <= pos then
-                if st.preLead > 0 and pos < st.preLead + DWE.GEN_LEAD_MAX then
-                    return pos + dt * rate * DWE.GEN_CRAWL
+                local stop = st.preStop or st.total
+                if st.preLead > 0 and pos < stop and pos - target < DWE.GEN_LEAD_MAX then
+                    return math.min(stop, pos + dt * rate * DWE.GEN_CRAWL)
                 end
                 return pos
             end
@@ -1066,7 +1076,7 @@ DWE.BubbleGeneratedTimes = GeneratedTimes
 -- que sa longueur ne le permet : pendant une pause de la voix, l'ecriture attend au bout du mot.
 DWE.GEN_DELAY = 0.25 -- secondes entre le lancement du son et la voix entendue (durees generees)
 DWE.GEN_EASE = 0.12 -- secondes : retard de l'ecriture sur la lettre dite (durees generees)
-DWE.GEN_CRAWL, DWE.GEN_LEAD_MAX = 0.35, 4 -- depart : vitesse reduite (part du rythme de la voix), avance maxi en plus (lettres)
+DWE.GEN_CRAWL, DWE.GEN_LEAD_MAX = 0.9, 16 -- depart en avance sur la voix : rythme (part de celui de la voix), avance maxi (lettres)
 DWE.GEN_FLOW = 0.8 -- secondes : blanc apres un mot sans ponctuation au-dela duquel la bulle attend (souffle)
 local function GeneratedShare(st, clip, length)
     local t = GeneratedTimes(clip)

@@ -1159,15 +1159,23 @@ do
         clip = nil
         for _ = 1, 12 do now = now + 0.05; tick(0.05) end -- Spoken charge le son : la bulle commence seule
         clip = { length = 3.4, spokenAt = now + 3.4, text = gs, present = { transcript = gs }, path = "sounds/gossip/test-generated-clip.ogg" }
-        local last, still, worst = -1, 0, 0
+        local last, still, worst, passed, cold = -1, 0, 0, nil, nil
+        local heard = now + DWE.GEN_DELAY -- voix entendue
         for _ = 1, 40 do
             now = now + 0.05; tick(0.05)
             local n = #vis()
-            if n == last then still = still + 0.05 else still = 0 end
+            -- arrets mesures jusqu'a la premiere virgule (la, attendre la voix est voulu)
+            if n == last and n < 17 then still = still + 0.05 else still = 0 end
             if still > worst then worst = still end
+            if n > 18 and not passed then passed = now - heard end
+            if n >= 16 and not cold then cold = now - heard end
             last = n
         end
         check(worst <= 0.2 + 1e-6, "generated timings: no freeze when the voice catches up with the first letters (longest stop " .. worst .. " s)")
+        -- pas de lettre a lettre non plus : « cold » est ecrit quand la voix le dit (0,72 s a 1,18 s)
+        check(cold and cold <= 1.0, "generated timings: keeps the voice's pace at the start, no crawl (cold written at " .. tostring(cold) .. " s)")
+        -- ... et la voix est rejointe a la premiere virgule : « stone » ne s'ecrit pas avant qu'elle le dise.
+        check(passed and passed >= 1.18 - 0.05, "generated timings: waits for the voice at the first comma (stone at " .. tostring(passed) .. " s, said at 1.18 s)")
     end
     DWE.GeneratedTimings["test-generated-clip"] = nil
 end
