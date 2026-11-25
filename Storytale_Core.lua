@@ -5896,6 +5896,12 @@ local function StartFollow()
             .. tostring(okZ and z and string.format("%.2f", z)))
     end
     if not follower:IsShown() then followBroken = false end
+    -- Un livre ne suit personne : sinon il s'accrochait au dernier PNJ a qui on avait parle
+    -- (bougeait avec la camera, ne se laissait plus deplacer).
+    if DWE.bookMode then
+        if follower:IsShown() and DWE.StopFollow then DWE.StopFollow() end
+        return
+    end
     if not AttachEnabled() or followBroken or follower:IsShown() then return end
     follow = {}
     -- Invisible le temps que la plaque apparaisse (1 ou 2 images), pour ne pas sauter.
