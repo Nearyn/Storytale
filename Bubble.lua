@@ -452,6 +452,17 @@ local function FitTo(s, shown)
     -- +4 : une largeur pile au pixel peut faire passer le dernier mot a la ligne.
     local w = math.max(24, math.min(maxInner, math.ceil(unbounded) + 4))
     text:SetWidth(w)
+    -- Nombre de lignes exact, d'apres nos propres retours a la ligne (les memes que l'ecriture) :
+    -- l'estimation pouvait compter une ligne de trop, et la bulle, trop haute une image, se
+    -- resserrait aussitot (« comme si on etirait la fenetre », video du 25/11).
+    if DWE.BubbleWrapped and type(s) == "string" and not (issecretvalue and issecretvalue(s)) then
+        local okW, wrapped = pcall(DWE.BubbleWrapped, s)
+        local lh = DWE.BubbleLineHeight and DWE.BubbleLineHeight()
+        if okW and type(wrapped) == "string" and lh and lh > 0 then
+            local _, breaks = wrapped:gsub("\n", "")
+            h = (breaks + 1) * lh
+        end
+    end
     bubble:SetSize(w + 2 * pad, h + 2 * pad + 2)
     text:SetText(shown or s)
     -- Le jeu peut ne finir la mise en page qu'a l'image suivante : on revérifie la hauteur.
@@ -464,7 +475,7 @@ local function FitTo(s, shown)
             text:SetText(s)
             local ok, real = pcall(text.GetStringHeight, text)
             text:SetText(cur)
-            if ok and type(real) == "number" and real >= fontSize * 0.8 and math.abs(real - h) > 1 then
+            if ok and type(real) == "number" and real >= fontSize * 0.8 and math.abs(real - h) > 3 then
                 h = real
                 bubble:SetHeight(real + 2 * pad + 2)
             end
@@ -816,6 +827,8 @@ local function Wrapped(seg)
     for _, t in ipairs(tails) do CopyLook(t) end
     return state.wrapText
 end
+DWE.BubbleWrapped = Wrapped
+DWE.BubbleLineHeight = LineHeight
 local function HideTails()
     for _, t in ipairs(tails) do t:Hide() end
     state.tailKey = nil
