@@ -8955,10 +8955,25 @@ function DWE.InitOptionsPanel()
         open:SetSize(280, 32)
         open:SetPoint("TOPLEFT", txt, "BOTTOMLEFT", 0, -18)
         open:SetText(L.OPT_WINDOW_OPEN or "Storytale")
+        -- (le menu du jeu reste ouvert dessous : le fermer depuis un addon bloquait la manette)
         open:SetScript("OnClick", function()
-            if HideUIPanel and SettingsPanel then pcall(HideUIPanel, SettingsPanel) end
             if DWE.OpenOptionsWindow then DWE.OpenOptionsWindow() end
         end)
+        -- A la manette, le bouton n'est pas atteignable dans le menu du jeu : la page Storytale
+        -- ouvre directement la fenetre si on s'y arrete (pas en passant dessus dans la liste).
+        launch:SetScript("OnShow", function(self)
+            local on = DWE.GamePadOn and DWE.GamePadOn()
+            if not on or not (C_Timer and C_Timer.After) then return end
+            self.serial = (self.serial or 0) + 1
+            local my = self.serial
+            C_Timer.After(0.8, function()
+                if self.serial == my and self:IsVisible() and DWE.OpenOptionsWindow
+                    and not (DWE.Native and DWE.Native.window and DWE.Native.window:IsShown()) then
+                    DWE.OpenOptionsWindow()
+                end
+            end)
+        end)
+        launch:SetScript("OnHide", function(self) self.serial = (self.serial or 0) + 1 end)
         local how = launch:CreateFontString(nil, "ARTWORK", "GameFontDisable")
         how:SetPoint("TOPLEFT", open, "BOTTOMLEFT", 0, -16)
         how:SetWidth(560)

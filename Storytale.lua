@@ -1610,6 +1610,21 @@ function BuildOptions(event, keepSelection)
         BuildBookOptions()
     end
 
+    -- Manette : les options de Storytale depuis la roue (sans raccourci a configurer ; les
+    -- boutons de la manette sont tous pris par la barre d'actions du jeu).
+    if DWE.GamePadOn and DWE.GamePadOn() and DWE.OpenOptionsWindow then
+        AddOption({
+            icon = "Interface\\Buttons\\UI-OptionsButton",
+            rawLabel = L.OPT_WHEEL or "Storytale options",
+            action = function()
+                DWE.CloseAllDialogue()
+                DisableKeys()
+                if C_Timer and C_Timer.After then C_Timer.After(0.1, function() DWE.OpenOptionsWindow() end)
+                else DWE.OpenOptionsWindow() end
+            end,
+        })
+    end
+
     AddOption({
         isGoodbye = true,
         icon = ICON_GOODBYE,

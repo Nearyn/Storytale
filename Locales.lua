@@ -477,7 +477,7 @@ end
 
 -- Titres des sections et libelles revus des options.
 local OPTS = {
-    enUS = { OPT_WINDOW_OPEN = "Open Storytale options", OPT_LAUNCH_TEXT = "Storytale's options open in their own window, with theme previews and full gamepad support.", OPT_LAUNCH_HOW = "You can also type /storytale, use the minimap button, or set a key (or gamepad button) in Options > Keybindings > AddOns > Storytale.", OPT_TAB_MAIN = "General", OPT_WINDOW_HINT = "Gamepad: D-pad to move, A to select, B to close, L1 / R1 (LB / RB) to change tab", SEC_THEME = "Theme", SEC_TEXT = "Text", SEC_PLACE = "Placement", SEC_KEYS = "Controls",
+    enUS = { OPT_WHEEL = "Storytale options", OPT_WINDOW_OPEN = "Open Storytale options", OPT_LAUNCH_TEXT = "Storytale's options open in their own window, with theme previews and full gamepad support.", OPT_LAUNCH_HOW = "You can also type /storytale, use the minimap button, or use \"Storytale options\" in the dialogue wheel with a gamepad, or set a key in Options > Keybindings > AddOns > Storytale.", OPT_TAB_MAIN = "General", OPT_WINDOW_HINT = "Gamepad: D-pad to move, A to select, B to close, L1 / R1 (LB / RB) to change tab", SEC_THEME = "Theme", SEC_TEXT = "Text", SEC_PLACE = "Placement", SEC_KEYS = "Controls",
         THEME_HINT = "Click a theme to apply it.", FONT_FAMILY = "Font", FONT_SIZE = "Text size",
         OPACITY_LBL = "Frame opacity", WHEEL_THEME = "Also dress the choice wheel",
         SPOKEN_THEME = "Also dress the Spoken player", ATTACH_NPC = "Follow the NPC on screen",
@@ -487,7 +487,7 @@ local OPTS = {
         WHEEL_SCROLL = "Mouse wheel browses choices (hold click to zoom)",
         BOOK_STYLE = "Books and letters:", BOOK_ADDON = "This addon, with a parchment theme (Gilded Vellum if a bubble theme is chosen)",
         BOOK_DUI = "DialogueUI", BOOK_BLIZZ = "Blizzard" },
-    frFR = { OPT_WINDOW_OPEN = "Ouvrir les options Storytale", OPT_LAUNCH_TEXT = "Les options de Storytale s'ouvrent dans leur propre fenêtre, avec l'aperçu des thèmes et la manette.", OPT_LAUNCH_HOW = "Vous pouvez aussi taper /storytale, utiliser le bouton de la mini-carte, ou choisir une touche (ou un bouton de manette) dans Options > Raccourcis > AddOns > Storytale.", OPT_TAB_MAIN = "Général", OPT_WINDOW_HINT = "Manette : croix pour se déplacer, A pour valider, B pour fermer, L1 / R1 (LB / RB) pour changer d'onglet", SEC_THEME = "Thème", SEC_TEXT = "Texte", SEC_PLACE = "Placement", SEC_KEYS = "Commandes",
+    frFR = { OPT_WHEEL = "Options de Storytale", OPT_WINDOW_OPEN = "Ouvrir les options Storytale", OPT_LAUNCH_TEXT = "Les options de Storytale s'ouvrent dans leur propre fenêtre, avec l'aperçu des thèmes et la manette.", OPT_LAUNCH_HOW = "Vous pouvez aussi taper /storytale, utiliser le bouton de la mini-carte, ou à la manette choisir « Options de Storytale » dans la roue de dialogue, ou choisir une touche dans Options > Raccourcis > AddOns > Storytale.", OPT_TAB_MAIN = "Général", OPT_WINDOW_HINT = "Manette : croix pour se déplacer, A pour valider, B pour fermer, L1 / R1 (LB / RB) pour changer d'onglet", SEC_THEME = "Thème", SEC_TEXT = "Texte", SEC_PLACE = "Placement", SEC_KEYS = "Commandes",
         THEME_HINT = "Cliquez sur un thème pour l'appliquer.", FONT_FAMILY = "Police", FONT_SIZE = "Taille du texte",
         OPACITY_LBL = "Opacité du cadre", WHEEL_THEME = "Habiller aussi la roue des choix",
         SPOKEN_THEME = "Habiller aussi le lecteur Spoken", ATTACH_NPC = "Suivre le PNJ à l'écran",
