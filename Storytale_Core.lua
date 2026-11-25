@@ -68,7 +68,16 @@ function DWE.GuardScripts(frame, name)
         if fn and not (frame.dweGuarded and frame.dweGuarded[s]) then
             frame.dweGuarded = frame.dweGuarded or {}
             frame.dweGuarded[s] = true
-            frame:SetScript(s, DWE.Guard(name .. ":" .. s, fn, s == "OnUpdate"))
+            local g, key = DWE.Guard(name .. ":" .. s, fn, s == "OnUpdate"), name .. ":" .. s
+            -- Mesure aussi ces scripts pendant /storytale perf (temps par seconde, appels).
+            frame:SetScript(s, function(...)
+                local perf = DWE.perf
+                if not (perf and perf.on and debugprofilestop) then return g(...) end
+                local t0 = debugprofilestop()
+                g(...)
+                perf.t[key] = (perf.t[key] or 0) + (debugprofilestop() - t0)
+                perf.n[key] = (perf.n[key] or 0) + 1
+            end)
         end
     end
 end
@@ -3416,6 +3425,14 @@ noteScroll:SetScript("OnHide", function(self)
     self.drag = nil
     self:SetScript("OnUpdate", nil)
 end)
+-- Titre de page de livre : "Titre (2/4)" -> "Titre", "2 / 4" ; "Titre (2/?)" (le jeu ne dit
+-- pas encore combien de pages il reste) -> "Titre", "2".
+function DWE.SplitPageTitle(title)
+    local plain, p, n = (title or ""):match("^(.-)%s*%((%d+)/([%d%?]+)%)$")
+    if not plain then return nil, nil end
+    return plain, n == "?" and p or (p .. " / " .. n)
+end
+
 local function MorpheusTitle()
     if DWE.IS_CJK then return end
     local hp = (DWE.IS_CYRILLIC and "Fonts\\MORPHEUS_CYR.TTF") or "Fonts\\MORPHEUS.TTF"
@@ -3498,7 +3515,7 @@ local function LayoutNote()
     end
     textBox.dwePadB = padB
     local title = DWE.rawHeader or textHeader:GetText() or ""
-    local plain, page = title:match("^(.-)%s*%((%d+/%d+)%)$")
+    local plain, page = DWE.SplitPageTitle(title)
     if plain then textHeader:SetText(plain) end
     noteRule:ClearAllPoints()
     noteRule:SetHeight(1)
@@ -3630,8 +3647,31 @@ function DWE.BookSubFit(fs, toks, from, maxH)
     end
     local left = #toks - from + 1
     if left <= 0 then return 0 end
-    if H(left) <= maxH then return left end
-    local lo, hi = 0, left
+    local hAll = H(left)
+    if hAll <= maxH then return left end
+    -- Point de depart estime d'apres la hauteur du tout, puis on encadre par pas qui doublent :
+    -- bien moins de mesures sur une tres longue page (chaque mesure remet tout le texte en page).
+    local guess = math.max(1, math.min(left - 1, math.floor(left * maxH / math.max(hAll, 1))))
+    local lo, hi
+    if H(guess) <= maxH then
+        lo, hi = guess, nil
+        local step = math.max(1, math.floor(guess / 16))
+        while not hi do
+            local t = lo + step
+            if t >= left then hi = left
+            elseif H(t) <= maxH then lo, step = t, step * 2
+            else hi = t end
+        end
+    else
+        hi, lo = guess, nil
+        local step = math.max(1, math.floor(guess / 16))
+        while not lo do
+            local t = hi - step
+            if t <= 0 then lo = 0
+            elseif H(t) <= maxH then lo = t
+            else hi, step = t, step * 2 end
+        end
+    end
     while hi - lo > 1 do
         local mid = math.floor((lo + hi) / 2)
         if H(mid) <= maxH then lo = mid else hi = mid end
@@ -3640,11 +3680,19 @@ function DWE.BookSubFit(fs, toks, from, maxH)
 end
 function DWE.BookSubPaginate(raw, fsz, header)
     local st = DWE.bookSub
-    local key = raw .. "\0" .. fsz .. "\0" .. header
+    local key = raw .. "\0" .. fsz .. "\0" .. header .. "\0" .. tostring((textBody:GetFont())) .. "\0" .. tostring(BOOK_COL)
     if st.key == key then return st end
     local samePage = st.raw == raw
     st.key, st.raw = key, raw
+    local perf = DWE.perf
+    local t0 = perf and perf.on and debugprofilestop and debugprofilestop()
+    -- Pages deja decoupees (aller-retour entre pages d'un long livre) : pas de nouveau calcul.
+    st.cache = st.cache or {}
+    local cached = st.cache[key]
     local maxH = BOOK_TEXT_H + 24
+    if cached then
+        st.spreads = cached
+    else
     -- Tient en une double page : le partage habituel en deux moities.
     local l, r = SplitHalf(raw)
     textBody:SetText(l)
@@ -3668,6 +3716,14 @@ function DWE.BookSubPaginate(raw, fsz, header)
             st.spreads[#st.spreads + 1] = { lt, rt }
         end
         if #st.spreads == 0 then st.spreads = { { l, r } } end
+    end
+    st.cacheN = (st.cacheN or 0) + 1
+    if st.cacheN > 12 then st.cache, st.cacheN = {}, 1 end
+    st.cache[key] = st.spreads
+    end
+    if t0 then
+        perf.t.bookPaginate = (perf.t.bookPaginate or 0) + (debugprofilestop() - t0)
+        perf.n.bookPaginate = (perf.n.bookPaginate or 0) + 1
     end
     if st.wantLast then
         st.index, st.wantLast = #st.spreads, nil
@@ -3790,9 +3846,10 @@ local function LayoutBook()
     textBox:SetWidth(2 * BOOK_COL + BOOK_GUTTER)
     -- "(1/8)" quitte le titre et va en bas de la page de droite.
     local title = DWE.rawHeader or textHeader:GetText() or ""
-    local plain, page = title:match("^(.-)%s*%((%d+/%d+)%)$")
-    if plain then textHeader:SetText(plain) end
-    bookPageNum:SetText(page and page:gsub("/", " / ") or "")
+    local plain, page = DWE.SplitPageTitle(title)
+    -- Toujours le titre complet ici : une sous-page b, c... l'efface, il doit revenir sur a.
+    textHeader:SetText(plain or title)
+    bookPageNum:SetText(page or "")
     if not DWE.IS_CJK then
         SafeSetFont(bookPageNum, (DWE.IS_CYRILLIC and "Fonts\\MORPHEUS_CYR.TTF") or "Fonts\\MORPHEUS.TTF", math.floor(((tonumber(DialogueWheelE_FontSize) or 13) + 1) / math.min(1, DWE.BookScaleWanted()) ^ 0.8 + 0.5))
     end
@@ -3834,7 +3891,7 @@ local function LayoutBook()
     -- nettement plus gros que lui.
     if hFont and not DWE.IS_CJK then SafeSetFont(textHeader, hFont, fsz + math.floor(9 * math.sqrt(math.min(1, sc)) + 0.5)) end
     local raw = DWE.bookRawBody or textBody:GetText() or ""
-    local sub = DWE.BookSubPaginate(raw, fsz, textHeader:GetText() or "")
+    local sub = DWE.BookSubPaginate(raw, fsz, plain or title)
     local spread = sub.spreads[sub.index] or { "", "" }
     if sub.index > 1 then textHeader:SetText("") end
     textBody:SetText(spread[1])
@@ -3842,7 +3899,7 @@ local function LayoutBook()
     -- Numero : "1 / 8", et la sous-page en lettre ("1 / 8 · b") quand la page est decoupee.
     if #sub.spreads > 1 then
         local letter = string.char(96 + math.min(26, sub.index))
-        bookPageNum:SetText((page and (page:gsub("/", " / ") .. "  · ") or "") .. letter)
+        bookPageNum:SetText((page and (page .. "  · ") or "") .. letter)
         bookPageNum:Show()
     end
     textBox:SetHeight(BOOK_TEXT_H)
@@ -3853,7 +3910,7 @@ local function LayoutBook()
     do
         local pnum = tonumber(page and page:match("^(%d+)") or "1") or 1
         local order = pnum * 100 + (sub.index or 1)
-        local id = (DWE.rawHeader or ""):gsub("%s*%(%d+/%d+%)$", "")
+        local id = (DWE.rawHeader or ""):gsub("%s*%(%d+/[%d%?]+%)$", "")
         if DWE.bookTurnLast and DWE.bookTurnLast.id == id and DWE.bookTurnLast.order ~= order then
             DWE.BookTurnFX(order > DWE.bookTurnLast.order and 1 or -1)
         end
@@ -4344,7 +4401,7 @@ do
             else
                 -- Parchemin : la signature (illisible) du scribe ou de l'auteur, a l'encre, dans la
                 -- marge en bas a droite. Une parmi 8, toujours la meme pour un meme texte.
-                local title = (DWE.rawHeader or ""):gsub("%s*%(%d+/%d+%)$", "")
+                local title = (DWE.rawHeader or ""):gsub("%s*%(%d+/[%d%?]+%)$", "")
                 local h = 0
                 for i = 1, #title do h = (h * 31 + title:byte(i)) % 100003 end
                 local n = h % 8 + 1

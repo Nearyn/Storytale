@@ -1378,6 +1378,10 @@ DialogueWheelE_ShowText = true
 M.FireEvent("ITEM_TEXT_BEGIN")
 M.FireEvent("ITEM_TEXT_READY")
 check(DWE.textBody:GetText() == "p1", "book page 1 shown")
+if DWE.textBox.dweBook == true and DWE.bookPageNumText and not withDUI then
+    -- Premiere ouverture : le jeu ne dit pas combien de pages il y a, on montre deja "1".
+    check(DWE.bookPageNumText() == "1", "page number shown on first open: '" .. tostring(DWE.bookPageNumText()) .. "'")
+end
 local function labels() local t = {} for i, o in ipairs(DWE.currentOptions) do t[i] = o.rawLabel end return table.concat(t, ",") end
 check(labels():find(DWE.L.NEXT_PAGE, 1, true), "next page offered on page 1: " .. labels())
 do -- manette dans un livre : bindings actifs, croix droite tourne la page
@@ -1430,11 +1434,19 @@ for expect = 2, 4 do
     check(nextOpt ~= nil, "next option present before page " .. expect)
     if nextOpt then nextOpt.action(); M.FlushPending() end
     check(DWE.textBody:GetText() == "p" .. expect, "single click shows page " .. expect .. " (got " .. tostring(DWE.textBody:GetText()) .. ")")
+    if DWE.textBox.dweBook == true and DWE.bookPageNumText and not withDUI then
+        -- Pas de faux "3 / 3" avant la fin : le total n'apparait qu'a la derniere page.
+        local want = expect == 4 and "4 / 4" or tostring(expect)
+        check(DWE.bookPageNumText() == want, "page number " .. want .. ": '" .. tostring(DWE.bookPageNumText()) .. "'")
+    end
 end
 check(not labels():find(DWE.L.NEXT_PAGE, 1, true), "no next page on last page: " .. labels())
 check(labels():find(DWE.L.PREV_PAGE, 1, true), "prev page on last page")
 for _, o in ipairs(DWE.currentOptions) do if o.rawLabel == DWE.L.PREV_PAGE then o.action() break end end
 check(DWE.textBody:GetText() == "p3", "prev page works")
+if DWE.textBox.dweBook == true and DWE.bookPageNumText then
+    check(DWE.bookPageNumText() == "3 / 4", "total known once the end was reached: '" .. tostring(DWE.bookPageNumText()) .. "'")
+end
 -- Marque-page : pose sur la page 3, le livre se rouvre a la page 3 ; retire, il se rouvre a la 1.
 if DWE.BookLook() == "book" then
     DWE.BookmarkToggle()
@@ -1468,6 +1480,23 @@ do
     M.FireEvent("ITEM_TEXT_BEGIN"); M.FireEvent("ITEM_TEXT_READY"); M.RunTimers()
     local n = #DWE.bookSub.spreads
     check(DWE.textBox.dweBook == true and n > 1, "small book splits a long page: " .. n)
+    do -- rien de perdu ni de double entre les sous-pages ; chaque colonne est remplie au maximum
+        local parts = {}
+        for _, sp in ipairs(DWE.bookSub.spreads) do parts[#parts + 1] = sp[1]; parts[#parts + 1] = sp[2] end
+        -- CJK : coupe au caractere (parfois au milieu d'un mot latin) : on compare sans espaces.
+        local function words(t) if DWE.IS_CJK then return (t:gsub("%s+", "")) end return (t:gsub("%s+", " "):gsub("^ ", ""):gsub(" $", "")) end
+        check(words(table.concat(parts, " ")) == words(long), "sub-pages keep the whole text")
+        local toks = DWE.BookSubTokens(long)
+        local fs = DWE.textBody
+        local first = DWE.bookSub.spreads[1][1]
+        local nWords = select(2, first:gsub("%S+", ""))
+        local more = (table.concat(toks, "", 1, nWords + 1):gsub("%s+$", ""))
+        fs:SetText(more)
+        local hHead = (DWE.textHeader:GetStringHeight() or 20) + 10
+        check(DWE.IS_CJK or fs:GetStringHeight() + hHead > 268 + 24, "first column filled to the brim (" .. nWords .. " words)")
+        DWE.UpdateTextPanelVisuals()
+        check(DWE.bookPageNumText() == "1  · a", "long first page numbered 1 · a: '" .. tostring(DWE.bookPageNumText()) .. "'")
+    end
     local seen = {}
     for step = 1, n + 1 do
         local nextOpt

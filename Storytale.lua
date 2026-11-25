@@ -1034,10 +1034,23 @@ local function ShowBookPage(pageNum)
     -- Page tournee a la main (le suivi de la voix est en pause) : la voix peut suivre le lecteur.
     if DWE.bookFollowPause and pageNum ~= bookState.currentPage and DWE.VoiceToPage then DWE.VoiceToPage(pageNum) end
     bookState.currentPage = pageNum
+    local hasNext = BookHasNext and BookHasNext() or false
+    -- Le nombre de pages n'est connu qu'une fois la derniere atteinte (ou tout le livre charge
+    -- par DialogueUI) : avant, on n'affiche que le numero de la page ("1", pas "1/1").
+    if not hasNext and pageNum == total then bookState.reachedEnd = true end
+    if not bookState.reachedEnd and not bookState.pages[total + 1] and total > pageNum then
+        local last = total
+        if ItemTextGetPage and ItemTextHasNextPage and ItemTextGetPage() == last and not ItemTextHasNextPage() then
+            bookState.reachedEnd = true
+        end
+    end
     local title = bookState.title
-    if total > 1 then title = title .. " (" .. pageNum .. "/" .. total .. ")" end
-    DWE.bookInfo = { page = pageNum, total = total, hasNext = BookHasNext and BookHasNext() or false }
-    if not DWE.bookInfo.hasNext then bookState.reachedEnd = true end
+    if bookState.reachedEnd then
+        if total > 1 then title = title .. " (" .. pageNum .. "/" .. total .. ")" end
+    elseif hasNext or pageNum > 1 then
+        title = title .. " (" .. pageNum .. "/?)"
+    end
+    DWE.bookInfo = { page = pageNum, total = total, hasNext = hasNext }
     DWE.SetDialogueText(title, bookState.pages[pageNum] or "")
 end
 
@@ -3395,6 +3408,10 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         Out("matiere du texte ouvert : " .. tostring(m) .. (m and DWE.PLATES[m] and " (plaque)" or ""))
     elseif msg:match("reset") then
         DWE.AskResetAll()
+    elseif msg:match("perf%s+now") then
+        -- Mesure tout de suite, 8 s (ex. ouvrir un livre juste apres).
+        Out("Mesure pendant 8 s : ouvre le livre maintenant.")
+        DWE.StartPerf(Out, 8)
     elseif msg:match("perf") then
         Out("Pret : parle a un PNJ, la mesure demarre quand le texte commence a s'ecrire.")
         DWE.ArmPerf(Out)
