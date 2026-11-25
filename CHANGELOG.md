@@ -5,7 +5,7 @@
 **English**
 
 ### New
-- Options in their own window: the same pages with theme previews, one tab per page, and full gamepad support (D-pad to move, A to select, B to close, L1 / R1 to change tab). Open it with /storytale, the minimap button, a key (Keybindings > AddOns > Storytale), or the "Open Storytale options" button in the game's options menu.
+- Options in their own window: the same pages with theme previews, one tab per page, and full gamepad support (D-pad to move, A to select, B to close, L1 / R1 to change tab). Open it with /storytale, the minimap button, a key (Keybindings > AddOns > Storytale), or the "Open Storytale options" button in the game's options menu. Click the minimap button again to close it.
 - Keyboard and mouse: the game keeps all your keys while the options are open (move, jump, cast); only Escape closes the window.
 - Themes apply live: click a theme with a conversation open and the bubble, its text and the choices change at once.
 - New theme "Azeroth NPC Bubble": the game's bubble with the pale yellow text of talking NPCs. The original "Azeroth Bubble" keeps its white text.
@@ -24,7 +24,7 @@
 **Français**
 
 ### Nouveautés
-- Les options dans leur propre fenêtre : les mêmes pages avec l'aperçu des thèmes, un onglet par page, et la manette partout (croix pour se déplacer, A pour valider, B pour fermer, L1 / R1 pour changer d'onglet). On l'ouvre avec /storytale, le bouton de la mini-carte, une touche (Raccourcis > AddOns > Storytale) ou le bouton « Ouvrir les options Storytale » du menu d'options du jeu.
+- Les options dans leur propre fenêtre : les mêmes pages avec l'aperçu des thèmes, un onglet par page, et la manette partout (croix pour se déplacer, A pour valider, B pour fermer, L1 / R1 pour changer d'onglet). On l'ouvre avec /storytale, le bouton de la mini-carte, une touche (Raccourcis > AddOns > Storytale) ou le bouton « Ouvrir les options Storytale » du menu d'options du jeu. Un second clic sur le bouton de la mini-carte la referme.
 - Clavier et souris : le jeu garde toutes vos touches pendant les options (se déplacer, sauter, lancer des sorts) ; seule Échap ferme la fenêtre.
 - Les thèmes s'appliquent en direct : cliquez sur un thème pendant une conversation, la bulle, son texte et les choix changent aussitôt.
 - Nouveau thème « Bulle d'Azeroth (PNJ) » : la bulle du jeu avec le texte jaune pâle des PNJ qui parlent. La « Bulle d'Azeroth » d'origine garde son texte blanc.

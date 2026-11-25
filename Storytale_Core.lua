@@ -2855,7 +2855,10 @@ local function CollectUI()
         for _, k in ipairs({ fr:GetChildren() }) do
             pcall(function()
                 if k:IsForbidden() or k:IsProtected() or ignoredUI[k] or KeepFrame(k) then return end
-                if k:IsIgnoringParentAlpha() then
+                local ign = k:IsIgnoringParentAlpha()
+                -- (valeur secrete du jeu : on n'y touche pas)
+                if issecretvalue and issecretvalue(ign) then return end
+                if ign == true then
                     k:SetIgnoreParentAlpha(false)
                     ignoredUI[k] = true
                 end
