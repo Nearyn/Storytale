@@ -458,7 +458,7 @@ end
 
 -- Titres des sections et libelles revus des options.
 local OPTS = {
-    enUS = { OPT_WINDOW_OPEN = "Open Storytale options", OPT_WINDOW_HINT = "Gamepad: D-pad up/down to choose, left/right to change, A to select, B to close, shoulders for tabs", SEC_THEME = "Theme", SEC_TEXT = "Text", SEC_PLACE = "Placement", SEC_KEYS = "Controls",
+    enUS = { OPT_WINDOW_OPEN = "Open Storytale options", OPT_TAB_MAIN = "General", OPT_WINDOW_HINT = "Gamepad: D-pad to move, A to select, B to close, L1 / R1 (LB / RB) to change tab", SEC_THEME = "Theme", SEC_TEXT = "Text", SEC_PLACE = "Placement", SEC_KEYS = "Controls",
         THEME_HINT = "Click a theme to apply it.", FONT_FAMILY = "Font", FONT_SIZE = "Text size",
         OPACITY_LBL = "Frame opacity", WHEEL_THEME = "Also dress the choice wheel",
         SPOKEN_THEME = "Also dress the Spoken player", ATTACH_NPC = "Follow the NPC on screen",
@@ -468,7 +468,7 @@ local OPTS = {
         WHEEL_SCROLL = "Mouse wheel browses choices (hold click to zoom)",
         BOOK_STYLE = "Books and letters:", BOOK_ADDON = "This addon, with a parchment theme (Gilded Vellum if a bubble theme is chosen)",
         BOOK_DUI = "DialogueUI", BOOK_BLIZZ = "Blizzard" },
-    frFR = { OPT_WINDOW_OPEN = "Ouvrir les options Storytale", OPT_WINDOW_HINT = "Manette : croix haut/bas pour choisir, gauche/droite pour changer, A pour valider, B pour fermer, gâchettes pour les onglets", SEC_THEME = "Thème", SEC_TEXT = "Texte", SEC_PLACE = "Placement", SEC_KEYS = "Commandes",
+    frFR = { OPT_WINDOW_OPEN = "Ouvrir les options Storytale", OPT_TAB_MAIN = "Général", OPT_WINDOW_HINT = "Manette : croix pour se déplacer, A pour valider, B pour fermer, L1 / R1 (LB / RB) pour changer d'onglet", SEC_THEME = "Thème", SEC_TEXT = "Texte", SEC_PLACE = "Placement", SEC_KEYS = "Commandes",
         THEME_HINT = "Cliquez sur un thème pour l'appliquer.", FONT_FAMILY = "Police", FONT_SIZE = "Taille du texte",
         OPACITY_LBL = "Opacité du cadre", WHEEL_THEME = "Habiller aussi la roue des choix",
         SPOKEN_THEME = "Habiller aussi le lecteur Spoken", ATTACH_NPC = "Suivre le PNJ à l'écran",

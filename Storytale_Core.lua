@@ -8900,7 +8900,7 @@ function DWE.InitOptionsPanel()
         if not (okH and okC and viewH and childH) then return end
         local fits = childH <= viewH + 1
         local bar = sc.ScrollBar or (sc.GetName and sc:GetName() and _G[sc:GetName() .. "ScrollBar"])
-        if bar and bar.SetShown then bar:SetShown(not fits) end
+        if type(bar) == "table" and bar.SetShown then bar:SetShown(not fits) end
         if fits then
             sc:SetVerticalScroll(0)
             sc:EnableMouseWheel(false)

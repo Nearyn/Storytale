@@ -3596,32 +3596,20 @@ else
             end
         end
     end
-    -- La fenetre : onglets, ligne choisie a la manette, valeur changee, fermeture.
+    -- La fenetre : les pages d'options de toujours, un onglet chacune ; manette.
     do
         local f = DWE.OpenOptionsWindow()
-        check(f and f:IsShown() and #DWE.Native.pages >= 6, "options window opens with its tabs")
+        local n = #(DWE.optionPages or {})
+        check(f and f:IsShown() and n >= 5 and #f.tabs == n, "options window opens with one tab per options page")
+        check(DWE.optionPages[1].panel:GetParent() == f.content, "options window shows the original page")
         local pad = f._scripts and f._scripts.OnGamePadButtonDown
-        local place
-        for i, pg in ipairs(DWE.Native.pages) do if pg.name == DWE.L.SEC_PLACE then place = i end end
-        f.ShowPage(1)
-        if pad then pad(f, "PADRSHOULDER") end
-        check(f.pageIndex == 2, "options window: shoulder button goes to the next tab")
-        if pad and place then
-            f.ShowPage(place)
-            local wanted
-            for k, r in ipairs(DWE.Native.pages[place].rows) do if r.id == "WheelSide" then wanted = k end end
-            f.Select(wanted)
-            local save = DialogueWheelE_WheelSide
-            pad(f, "PADDRIGHT")
-            check(DialogueWheelE_WheelSide == "left", "options window: D-pad right changes the selected choice")
-            pad(f, "PADDLEFT")
-            check(DialogueWheelE_WheelSide == nil, "options window: D-pad left changes it back")
-            pad(f, "PAD1")
-            check(DWE.pickFrame and DWE.pickFrame:IsShown(), "options window: A opens the choice window")
-            DWE.pickFrame.Close()
-            DialogueWheelE_WheelSide = save
+        if pad then
+            pad(f, "PADRSHOULDER")
+            check(f.pageIndex == 2 and DWE.optionPages[2].panel:GetParent() == f.content, "options window: R1 goes to the next tab")
+            pad(f, "PADLSHOULDER")
+            check(f.pageIndex == 1, "options window: L1 goes back")
             pad(f, "PAD2")
-            check(not f:IsShown(), "options window: B closes it")
+            check(not f:IsShown() and DWE.optionPages[1].panel:GetParent() ~= f.content, "options window: B closes it and gives the page back")
         end
     end
     local S = M.nativeSettings

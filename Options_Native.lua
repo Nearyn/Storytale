@@ -575,16 +575,17 @@ end
 DWE.NativeRefresh = function() Native.Refresh() end
 
 ---------------------------------------------------------------------------- Fenetre
--- Onglets a gauche, lignes a droite. Manette : croix haut/bas (ligne), gauche/droite (valeur),
--- A (cocher, ouvrir la liste, bouton), B (fermer), gachettes (onglet). Clavier : fleches,
--- Entree / Espace, Echap, Tab. Souris : tout se clique, molette pour defiler.
-local W, H, TABS_W, ROW_H, VISIBLE = 720, 500, 170, 30, 13
-local CONTROL_X = 300 -- debut des reglages dans la ligne
-
-local function Gold(fs) fs:SetTextColor(1, 0.82, 0) end
+-- La fenetre montre les pages d'options de toujours (vignettes des themes, couleurs...), avec
+-- un onglet par page, et les rend faciles a la manette : un cadre dore suit l'element choisi.
+-- Manette : croix (aller vers l'element voisin ; gauche/droite reglent un curseur), A (cliquer),
+-- B (fermer), L1 / R1 (onglets). Clavier : fleches, Entree / Espace, Echap, Tab. Souris : tout.
+-- Rien ne passe par le panneau d'options du jeu (sa manette se bloquait, voir plus haut).
+local W, H, TABS_W = 860, 640, 170
 
 local function MakeWindow()
     local L = DWE.L
+    if DWE.InitOptionsPanel then pcall(DWE.InitOptionsPanel) end
+    local pages = DWE.optionPages or {}
     local f = CreateFrame("Frame", "StorytaleOptionsWindow", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     Native.window = f
     f:SetSize(W, H)
@@ -612,12 +613,12 @@ local function MakeWindow()
     f.hint:SetPoint("BOTTOM", 0, 16)
     f.hint:SetText(L.OPT_WINDOW_HINT or "")
 
-    -- Onglets
+    -- Onglets : une page d'options chacun.
     f.tabs = {}
-    for i, page in ipairs(Native.pages) do
+    for i, pg in ipairs(pages) do
         local b = CreateFrame("Button", nil, f)
-        b:SetSize(TABS_W - 10, 28)
-        b:SetPoint("TOPLEFT", 18, -48 - (i - 1) * 30)
+        b:SetSize(TABS_W - 10, 30)
+        b:SetPoint("TOPLEFT", 18, -50 - (i - 1) * 32)
         b.bg = b:CreateTexture(nil, "BACKGROUND")
         b.bg:SetAllPoints()
         b.bg:SetColorTexture(1, 0.82, 0, 0.16)
@@ -628,7 +629,9 @@ local function MakeWindow()
         b.text:SetPoint("LEFT", 10, 0)
         b.text:SetPoint("RIGHT", -6, 0)
         b.text:SetJustifyH("LEFT")
-        b.text:SetText(page.name or "")
+        local name = pg.panel and pg.panel.name or ""
+        if i == 1 then name = L.OPT_TAB_MAIN or name end
+        b.text:SetText(name)
         b:SetScript("OnClick", function() f.ShowPage(i) end)
         f.tabs[i] = b
     end
@@ -637,224 +640,230 @@ local function MakeWindow()
     sep:SetSize(1, H - 90)
     sep:SetPoint("TOPLEFT", TABS_W + 14, -48)
 
-    -- Lignes
-    f.rows = {}
-    local x0 = TABS_W + 24
-    local rowW = W - x0 - 22
-    for i = 1, VISIBLE do
-        local r = CreateFrame("Button", nil, f)
-        r:SetSize(rowW, ROW_H)
-        r:SetPoint("TOPLEFT", x0, -48 - (i - 1) * ROW_H)
-        r.sel = r:CreateTexture(nil, "BACKGROUND")
-        r.sel:SetAllPoints()
-        r.sel:SetColorTexture(1, 0.82, 0, 0.14)
-        r.hl = r:CreateTexture(nil, "HIGHLIGHT")
-        r.hl:SetAllPoints()
-        r.hl:SetColorTexture(1, 1, 1, 0.05)
-        r.label = r:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-        r.label:SetPoint("LEFT", 8, 0)
-        r.label:SetWidth(CONTROL_X - 16)
-        r.label:SetJustifyH("LEFT")
-        r.label:SetWordWrap(false)
-        -- case
-        r.box = r:CreateTexture(nil, "ARTWORK")
-        r.box:SetSize(24, 24)
-        r.box:SetPoint("LEFT", CONTROL_X, 0)
-        r.box:SetTexture("Interface\\Buttons\\UI-CheckBox-Up")
-        r.tick = r:CreateTexture(nil, "OVERLAY")
-        r.tick:SetSize(24, 24)
-        r.tick:SetPoint("CENTER", r.box)
-        r.tick:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
-        -- fleches + valeur (listes, curseurs)
-        r.prev = CreateFrame("Button", nil, r)
-        r.prev:SetSize(22, 22)
-        r.prev:SetPoint("LEFT", CONTROL_X, 0)
-        r.prev:SetNormalTexture("Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Up")
-        r.prev:SetPushedTexture("Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Down")
-        r.prev:SetDisabledTexture("Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Disabled")
-        r.value = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
-        r.value:SetSize(170, 22)
-        r.value:SetPoint("LEFT", r.prev, "RIGHT", 2, 0)
-        r.next = CreateFrame("Button", nil, r)
-        r.next:SetSize(22, 22)
-        r.next:SetPoint("LEFT", r.value, "RIGHT", 2, 0)
-        r.next:SetNormalTexture("Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up")
-        r.next:SetPushedTexture("Interface\\Buttons\\UI-SpellbookIcon-NextPage-Down")
-        r.next:SetDisabledTexture("Interface\\Buttons\\UI-SpellbookIcon-NextPage-Disabled")
-        -- bouton seul
-        r.button = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
-        r.button:SetSize(214, 22)
-        r.button:SetPoint("LEFT", CONTROL_X, 0)
-        r.prev:SetScript("OnClick", function() if r.data then f.Select(r.index); r.data:Step(-1) end end)
-        r.next:SetScript("OnClick", function() if r.data then f.Select(r.index); r.data:Step(1) end end)
-        r.value:SetScript("OnClick", function() if r.data then f.Select(r.index); r.data:Activate() end end)
-        r.button:SetScript("OnClick", function() if r.data then f.Select(r.index); r.data:Activate() end end)
-        r:SetScript("OnClick", function() if r.data then f.Select(r.index); if r.data.kind == "check" then r.data:Activate() end end end)
-        local function Enter() if r.data then f.ShowTip(r) end end
-        local function Leave() GameTooltip:Hide() end
-        for _, w in ipairs({ r, r.prev, r.next, r.value, r.button }) do
-            w:HookScript("OnEnter", Enter)
-            w:HookScript("OnLeave", Leave)
-        end
-        f.rows[i] = r
+    -- Zone de la page
+    f.content = CreateFrame("Frame", nil, f)
+    f.content:SetPoint("TOPLEFT", TABS_W + 20, -14)
+    f.content:SetPoint("BOTTOMRIGHT", -14, 34)
+
+    -- Cadre dore : l'element choisi a la manette / au clavier.
+    f.cursor = CreateFrame("Frame", nil, f, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    f.cursor:SetFrameStrata("FULLSCREEN")
+    f.cursor:SetFrameLevel(f:GetFrameLevel() + 50)
+    if f.cursor.SetBackdrop then
+        f.cursor:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 2 })
+        f.cursor:SetBackdropBorderColor(1, 0.82, 0, 1)
     end
-    f.more = f:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-    f.more:SetPoint("BOTTOMRIGHT", -24, 34)
+    f.cursor:EnableMouse(false)
+    f.cursor:Hide()
 
-    f.pageIndex, f.offset, f.selected = 1, 0, nil
-    local function Page() return Native.pages[f.pageIndex] end
-    local function Selectable(row) return row and row.kind ~= "header" end
+    f.pageIndex = 1
+    local function Page() return pages[f.pageIndex] end
 
-    function f.ShowTip(r)
-        local d = r.data
-        if not d or not (d.tip or d.label) then return end
-        GameTooltip:SetOwner(f, "ANCHOR_NONE")
-        GameTooltip:SetPoint("TOPLEFT", f, "TOPRIGHT", 4, -40)
-        GameTooltip:SetText(d.label or "", 1, 0.82, 0)
-        if d.tip then GameTooltip:AddLine(d.tip, 1, 1, 1, true) end
-        GameTooltip:Show()
-    end
-
-    function f.Draw()
-        local page = Page()
-        if not page then return end
-        for i, t in ipairs(f.tabs) do t.bg:SetShown(i == f.pageIndex) end
-        local rows = page.rows
-        f.offset = math.max(0, math.min(f.offset or 0, #rows - VISIBLE))
-        for i, r in ipairs(f.rows) do
-            local k = f.offset + i
-            local d = rows[k]
-            r.data, r.index = d, k
-            if not d then
-                r:Hide()
-            else
-                r:Show()
-                local on = d:IsEnabled()
-                local kind = d.kind
-                r.sel:SetShown(k == f.selected)
-                r.label:SetText(d.label or "")
-                r.label:ClearAllPoints()
-                r.label:SetPoint("LEFT", (d.indent and 24 or 8), 0)
-                if kind == "header" then
-                    r.label:SetFontObject("GameFontNormal")
-                    Gold(r.label)
-                    r.label:SetWidth(r:GetWidth() - 16)
-                else
-                    r.label:SetFontObject("GameFontHighlight")
-                    r.label:SetWidth(CONTROL_X - 16 - (d.indent and 16 or 0))
-                    if on then r.label:SetTextColor(1, 1, 1) else r.label:SetTextColor(0.5, 0.5, 0.5) end
-                end
-                local isCheck = kind == "check"
-                r.box:SetShown(isCheck)
-                r.tick:SetShown(isCheck and d:Value() == true)
-                if isCheck then r.box:SetDesaturated(not on); r.tick:SetDesaturated(not on) end
-                local arrows = kind == "choice" or kind == "slider"
-                r.prev:SetShown(arrows); r.next:SetShown(arrows); r.value:SetShown(arrows)
-                if arrows then
-                    r.value:SetText(d:ValueText() or "")
-                    r.prev:SetEnabled(on); r.next:SetEnabled(on); r.value:SetEnabled(on)
-                end
-                r.button:SetShown(kind == "button")
-                if kind == "button" then
-                    r.button:SetText(d:ValueText() or "")
-                    r.button:SetEnabled(on)
+    -- Les elements cliquables de la page affichee.
+    local KINDS = { Button = true, CheckButton = true, Slider = true }
+    local function Collect()
+        local pg = Page()
+        local list = {}
+        if not (pg and pg.child) then return list end
+        local function Walk(fr)
+            for _, c in ipairs({ fr:GetChildren() }) do
+                local okV, vis = pcall(c.IsVisible, c)
+                if okV and vis then
+                    local okT, kind = pcall(c.GetObjectType, c)
+                    if okT and KINDS[kind] then
+                        local okE, en = pcall(function() return c.IsEnabled == nil or c:IsEnabled() end)
+                        if (not okE or en) and c:IsMouseEnabled() then list[#list + 1] = c end
+                        if kind ~= "Slider" then Walk(c) end
+                    else
+                        Walk(c)
+                    end
                 end
             end
         end
-        local n = #rows
-        f.more:SetText(n > VISIBLE and ((f.offset + 1) .. "-" .. math.min(n, f.offset + VISIBLE) .. " / " .. n) or "")
-        local sr = f.selected and f.rows[f.selected - f.offset]
-        if sr and sr:IsShown() and f.padMode then f.ShowTip(sr) end
+        Walk(pg.child)
+        return list
+    end
+    local function Center(w)
+        local x, y = w:GetCenter()
+        return x or 0, y or 0
+    end
+    local function Leave(w)
+        if w and w.GetScript then
+            local fn = w:GetScript("OnLeave")
+            if fn then pcall(fn, w) end
+        end
+        GameTooltip:Hide()
+    end
+    -- La page defile pour montrer l'element choisi.
+    local function Reveal(w)
+        local pg = Page()
+        local sc = pg and pg.scroll
+        if not (sc and pg.child and w) then return end
+        local okT, top = pcall(pg.child.GetTop, pg.child)
+        local wt, wh = w:GetTop(), w:GetHeight()
+        if not (okT and top and wt and wh) then return end
+        local at = (top - wt) / ((w:GetEffectiveScale() or 1) / (pg.child:GetEffectiveScale() or 1))
+        local cur, viewH = sc:GetVerticalScroll() or 0, sc:GetHeight() or 0
+        local range = (sc.GetVerticalScrollRange and sc:GetVerticalScrollRange()) or 0
+        local new = cur
+        if at - 10 < cur then new = at - 10 elseif at + wh + 10 > cur + viewH then new = at + wh + 10 - viewH end
+        new = math.max(0, math.min(range, new))
+        if new ~= cur then sc:SetVerticalScroll(new) end
+    end
+    function f.Select(w)
+        if f.sel and f.sel ~= w then Leave(f.sel) end
+        f.sel = w
+        if not w then f.cursor:Hide() return end
+        Reveal(w)
+        f.cursor:ClearAllPoints()
+        f.cursor:SetPoint("TOPLEFT", w, "TOPLEFT", -3, 3)
+        f.cursor:SetPoint("BOTTOMRIGHT", w, "BOTTOMRIGHT", 3, -3)
+        f.cursor:Show()
+        local fn = w:GetScript("OnEnter")
+        if fn then pcall(fn, w) end
+    end
+    -- Vers l'element le plus proche dans la direction (dx, dy).
+    function f.Move(dx, dy)
+        local list = Collect()
+        if #list == 0 then f.Select(nil) return end
+        local cur = f.sel
+        local valid = false
+        for _, w in ipairs(list) do if w == cur then valid = true end end
+        if not valid then
+            -- premier element : le plus haut, puis le plus a gauche
+            local best, bx, by
+            for _, w in ipairs(list) do
+                local x, y = Center(w)
+                if not best or y > by + 4 or (math.abs(y - by) <= 4 and x < bx) then best, bx, by = w, x, y end
+            end
+            f.Select(best)
+            return
+        end
+        local x, y = Center(cur)
+        local best, score
+        for _, w in ipairs(list) do
+            if w ~= cur then
+                local cx, cy = Center(w)
+                local ok, sc
+                if dy ~= 0 then
+                    local d = (cy - y) * dy
+                    ok = d > 4
+                    sc = d + 2.5 * math.abs(cx - x)
+                else
+                    local d = (cx - x) * dx
+                    ok = d > 4 and math.abs(cy - y) < 16
+                    sc = d + 4 * math.abs(cy - y)
+                end
+                if ok and (not score or sc < score) then best, score = w, sc end
+            end
+        end
+        if best then f.Select(best) end
+    end
+    local function IsSlider(w)
+        local ok, kind = pcall(w.GetObjectType, w)
+        return ok and kind == "Slider"
+    end
+    function f.Side(dir)
+        local w = f.sel
+        if w and IsSlider(w) then
+            local step = (w.GetValueStep and w:GetValueStep()) or 1
+            if not step or step <= 0 then step = 1 end
+            local lo, hi = w:GetMinMaxValues()
+            w:SetValue(math.max(lo, math.min(hi, (w:GetValue() or lo) + dir * step)))
+            return
+        end
+        f.Move(dir, 0)
+    end
+    function f.Activate()
+        local w = f.sel
+        if not w then f.Move(0, -1) return end
+        if IsSlider(w) then return end
+        if w.Click then pcall(w.Click, w) end
+        -- La page a pu changer (theme choisi, case cochee qui en grise d'autres).
+        if C_Timer and C_Timer.After then C_Timer.After(0, function() if f.sel and not f.sel:IsVisible() then f.Select(nil) end end) end
     end
 
-    function f.Select(k)
-        local rows = Page() and Page().rows or {}
-        if not k or not rows[k] then return end
-        f.selected = k
-        if k <= f.offset then f.offset = k - 1 elseif k > f.offset + VISIBLE then f.offset = k - VISIBLE end
-        f.Draw()
-    end
-    function f.Move(dir)
-        local rows = Page() and Page().rows or {}
-        local k = f.selected or 0
-        for _ = 1, #rows do
-            k = k + dir
-            if k < 1 then k = #rows elseif k > #rows then k = 1 end
-            if Selectable(rows[k]) then f.Select(k) return end
-        end
+    -- Page d'options prise dans la fenetre, rendue a sa place a la fermeture.
+    local function Detach()
+        local pg = f.shown
+        if not pg then return end
+        f.Select(nil)
+        pg.panel:Hide()
+        pg.panel:ClearAllPoints()
+        pg.panel:SetParent(pg.oldParent)
+        for _, pt in ipairs(pg.oldPoints or {}) do pcall(pg.panel.SetPoint, pg.panel, unpack(pt)) end
+        if DWE.optionsWindowButton and pg == pages[1] then DWE.optionsWindowButton:Show() end
+        f.shown = nil
     end
     function f.ShowPage(i)
-        if not Native.pages[i] then return end
-        f.pageIndex, f.offset, f.selected = i, 0, nil
-        GameTooltip:Hide()
-        f.Move(1)
-        f.Draw()
-    end
-    local function Current()
-        local rows = Page() and Page().rows or {}
-        return f.selected and rows[f.selected]
+        local pg = pages[i]
+        if not pg then return end
+        Detach()
+        f.pageIndex = i
+        for k, t in ipairs(f.tabs) do t.bg:SetShown(k == i) end
+        pg.oldParent = pg.panel:GetParent()
+        pg.oldPoints = {}
+        for n = 1, pg.panel:GetNumPoints() do pg.oldPoints[n] = { pg.panel:GetPoint(n) } end
+        pg.panel:SetParent(f.content)
+        pg.panel:ClearAllPoints()
+        pg.panel:SetAllPoints(f.content)
+        if DWE.optionsWindowButton and i == 1 then DWE.optionsWindowButton:Hide() end
+        pg.panel:Show()
+        f.shown = pg
+        if pg.scroll then pg.scroll:SetVerticalScroll(0) end
     end
     local function Tab(dir)
-        local n = #Native.pages
+        local n = #pages
+        if n == 0 then return end
         local i = f.pageIndex + dir
         if i < 1 then i = n elseif i > n then i = 1 end
         f.ShowPage(i)
     end
     f.Tab = Tab
 
-    f:EnableMouseWheel(true)
-    f:SetScript("OnMouseWheel", function(_, d)
-        f.offset = (f.offset or 0) - d
-        f.Draw()
-    end)
     f:EnableKeyboard(true)
     local OWN = { ESCAPE = true, UP = true, DOWN = true, LEFT = true, RIGHT = true, ENTER = true, SPACE = true, TAB = true }
     f:SetScript("OnKeyDown", function(self, key)
-        -- La fenetre de choix (liste) a la main tant qu'elle est ouverte.
-        if DWE.pickFrame and DWE.pickFrame:IsShown() then
-            if self.SetPropagateKeyboardInput and not InCombatLockdown() then pcall(self.SetPropagateKeyboardInput, self, true) end
-            return
-        end
-        if self.SetPropagateKeyboardInput and not InCombatLockdown() then pcall(self.SetPropagateKeyboardInput, self, not OWN[key]) end
-        f.padMode = true
-        local cur = Current()
+        -- Fenetre de choix, saisie de texte (couleur) ou de touche : elles ont la main.
+        local busy = (DWE.pickFrame and DWE.pickFrame:IsShown()) or (DWE.askFrame and DWE.askFrame:IsShown())
+            or (GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus())
+        if self.SetPropagateKeyboardInput and not InCombatLockdown() then pcall(self.SetPropagateKeyboardInput, self, busy or not OWN[key]) end
+        if busy then return end
         if key == "ESCAPE" then f:Hide()
-        elseif key == "UP" then f.Move(-1)
-        elseif key == "DOWN" then f.Move(1)
-        elseif key == "LEFT" then if cur then cur:Step(-1) end
-        elseif key == "RIGHT" then if cur then cur:Step(1) end
-        elseif key == "ENTER" or key == "SPACE" then if cur then cur:Activate() end
+        elseif key == "UP" then f.Move(0, 1)
+        elseif key == "DOWN" then f.Move(0, -1)
+        elseif key == "LEFT" then f.Side(-1)
+        elseif key == "RIGHT" then f.Side(1)
+        elseif key == "ENTER" or key == "SPACE" then f.Activate()
         elseif key == "TAB" then Tab(IsShiftKeyDown() and -1 or 1) end
     end)
     if f.EnableGamePadButton then
         pcall(f.EnableGamePadButton, f, true)
         if f.SetPropagateGamePadInput then pcall(f.SetPropagateGamePadInput, f, false) end
         f:SetScript("OnGamePadButtonDown", function(_, b)
-            if DWE.pickFrame and DWE.pickFrame:IsShown() then return end
-            f.padMode = true
-            local cur = Current()
-            if b == "PADDUP" then f.Move(-1)
-            elseif b == "PADDDOWN" then f.Move(1)
-            elseif b == "PADDLEFT" then if cur then cur:Step(-1) end
-            elseif b == "PADDRIGHT" then if cur then cur:Step(1) end
-            elseif b == "PAD1" then if cur then cur:Activate() end
+            if (DWE.pickFrame and DWE.pickFrame:IsShown()) or (DWE.askFrame and DWE.askFrame:IsShown()) then return end
+            if b == "PADDUP" then f.Move(0, 1)
+            elseif b == "PADDDOWN" then f.Move(0, -1)
+            elseif b == "PADDLEFT" then f.Side(-1)
+            elseif b == "PADDRIGHT" then f.Side(1)
+            elseif b == "PAD1" then f.Activate()
             elseif b == "PAD2" then f:Hide()
             elseif b == "PADLSHOULDER" or b == "PADLTRIGGER" then Tab(-1)
             elseif b == "PADRSHOULDER" or b == "PADRTRIGGER" then Tab(1) end
         end)
     end
     f:SetScript("OnHide", function()
+        Detach()
         GameTooltip:Hide()
         if DWE.pickFrame and DWE.pickFrame:IsShown() then DWE.pickFrame.Close() end
     end)
+    f.Draw = function() end
     f:Hide()
     return f
 end
 
 function DWE.OpenOptionsWindow(pageIndex)
-    DWE.BuildNativeOptions()
     local f = Native.window or MakeWindow()
-    f.padMode = false
     f:Show()
     f:Raise()
     f.ShowPage(pageIndex or f.pageIndex or 1)
