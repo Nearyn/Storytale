@@ -664,11 +664,14 @@ local function MakeWindow()
     local function Collect()
         local pg = Page()
         local list = {}
-        if not (pg and pg.child) then return list end
+        if not (pg and pg.panel) then return list end
         local function Walk(fr)
             for _, c in ipairs({ fr:GetChildren() }) do
                 local okV, vis = pcall(c.IsVisible, c)
-                if okV and vis then
+                -- La page defilante : seulement son contenu (pas sa barre de defilement).
+                if c == pg.scroll then
+                    if pg.child then Walk(pg.child) end
+                elseif okV and vis then
                     local okT, kind = pcall(c.GetObjectType, c)
                     if okT and KINDS[kind] then
                         local okE, en = pcall(function() return c.IsEnabled == nil or c:IsEnabled() end)
@@ -680,7 +683,9 @@ local function MakeWindow()
                 end
             end
         end
-        Walk(pg.child)
+        -- Toute la page (boutons "Par defaut" en haut compris), et les onglets a gauche.
+        Walk(pg.panel)
+        for _, t in ipairs(f.tabs) do list[#list + 1] = t end
         return list
     end
     local function Center(w)
@@ -699,6 +704,13 @@ local function MakeWindow()
         local pg = Page()
         local sc = pg and pg.scroll
         if not (sc and pg.child and w) then return end
+        -- Seulement ce qui est dans la partie qui defile (pas les onglets, ni le haut de la page).
+        local inside, p = false, w
+        while p do
+            if p == pg.child then inside = true break end
+            p = p:GetParent()
+        end
+        if not inside then return end
         local okT, top = pcall(pg.child.GetTop, pg.child)
         local wt, wh = w:GetTop(), w:GetHeight()
         if not (okT and top and wt and wh) then return end
@@ -837,22 +849,51 @@ local function MakeWindow()
         elseif key == "ENTER" or key == "SPACE" then f.Activate()
         elseif key == "TAB" then Tab(IsShiftKeyDown() and -1 or 1) end
     end)
-    if f.EnableGamePadButton then
-        pcall(f.EnableGamePadButton, f, true)
-        if f.SetPropagateGamePadInput then pcall(f.SetPropagateGamePadInput, f, false) end
-        f:SetScript("OnGamePadButtonDown", function(_, b)
-            if (DWE.pickFrame and DWE.pickFrame:IsShown()) or (DWE.askFrame and DWE.askFrame:IsShown()) then return end
-            if b == "PADDUP" then f.Move(0, 1)
-            elseif b == "PADDDOWN" then f.Move(0, -1)
-            elseif b == "PADDLEFT" then f.Side(-1)
-            elseif b == "PADDRIGHT" then f.Side(1)
-            elseif b == "PAD1" then f.Activate()
-            elseif b == "PAD2" then f:Hide()
-            elseif b == "PADLSHOULDER" or b == "PADLTRIGGER" then Tab(-1)
-            elseif b == "PADRSHOULDER" or b == "PADRTRIGGER" then Tab(1) end
-        end)
+    -- Manette : les boutons sont pris a la place de leurs actions du jeu tant que la fenetre est
+    -- ouverte (sinon A faisait aussi sauter le personnage). Liaisons de remplacement, retirees a
+    -- la fermeture (pas en combat : le jeu l'interdit, la fenetre ne prend alors que le clavier).
+    local function Pad(b)
+        -- Fenetre de choix ou de confirmation ouverte : c'est elle qui recoit le bouton.
+        for _, w in ipairs({ DWE.askFrame, DWE.pickFrame }) do
+            if w and w:IsShown() then
+                local h = w:GetScript("OnGamePadButtonDown")
+                if h then w.fromOptions = true; pcall(h, w, b); w.fromOptions = nil end
+                return
+            end
+        end
+        if b == "PADDUP" then f.Move(0, 1)
+        elseif b == "PADDDOWN" then f.Move(0, -1)
+        elseif b == "PADDLEFT" then f.Side(-1)
+        elseif b == "PADDRIGHT" then f.Side(1)
+        elseif b == "PAD1" then f.Activate()
+        elseif b == "PAD2" then f:Hide()
+        elseif b == "PADLSHOULDER" or b == "PADLTRIGGER" then Tab(-1)
+        elseif b == "PADRSHOULDER" or b == "PADRTRIGGER" then Tab(1) end
     end
+    f.Pad = Pad
+    local PAD_KEYS = { "PADDUP", "PADDDOWN", "PADDLEFT", "PADDRIGHT", "PAD1", "PAD2",
+        "PADLSHOULDER", "PADRSHOULDER", "PADLTRIGGER", "PADRTRIGGER" }
+    f.padButtons = {}
+    for _, k in ipairs(PAD_KEYS) do
+        local name = "StorytaleOptionsPad_" .. k
+        local btn = CreateFrame("Button", name, f)
+        btn:SetScript("OnClick", function() Pad(k) end)
+        f.padButtons[k] = name
+    end
+    function f.BindPad(on)
+        if InCombatLockdown() then return end
+        if not on then
+            if ClearOverrideBindings then ClearOverrideBindings(f) end
+            f.padBound = false
+            return
+        end
+        if not SetOverrideBindingClick then return end
+        for k, name in pairs(f.padButtons) do pcall(SetOverrideBindingClick, f, true, k, name) end
+        f.padBound = true
+    end
+    f:SetScript("OnShow", function() f.BindPad(true) end)
     f:SetScript("OnHide", function()
+        f.BindPad(false)
         Detach()
         GameTooltip:Hide()
         if DWE.pickFrame and DWE.pickFrame:IsShown() then DWE.pickFrame.Close() end
@@ -868,6 +909,9 @@ function DWE.OpenOptionsWindow(pageIndex)
     f:Raise()
     f.ShowPage(pageIndex or f.pageIndex or 1)
     return f
+end
+function DWE.OptionsPadActive()
+    return Native.window and Native.window:IsShown() and Native.window.padBound or false
 end
 function DWE.ToggleOptionsWindow()
     if Native.window and Native.window:IsShown() then Native.window:Hide() else DWE.OpenOptionsWindow() end

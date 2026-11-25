@@ -7279,6 +7279,8 @@ function DWE.Ask(opts)
             pcall(f.EnableGamePadButton, f, true)
             if f.SetPropagateGamePadInput then pcall(f.SetPropagateGamePadInput, f, false) end
             f:SetScript("OnGamePadButtonDown", function(_, b)
+                -- Fenetre d'options ouverte : ses liaisons transmettent deja le bouton (pas deux fois).
+                if DWE.OptionsPadActive and DWE.OptionsPadActive() and not f.fromOptions then return end
                 if b == "PAD1" then Done(f.sel ~= 2)
                 elseif b == "PAD2" then Done(false)
                 elseif b == "PADDLEFT" then Pick(1)
@@ -7420,6 +7422,7 @@ function DWE.PickList(opts)
             pcall(f.EnableGamePadButton, f, true)
             if f.SetPropagateGamePadInput then pcall(f.SetPropagateGamePadInput, f, false) end
             f:SetScript("OnGamePadButtonDown", function(_, b)
+                if DWE.OptionsPadActive and DWE.OptionsPadActive() and not f.fromOptions then return end
                 if b == "PAD1" then f.Choose()
                 elseif b == "PAD2" then f.Close()
                 elseif b == "PADDUP" then f.Select((f.sel or 1) - 1)

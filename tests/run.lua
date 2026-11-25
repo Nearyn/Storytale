@@ -3602,7 +3602,7 @@ else
         local n = #(DWE.optionPages or {})
         check(f and f:IsShown() and n >= 5 and #f.tabs == n, "options window opens with one tab per options page")
         check(DWE.optionPages[1].panel:GetParent() == f.content, "options window shows the original page")
-        local pad = f._scripts and f._scripts.OnGamePadButtonDown
+        local pad = f.Pad and function(_, b) f.Pad(b) end
         if pad then
             pad(f, "PADRSHOULDER")
             check(f.pageIndex == 2 and DWE.optionPages[2].panel:GetParent() == f.content, "options window: R1 goes to the next tab")
