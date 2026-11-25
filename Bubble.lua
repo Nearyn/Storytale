@@ -733,6 +733,120 @@ local function PageReveal(seg, n)
     state.shownN = n
 end
 
+-- Ecriture SANS le fondu du jeu (SetAlphaGradient). Avec lui, apres une pause de la voix, le jeu
+-- ne redessinait plus le texte pendant ~0,45 s (« on » fige puis « one may » d'un coup ; le
+-- journal montrait pourtant les lettres avancer). Prouve en jeu le 25/11 (/storytale sansfondu).
+-- Ici : le texte deja ecrit est pose tel quel, avec les retours a la ligne calcules d'avance
+-- (sinon un mot en cours sautait a la ligne suivante en grandissant), et la lettre qui arrive
+-- apparait en fondu grace a deux petites lettres a part, placees au bout du texte.
+DWE.noGradient = true
+local measure = holder:CreateFontString(nil, "OVERLAY")
+measure:Hide()
+if measure.SetWordWrap then measure:SetWordWrap(false) end
+local tails = {}
+for i = 1, 2 do
+    local t = holder:CreateFontString(nil, "OVERLAY")
+    t:SetJustifyH("LEFT")
+    t:SetJustifyV("TOP")
+    if t.SetWordWrap then t:SetWordWrap(false) end
+    t:Hide()
+    tails[i] = t
+end
+local function CopyLook(fs)
+    pcall(function()
+        local f, size, flags = text:GetFont()
+        if f and size then fs:SetFont(f, size, flags or "") end
+    end)
+    pcall(function() fs:SetTextColor(text:GetTextColor()) end)
+    pcall(function() fs:SetShadowOffset(text:GetShadowOffset()) end)
+    pcall(function() fs:SetShadowColor(text:GetShadowColor()) end)
+end
+local function Width(s)
+    measure:SetText(s ~= "" and s or " ")
+    local ok, w = pcall(measure.GetUnboundedStringWidth or measure.GetStringWidth, measure)
+    if s == "" then return 0 end
+    return (ok and type(w) == "number") and w or 0
+end
+local function LineHeight()
+    measure:SetText("Ag")
+    local ok1, h1 = pcall(measure.GetStringHeight, measure)
+    measure:SetText("Ag\nAg")
+    local ok2, h2 = pcall(measure.GetStringHeight, measure)
+    h1, h2 = ok1 and h1 or 14, ok2 and h2 or 30
+    local lh = h2 - h1
+    return (lh and lh > 4) and lh or h1
+end
+-- Le texte avec ses retours a la ligne (une espace remplacee par "\n" : meme longueur, les
+-- positions des lettres ne bougent pas). Garde tant que texte, largeur et police ne changent pas.
+local function Wrapped(seg)
+    local okW, width = pcall(text.GetWidth, text)
+    width = (okW and type(width) == "number" and width > 0) and width or 300
+    local okF, face, size = pcall(text.GetFont, text)
+    local key = seg .. "\0" .. math.floor(width) .. "\0" .. tostring(okF and face) .. tostring(okF and size)
+    if state.wrapKey == key then return state.wrapText end
+    CopyLook(measure)
+    local out, line, pos = {}, "", 1
+    for at, word, after in seg:gmatch("()(%S+)()") do
+        local gap = seg:sub(pos, at - 1)
+        local cand = line == "" and word or (line .. gap .. word)
+        if line ~= "" and Width(cand) > width - 1 then
+            -- retour a la ligne a la place de la premiere espace
+            out[#out + 1] = "\n" .. gap:sub(2)
+            line = word
+        else
+            out[#out + 1] = gap
+            line = cand
+        end
+        out[#out + 1] = word
+        pos = after
+    end
+    out[#out + 1] = seg:sub(pos)
+    state.wrapKey, state.wrapText, state.lineH = key, table.concat(out), LineHeight()
+    for _, t in ipairs(tails) do CopyLook(t) end
+    return state.wrapText
+end
+local function HideTails()
+    for _, t in ipairs(tails) do t:Hide() end
+end
+DWE.BubbleHideTails = HideTails
+-- Lettres qui arrivent : la n+1 apparait en fondu (part de lettre deja ecrite), la n+2 a peine.
+local function PlaceTails(shown, n, frac)
+    local w = state.wrapText or ""
+    local rest = w:sub(#shown + 1)
+    local c1 = rest:match("^[%z\1-\127\194-\244][\128-\191]*") or ""
+    local c2 = rest:sub(#c1 + 1):match("^[%z\1-\127\194-\244][\128-\191]*") or ""
+    local lineStart = shown:match(".*\n()") or 1
+    local lineText = shown:sub(lineStart)
+    local _, lines = shown:gsub("\n", "")
+    local x = Width(lineText)
+    local y = -lines * (state.lineH or 14)
+    local function put(t, ch, dx, a)
+        if ch == "" or ch:find("^%s") or a <= 0.02 then t:Hide() return end
+        t:ClearAllPoints()
+        t:SetPoint("TOPLEFT", text, "TOPLEFT", x + dx, y)
+        t:SetText(ch)
+        t:SetAlpha(math.min(1, a))
+        t:Show()
+    end
+    put(tails[1], c1, 0, frac)
+    if c1 ~= "" and not c1:find("^%s") then
+        put(tails[2], c2, Width(lineText .. c1) - x, frac * 0.35)
+    else
+        tails[2]:Hide()
+    end
+end
+local function CustomReveal(seg, n)
+    local w = Wrapped(seg)
+    local shown = Utf8Prefix(w, n)
+    if shown ~= state.customShown then
+        state.customShown = shown
+        if hasGradient then text:SetAlphaGradient(100000, 1) end
+        text:SetText(shown)
+    end
+    local frac = math.max(0, math.min(1, (state.typed or 0) - n))
+    PlaceTails(shown, n, frac)
+end
+
 local function Reveal()
     local seg = state.segs[state.index] or ""
     local n = math.floor(state.typed or 0)
@@ -742,6 +856,19 @@ local function Reveal()
         HighlightReset()
         text:SetText(seg)
         state.shownN = nil
+    end
+    if DWE.noGradient and state.phase == "typing" and not state.dots and not HighlightOn() and n > 0 and not state.fresh then
+        state.shownN = n
+        text:SetAlpha(1)
+        bubble:DWEWaitHide(false)
+        CustomReveal(seg, n)
+        return
+    end
+    HideTails()
+    if state.customShown then
+        -- retour au chemin du fondu du jeu (surlignage, points de suspension...) : texte entier
+        state.customShown, state.shownN = nil, nil
+        text:SetText(seg)
     end
     if hasGradient and state.phase == "typing" and not state.dots and HighlightStep(seg, n) then return end
 
@@ -785,7 +912,8 @@ local function StartSegment(i)
     -- Premiere lettre tout de suite, a chaque page : la page apparait avec son texte apres une
     -- seule image cachee (le jeu n'applique le fondu d'un nouveau texte qu'a l'image suivante).
     -- (Les pages suivantes partaient de 0 lettre : bulle vide 3 ou 4 images, mesure en video.)
-    state.index, state.phase, state.typed, state.shownN = i, "typing", 1, nil
+    state.index, state.phase, state.typed, state.shownN, state.customShown = i, "typing", 1, nil, nil
+    HideTails()
     HighlightReset() -- FitTo remet le texte sans couleur
     state.fresh = true
     FitTo(seg, seg)
@@ -801,7 +929,9 @@ local function FinishTyping()
     HighlightReset() -- page finie : plus de mot surligne
     text:SetAlpha(1)
     bubble:DWEWaitHide(false)
-    text:SetText(seg)
+    HideTails()
+    state.customShown = nil
+    text:SetText((DWE.noGradient and state.wrapText and state.wrapKey and state.wrapKey:sub(1, #seg) == seg) and state.wrapText or seg)
     if hasGradient then text:SetAlphaGradient(len + FADE_LETTERS + 1, 1) end
 end
 

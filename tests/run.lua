@@ -849,7 +849,7 @@ DWE.bubble:SetAlpha(0.5)
 check(DWE.bubble:GetAlpha() == 0.5, "bubble opacity set elsewhere still applies")
 DWE.bubble:SetAlpha(1)
 check(vis() == "Hello there, ", "letter by letter at 30/s: '" .. vis() .. "'")
-if os.getenv("NOGRADIENT") ~= "1" then
+if os.getenv("NOGRADIENT") ~= "1" and not DWE.noGradient then
     check(full():find("^Hello there, traveler!"), "whole segment laid out in advance (no reflow)")
 end
 local fullSeen
@@ -936,7 +936,7 @@ do
     for _ = 1, 4 do now = now + 0.05; tick(0.05) end
     local t = full() or ""
     -- (Seulement avec le fondu du jeu, que Forever a : sans lui, la bulle ecrit sans couleur.)
-    if os.getenv("NOGRADIENT") ~= "1" then
+    if os.getenv("NOGRADIENT") ~= "1" and not DWE.noGradient then
         local word = t:match("|cff%x%x%x%x%x%x(.-)|r")
         check(word ~= nil and hb:find(word, 1, true) ~= nil, "word highlight: the word being written is coloured: " .. tostring(word))
         check(t:gsub("|cff%x%x%x%x%x%x", ""):gsub("|r", "") == hb, "word highlight: text unchanged apart from the colour")
@@ -1047,7 +1047,7 @@ end
 -- Changement de page avec le mot lu surligne : la page suivante apparait une seule image apres
 -- (pas de bulle vide plusieurs images), son premier mot deja en couleur (pas blanc puis colore).
 -- Theme Personnalise : la couleur choisie pour le mot lu (pastille "Mot lu").
-if os.getenv("NOGRADIENT") ~= "1" then
+if os.getenv("NOGRADIENT") ~= "1" and not DWE.noGradient then
     local oEnv = rawget(_G, "SpokenEnv")
     local env = type(oEnv) == "table" and oEnv or {}
     _G.SpokenEnv = env
@@ -1969,7 +1969,7 @@ DialogueWheelE_ShowText = true
 Spoken = nil
 DWE.SetDialogueText("NPC", "Welcome to the inn, traveler.")
 check((DWE.textBody._grad or 100000) >= 1000, "no Spoken: popup text shown at once")
-if os.getenv("NOGRADIENT") ~= "1" then
+if os.getenv("NOGRADIENT") ~= "1" and not DWE.noGradient then
 local pnow = 2000
 GetTime = function() return pnow end
 local ptext = "Welcome to the inn, traveler. Rest your weary bones by the fire."
@@ -3757,6 +3757,28 @@ do -- /storytale perf now : chaque fonction chronometree pendant la mesure, puis
     for _, l in ipairs(lines) do if l:find("f:SetDialogueText", 1, true) then seen = true end end
     check(seen, "perf: report names the slow functions")
     _G.debugprofilestop = hadClock
+end
+do -- Ecriture sans le fondu du jeu : le texte ecrit est toujours le debut du texte final (aucun
+    -- mot ne saute a la ligne en grandissant) et la lettre qui arrive apparait en fondu a part.
+    local oldSp = rawget(_G, "Spoken")
+    _G.Spoken = nil
+    DWE.noGradient = true
+    local long = "Wrapping words should stay exactly where they will end, never jumping to the next line while they grow letter by letter in the bubble."
+    DWE.SetDialogueText("w", long)
+    local seen, stepsOk, tailSeen = {}, true, false
+    for _ = 1, 400 do
+        DWE.bubble._scripts.OnUpdate(DWE.bubble, 0.02)
+        seen[#seen + 1] = bt:GetText() or ""
+        for _, r in ipairs(DWE.bubble._regions or {}) do end
+    end
+    local final = bt:GetText() or ""
+    for _, t in ipairs(seen) do
+        if final:sub(1, #t) ~= t then stepsOk = false break end
+    end
+    check(final:gsub("\n", " ") == long, "no game fade: final text is the whole line (line breaks only replace spaces)")
+    check(stepsOk, "no game fade: what is written is always the start of the final text (no word jumping lines)")
+    check(final:find("\n") ~= nil or #long < 40, "no game fade: line breaks worked out in advance")
+    _G.Spoken = oldSp
 end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
