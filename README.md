@@ -30,6 +30,9 @@ Storytale works with the game's gamepad mode, with any controller the game suppo
 
 Settings are in **Escape → Options → AddOns → Storytale**, or type `/storytale` (`/dwe` still works).
 
+### Support
+Enjoying Storytale? You can support its development on [Ko-fi](https://ko-fi.com/nearyn) ☕
+
 ---
 
 ## Français
@@ -59,3 +62,6 @@ Storytale fonctionne avec le mode manette du jeu, et toutes les manettes qu'il a
 **Vous aviez DialogueWheelE ?** Supprimez l'ancien dossier `DialogueWheelE` dans `Interface\AddOns`. Pour garder vos réglages, renommez `DialogueWheelE.lua` en `Storytale.lua` dans `World of Warcraft\_forever_\WTF\Account\<votre compte>\SavedVariables` (jeu fermé).
 
 Les réglages sont dans **Échap → Options → AddOns → Storytale**, ou tapez `/storytale` (`/dwe` marche toujours).
+
+### Soutenir
+Storytale vous plaît ? Vous pouvez soutenir son développement sur [Ko-fi](https://ko-fi.com/nearyn) ☕
