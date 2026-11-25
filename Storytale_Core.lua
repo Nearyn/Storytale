@@ -3059,6 +3059,17 @@ DWE.PLATES = {
 }
 -- Zones et donjons des tablettes trolles (Strangleronce, Zul'Farrak).
 DWE.TROLL_ZONES, DWE.TROLL_DUNGEONS = { [1434] = true }, { [209] = true }
+-- Carte de Strangleronce (1434) ou instance de Zul'Gurub (309, puis 859 depuis Cataclysm).
+DWE.TROLL_INSTANCES = { [309] = true, [859] = true }
+function DWE.InTrollLands()
+    local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    if map and DWE.TROLL_ZONES[map] then return true end
+    if GetInstanceInfo then
+        local id = select(8, GetInstanceInfo())
+        if id and DWE.TROLL_INSTANCES[id] then return true end
+    end
+    return false
+end
 -- La page `pageId` de Spoken Readables est-elle une tablette trolle ?
 -- Supports d'un texte selon la carte ou on le lit : texte de Khadgar (livre 289 de Spoken),
 -- stele ronde dans les montagnes d'Alterac (Dalaran), plaque de bronze a Hurlevent.
@@ -3083,7 +3094,7 @@ function DWE.TrollTablet(pageId)
         end
     end
     if entry.type == "plaque" or entry.type == "grave" then return "Stone", entry.type end
-    if entry.type ~= "tablet" then return false end
+    if entry.type ~= "tablet" then return false, "book" end -- Spoken le connait : pas une tablette
     for _, z in ipairs(entry.zones or {}) do if DWE.TROLL_ZONES[z] then return "Troll" end end
     for _, d in ipairs(entry.dungeons or {}) do if DWE.TROLL_DUNGEONS[d] then return "Troll" end end
     return "Tablet" -- autre tablette (quetes de classe) : la stele sans gravures
@@ -3132,6 +3143,9 @@ function DWE.OpenTrollTabletRaw()
         if ok and id then
             local plate, kind = DWE.TrollTablet(id)
             if plate then return plate, kind end
+            -- Spoken sait que c'est un vrai livre (le meme titre existe en livre et en tablette,
+            -- ex. "Empires' Fall" dans une bibliotheque) : on ne devine pas d'apres le titre.
+            if kind == "book" then return false end
         end
     end
     -- Storytale seul : d'apres le titre et l'endroit.
@@ -3147,8 +3161,16 @@ function DWE.OpenTrollTabletRaw()
         end
     end
     local plate = DWE.STONE_TEXTS[(title:gsub("^%s+", ""):gsub("%s+$", ""))]
+    -- Steles trolles : seulement la ou elles se trouvent (Strangleronce, Zul'Gurub) ; ailleurs
+    -- le meme titre est un livre de bibliotheque.
+    if plate == "Troll" and not DWE.InTrollLands() then plate = nil end
     if plate then return plate, plate == "Stone" and "plaque" or nil end
     return false
+end
+function DWE.OpenTitle()
+    local ok, t = pcall(ItemTextGetItem or function() end)
+    if not ok or type(t) ~= "string" or (issecretvalue and issecretvalue(t)) then return nil end
+    return t
 end
 function DWE.RawPlate()
     if DWE.testPlate and (DWE.bookMode or (ItemTextGetMaterial and ItemTextGetMaterial())) then
@@ -3168,9 +3190,13 @@ function DWE.RawPlate()
         local pick = DialogueWheelE_PlateLook
         if DWE.PLATES[m] and pick and DWE.PLATES[pick] then m = pick end
         DWE.lastPlate = DWE.PLATES[m] and m or nil
+        DWE.lastPlateTitle = DWE.OpenTitle()
         return DWE.lastPlate
     end
-    return DWE.bookMode and DWE.lastPlate or nil
+    -- Seulement pour le meme texte : sinon, apres une stele, tous les livres suivants (dont le
+    -- jeu ne donne pas la matiere) gardaient l'allure de la stele.
+    if DWE.bookMode and DWE.lastPlate and DWE.lastPlateTitle == DWE.OpenTitle() then return DWE.lastPlate end
+    return nil
 end
 function DWE.PlateMaterial()
     if not DWE.BookByAddon() then return nil end

@@ -3322,7 +3322,13 @@ do
     ItemTextGetItem = function() return "Tombe d'Eliza" end
     check(DWE.OpenTrollTablet() == "Stone", "standalone: tombstones recognized in other languages")
     ItemTextGetItem = function() return "Les empires jumeaux" end
+    check(DWE.OpenTrollTablet() == false, "standalone: troll title outside troll lands is a library book")
+    local oldMap = C_Map.GetBestMapForUnit
+    C_Map.GetBestMapForUnit = function() return 1434 end
+    DWE.ForgetOpenText()
     check(DWE.OpenTrollTablet() == "Troll", "standalone: troll stele recognized by its title")
+    C_Map.GetBestMapForUnit = oldMap
+    DWE.ForgetOpenText()
     ItemTextGetItem = function() return "The Seven Kingdoms" end
     check(DWE.OpenTrollTablet() == false, "standalone: books stay books")
     ItemTextGetItem, _G.SpokenReadables = oldGet, oldSR
