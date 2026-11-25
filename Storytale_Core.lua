@@ -2844,7 +2844,20 @@ end
 local function CollectUI()
     if InCombatLockdown and InCombatLockdown() then return end
     if not UIParent.GetChildren then return end
-    for _, fr in ipairs({ UIParent:GetChildren() }) do
+    local list = { UIParent:GetChildren() }
+    -- Fenetres posees hors de UIParent (certains addons de chat comme Chattynator, barres...) :
+    -- les cadres sans parent sont aussi effaces (jamais le monde du jeu ni UIParent).
+    if EnumerateFrames then
+        local fr = EnumerateFrames()
+        local n = 0
+        while fr and n < 20000 do
+            n = n + 1
+            local okP, parent = pcall(fr.GetParent, fr)
+            if okP and parent == nil and fr ~= UIParent and fr ~= WorldFrame then list[#list + 1] = fr end
+            fr = EnumerateFrames(fr)
+        end
+    end
+    for _, fr in ipairs(list) do
         -- Cadres proteges (fenetres Blizzard interdites aux addons) : on n'y touche pas.
         local okF, forbidden = pcall(function() return fr.IsForbidden and fr:IsForbidden() end)
         local okS, shown = false, false
@@ -2870,10 +2883,10 @@ cineBars:SetScript("OnUpdate", function(self, dt)
     if math.abs(target - a) < 0.01 then a = target end
     self.alpha = a
     self:SetAlpha(a)
-    -- Pendant le fondu a chaque image ; ensuite deux fois par seconde (si un autre addon
-    -- remontre un cadre, il repart).
+    -- Pendant le fondu a chaque image ; ensuite dix fois par seconde (si un autre addon
+    -- remontre un cadre ou change son opacite, comme le fondu d'un chat, il repart).
     self.tick = (self.tick or 0) + dt
-    if a ~= self.lastA or self.tick > 0.5 then
+    if a ~= self.lastA or self.tick > 0.1 then
         self.lastA, self.tick = a, 0
         FadeUI(a)
     end
