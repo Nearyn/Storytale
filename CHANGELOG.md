@@ -1,5 +1,23 @@
 # Changelog / Journal des versions
 
+## 1.10.1
+
+**English**
+
+### Improved
+- Options: "Voice follows my pages" and "Stop the voice when closing a book" moved to the books page, under "Follow Spoken's voice". They are greyed out without Spoken, or when Blizzard or DialogueUI shows the books and plaques.
+- Options: "Bubble display" (Typewriter / Whole page) moved to the General page, under the text sizes: it works with or without a voice, so it is no longer greyed out without Spoken.
+- Options: "Hide UI while talking or reading" and the minimap button have their own "Interface" section at the bottom of the General page. The keys page points to the Bubble / Spoken key (on the Spoken page). The "Bubble above the NPC" tooltip says which themes are always bubbles.
+
+---
+
+**Français**
+
+### Améliorations
+- Options : « La voix suit mes pages » et « Couper la voix en fermant un livre » passent dans la page des livres, sous « Suivre la voix de Spoken ». Elles sont grisées sans Spoken, ou quand Blizzard ou DialogueUI affichent les livres et les plaques.
+- Options : « Affichage de la bulle » (Écriture progressive / Page entière) passe dans la page Général, sous les tailles de texte : il marche avec ou sans voix, il n'est donc plus grisé sans Spoken.
+- Options : « Cacher l'interface en dialogue et en lecture » et le bouton de la mini-carte ont leur propre section « Interface » en bas de la page Général. La page des touches indique où trouver la touche Bulle / Spoken (page Spoken). L'infobulle de « Bulle au-dessus du PNJ » dit quels thèmes restent toujours en bulle.
+
 ## 1.10.0
 
 **English**

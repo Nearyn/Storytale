@@ -7746,16 +7746,7 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_WheelTheme = self:GetChecked() and true or false
         DWE.OnThemeChanged()
     end)
-    y = y - 30
-    AddCheck(L.HIDE_UI, 16, y, function() return DialogueWheelE_HideUI == true end, function(self)
-        DialogueWheelE_HideUI = self:GetChecked() and true or false
-    end)
-    y = y - 30
-    -- Bouton de la mini-carte (ouvre ces options).
-    AddCheck(L.MINIMAP_BTN, 16, y, function() return DialogueWheelE_MinimapHide ~= true end, function(self)
-        DialogueWheelE_MinimapHide = (not self:GetChecked()) and true or nil
-        if DWE.MinimapButtonRefresh then DWE.MinimapButtonRefresh() end
-    end)
+    -- (« Cacher l'interface » et le bouton de la mini-carte : section Interface, en bas)
     AddSlider("DWESliderOpacity", L.OPACITY_LBL, 22, y - 50, 0.2, 1, 0.05, function() return tonumber(DialogueWheelE_Opacity) or 1 end, "%.2f", function(v)
         DialogueWheelE_Opacity = v
         DWE.OnThemeChanged()
@@ -8002,9 +7993,31 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_ChoiceSize = v
         if DWE.choiceBox:IsShown() then DWE.UpdateVisuals() end
     end)
+    -- Affichage de la bulle : ecriture progressive (par defaut) ou page entiere (chaque page d'un
+    -- coup ; quand une voix lit, le mot lu en couleur, comme le narrateur de Spoken).
+    AddText(L.BUBBLE_MODE, 16, y - 80, "GameFontHighlightSmall")
+    AddGroup({
+        { id = "type", label = L.BUBBLE_MODE_TYPE },
+        { id = "page", label = L.BUBBLE_MODE_PAGE },
+    }, 300, y - 76, 26, function() return DialogueWheelE_BubbleMode == "page" and "page" or "type" end, function(id)
+        DialogueWheelE_BubbleMode = (id == "page") and "page" or nil
+        if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end
+    end, 1, 190) -- (colonnes plus larges : "Ecriture progressive" est long)
+
+    ---------------------------------------------------------------- Interface
+    y = y - 126
+    AddSection(L.SEC_UI or "Interface", y)
+    AddCheck(L.HIDE_UI, 16, y - 32, function() return DialogueWheelE_HideUI == true end, function(self)
+        DialogueWheelE_HideUI = self:GetChecked() and true or false
+    end)
+    -- Bouton de la mini-carte (ouvre ces options).
+    AddCheck(L.MINIMAP_BTN, 16, y - 62, function() return DialogueWheelE_MinimapHide ~= true end, function(self)
+        DialogueWheelE_MinimapHide = (not self:GetChecked()) and true or nil
+        if DWE.MinimapButtonRefresh then DWE.MinimapButtonRefresh() end
+    end)
 
     ---------------------------------------------------------------- Livres et lettres
-    y = y - 76
+    y = y - 100
     NewPage(L.SEC_BOOKS, y)
     AddSection(L.SEC_BOOKS, y)
     -- Livres et lettres : qui les affiche, puis leur style (seulement pour Storytale).
@@ -8105,12 +8118,24 @@ function DWE.InitOptionsPanel()
     local turnCheck = AddCheck(L.BOOK_TURN_FX, 16, y - 350, function() return DialogueWheelE_BookTurnFX ~= false end, function(self)
         DialogueWheelE_BookTurnFX = self:GetChecked() and true or false
     end)
+    -- Page tournee a la main dans un livre lu par Spoken : la voix reprend a cette page.
+    local voiceTurnCheck = AddCheck(L.BOOK_VOICE_TURN, 16, y - 376, function() return DialogueWheelE_BookVoiceTurn == true end, function(self)
+        DialogueWheelE_BookVoiceTurn = self:GetChecked() and true or nil
+    end)
+    -- Livre ferme : Spoken arrete de le lire (decoche par defaut : la lecture continue).
+    local stopCloseCheck = AddCheck(L.BOOK_STOP_CLOSE, 16, y - 402, function() return DialogueWheelE_BookStopOnClose == true end, function(self)
+        DialogueWheelE_BookStopOnClose = self:GetChecked() and true or nil
+    end)
     -- Suivre la voix et l'animation des pages : seulement quand Storytale affiche les livres ou
-    -- les plaques (grisees si les deux sont laisses a Blizzard ou a DialogueUI).
+    -- les plaques (grisees si les deux sont laisses a Blizzard ou a DialogueUI) ; les options de
+    -- la voix, en plus, seulement avec Spoken.
     local function RefreshBookExtras()
-        local on = (DialogueWheelE_BookStyle or "addon") == "addon" or (DialogueWheelE_PlateStyle or "addon") == "addon"
-        local c = on and 1 or 0.5
-        for _, cb in ipairs({ autoCheck, turnCheck }) do
+        local mine = (DialogueWheelE_BookStyle or "addon") == "addon" or (DialogueWheelE_PlateStyle or "addon") == "addon"
+        local spoken = DWE.SpokenFocus and DWE.SpokenFocus.Available() and true or false
+        for _, e in ipairs({ { autoCheck, true }, { turnCheck, false }, { voiceTurnCheck, true }, { stopCloseCheck, true } }) do
+            local cb, needsVoice = e[1], e[2]
+            local on = mine and (spoken or not needsVoice)
+            local c = on and 1 or 0.5
             if cb then
                 if on then cb:Enable() else cb:Disable() end
                 local t = cb.Text or cb.text
@@ -8126,7 +8151,7 @@ function DWE.InitOptionsPanel()
     RefreshBookExtras()
 
     ---------------------------------------------------------------- Placement
-    y = y - 390
+    y = y - 442
     NewPage(L.SEC_PLACE, y)
     AddSection(L.SEC_PLACE, y)
     AddCheck(L.ATTACH_NPC, 16, y - 32, function() return DialogueWheelE_AttachNPC ~= false end, function(self)
@@ -8179,6 +8204,11 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_WheelScroll = self:GetChecked() and true or false
         DWE.RefreshBindings()
     end)
+    -- (qui cherche une touche regarde ici : la touche Bulle / Spoken est dans la page Spoken)
+    if L.KEY_SPOKEN_HINT then
+        local hint = AddText(L.KEY_SPOKEN_HINT, 300, keysY - 58, "GameFontDisableSmall")
+        if hint and hint.SetWidth then hint:SetWidth(300); hint:SetJustifyH("LEFT") end
+    end
 
     ---------------------------------------------------------------- Manette
     y = keysY - 76
@@ -8386,33 +8416,14 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_BubbleHighlight = self:GetChecked() and true or nil
         if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end
     end), spokenOn)
-    -- Affichage de la bulle : ecriture progressive (par defaut) ou page entiere (chaque page d'un
-    -- coup ; quand une voix lit, le mot lu en couleur, comme le narrateur de Spoken).
-    local modeLbl = AddText(L.BUBBLE_MODE, 36, y - 378, "GameFontHighlightSmall")
-    local modeBoxes = AddGroup({
-        { id = "type", label = L.BUBBLE_MODE_TYPE },
-        { id = "page", label = L.BUBBLE_MODE_PAGE },
-    }, 300, y - 374, 26, function() return DialogueWheelE_BubbleMode == "page" and "page" or "type" end, function(id)
-        DialogueWheelE_BubbleMode = (id == "page") and "page" or nil
-        if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end
-    end, 1, 190) -- (colonnes plus larges : "Ecriture progressive" est long)
-    for _, cb in ipairs(modeBoxes) do Grey(cb, spokenOn) end
-    if modeLbl.SetAlpha then modeLbl:SetAlpha(spokenOn and 1 or 0.5) end
-    -- Page tournee a la main dans un livre lu par Spoken : la voix reprend a cette page.
-    Grey(AddCheck(L.BOOK_VOICE_TURN, 16, y - 402, function() return DialogueWheelE_BookVoiceTurn == true end, function(self)
-        DialogueWheelE_BookVoiceTurn = self:GetChecked() and true or nil
-    end), spokenOn)
-    -- Livre ferme : Spoken arrete de le lire (decoche par defaut : la lecture continue).
-    Grey(AddCheck(L.BOOK_STOP_CLOSE, 16, y - 428, function() return DialogueWheelE_BookStopOnClose == true end, function(self)
-        DialogueWheelE_BookStopOnClose = self:GetChecked() and true or nil
-    end), spokenOn)
+    -- (« La voix suit mes pages » et « Arreter la voix en fermant un livre » : page des livres)
     -- Illustration du lieu au-dessus de la petite fenetre de Spoken (narrations de Spoken Places).
-    Grey(AddCheck(L.ZONE_ART, 16, y - 454, function() return DialogueWheelE_ZoneArt ~= false end, function(self)
+    Grey(AddCheck(L.ZONE_ART, 16, y - 378, function() return DialogueWheelE_ZoneArt ~= false end, function(self)
         DialogueWheelE_ZoneArt = self:GetChecked() and true or false
         if DWE.ZoneArtRefresh then DWE.ZoneArtRefresh() end
     end), spokenOn)
     -- Bord de papier peint dans l'illustration (decoche : la scene seule, dans le fond du theme).
-    Grey(AddCheck(L.ZONE_ART_PAPER, 36, y - 480, function() return DialogueWheelE_ZoneArtPaper == true end, function(self)
+    Grey(AddCheck(L.ZONE_ART_PAPER, 36, y - 404, function() return DialogueWheelE_ZoneArtPaper == true end, function(self)
         DialogueWheelE_ZoneArtPaper = self:GetChecked() and true or nil
         if DWE.ZoneArtRefresh then DWE.ZoneArtRefresh() end
     end), spokenOn)
@@ -8623,13 +8634,13 @@ function DWE.InitOptionsPanel()
     for k, pg in ipairs(pages) do pg.search = MakeSearch(pg.panel, k == 1 and "DialogueWheelEOptionsSearch" or nil) end
     -- "Par defaut" en haut de chaque page : remet les reglages de cette page seulement.
     local PAGE_VARS = {
-        { "Theme", "Font", "FontSize", "Opacity", "ThemeFrames", "WheelTheme", "HideUI", "ChoiceSize", "MinimapHide", "MinimapAngle" },
+        { "Theme", "Font", "FontSize", "Opacity", "ThemeFrames", "WheelTheme", "HideUI", "ChoiceSize", "MinimapHide", "MinimapAngle", "BubbleMode" },
         { "BookStyle", "BookLook", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookTurnFX",
-            "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos" },
+            "BookVoiceTurn", "BookStopOnClose", "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos" },
         { "AttachNPC", "Locked", "WheelSide", "QuestAuto", "QuestWidth", "NPCOffset", "Pos", "TextPos", "WheelWidth", "TextW", "TextH", "BubbleWidth" },
         { "UseBlizzKey", "InteractKey", "ToggleKey", "EscClose", "WheelScroll", "GamePad", "PadTips", "PadFreeLook" },
-        { "SpokenTheme", "SpokenSkin", "BookSkin", "PlateSkin", "PlaceSkin", "SpokenButton", "ShowText", "SpokenSmart", "BubbleHighlight", "BubbleMode",
-            "BookVoiceTurn", "BookStopOnClose", "ZoneArt", "ZoneArtPaper" },
+        { "SpokenTheme", "SpokenSkin", "BookSkin", "PlateSkin", "PlaceSkin", "SpokenButton", "ShowText", "SpokenSmart", "BubbleHighlight",
+            "ZoneArt", "ZoneArtPaper" },
     }
     for k, pg in ipairs(pages) do
         if PAGE_VARS[k] then
