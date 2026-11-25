@@ -611,6 +611,19 @@ local THEME_COLORS = {
 local function ThemeColors()
     local id = DialogueWheelE_Theme or "bubble"
     if id == "scroll" then id = "parchment" end
+    -- Theme Personnalise : ses propres couleurs (contour = accent ; fond assombri si besoin, pour
+    -- que le texte et les cases du jeu restent lisibles).
+    if id == "custom" and DWE.CustomColor then
+        local a, bg = DWE.CustomColor("border"), DWE.CustomColor("bg")
+        local lum = 0.3 * bg[1] + 0.59 * bg[2] + 0.11 * bg[3]
+        if lum > 0.2 then
+            local k = 0.2 / lum
+            bg = { bg[1] * k, bg[2] * k, bg[3] * k }
+        end
+        local la = 0.3 * a[1] + 0.59 * a[2] + 0.11 * a[3]
+        if la < 0.35 then a = DWE.CustomColor("sel") end -- contour trop sombre : la couleur du choix
+        return a, bg
+    end
     local c = THEME_COLORS[id] or THEME_COLORS.bubble
     return c[1], c[2]
 end
@@ -742,7 +755,8 @@ local function MakeWindow()
     function f.ApplyColors()
         local a, bg = ThemeColors()
         if f.SetBackdropColor then
-            f:SetBackdropColor(bg[1], bg[2], bg[3], 0.98)
+            -- (un peu transparent : on devine le jeu derriere, sans gener la lecture)
+            f:SetBackdropColor(bg[1], bg[2], bg[3], 0.90)
             f:SetBackdropBorderColor(math.min(1, a[1] * 0.9 + 0.1), math.min(1, a[2] * 0.9 + 0.1), math.min(1, a[3] * 0.9 + 0.1), 1)
         end
         if f.shade.SetGradient and CreateColor then
@@ -1005,8 +1019,17 @@ local function MakeWindow()
         for k, name in pairs(f.padButtons) do pcall(SetOverrideBindingClick, f, true, k, name) end
         f.padBound = true
     end
-    f:SetScript("OnShow", function() f.BindPad(true) end)
+    f:SetScript("OnShow", function()
+        f.BindPad(true)
+        -- Couleurs du theme Personnalise changees dans la page : la fenetre suit (relu 2 fois/s).
+        f.colorT = 0
+        f:SetScript("OnUpdate", function(self, elapsed)
+            self.colorT = self.colorT + elapsed
+            if self.colorT > 0.5 then self.colorT = 0; self.ApplyColors() end
+        end)
+    end)
     f:SetScript("OnHide", function()
+        f:SetScript("OnUpdate", nil)
         f.BindPad(false)
         Detach()
         GameTooltip:Hide()
