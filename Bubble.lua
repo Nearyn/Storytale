@@ -915,11 +915,16 @@ local function CustomReveal(seg, n)
         state.bufKey, state.bufN, state.bufFade = key, n, fade
         local i = (state.bufFront == 1) and 2 or 1
         local b = bufs[i]
-        CopyLook(b.fs)
-        b.fs:ClearAllPoints()
-        b.fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, 0)
-        local okW, tw = pcall(text.GetWidth, text)
-        if okW and type(tw) == "number" and tw > 0 then b.fs:SetWidth(tw) end
+        -- Police, couleur, place et largeur : seulement quand elles changent (a chaque lettre,
+        -- les reposer coutait une remise en page de plus).
+        if b.setupKey ~= state.wrapKey then
+            b.setupKey = state.wrapKey
+            CopyLook(b.fs)
+            b.fs:ClearAllPoints()
+            b.fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, 0)
+            local okW, tw = pcall(text.GetWidth, text)
+            if okW and type(tw) == "number" and tw > 0 then b.fs:SetWidth(tw) end
+        end
         b.f:SetAlpha(0)
         b.fs:SetText(Utf8Prefix(w, n + fade))
         b.n, b.fade = n, fade
