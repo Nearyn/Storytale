@@ -8099,12 +8099,31 @@ function DWE.InitOptionsPanel()
     AddCheck(L.BOOK_TIP_CURSOR, 16, y - 298, function() return DialogueWheelE_BookTipCursor == true end, function(self)
         DialogueWheelE_BookTipCursor = self:GetChecked() and true or false
     end)
-    AddCheck(L.BOOK_AUTOSCROLL, 16, y - 324, function() return DialogueWheelE_BookAutoScroll ~= false end, function(self)
+    local autoCheck = AddCheck(L.BOOK_AUTOSCROLL, 16, y - 324, function() return DialogueWheelE_BookAutoScroll ~= false end, function(self)
         DialogueWheelE_BookAutoScroll = self:GetChecked() and true or false
     end)
-    AddCheck(L.BOOK_TURN_FX, 16, y - 350, function() return DialogueWheelE_BookTurnFX ~= false end, function(self)
+    local turnCheck = AddCheck(L.BOOK_TURN_FX, 16, y - 350, function() return DialogueWheelE_BookTurnFX ~= false end, function(self)
         DialogueWheelE_BookTurnFX = self:GetChecked() and true or false
     end)
+    -- Suivre la voix et l'animation des pages : seulement quand Storytale affiche les livres ou
+    -- les plaques (grisees si les deux sont laisses a Blizzard ou a DialogueUI).
+    local function RefreshBookExtras()
+        local on = (DialogueWheelE_BookStyle or "addon") == "addon" or (DialogueWheelE_PlateStyle or "addon") == "addon"
+        local c = on and 1 or 0.5
+        for _, cb in ipairs({ autoCheck, turnCheck }) do
+            if cb then
+                if on then cb:Enable() else cb:Disable() end
+                local t = cb.Text or cb.text
+                if t and t.SetTextColor then t:SetTextColor(c, c, c) end
+            end
+        end
+    end
+    do
+        local ob, op = DWE.RefreshBookLookOptions, DWE.RefreshPlateLookOptions
+        DWE.RefreshBookLookOptions = function(...) ob(...); RefreshBookExtras() end
+        DWE.RefreshPlateLookOptions = function(...) op(...); RefreshBookExtras() end
+    end
+    RefreshBookExtras()
 
     ---------------------------------------------------------------- Placement
     y = y - 390
