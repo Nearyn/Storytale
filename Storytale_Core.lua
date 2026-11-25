@@ -8175,7 +8175,11 @@ function DWE.InitOptionsPanel()
     toggleBtn:SetScript("OnClick", function(self)
         CaptureKey(self, function(k) DialogueWheelE_ToggleKey = k end)
     end)
-    panel:SetScript("OnShow", function()
+    -- HookScript et non SetScript : a la manette, le jeu affiche cette page depuis sa navigation
+    -- protegee ; un script pose par SetScript la contaminait (journal taint.log du 25/11 :
+    -- Storytale_Core.lua OnShow -> RefreshKeyButtons), puis le jeu bloquait les actions de la
+    -- manette (SetPreferredGamepadInteractTarget, sorts, cible) jusqu'au /reload.
+    panel:HookScript("OnShow", function()
         RefreshKeyButtons()
         RefreshTiles()
     end)
