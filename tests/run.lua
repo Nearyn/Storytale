@@ -1559,6 +1559,7 @@ if DWE.BookLook() == "book" then
     check(DWE.textBody:GetText() == "p3", "far page reached from a fresh open (got " .. tostring(DWE.textBody:GetText()) .. ")")
     -- Le jeu renvoie ITEM_TEXT_BEGIN en pleine lecture : le livre ne passe pas en page seule.
     local wasLook = DWE.BookLook()
+    DWE.choiceBox:Hide() -- le jeu cache parfois la fenetre juste avant
     M.FireEvent("ITEM_TEXT_BEGIN")
     check(DWE.BookLook() == wasLook and DWE.textBox.dweBook == true, "book keeps its look when the game reopens it (got " .. tostring(DWE.BookLook()) .. ")")
     M.FireEvent("ITEM_TEXT_READY")

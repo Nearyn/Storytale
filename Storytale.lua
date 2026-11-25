@@ -3671,7 +3671,8 @@ f:SetScript("OnEvent", function(_, event)
         -- Le jeu renvoie parfois ITEM_TEXT_BEGIN en pleine lecture (certaines pages tournees) :
         -- le livre deja ouvert garde son allure jusqu'a la page suivante, sinon il s'affiche une
         -- image en page seule a la mauvaise taille (le "livre en double").
-        local same = DWE.choiceBox:IsShown() and DWE.bookMode and DWE.BookLook() == "book"
+        -- (la fenetre peut etre deja cachee a ce moment : on se fie a la derniere allure affichee)
+        local same = DWE.bookMode and DWE.lastLook == "book"
             and bookState.title ~= "" and bookState.title == (NonEmpty(ItemTextGetItem and ItemTextGetItem()) or "")
         DWE.bookLookHold = same and "book" or nil
         if same and DWE.LookLog then DWE.LookLog("reouverture du meme livre : on garde le livre") end
