@@ -7605,7 +7605,7 @@ function DWE.InitOptionsPanel()
     panel.name = "Storytale"
     DWE.optionsPanel = panel
     -- Bouton vers la fenetre d'options de Storytale (faite pour la manette).
-    if DWE.NATIVE_OPTIONS then
+    if false then -- (remplace par la page d'ouverture du menu du jeu, plus bas)
         local open = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
         open:SetSize(220, 24)
         -- (sous la barre du haut : "Par defaut" et la recherche y sont deja)
@@ -8802,7 +8802,15 @@ function DWE.InitOptionsPanel()
         count:SetText(i .. " / " .. #found)
         -- Option d'une autre categorie : on ouvre sa page, puis on y va (une fois affichee).
         local pg = e.page or pages[1]
-        if not pg.panel:IsVisible() and pg.cat and Settings and Settings.OpenToCategory then
+        -- Fenetre d'options de Storytale : on passe a l'onglet de la page.
+        local win = DWE.Native and DWE.Native.window
+        if not pg.panel:IsVisible() and win and win:IsShown() and win.ShowPage then
+            for k, page in ipairs(pages) do if page == pg then win.ShowPage(k) end end
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0.05, function() Place(e) end)
+                return
+            end
+        elseif not pg.panel:IsVisible() and pg.cat and Settings and Settings.OpenToCategory then
             local id = pg.cat.GetID and pg.cat:GetID() or pg.cat.ID
             pcall(Settings.OpenToCategory, id)
             if C_Timer and C_Timer.After then
@@ -8927,7 +8935,38 @@ function DWE.InitOptionsPanel()
         end)
     end
 
-    if Settings and Settings.RegisterCanvasLayoutCategory then
+    -- Options dans leur propre fenetre (Options_Native.lua) : le menu du jeu n'a plus qu'une page
+    -- qui l'ouvre (pas de doublon, et plus aucun reglage de Storytale dans le panneau du jeu, dont
+    -- la manette se bloquait).
+    if DWE.NATIVE_OPTIONS and Settings and Settings.RegisterCanvasLayoutCategory then
+        local launch = CreateFrame("Frame")
+        launch.name = "Storytale"
+        local title = launch:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
+        title:SetPoint("TOPLEFT", 16, -16)
+        title:SetText("Storytale")
+        local txt = launch:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        txt:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -14)
+        txt:SetWidth(560)
+        txt:SetJustifyH("LEFT")
+        txt:SetText(L.OPT_LAUNCH_TEXT or "")
+        local open = CreateFrame("Button", nil, launch, "UIPanelButtonTemplate")
+        open:SetSize(280, 32)
+        open:SetPoint("TOPLEFT", txt, "BOTTOMLEFT", 0, -18)
+        open:SetText(L.OPT_WINDOW_OPEN or "Storytale")
+        open:SetScript("OnClick", function()
+            if HideUIPanel and SettingsPanel then pcall(HideUIPanel, SettingsPanel) end
+            if DWE.OpenOptionsWindow then DWE.OpenOptionsWindow() end
+        end)
+        local how = launch:CreateFontString(nil, "ARTWORK", "GameFontDisable")
+        how:SetPoint("TOPLEFT", open, "BOTTOMLEFT", 0, -16)
+        how:SetWidth(560)
+        how:SetJustifyH("LEFT")
+        how:SetText(L.OPT_LAUNCH_HOW or "")
+        local cat = Settings.RegisterCanvasLayoutCategory(launch, launch.name)
+        Settings.RegisterAddOnCategory(cat)
+        DWE.optionsCategory = cat
+        if DWE.optionsWindowButton then DWE.optionsWindowButton:Hide() end
+    elseif Settings and Settings.RegisterCanvasLayoutCategory then
         local cat = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
         Settings.RegisterAddOnCategory(cat)
         DWE.optionsCategory = cat
