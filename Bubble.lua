@@ -731,7 +731,8 @@ local function Reveal()
     if n == state.shownN then
         -- Le jeu peut effacer le fondu quand la bulle devient visible : le texte entier se
         -- voyait jusqu'a la lettre suivante. On le remet a chaque image (sans toucher au texte).
-        if hasGradient and not state.dots and state.phase == "typing" and n > 0 then GradientAt(text, n, FadeLen(n)) end
+        -- (/storytale fondu : essai sans ce rappel a chaque image, pour comparer)
+        if hasGradient and not state.dots and state.phase == "typing" and n > 0 and not DWE.noFadeRepeat then GradientAt(text, n, FadeLen(n)) end
         return
     end
     state.shownN = n
