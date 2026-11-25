@@ -958,6 +958,25 @@ do
     for _ = 1, 20 do now = now + 0.05; tick(0.05) end
     check(not DWE.BubblePageMode(), "page mode: off by default")
     DialogueWheelE_BubbleMode = "page"
+    -- Des l'ouverture, avant que la voix parte et sans voix : la page entiere, sans couleur
+    -- (pas d'ecriture lettre par lettre puis la page d'un coup). Puis les pages suivantes, entieres.
+    local parts = {}
+    for i = 1, 45 do parts[i] = "mot" .. i end
+    local long = table.concat(parts, " ") .. "."
+    clip = nil
+    DWE.SetDialogueText("x", long)
+    local p1 = full()
+    for _ = 1, 2 do now = now + 0.016; DWE.bubble._scripts.OnUpdate(DWE.bubble, 0.016) end
+    check(DWE.BubblePageMode() and full() == p1 and #vis() >= #(p1 or "") and bt:GetAlpha() > 0 and not (p1 or ""):find("|c", 1, true),
+        "page mode: the whole page at once from the start, without a voice: '" .. tostring(vis()) .. "'")
+    local wholeEach, moved = true, false
+    for _ = 1, 400 do
+        now = now + 0.05; tick(0.05)
+        if full() ~= p1 then moved = true end
+        if DWE.BubblePageMode() and #vis() < #(full() or "") then wholeEach = false end
+    end
+    check(moved, "page mode without a voice: the next page comes")
+    check(wholeEach, "page mode without a voice: every page shown whole")
     clip = { length = 8, spokenAt = now + 8, text = pb, present = { transcript = pb } }
     DWE.SetDialogueText("x", pb .. " ")
     DWE.SetDialogueText("x", pb)

@@ -8097,8 +8097,8 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_BubbleHighlight = self:GetChecked() and true or nil
         if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end
     end), spokenOn)
-    -- Affichage de la bulle quand une voix lit : ecriture progressive (par defaut) ou page entiere
-    -- (tout le texte d'un coup, le mot lu en couleur, comme le narrateur de Spoken).
+    -- Affichage de la bulle : ecriture progressive (par defaut) ou page entiere (chaque page d'un
+    -- coup ; quand une voix lit, le mot lu en couleur, comme le narrateur de Spoken).
     local modeLbl = AddText(L.BUBBLE_MODE, 36, y - 378, "GameFontHighlightSmall")
     local modeBoxes = AddGroup({
         { id = "type", label = L.BUBBLE_MODE_TYPE },

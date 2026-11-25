@@ -647,15 +647,17 @@ local function HighlightReset()
     ghost:Hide()
 end
 
--- Affichage "page entiere" (option DialogueWheelE_BubbleMode = "page") : quand une voix lit,
--- toute la page s'affiche d'un coup et le mot que dit la voix passe en couleur (or sur fond
--- sombre, rouge fonce sur fond clair), comme le narrateur de Spoken. Le mot suit la position de
--- la bulle, qui suit la voix (vraies durees de Spoken, durees generees ou estimation). Sans voix,
--- avant qu'elle parte, ou si le joueur tourne les pages lui-meme : la bulle s'ecrit comme
--- d'habitude. Couleur seulement si "Highlight Words" est coche dans Spoken.
+-- Affichage "page entiere" (option DialogueWheelE_BubbleMode = "page") : chaque page s'affiche
+-- d'un coup, des son ouverture (meme avant que la voix parte, meme sans voix). Le rythme ne change
+-- pas : l'ecriture continue, invisible, et la page suivante vient au meme moment qu'en ecriture
+-- progressive (avec la voix ; sans voix, temps d'ecriture puis temps de lecture). Quand une voix
+-- lit, le mot qu'elle dit passe en couleur (or sur fond sombre, rouge fonce sur fond clair, ou la
+-- couleur "Mot lu" du theme Personnalise), comme le narrateur de Spoken : le mot suit la position
+-- de la bulle, qui suit la voix (vraies durees de Spoken, durees generees ou estimation). Couleur
+-- seulement si "Highlight Words" est coche dans Spoken. (Avant : ecriture progressive tant que la
+-- voix n'etait pas partie, puis page entiere d'un coup : le passage se voyait.)
 local function PageMode()
-    return DialogueWheelE_BubbleMode == "page" and state.voiced and not state.manual and not state.dots
-        and state.phase == "typing"
+    return DialogueWheelE_BubbleMode == "page" and not state.dots and state.phase == "typing"
 end
 DWE.BubblePageMode = PageMode
 
@@ -679,7 +681,8 @@ end
 
 local function PageReveal(seg, n)
     local want, key = seg, "plain"
-    local at, len = PageWord(n)
+    local at, len
+    if state.voiced and not state.manual then at, len = PageWord(n) end
     if at and not seg:find("|", 1, true) and SpokenHighlightWords() then
         local a, b = #Utf8Prefix(seg, at), #Utf8Prefix(seg, at + len)
         want = seg:sub(1, a) .. WordColor() .. seg:sub(a + 1, b) .. "|r" .. seg:sub(b + 1)
