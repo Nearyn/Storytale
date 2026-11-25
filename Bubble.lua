@@ -314,7 +314,10 @@ local function SplitArt(st, set, art)
     -- ouverture : le bas de la bulle sans son contour (lignes au-dessus de celui-ci)
     p.m:SetPoint("BOTTOMLEFT", bubble, "BOTTOM", -MOUTH, TAIL_TOP)
     p.m:SetPoint("TOPRIGHT", bubble, "BOTTOM", MOUTH, S)
-    p.m:SetTexCoord(u, 1 - u, 1 - u, v)
+    -- (seulement le milieu de l'image, a sa taille : etire sur 12 pixels, tout le bas d'un
+    -- parchemin faisait une bande plus claire au-dessus de la pointe)
+    local mw = MOUTH / 64
+    p.m:SetTexCoord(0.5 - mw, 0.5 + mw, 1 - u, v)
     for _, t in pairs(set) do t:Show() end
     if set == splitEdge then p.m:Hide() end -- (pas de contour dans l'ouverture)
 end
