@@ -8940,46 +8940,17 @@ function DWE.InitOptionsPanel()
     -- Options dans leur propre fenetre (Options_Native.lua) : le menu du jeu n'a plus qu'une page
     -- qui l'ouvre (pas de doublon, et plus aucun reglage de Storytale dans le panneau du jeu, dont
     -- la manette se bloquait).
-    if DWE.NATIVE_OPTIONS and Settings and Settings.RegisterCanvasLayoutCategory then
-        local launch = CreateFrame("Frame")
-        launch.name = "Storytale"
-        local title = launch:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
-        title:SetPoint("TOPLEFT", 16, -16)
-        title:SetText("Storytale")
-        local txt = launch:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-        txt:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -14)
-        txt:SetWidth(560)
-        txt:SetJustifyH("LEFT")
-        txt:SetText(L.OPT_LAUNCH_TEXT or "")
-        local open = CreateFrame("Button", nil, launch, "UIPanelButtonTemplate")
-        open:SetSize(280, 32)
-        open:SetPoint("TOPLEFT", txt, "BOTTOMLEFT", 0, -18)
-        open:SetText(L.OPT_WINDOW_OPEN or "Storytale")
-        -- (le menu du jeu reste ouvert dessous : le fermer depuis un addon bloquait la manette)
-        open:SetScript("OnClick", function()
-            if DWE.OpenOptionsWindow then DWE.OpenOptionsWindow() end
+    -- Page faite de lignes du jeu (comme celles de Spoken) : son bouton se choisit a la manette,
+    -- ce qu'une page dessinee par l'addon ne permet pas. Aucun reglage dedans : juste le bouton.
+    local makeBtn = rawget(_G, "CreateSettingsButtonInitializer")
+    local makeHdr = rawget(_G, "CreateSettingsListSectionHeaderInitializer")
+    if DWE.NATIVE_OPTIONS and Settings and Settings.RegisterVerticalLayoutCategory and makeBtn then
+        local cat, layout = Settings.RegisterVerticalLayoutCategory("Storytale")
+        if makeHdr then pcall(function() layout:AddInitializer(makeHdr(L.OPT_LAUNCH_TEXT or "")) end) end
+        pcall(function()
+            layout:AddInitializer(makeBtn(L.OPT_WINDOW_OPEN or "Storytale", L.OPT_WINDOW_OPEN or "Storytale",
+                function() if DWE.OpenOptionsWindow then DWE.OpenOptionsWindow() end end, L.OPT_LAUNCH_HOW, true))
         end)
-        -- A la manette, le bouton n'est pas atteignable dans le menu du jeu : la page Storytale
-        -- ouvre directement la fenetre si on s'y arrete (pas en passant dessus dans la liste).
-        launch:SetScript("OnShow", function(self)
-            local on = DWE.GamePadOn and DWE.GamePadOn()
-            if not on or not (C_Timer and C_Timer.After) then return end
-            self.serial = (self.serial or 0) + 1
-            local my = self.serial
-            C_Timer.After(0.8, function()
-                if self.serial == my and self:IsVisible() and DWE.OpenOptionsWindow
-                    and not (DWE.Native and DWE.Native.window and DWE.Native.window:IsShown()) then
-                    DWE.OpenOptionsWindow()
-                end
-            end)
-        end)
-        launch:SetScript("OnHide", function(self) self.serial = (self.serial or 0) + 1 end)
-        local how = launch:CreateFontString(nil, "ARTWORK", "GameFontDisable")
-        how:SetPoint("TOPLEFT", open, "BOTTOMLEFT", 0, -16)
-        how:SetWidth(560)
-        how:SetJustifyH("LEFT")
-        how:SetText(L.OPT_LAUNCH_HOW or "")
-        local cat = Settings.RegisterCanvasLayoutCategory(launch, launch.name)
         Settings.RegisterAddOnCategory(cat)
         DWE.optionsCategory = cat
         if DWE.optionsWindowButton then DWE.optionsWindowButton:Hide() end
