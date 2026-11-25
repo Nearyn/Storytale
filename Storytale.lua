@@ -3260,6 +3260,10 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         local v = tonumber((string.gsub(msg:match("^%s*delai%s+([%d%.,]+)") or "", ",", ".")))
         if v then DWE.VOICE_LEAD = math.max(0, math.min(3, v)) end
         Out(("delai de la voix : %.1f s (/storytale delai 0.8 pour changer)."):format(DWE.VOICE_LEAD or 0))
+    elseif msg:match("^%s*livrelog") then
+        local log = DWE.lookLog or {}
+        DWE.PadShowText(#log > 0 and table.concat(log, "\n") or "(rien : ouvre un livre et tourne les pages)")
+        Out("journal du livre : " .. #log .. " ligne(s). Ctrl+A puis Ctrl+C dans la fenetre.")
     elseif msg:match("^%s*sansfondu") then
         DWE.noGradient = not DWE.noGradient
         Out("bulle : " .. (DWE.noGradient and "ecriture de Storytale (normal)" or "ancien fondu du jeu (pour comparer)") .. ".")

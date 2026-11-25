@@ -4608,6 +4608,20 @@ function DWE.UpdateTextPanelVisuals()
         textBox:Hide()
     elseif wanted then
         local look = DWE.BookLook()
+        -- Journal (/storytale livrelog) : un livre qui change d'aspect pendant qu'on le lit (livre,
+        -- page seule, simple cadre) -> le livre « en double » vu une image en tournant les pages.
+        if DWE.bookMode and look ~= DWE.lastLook then
+            DWE.lookLog = DWE.lookLog or {}
+            if #DWE.lookLog < 200 then
+                local bi = DWE.bookInfo or {}
+                local okP, plate = pcall(DWE.RawPlate)
+                DWE.lookLog[#DWE.lookLog + 1] = string.format("%.2f %s -> %s | style=%s plaque=%s page=%s/%s suite=%s | %s",
+                    GetTime and GetTime() or 0, tostring(DWE.lastLook), tostring(look), tostring(DWE.BookStyleNow()),
+                    tostring(okP and plate), tostring(bi.page), tostring(bi.total), tostring(bi.hasNext),
+                    (debugstack and debugstack(2, 3, 0) or ""):gsub("Interface[/\\]AddOns[/\\]", ""):gsub("\n", " < "))
+            end
+        end
+        DWE.lastLook = look
         if look == "book" or look == "note" then
             if look == "book" then LayoutBook() else LayoutNote() end
             textBox:Show()
