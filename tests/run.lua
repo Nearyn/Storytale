@@ -3372,6 +3372,41 @@ else
         DialogueWheelE_WheelSide, DialogueWheelE_Locked, DialogueWheelE_QuestAuto, DialogueWheelE_AttachNPC = saveSide, saveLock, saveQA, saveAttach
         DWE.SettingsChanged()
     end
+    -- Page "Livres, lettres et plaques (2)" : memes variables que l'ancienne page.
+    check(S.Storytale_BookStyle and S.Storytale_BookLook and S.Storytale_PlateStyle and S.Storytale_PlateLook
+        and S.Storytale_ReadMarks and S.Storytale_BookTipCursor and S.Storytale_BookAutoScroll and S.Storytale_BookTurnFX,
+        "native options: books page settings registered")
+    if S.Storytale_BookStyle then
+        local save = { DialogueWheelE_BookStyle, DialogueWheelE_BookLook, DialogueWheelE_PlateStyle, DialogueWheelE_PlateLook,
+            DialogueWheelE_ReadMarks, DialogueWheelE_BookTipCursor, DialogueWheelE_BookAutoScroll, DialogueWheelE_BookTurnFX }
+        S.Storytale_BookStyle:SetValue("blizzard")
+        check(DialogueWheelE_BookStyle == "blizzard" and S.Storytale_BookStyle:GetValue() == "blizzard", "native options: books shown by the game")
+        S.Storytale_BookStyle:SetValue("addon")
+        check(DialogueWheelE_BookStyle == "addon", "native options: books shown by Storytale")
+        S.Storytale_BookLook:SetValue("book")
+        check(DialogueWheelE_BookLook == "book" and S.Storytale_BookLook:GetValue() == "book", "native options: book style open book")
+        S.Storytale_PlateStyle:SetValue("blizzard")
+        check(DialogueWheelE_PlateStyle == "blizzard", "native options: plaques shown by the game")
+        S.Storytale_PlateStyle:SetValue("addon")
+        check(DialogueWheelE_PlateStyle == nil and S.Storytale_PlateStyle:GetValue() == "addon", "native options: plaques shown by Storytale")
+        S.Storytale_PlateLook:SetValue("Marble")
+        check(DialogueWheelE_PlateLook == "Marble", "native options: plaque material marble")
+        S.Storytale_PlateLook:SetValue("auto")
+        check(DialogueWheelE_PlateLook == nil, "native options: plaque material automatic")
+        S.Storytale_ReadMarks:SetValue(false)
+        check(DialogueWheelE_ReadMarks == false and S.Storytale_ReadMarks:GetValue() == false, "native options: read marks off")
+        S.Storytale_ReadMarks:SetValue(true)
+        check(DialogueWheelE_ReadMarks == nil, "native options: read marks on")
+        S.Storytale_BookTipCursor:SetValue(true)
+        check(DialogueWheelE_BookTipCursor == true, "native options: tooltip at the mouse")
+        S.Storytale_BookAutoScroll:SetValue(false)
+        check(DialogueWheelE_BookAutoScroll == false and S.Storytale_BookAutoScroll:GetValue() == false, "native options: follow the voice off")
+        S.Storytale_BookTurnFX:SetValue(false)
+        check(DialogueWheelE_BookTurnFX == false, "native options: page-turn animation off")
+        DialogueWheelE_BookStyle, DialogueWheelE_BookLook, DialogueWheelE_PlateStyle, DialogueWheelE_PlateLook,
+            DialogueWheelE_ReadMarks, DialogueWheelE_BookTipCursor, DialogueWheelE_BookAutoScroll, DialogueWheelE_BookTurnFX = unpack(save, 1, 8)
+        DWE.SettingsChanged()
+    end
 end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))

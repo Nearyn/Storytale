@@ -35,8 +35,12 @@ end
 
 function Native.Check(cat, id, label, tip, default, get, set)
     local s = Proxy(cat, id, type(true), label, default, function() return get() and true or false end, set)
-    if s then pcall(Settings.CreateCheckbox, cat, s, tip) end
-    return s
+    local init
+    if s then
+        local ok, r = pcall(Settings.CreateCheckbox, cat, s, tip)
+        if ok then init = r end
+    end
+    return s, init
 end
 
 function Native.Choice(cat, id, label, tip, default, items, get, set)
@@ -47,8 +51,15 @@ function Native.Choice(cat, id, label, tip, default, items, get, set)
         for _, it in ipairs(items) do c:Add(it[1], it[2]) end
         return c:GetData()
     end
-    pcall(Settings.CreateDropdown, cat, s, Options, tip)
-    return s
+    local ok, init = pcall(Settings.CreateDropdown, cat, s, Options, tip)
+    return s, ok and init or nil
+end
+
+-- La ligne `child` n'est active que si when() est vrai (grisee sinon), comme dans les options du jeu.
+function Native.DependsOn(child, parent, when)
+    if type(child) == "table" and type(parent) == "table" and type(child.SetParentInitializer) == "function" then
+        pcall(child.SetParentInitializer, child, parent, when)
+    end
 end
 
 function Native.Button(layout, label, text, onClick, tip)
@@ -113,10 +124,76 @@ local function BuildPlacement(parent)
     return cat
 end
 
+---------------------------------------------------------------------------- Livres, lettres et plaques
+local function BuildBooks(parent)
+    local L = DWE.L
+    local cat = Settings.RegisterVerticalLayoutSubcategory(parent, L.SEC_BOOKS .. " (2)")
+    if not cat then return end
+    -- Qui affiche : Storytale, DialogueUI (seulement s'il est actif) ou le jeu.
+    local duiOn = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DialogueUI")
+    local function Shown(withDUI)
+        local list = { { "addon", L.PLATE_ADDON } }
+        if withDUI then list[#list + 1] = { "dui", L.BOOK_DUI } end
+        list[#list + 1] = { "blizzard", L.BOOK_BLIZZ }
+        return list
+    end
+    local function Visuals()
+        if DWE.bookMode and DWE.textBox and DWE.textBox:IsShown() and DWE.UpdateTextPanelVisuals then DWE.UpdateTextPanelVisuals() end
+    end
+    local _, styleInit = Native.Choice(cat, "BookStyle", L.BOOK_STYLE, L.BOOK_ADDON_TIP, "addon", Shown(duiOn),
+        function()
+            local v = DialogueWheelE_BookStyle or "addon"
+            if v == "dui" and not duiOn then v = "addon" end
+            return v
+        end,
+        function(v)
+            DialogueWheelE_BookStyle = v
+            if DWE.RefreshBookLookOptions then DWE.RefreshBookLookOptions() end
+        end)
+    local _, lookInit = Native.Choice(cat, "BookLook", L.BOOK_LOOK, nil, "auto",
+        { { "auto", L.BOOK_LOOK_AUTO }, { "note", L.BOOK_LOOK_NOTE }, { "book", L.BOOK_LOOK_BOOK } },
+        function() return (DialogueWheelE_BookLook ~= "frame" and DialogueWheelE_BookLook) or "auto" end,
+        function(v) DialogueWheelE_BookLook = v; Visuals() end)
+    -- Le style ne concerne que les livres affiches par Storytale.
+    Native.DependsOn(lookInit, styleInit, function() return (DialogueWheelE_BookStyle or "addon") == "addon" end)
+    local _, plateInit = Native.Choice(cat, "PlateStyle", L.PLATE_STYLE, L.PLATE_ADDON_TIP, "addon", Shown(duiOn),
+        function()
+            local v = DialogueWheelE_PlateStyle or "addon"
+            if v == "dui" and not duiOn then v = "addon" end
+            return v
+        end,
+        function(v)
+            DialogueWheelE_PlateStyle = (v ~= "addon") and v or nil
+            if DWE.RefreshPlateLookOptions then DWE.RefreshPlateLookOptions() end
+        end)
+    local _, matInit = Native.Choice(cat, "PlateLook", L.PLATE_LOOK, L.PLATE_AUTO_TIP, "auto",
+        { { "auto", L.BOOK_LOOK_AUTO }, { "Stone", L.PLATE_STONE }, { "Marble", L.PLATE_MARBLE },
+            { "Bronze", L.PLATE_BRONZE }, { "Silver", L.PLATE_SILVER } },
+        function() return DialogueWheelE_PlateLook or "auto" end,
+        function(v) DialogueWheelE_PlateLook = (v ~= "auto") and v or nil; Visuals() end)
+    -- La matiere ne concerne que les plaques affichees par Storytale.
+    Native.DependsOn(matInit, plateInit, function() return (DialogueWheelE_PlateStyle or "addon") == "addon" end)
+    Native.Check(cat, "ReadMarks", L.READ_MARKS, Tip("READ_MARKS"), true,
+        function() return DialogueWheelE_ReadMarks ~= false end,
+        function(v) if v then DialogueWheelE_ReadMarks = nil else DialogueWheelE_ReadMarks = false end end)
+    Native.Check(cat, "BookTipCursor", L.BOOK_TIP_CURSOR, Tip("BOOK_TIP_CURSOR"), false,
+        function() return DialogueWheelE_BookTipCursor == true end,
+        function(v) DialogueWheelE_BookTipCursor = v and true or false end)
+    Native.Check(cat, "BookAutoScroll", L.BOOK_AUTOSCROLL, Tip("BOOK_AUTOSCROLL"), true,
+        function() return DialogueWheelE_BookAutoScroll ~= false end,
+        function(v) DialogueWheelE_BookAutoScroll = v and true or false end)
+    Native.Check(cat, "BookTurnFX", L.BOOK_TURN_FX, Tip("BOOK_TURN_FX"), true,
+        function() return DialogueWheelE_BookTurnFX ~= false end,
+        function(v) DialogueWheelE_BookTurnFX = v and true or false end)
+    Native.books = cat
+    return cat
+end
+
 -- Appele une fois les anciennes pages creees (DWE.InitOptionsPanel).
 function DWE.BuildNativeOptions(parent)
     if Native.built or not parent or not Supported() then return end
     Native.built = true
+    pcall(BuildBooks, parent)
     pcall(BuildPlacement, parent)
 end
 
