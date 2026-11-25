@@ -18,6 +18,12 @@ local function Supported()
 end
 Native.Supported = Supported
 
+-- Libelle de ligne sans les deux-points de l'ancienne page ("Touche Dialogue :" -> "Touche Dialogue").
+local function Bare(text)
+    return (tostring(text or ""):gsub("%s*[:：]%s*$", ""))
+end
+Native.Bare = Bare
+
 local function Tip(key)
     local L = DWE.L or {}
     return L[key .. "_TIP"]
@@ -221,7 +227,7 @@ local function BuildKeys(parent)
             if DWE.SettingsChanged then DWE.SettingsChanged() end
         end)
     -- Touche dediee : une fenetre attend la touche (Echap = aucune).
-    keyInit = Native.Button(layout, L.KEY_CUSTOM, KeyText(), function()
+    keyInit = Native.Button(layout, Bare(L.KEY_CUSTOM), KeyText(), function()
         if DialogueWheelE_UseBlizzKey ~= false or not DWE.AskKey then return end
         DWE.AskKey(L.KEY_CUSTOM, DialogueWheelE_InteractKey, function(k)
             DialogueWheelE_InteractKey = k
@@ -254,6 +260,125 @@ local function BuildKeys(parent)
     return cat
 end
 
+---------------------------------------------------------------------------- Spoken
+-- Ligne active seulement si when() est vrai (grisee sinon), sans ligne parente.
+function Native.EnabledIf(init, when)
+    if type(init) == "table" and type(init.AddModifyPredicate) == "function" then pcall(init.AddModifyPredicate, init, when) end
+end
+
+local function BuildSpoken(parent)
+    local L = DWE.L
+    local cat, layout = Settings.RegisterVerticalLayoutSubcategory(parent, L.SEC_SPOKEN .. " (2)")
+    if not cat then return end
+    local function SpokenOn() return DWE.SpokenFocus and DWE.SpokenFocus.Available and DWE.SpokenFocus.Available() and true or false end
+    if not SpokenOn() then Native.Header(layout, L.SPOKEN_NEEDED) end
+    local all = {}
+    local function Keep(init) if init then all[#all + 1] = init end return init end
+    local function Skin()
+        if DWE.spokenSkinShow then pcall(DWE.spokenSkinShow) end
+        if DWE.RefreshSpoken then DWE.RefreshSpoken() end
+    end
+    local _, themeInit = Native.Check(cat, "SpokenTheme", L.SPOKEN_THEME, Tip("SPOKEN"), false,
+        function() return DialogueWheelE_SpokenTheme == true end,
+        function(v) DialogueWheelE_SpokenTheme = v and true or false; Skin() end)
+    Keep(themeInit)
+    -- Habillage du lecteur : "follow" = le reglage n'est pas choisi (nil), comme la case de l'ancienne page.
+    local function Themes(list)
+        for _, t in ipairs(DWE.THEME_LIST or {}) do list[#list + 1] = { t.id, L[t.key] or t.id } end
+        return list
+    end
+    local mats = { { "mat:Stone", L.PLATE_STONE }, { "mat:Marble", L.PLATE_MARBLE },
+        { "mat:Bronze", L.PLATE_BRONZE }, { "mat:Silver", L.PLATE_SILVER } }
+    local paper = { "paper", L.SKIN_PAPER or L.PLACE_PAPER }
+    local function List(first, ...)
+        local list = { first }
+        for _, part in ipairs({ ... }) do for _, e in ipairs(part) do list[#list + 1] = e end end
+        return Themes(list)
+    end
+    local function SkinChoice(id, label, var, items, check)
+        local _, init = Native.Choice(cat, id, label, nil, "follow", items,
+            function()
+                local v = _G[var]
+                if v == nil or (check and not check(v)) then return "follow" end
+                return v
+            end,
+            function(v)
+                _G[var] = (v ~= "follow") and v or nil
+                Skin()
+            end)
+        Native.DependsOn(init, themeInit, function() return DialogueWheelE_SpokenTheme == true end)
+        return Keep(init)
+    end
+    SkinChoice("SpokenSkin", L.SKIN_ROW_VOICE, "DialogueWheelE_SpokenSkin", List({ "follow", L.SPOKEN_SKIN_FOLLOW }))
+    local placeExtra = { paper }
+    if DWE.DUI_ON then placeExtra[2] = { "dui", L.BOOK_DUI } end
+    SkinChoice("PlaceSkin", L.SKIN_ROW_PLACE, "DialogueWheelE_PlaceSkin", List({ "follow", L.PLACE_FOLLOW }, placeExtra),
+        function(v) return v ~= "dui" or DWE.DUI_ON end)
+    -- Livres : "Page de livre" est le choix par defaut (nil) ; "paper" choisi revient au meme.
+    SkinChoice("BookSkin", L.SKIN_ROW_BOOK, "DialogueWheelE_BookSkin", List({ "follow", L.SKIN_PAPER or L.PLACE_PAPER }, mats),
+        function(v) return v ~= "paper" end)
+    SkinChoice("PlateSkin", L.SKIN_ROW_PLATE, "DialogueWheelE_PlateSkin", List({ "follow", L.PLATE_FOLLOW }, mats, { paper }))
+    -- Bulle ou lecteur Spoken : bouton sur la roue, choix de l'affichage, touche.
+    Keep(select(2, Native.Check(cat, "SpokenButton", L.SPOKEN_BUTTON, Tip("SPOKEN_BUTTON"), false,
+        function() return DialogueWheelE_SpokenButton == true end,
+        function(v)
+            DialogueWheelE_SpokenButton = v and true or false
+            if DWE.RefreshBindings then DWE.RefreshBindings() end
+        end)))
+    Keep(select(2, Native.Choice(cat, "TextIn", Bare(L.TEXT_IN), nil, "spoken",
+        { { "storytale", L.TEXT_IN_STORYTALE }, { "spoken", L.TEXT_IN_SPOKEN } },
+        function() return DialogueWheelE_ShowText == true and "storytale" or "spoken" end,
+        function(v)
+            if (DialogueWheelE_ShowText == true) ~= (v == "storytale") and DWE.ToggleDialogueText then DWE.ToggleDialogueText() end
+        end)))
+    local Label = DWE.KeyLabel or function(k) return (k and k ~= "") and k or "-" end
+    local toggleInit
+    toggleInit = Keep(Native.Button(layout, Bare(L.KEY_TOGGLE), Label(DialogueWheelE_ToggleKey), function()
+        if not (SpokenOn() and DWE.AskKey) then return end
+        DWE.AskKey(L.KEY_TOGGLE, DialogueWheelE_ToggleKey, function(k)
+            DialogueWheelE_ToggleKey = k
+            Native.SetButtonText(toggleInit, Label(k))
+        end)
+    end))
+    local smartTip = L.SPOKEN_SMART_TIP
+    if smartTip and L.SPOKEN_SMART_HINT then smartTip = smartTip .. "\n\n" .. L.SPOKEN_SMART_HINT end
+    Keep(select(2, Native.Check(cat, "SpokenSmart", L.SPOKEN_SMART, smartTip, true,
+        function() return DialogueWheelE_SpokenSmart ~= false end,
+        function(v) DialogueWheelE_SpokenSmart = v and true or false end)))
+    local function Highlight() if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end end
+    Keep(select(2, Native.Check(cat, "BubbleHighlight", L.BUBBLE_HIGHLIGHT, Tip("BUBBLE_HIGHLIGHT"), false,
+        function() return DialogueWheelE_BubbleHighlight == true end,
+        function(v) DialogueWheelE_BubbleHighlight = v and true or nil; Highlight() end)))
+    local modeTip
+    if L.BUBBLE_MODE_TYPE_TIP and L.BUBBLE_MODE_PAGE_TIP then
+        modeTip = "|cffffd100" .. L.BUBBLE_MODE_TYPE .. "|r\n" .. L.BUBBLE_MODE_TYPE_TIP .. "\n\n|cffffd100" .. L.BUBBLE_MODE_PAGE .. "|r\n" .. L.BUBBLE_MODE_PAGE_TIP
+    end
+    Keep(select(2, Native.Choice(cat, "BubbleMode", Bare(L.BUBBLE_MODE), modeTip, "type",
+        { { "type", L.BUBBLE_MODE_TYPE }, { "page", L.BUBBLE_MODE_PAGE } },
+        function() return DialogueWheelE_BubbleMode == "page" and "page" or "type" end,
+        function(v) DialogueWheelE_BubbleMode = (v == "page") and "page" or nil; Highlight() end)))
+    Keep(select(2, Native.Check(cat, "BookVoiceTurn", L.BOOK_VOICE_TURN, nil, false,
+        function() return DialogueWheelE_BookVoiceTurn == true end,
+        function(v) DialogueWheelE_BookVoiceTurn = v and true or nil end)))
+    Keep(select(2, Native.Check(cat, "BookStopOnClose", L.BOOK_STOP_CLOSE, nil, false,
+        function() return DialogueWheelE_BookStopOnClose == true end,
+        function(v) DialogueWheelE_BookStopOnClose = v and true or nil end)))
+    local function Art() if DWE.ZoneArtRefresh then DWE.ZoneArtRefresh() end end
+    local _, artInit = Native.Check(cat, "ZoneArt", L.ZONE_ART, Tip("ZONE_ART"), true,
+        function() return DialogueWheelE_ZoneArt ~= false end,
+        function(v) DialogueWheelE_ZoneArt = v and true or false; Art() end)
+    Keep(artInit)
+    local _, paperInit = Native.Check(cat, "ZoneArtPaper", L.ZONE_ART_PAPER, nil, false,
+        function() return DialogueWheelE_ZoneArtPaper == true end,
+        function(v) DialogueWheelE_ZoneArtPaper = v and true or nil; Art() end)
+    Native.DependsOn(paperInit, artInit, function() return DialogueWheelE_ZoneArt ~= false end)
+    Keep(paperInit)
+    -- Sans Spoken : tout est grise.
+    for _, init in ipairs(all) do Native.EnabledIf(init, SpokenOn) end
+    Native.spoken = cat
+    return cat
+end
+
 -- Appele une fois les anciennes pages creees (DWE.InitOptionsPanel).
 function DWE.BuildNativeOptions(parent)
     if Native.built or not parent or not Supported() then return end
@@ -261,6 +386,7 @@ function DWE.BuildNativeOptions(parent)
     pcall(BuildBooks, parent)
     pcall(BuildPlacement, parent)
     pcall(BuildKeys, parent)
+    pcall(BuildSpoken, parent)
 end
 
 DWE.NativeRefresh = function() Native.Refresh() end

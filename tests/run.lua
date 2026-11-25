@@ -3519,7 +3519,7 @@ if DWE.NATIVE_OPTIONS and M.nativeSettings and M.nativeSettings.Storytale_UseBli
     local save = { DialogueWheelE_UseBlizzKey, DialogueWheelE_InteractKey, DialogueWheelE_EscClose, DialogueWheelE_WheelScroll, DialogueWheelE_GamePad }
     local btn
     for _, l in pairs(M.nativeLayouts or {}) do
-        for _, i in ipairs(l.inits) do if i.kind == "button" and i.label == DWE.L.KEY_CUSTOM then btn = i end end
+        for _, i in ipairs(l.inits) do if i.kind == "button" and i.label == DWE.Native.Bare(DWE.L.KEY_CUSTOM) then btn = i end end
     end
     check(btn ~= nil, "native options: custom key button")
     if btn then
@@ -3550,6 +3550,59 @@ if DWE.NATIVE_OPTIONS and M.nativeSettings and M.nativeSettings.Storytale_UseBli
         check(DialogueWheelE_GamePad == false, "native options: gamepad off")
     end
     DialogueWheelE_UseBlizzKey, DialogueWheelE_InteractKey, DialogueWheelE_EscClose, DialogueWheelE_WheelScroll, DialogueWheelE_GamePad = unpack(save, 1, 5)
+    DWE.SettingsChanged()
+    if DWE.askFrame then DWE.askFrame:Hide() end
+end
+if DWE.NATIVE_OPTIONS and M.nativeSettings and M.nativeSettings.Storytale_SpokenTheme then
+    -- Page native "Spoken" : memes variables que l'ancienne page.
+    local S = M.nativeSettings
+    local vars = { "SpokenTheme", "SpokenSkin", "PlaceSkin", "BookSkin", "PlateSkin", "SpokenButton", "ShowText", "ToggleKey",
+        "SpokenSmart", "BubbleHighlight", "BubbleMode", "BookVoiceTurn", "BookStopOnClose", "ZoneArt", "ZoneArtPaper" }
+    local save = {}
+    for i, v in ipairs(vars) do save[i] = _G["DialogueWheelE_" .. v] end
+    check(S.Storytale_SpokenSkin and S.Storytale_PlaceSkin and S.Storytale_BookSkin and S.Storytale_PlateSkin
+        and S.Storytale_TextIn and S.Storytale_SpokenSmart and S.Storytale_BubbleMode and S.Storytale_ZoneArtPaper,
+        "native options: Spoken page settings registered")
+    DialogueWheelE_SpokenSkin = nil
+    check(S.Storytale_SpokenSkin:GetValue() == "follow", "native Spoken: voices follow the theme by default")
+    S.Storytale_SpokenSkin:SetValue("parchment")
+    check(DialogueWheelE_SpokenSkin == "parchment", "native Spoken: voices in a chosen theme")
+    S.Storytale_SpokenSkin:SetValue("follow")
+    check(DialogueWheelE_SpokenSkin == nil, "native Spoken: back to following the theme")
+    DialogueWheelE_BookSkin = "paper"
+    check(S.Storytale_BookSkin:GetValue() == "follow", "native Spoken: book page shown as the default choice")
+    S.Storytale_PlateSkin:SetValue("mat:Bronze")
+    check(DialogueWheelE_PlateSkin == "mat:Bronze", "native Spoken: plaques in bronze")
+    S.Storytale_BubbleMode:SetValue("page")
+    check(DialogueWheelE_BubbleMode == "page", "native Spoken: whole page")
+    S.Storytale_BubbleMode:SetValue("type")
+    check(DialogueWheelE_BubbleMode == nil, "native Spoken: typewriter")
+    S.Storytale_SpokenSmart:SetValue(false)
+    check(DialogueWheelE_SpokenSmart == false, "native Spoken: smart queue off")
+    S.Storytale_ZoneArt:SetValue(false)
+    check(DialogueWheelE_ZoneArt == false, "native Spoken: zone art off")
+    local before = DialogueWheelE_ShowText == true
+    S.Storytale_TextIn:SetValue(before and "spoken" or "storytale")
+    check((DialogueWheelE_ShowText == true) ~= before, "native Spoken: line shown in the other place")
+    S.Storytale_TextIn:SetValue(before and "storytale" or "spoken")
+    check((DialogueWheelE_ShowText == true) == before, "native Spoken: line shown back where it was")
+    local tb
+    for _, l in pairs(M.nativeLayouts or {}) do
+        for _, i in ipairs(l.inits) do if i.kind == "button" and i.label == DWE.Native.Bare(DWE.L.KEY_TOGGLE) then tb = i end end
+    end
+    check(tb ~= nil, "native Spoken: dialogue key button")
+    if tb then
+        local on = DWE.SpokenFocus and DWE.SpokenFocus.Available()
+        DialogueWheelE_ToggleKey = "H"
+        tb.data.buttonClick()
+        if on then
+            DWE.askFrame._scripts.OnKeyDown(DWE.askFrame, "G")
+            check(DialogueWheelE_ToggleKey == "G" and tb.data.buttonText == "G", "native Spoken: dialogue key G")
+        else
+            check(not (DWE.askFrame and DWE.askFrame:IsShown()) and DialogueWheelE_ToggleKey == "H", "native Spoken: no key window without Spoken")
+        end
+    end
+    for i, v in ipairs(vars) do _G["DialogueWheelE_" .. v] = save[i] end
     DWE.SettingsChanged()
     if DWE.askFrame then DWE.askFrame:Hide() end
 end
