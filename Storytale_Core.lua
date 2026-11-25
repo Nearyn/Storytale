@@ -567,6 +567,7 @@ function DWE.SetBookMode(on)
             C_Timer.After(1.6, function() if DWE.RefreshHiddenFrames then DWE.RefreshHiddenFrames() end end)
         end
     end
+    if (DWE.bookMode and true or false) ~= (on and true or false) then DWE.LookLog("mode livre " .. tostring(on)) end
     DWE.bookMode = on
     if DWE.RefreshBindings then DWE.RefreshBindings() end -- croix gauche/droite : pages ou jeu
     if not on then DWE.bookTurnLast = nil end -- livre ferme : le prochain s'ouvre sans bruit de page
@@ -3349,7 +3350,15 @@ function DWE.SetBookScale(sc, keepCorner)
     end
 end
 
+-- Journal du livre (/storytale livrelog) : une ligne, avec d'ou vient l'appel.
+function DWE.LookLog(what)
+    DWE.lookLog = DWE.lookLog or {}
+    if #DWE.lookLog >= 300 then return end
+    DWE.lookLog[#DWE.lookLog + 1] = string.format("%.2f %s | echelle=%.2f | %s", GetTime and GetTime() or 0, what,
+        textBox:GetScale() or 0, ((debugstack and debugstack(3, 4, 0) or ""):gsub("Interface[/\\]AddOns[/\\]", ""):gsub("\n", " < ")))
+end
 local function RestoreTextAnchors()
+    if textBox.dweBook then DWE.LookLog("livre -> simple cadre (RestoreTextAnchors)") end
     textHeader:ClearAllPoints()
     textHeader:SetPoint("TOPLEFT", textBox, "TOPLEFT", 0, -2)
     textHeader:SetPoint("TOPRIGHT", textBox, "TOPRIGHT", 0, -2)
