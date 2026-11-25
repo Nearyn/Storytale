@@ -3772,13 +3772,28 @@ do -- Ecriture sans le fondu du jeu : le texte ecrit est toujours le debut du te
     local seen, stepsOk, tailSeen = {}, true, false
     for _ = 1, 400 do
         DWE.bubble._scripts.OnUpdate(DWE.bubble, 0.02)
-        seen[#seen + 1] = bt:GetText() or ""
+        seen[#seen + 1] = vis()
         for _, r in ipairs(DWE.bubble._regions or {}) do end
     end
-    local final = bt:GetText() or ""
+    local final = vis()
     for _, t in ipairs(seen) do
         if final:sub(1, #t) ~= t then stepsOk = false break end
     end
+    -- devoilement continu : la fenetre de la ligne en cours s'elargit entre deux lettres aussi
+    DWE.SetDialogueText("w2", long .. " Again.")
+    local widths, smooth = {}, false
+    for _ = 1, 60 do
+        DWE.bubble._scripts.OnUpdate(DWE.bubble, 0.005)
+        local c = DWE.bubbleSoft.bands[1]
+        local w = c and c.f:IsShown() and c.f:GetWidth() or nil
+        local n = DWE.bubbleState.shownN
+        if w and #widths > 0 and widths[#widths].n == n and math.abs(widths[#widths].w - w) > 0.01 then smooth = true end
+        widths[#widths + 1] = { w = w or 0, n = n }
+    end
+    check(smooth, "no game fade: the line is revealed pixel by pixel, not letter by letter")
+    DWE.SetDialogueText("w", long)
+    for _ = 1, 400 do DWE.bubble._scripts.OnUpdate(DWE.bubble, 0.02) end
+    final = vis()
     check(final:gsub("\n", " ") == long, "no game fade: final text is the whole line (line breaks only replace spaces)")
     check(stepsOk, "no game fade: what is written is always the start of the final text (no word jumping lines)")
     check(final:find("\n") ~= nil or #long < 40, "no game fade: line breaks worked out in advance")

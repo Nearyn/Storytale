@@ -858,84 +858,164 @@ local function PlaceTails(shown, n, frac, fade)
         end
     end
 end
--- Deux copies du texte qui se relaient (double tampon) : la copie cachee recoit le texte jusqu'a
--- la lettre n + fondu et son fondu, puis s'affiche a l'image suivante (le jeu n'applique le fondu
--- d'un nouveau texte qu'a l'image d'apres : sinon on voyait ces lettres en entier une image).
--- Chaque lettre = un nouveau texte : le jeu le remet en page a chaque fois, il ne peut plus figer
--- l'affichage apres une pause (le probleme de « one »), et le fondu est le vrai fondu du jeu
--- (des lettres a part, posees au pixel pres, scintillaient). On cache une copie par la
--- transparence de son cadre, jamais par celle du texte (qui efface le fondu).
-local bufs = {}
-for i = 1, 2 do
-    local f = CreateFrame("Frame", nil, holder)
-    f:SetAllPoints(holder)
-    f:SetAlpha(0)
-    local fs = f:CreateFontString(nil, "OVERLAY")
-    fs:SetJustifyH("LEFT")
-    fs:SetJustifyV("TOP")
-    if fs.SetWordWrap then fs:SetWordWrap(true) end
-    bufs[i] = { f = f, fs = fs }
+-- Ecriture fluide SANS aucun fondu du jeu (25/11) : le fondu de Blizzard avance lettre par lettre
+-- (a-coups) et se figeait apres les pauses. Ici, chaque ligne est un texte du jeu ordinaire,
+-- affiche tel quel (meme police, meme rendu : le meme visuel) ; la ligne en cours est
+-- devoilee au pixel pres par une fenetre qui s'elargit en continu, et son bord est adouci par
+-- quelques bandes de plus en plus transparentes (des copies exactes de la ligne, decoupees) :
+-- le meme fondu que celui du jeu, mais qui glisse au lieu de sauter de lettre en lettre.
+local SOFT_BANDS, SOFT_WIDTH = 6, 26 -- bandes du bord adouci, largeur totale (pixels)
+local soft = { lines = {}, bands = {} }
+DWE.bubbleSoft = soft
+local function SoftLine(i)
+    local fs = soft.lines[i]
+    if not fs then
+        fs = holder:CreateFontString(nil, "OVERLAY")
+        fs:SetJustifyH("LEFT")
+        fs:SetJustifyV("TOP")
+        if fs.SetWordWrap then fs:SetWordWrap(false) end
+        soft.lines[i] = fs
+    end
+    return fs
 end
-local function HideBufs()
-    for _, b in ipairs(bufs) do b.f:SetAlpha(0) end
-    state.bufFront, state.bufKey, state.bufPending = nil, nil, nil
+local function SoftClip(i)
+    local c = soft.bands[i]
+    if not c then
+        local f = CreateFrame("Frame", nil, holder)
+        if f.SetClipsChildren then f:SetClipsChildren(true) end
+        f:SetFrameLevel(holder:GetFrameLevel() + 1)
+        local fs = f:CreateFontString(nil, "OVERLAY")
+        fs:SetJustifyH("LEFT")
+        fs:SetJustifyV("TOP")
+        if fs.SetWordWrap then fs:SetWordWrap(false) end
+        c = { f = f, fs = fs }
+        soft.bands[i] = c
+    end
+    return c
+end
+local function HideSoft()
+    for _, fs in pairs(soft.lines) do fs:Hide() end
+    for _, c in pairs(soft.bands) do c.f:Hide() end
+    soft.key, soft.cur = nil, nil
+    if state.customShown == "soft" then state.customShown = nil end
     text:Show()
 end
-DWE.BubbleHideBufs = HideBufs
--- Ce qui se lit dans la bulle (lettres nettes) : la copie devant, sinon le texte (tests, journal).
-DWE.bubbleBufs = bufs
+local HideBufs = HideSoft -- (ancien nom, encore appele ailleurs)
+DWE.BubbleHideBufs = HideSoft
+-- Lignes du texte et largeur de chaque debut de ligne (mesurees une fois par texte).
+local function SoftSetup(seg)
+    local w = Wrapped(seg)
+    if soft.key == state.wrapKey then return end
+    soft.key = state.wrapKey
+    soft.rows = {}
+    local lh = state.lineH or 14
+    local i, start = 0, 1
+    for line in (w .. "\n"):gmatch("([^\n]*)\n") do
+        i = i + 1
+        local fs = SoftLine(i)
+        CopyLook(fs)
+        fs:ClearAllPoints()
+        fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, -(i - 1) * lh)
+        fs:SetText(line)
+        fs:Hide()
+        local k = 0
+        for _ in line:gmatch("[%z\1-\127\194-\244][\128-\191]*") do k = k + 1 end
+        soft.rows[i] = { text = line, start = start, chars = k, y = -(i - 1) * lh }
+        start = start + k + 1 -- (+1 : le retour a la ligne)
+    end
+    for j = i + 1, #soft.lines do soft.lines[j]:Hide() end
+    -- largeurs cumulees (prefixes exacts)
+    for _, r in ipairs(soft.rows) do
+        r.cum = { [0] = 0 }
+        local acc, k = "", 0
+        for ch in r.text:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+            k = k + 1
+            acc = acc .. ch
+            r.cum[k] = Width(acc)
+        end
+    end
+    for b = 1, SOFT_BANDS + 1 do CopyLook(SoftClip(b).fs) end
+end
+-- pos : lettre en cours (avec sa part deja ecrite), dans le texte avec retours a la ligne ;
+-- limit : derniere lettre que le bord adouci peut toucher (pause a une ponctuation).
+local function SoftShow(pos, limit)
+    local row, ri
+    for i, r in ipairs(soft.rows) do
+        if pos < r.start + r.chars + 1 or i == #soft.rows then row, ri = r, i break end
+    end
+    if not row then return end
+    for i, r in ipairs(soft.rows) do
+        local fs = soft.lines[i]
+        if i < ri then fs:SetAlpha(1) fs:Show() else fs:Hide() end
+    end
+    local col = math.max(0, math.min(row.chars, pos - row.start + 1))
+    local c0 = math.floor(col)
+    local x = row.cum[c0] + (col - c0) * ((row.cum[math.min(row.chars, c0 + 1)] or row.cum[c0]) - row.cum[c0])
+    local lc = math.max(0, math.min(row.chars, (limit or math.huge) - row.start + 1))
+    local xmax = row.cum[math.floor(lc)] or x
+    local lh = state.lineH or 14
+    local bw = SOFT_WIDTH / SOFT_BANDS
+    for b = 1, SOFT_BANDS + 1 do
+        local c = SoftClip(b)
+        local x0, x1, a
+        if b == 1 then x0, x1, a = 0, x, 1
+        else
+            x0 = x + (b - 2) * bw
+            x1 = x0 + bw
+            a = 1 - (b - 1.5) / SOFT_BANDS
+        end
+        x1 = math.min(x1, math.max(x, xmax))
+        if x1 - x0 < 0.5 or a <= 0.02 then
+            c.f:Hide()
+        else
+            c.f:ClearAllPoints()
+            c.f:SetPoint("TOPLEFT", text, "TOPLEFT", x0, row.y + 2)
+            c.f:SetSize(x1 - x0, lh + 4)
+            c.fs:ClearAllPoints()
+            c.fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, row.y)
+            if c.fs:GetText() ~= row.text then c.fs:SetText(row.text) end
+            c.f:SetAlpha(a)
+            c.f:Show()
+            c.fs:Show()
+        end
+    end
+    soft.cur = { ri = ri, n = row.start - 1 + c0 }
+end
+-- Ce qui se lit dans la bulle (lettres nettes) : tests, journal.
 function DWE.BubbleVisibleText()
-    local b = state.customShown == "buf" and state.bufFront and bufs[state.bufFront]
-    if b then return Utf8Prefix(b.fs:GetText() or "", b.n or 0), true end
-    return nil, false
+    if state.customShown ~= "soft" or not soft.cur or not soft.rows then return nil, false end
+    local parts = {}
+    for i = 1, soft.cur.ri - 1 do parts[#parts + 1] = soft.rows[i].text end
+    local r = soft.rows[soft.cur.ri]
+    if not r then return table.concat(parts, "\n"), true end
+    local cur = ""
+    local k = 0
+    for ch in r.text:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+        if k >= soft.cur.n - (r.start - 1) then break end
+        cur = cur .. ch
+        k = k + 1
+    end
+    parts[#parts + 1] = cur
+    return table.concat(parts, "\n"), true
 end
 local function CustomReveal(seg, n)
-    local w = Wrapped(seg)
-    local fade = hasGradient and FadeLen(n) or 0 -- (jeu sans fondu : lettres nettes seulement)
-    local key = n .. ":" .. fade .. ":" .. (state.wrapKey or "")
-    if state.customShown ~= "buf" then
-        -- le texte de la bulle se cache (son cadre reste : taille, pointe) ; les copies prennent le relais
-        state.customShown = "buf"
+    SoftSetup(seg)
+    if state.customShown ~= "soft" then
+        state.customShown = "soft"
         text:Hide()
     end
-    local front = state.bufFront and bufs[state.bufFront]
-    if state.bufPending then
-        -- image d'apres : la copie preparee (fondu applique) passe devant
-        local b = bufs[state.bufPending]
-        if hasGradient then b.fs:SetAlphaGradient(state.bufN, math.max(1, state.bufFade)) end
-        b.f:SetAlpha(1)
-        if front and front ~= b then front.f:SetAlpha(0) end
-        state.bufFront, state.bufPending = state.bufPending, nil
-        front = b
-    end
-    -- Le jeu efface le fondu d'un texte quand son cadre devient visible : on le remet a chaque
-    -- image sur la copie affichee (comme l'ancienne ecriture le faisait sur le texte).
-    if front and hasGradient and front.n then front.fs:SetAlphaGradient(front.n, math.max(1, front.fade or 1)) end
-    if key ~= state.bufKey then
-        state.bufKey, state.bufN, state.bufFade = key, n, fade
-        local i = (state.bufFront == 1) and 2 or 1
-        local b = bufs[i]
-        -- Police, couleur, place et largeur : seulement quand elles changent (a chaque lettre,
-        -- les reposer coutait une remise en page de plus).
-        if b.setupKey ~= state.wrapKey then
-            b.setupKey = state.wrapKey
-            CopyLook(b.fs)
-            b.fs:ClearAllPoints()
-            b.fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, 0)
-            local okW, tw = pcall(text.GetWidth, text)
-            if okW and type(tw) == "number" and tw > 0 then b.fs:SetWidth(tw) end
-        end
-        b.f:SetAlpha(0)
-        b.fs:SetText(Utf8Prefix(w, n + fade))
-        b.n, b.fade = n, fade
-        if hasGradient then b.fs:SetAlphaGradient(n, math.max(1, fade)) end
-        if not front then
-            -- toute premiere lettre : rien a remplacer, on montre des l'image suivante
-            state.bufPending = i
-        else
-            state.bufPending = i
-        end
-    end
+    local typed = math.max(n, math.min(n + 1, state.typed or n))
+    local fade = hasGradient and FadeLen(n) or 0
+    SoftShow(typed, n + fade)
+end
+-- Fin de la page : toutes les lignes nettes (memes textes que pendant l'ecriture : rien ne bouge).
+local function SoftFinish(seg)
+    if state.customShown ~= "soft" then return false end
+    SoftSetup(seg)
+    for i in ipairs(soft.rows) do soft.lines[i]:SetAlpha(1) soft.lines[i]:Show() end
+    for _, c in pairs(soft.bands) do c.f:Hide() end
+    soft.cur = { ri = #soft.rows + 1, n = 0 }
+    return true
 end
 
 local function Reveal()
@@ -957,7 +1037,7 @@ local function Reveal()
         return
     end
     HideTails()
-    if state.customShown == "buf" then HideBufs() end
+    if state.customShown == "soft" then HideSoft() end
     if state.customShown then
         -- retour au chemin du fondu du jeu (surlignage, points de suspension...) : texte entier
         state.customShown, state.shownN = nil, nil
@@ -1007,7 +1087,7 @@ local function StartSegment(i)
     -- (Les pages suivantes partaient de 0 lettre : bulle vide 3 ou 4 images, mesure en video.)
     state.index, state.phase, state.typed, state.shownN, state.customShown = i, "typing", 1, nil, nil
     HideTails()
-    HideBufs()
+    HideSoft()
     HighlightReset() -- FitTo remet le texte sans couleur
     state.fresh = true
     FitTo(seg, seg)
@@ -1024,7 +1104,8 @@ local function FinishTyping()
     text:SetAlpha(1)
     bubble:DWEWaitHide(false)
     HideTails()
-    HideBufs()
+    if DWE.noGradient and SoftFinish(seg) then return end
+    HideSoft()
     state.customShown = nil
     text:SetText((DWE.noGradient and state.wrapText and state.wrapKey and state.wrapKey:sub(1, #seg) == seg) and state.wrapText or seg)
     if hasGradient then text:SetAlphaGradient(len + FADE_LETTERS + 1, 1) end
