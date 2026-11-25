@@ -432,7 +432,10 @@ DWE.BubbleMaxWidth = MaxWidth
 
 -- Ajuste la bulle au texte `s` (le morceau complet, pour que la bulle ne change pas de taille
 -- pendant que le PNJ ecrit), puis affiche `shown`.
+local fitSerial = 0
 local function FitTo(s, shown)
+    fitSerial = fitSerial + 1
+    local mySerial = fitSerial
     local pad = Pad()
     local maxInner = MaxWidth() - 2 * pad
     text:SetWidth(maxInner)
@@ -453,9 +456,15 @@ local function FitTo(s, shown)
     text:SetText(shown or s)
     -- Le jeu peut ne finir la mise en page qu'a l'image suivante : on revérifie la hauteur.
     if C_Timer and C_Timer.After then
+        -- On remesure le morceau complet (pas le texte deja ecrit) : la bulle grandit s'il
+        -- manque une ligne, et rapetisse si l'estimation en avait prevu une de trop (vide en bas).
         local function Recheck()
+            if mySerial ~= fitSerial then return end -- autre morceau depuis
+            local cur = text:GetText()
+            text:SetText(s)
             local ok, real = pcall(text.GetStringHeight, text)
-            if ok and type(real) == "number" and real > h + 1 then
+            text:SetText(cur)
+            if ok and type(real) == "number" and real >= fontSize * 0.8 and math.abs(real - h) > 1 then
                 h = real
                 bubble:SetHeight(real + 2 * pad + 2)
             end
