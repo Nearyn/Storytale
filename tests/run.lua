@@ -1177,6 +1177,25 @@ do
         -- ... et la voix est rejointe a la premiere virgule : « stone » ne s'ecrit pas avant qu'elle le dise.
         check(passed and passed >= 1.18 - 0.05, "generated timings: waits for the voice at the first comma (stone at " .. tostring(passed) .. " s, said at 1.18 s)")
     end
+    -- Replique entiere de Theridran (durees generees reelles) : l'ecriture ne s'arrete qu'aux
+    -- ponctuations ; ailleurs, jamais plus d'un instant (fluidite, 25/11).
+    if en then
+        local gt = "Even within cold, stone walls such as the ones that shelter this town, one may find tranquility and peace.  In fact, you may find them everywhere you are... simply look inside yourself for such balance."
+        DWE.GeneratedTimings["test-generated-clip"] = "0 .36 .72 1.18 1.6 2.44 2.64 2.8 2.9 3.14 3.36 3.68 4 5 5.16 5.36 5.7 6.4 6.76 8.16 8.32 9.1 9.2 9.34 9.6 9.78 10.18 10.56 11.74 12.1 12.38 12.76 13.32 13.72 13.98"
+        clip = { length = 14.7, spokenAt = now + 14.7 - DWE.GEN_DELAY, text = gt, present = { transcript = gt }, path = "sounds/gossip/test-generated-clip.ogg" }
+        DWE.SetDialogueText("t", gt)
+        local last, lastS, still, worst, at = "", nil, 0, 0, ""
+        for _ = 1, 320 do
+            now = now + 0.05; tick(0.05)
+            local v = vis()
+            if v == last and v ~= "" and not v:find("[%.,!?;:]%s*$") and #v < #gt then
+                still = still + 0.05
+                if still > worst then worst, at = still, v end
+            else still = 0 end
+            last = v
+        end
+        check(worst <= 0.15 + 1e-6, "generated timings: Theridran flows, stops only at punctuation (longest other stop " .. worst .. " s at '" .. at:sub(-12) .. "')")
+    end
     DWE.GeneratedTimings["test-generated-clip"] = nil
 end
 

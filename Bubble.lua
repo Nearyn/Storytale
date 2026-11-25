@@ -939,6 +939,42 @@ local function MapLookup(from, to, x)
 end
 DWE.SyncBuildWords, DWE.SyncBuildMap, DWE.SyncMapLookup, DWE.SyncLineBreaks = BuildWords, BuildMap, MapLookup, AddLineBreaks
 
+-- Ecriture reguliere sur une voix aux durees generees : pos (lettre ecrite), target (lettre
+-- que dit la voix), rate (rythme moyen de la voix, lettres/s).
+DWE.GEN_SPEED = 1.2 -- vitesse de base : part du rythme moyen (la voix parle plus vite que son rythme moyen, pauses comprises)
+DWE.GEN_CATCH = 1.2 -- secondes pour combler doucement un ecart avec la voix
+DWE.GEN_SMOOTH = 0.35 -- secondes : la vitesse change en douceur (jamais d'une image a l'autre)
+DWE.GEN_AHEAD = 12 -- lettres d'avance au-dela desquelles on ralentit fort
+function DWE.GenSmoothStep(st, pos, target, rate, dt)
+    local base = rate * DWE.GEN_SPEED
+    -- Pauses : fin des mots suivis d'une ponctuation (ou d'une fin de page de la bulle).
+    if not st.genStops then
+        st.genStops = {}
+        for _, w in ipairs(st.words or {}) do
+            if (w.pause or 0) > 0 or w.pageEnd then st.genStops[#st.genStops + 1] = w.start + w.len end
+        end
+    end
+    -- Prochaine pause devant nous : on ne la depasse que quand la voix l'a passee.
+    local stop
+    for _, p in ipairs(st.genStops) do
+        if p >= pos - 0.01 then stop = p break end
+    end
+    if stop and pos >= stop - 0.01 and target < stop + 0.5 then
+        -- Arrivee a la ponctuation avant la voix : on l'attend la (pause naturelle). On repartira
+        -- a la vitesse de base, sans demarrage lent.
+        st.spd = base
+        return pos
+    end
+    local gap = target - pos
+    local want = base + gap / DWE.GEN_CATCH
+    if gap < -DWE.GEN_AHEAD then want = base * 0.25 end
+    want = math.max(base * 0.45, math.min(base * 2, want))
+    st.spd = st.spd and (st.spd + (want - st.spd) * math.min(1, dt / DWE.GEN_SMOOTH)) or want
+    local new = pos + st.spd * dt
+    if stop and target < stop + 0.5 then new = math.min(new, stop) end
+    return new
+end
+
 -- Avance de l'ecriture sur la voix, en "temps de voix" (pauses comprises) ; rend la lettre.
 local VoiceSpeed
 local function VoiceStep(st, pos, share, length, dt)
@@ -948,36 +984,14 @@ local function VoiceStep(st, pos, share, length, dt)
     local map = not st.timed and st.wmap
     if not map then
         local rate = st.total / length
-        -- Durees generees : l'ecriture suit directement la lettre que dit la voix, en douceur
-        -- (DWE.GEN_EASE), sans jamais la depasser. Pendant une pause de la voix (fin de phrase,
-        -- changement de page), elle attend ; ensuite elle repart avec la voix. (Avec le suivi au
-        -- rythme moyen, la bulle avait jusqu'a 1 s d'avance apres chaque pause, mesure en jeu.)
         if st.generated then
-            local target = share * st.total
-            -- Lettres ecrites avant que la voix ne soit entendue : la voix les rattrape. Au lieu
-            -- de s'arreter net en les attendant (« Even withi » fige une demi-seconde, vu en jeu
-            -- le 25/11), l'ecriture ralentit puis la voix la rejoint, sans arret visible.
-            -- Ralentir se voyait encore (« within » lettre par lettre) : la bulle garde donc le
-            -- rythme de la voix et c'est a la premiere pause (virgule, point) qu'elle l'attend,
-            -- la ou un arret est naturel.
-            if st.preLead == nil then
-                st.preLead = pos
-                st.preStop = nil
-                for _, w in ipairs(st.words or {}) do
-                    if (w.pause or 0) > 0 or w.pageEnd then st.preStop = w.start + w.len break end
-                end
-            end
-            if target <= pos then
-                local stop = st.preStop or st.total
-                if st.preLead > 0 and pos < stop and pos - target < DWE.GEN_LEAD_MAX then
-                    return math.min(stop, pos + dt * rate * DWE.GEN_CRAWL)
-                end
-                return pos
-            end
-            st.preLead = 0
-            local new = pos + (target - pos) * math.min(1, dt / DWE.GEN_EASE)
-            if target - new < 0.3 then new = target end
-            return new
+            -- Fluidite d'abord (25/11) : suivre chaque mot a la lettre pres faisait hacher
+            -- l'ecriture (nos durees generees ne tombent jamais tout a fait juste : arrets au
+            -- milieu de « within », « su|ch », « on|e »...). La bulle ecrit maintenant a vitesse
+            -- reguliere, qui ne change qu'en douceur pour rester avec la voix, et ne s'arrete
+            -- qu'aux ponctuations, quand la voix y fait vraiment une pause. Regle generale :
+            -- marche pareil pour tous les PNJ, sans reglage par replique.
+            return DWE.GenSmoothStep(st, pos, share * st.total, rate, dt)
         end
         return pos + VoiceSpeed(st, pos, share * st.total, rate, dt) * dt
     end
@@ -1076,7 +1090,6 @@ DWE.BubbleGeneratedTimes = GeneratedTimes
 -- que sa longueur ne le permet : pendant une pause de la voix, l'ecriture attend au bout du mot.
 DWE.GEN_DELAY = 0.25 -- secondes entre le lancement du son et la voix entendue (durees generees)
 DWE.GEN_EASE = 0.12 -- secondes : retard de l'ecriture sur la lettre dite (durees generees)
-DWE.GEN_CRAWL, DWE.GEN_LEAD_MAX = 0.9, 16 -- depart en avance sur la voix : rythme (part de celui de la voix), avance maxi (lettres)
 DWE.GEN_FLOW = 0.8 -- secondes : blanc apres un mot sans ponctuation au-dela duquel la bulle attend (souffle)
 local function GeneratedShare(st, clip, length)
     local t = GeneratedTimes(clip)
@@ -1417,7 +1430,7 @@ function DWE.Bubble.SetText(s)
     state.manual, state.clip, state.clipMatch, state.norm = nil, nil, nil, nil
     state.wmap, state.posW, state.timed, state.generated = nil, nil, nil, nil
     state.voiced, state.age, state.holdT, state.waitT = nil, 0, 0, 0
-    state.lastTarget, state.tvel, state.spd, state.preLead = nil, nil, nil, nil
+    state.lastTarget, state.tvel, state.spd, state.genStops = nil, nil, nil, nil
     state.setAt = GetTime and GetTime() or nil
     text:SetAlpha(1)
     if IsSecret(s) then
@@ -1540,7 +1553,7 @@ function DWE.Bubble.PopupText(s)
     pop.manual, pop.clip, pop.clipMatch = nil, nil, nil
     pop.wmap, pop.posW, pop.timed, pop.generated = nil, nil, nil, nil
     pop.voiced, pop.age, pop.holdT = nil, 0, 0
-    pop.lastTarget, pop.tvel, pop.spd, pop.preLead = nil, nil, nil, nil
+    pop.lastTarget, pop.tvel, pop.spd, pop.genStops = nil, nil, nil, nil
     pop.setAt = GetTime and GetTime() or nil
     pop.len = (type(s) == "string" and not IsSecret(s)) and Utf8Len(s) or 0
     if not popupHasGradient or not SpokenInstalled() or IsSecret(s) or pop.len == 0 then
