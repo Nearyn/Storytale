@@ -32,8 +32,9 @@ local READ_PER_CHAR, READ_MIN, READ_MAX = 0.05, 2, 8 -- temps de lecture apres e
 
 -- Reglages propres a chaque style de bulle.
 local STYLES = {
-    -- (texte jaune pale des PNJ qui parlent, comme les bulles du jeu : ChatTypeInfo.MONSTER_SAY)
-    game = { pad = 14, color = { 1, 1, 0.624 }, shadow = false },
+    game = { pad = 14, color = { 1, 1, 1 }, shadow = false },
+    -- Bulle d'Azeroth facon PNJ : le texte jaune pale des PNJ qui parlent (ChatTypeInfo.MONSTER_SAY).
+    game_npc = { pad = 14, color = { 1, 1, 0.624 }, shadow = false },
     fantasy = { pad = 20, color = { 0.18, 0.10, 0.04 }, shadow = false, art = "BubbleFantasy", slice = 24 },
     whisper = { pad = 14, color = { 1, 0.66, 1 }, shadow = false, art = "BubbleWhisper", slice = 16, split = true },
 }

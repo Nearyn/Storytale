@@ -586,6 +586,7 @@ local W, H, TABS_W = 860, 660, 170
 -- jeu restent lisibles, meme avec un theme clair) et un accent (bord, onglet, curseur, titre).
 local THEME_COLORS = {
     bubble = { { 1, 0.82, 0 }, { 0.11, 0.11, 0.12 } },
+    bubble_npc = { { 1, 1, 0.62 }, { 0.09, 0.09, 0.09 } },
     bubble_fantasy = { { 0.92, 0.70, 0.36 }, { 0.17, 0.12, 0.07 } },
     whisper = { { 0.82, 0.58, 1 }, { 0.11, 0.08, 0.15 } },
     emerald = { { 0.45, 0.95, 0.60 }, { 0.06, 0.13, 0.09 } },

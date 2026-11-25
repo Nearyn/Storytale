@@ -681,6 +681,7 @@ end
 -- bubble = style de Bubble.lua, pill = images Pill<pill>*.png, palette = couleurs des choix.
 local BUBBLE_SKINS = {
     bubble = { bubble = "game", pill = "game", palette = WHEEL_DEFAULT, always = true },
+    bubble_npc = { bubble = "game_npc", pill = "game", palette = WHEEL_DEFAULT, always = true },
     bubble_fantasy = { bubble = "fantasy", pill = "fantasy", palette = WHEEL_INK, always = true, optFont = true },
     whisper = { bubble = "whisper", pill = "whisper", palette = WHEEL_WHISPER, always = true },
 }
@@ -1714,7 +1715,7 @@ function DWE.SpokenThemeOverride()
 end
 
 -- Pour la fenetre Spoken, les bulles empruntent le style d'un theme "bloc".
-local SPOKEN_STYLE_ALIAS = { bubble = "spk_bubble", bubble_fantasy = "spk_fantasy", whisper = "spk_whisper",
+local SPOKEN_STYLE_ALIAS = { bubble = "spk_bubble", bubble_npc = "spk_bubble", bubble_fantasy = "spk_fantasy", whisper = "spk_whisper",
     emerald = "spk_emerald", ruby = "spk_ruby", sapphire = "spk_sapphire", amber = "spk_amber",
     transparent = "spk_transparent", cinema = "spk_cinema" }
 -- Style "plaque" de la matiere `mat` (petite taille : texture S, marges divisees par 2).
@@ -7166,6 +7167,7 @@ DWE.KeyLabel = KeyLabel
 -- Themes proposes dans les options, par famille, avec leur vignette (Thumbs\*.png).
 local THEME_LIST = {
     { id = "bubble", key = "THEME_BUBBLE", thumb = "Bubble" },
+    { id = "bubble_npc", key = "THEME_BUBBLE_NPC", thumb = "BubbleNPC" },
     { id = "bubble_fantasy", key = "THEME_BUBBLE_FANTASY", thumb = "BubbleFantasy" },
     { id = "whisper", key = "THEME_WHISPER", thumb = "Whisper" },
     { id = "emerald", key = "THEME_EMERALD", thumb = "Emerald" },

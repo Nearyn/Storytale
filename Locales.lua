@@ -456,6 +456,25 @@ for loc, list in pairs(NAMES) do
     if dest then for i, key in ipairs(NAME_KEYS) do dest[key] = list[i] end end
 end
 
+-- Bulle d'Azeroth facon PNJ (texte jaune pale des bulles du jeu).
+local BUBBLE_NPC = {
+    enUS = "Azeroth NPC Bubble",
+    frFR = "Bulle d'Azeroth (PNJ)",
+    deDE = "Azeroth-Sprechblase (NSC)",
+    esES = "Bocadillo de Azeroth (PNJ)",
+    itIT = "Fumetto di Azeroth (PNG)",
+    ptBR = "Balão de Azeroth (PNJ)",
+    ruRU = "Облачко Азерота (НИП)",
+    koKR = "아제로스 말풍선 (NPC)",
+    zhCN = "艾泽拉斯气泡（NPC）",
+    zhTW = "艾澤拉斯對話泡泡（NPC）",
+}
+BUBBLE_NPC.esMX = BUBBLE_NPC.esES
+for loc, str in pairs(BUBBLE_NPC) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.THEME_BUBBLE_NPC = str end
+end
+
 -- Titres des sections et libelles revus des options.
 local OPTS = {
     enUS = { OPT_WINDOW_OPEN = "Open Storytale options", OPT_LAUNCH_TEXT = "Storytale's options open in their own window, with theme previews and full gamepad support.", OPT_LAUNCH_HOW = "You can also type /storytale, use the minimap button, or set a key (or gamepad button) in Options > Keybindings > AddOns > Storytale.", OPT_TAB_MAIN = "General", OPT_WINDOW_HINT = "Gamepad: D-pad to move, A to select, B to close, L1 / R1 (LB / RB) to change tab", SEC_THEME = "Theme", SEC_TEXT = "Text", SEC_PLACE = "Placement", SEC_KEYS = "Controls",
