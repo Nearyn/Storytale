@@ -3595,6 +3595,7 @@ f:SetScript("OnEvent", function(_, event)
         -- juste apres la salutation rouverte par le jeu : on ne s'y fie pas).
         if event ~= "ITEM_TEXT_CLOSED" and event ~= "QUEST_FINISHED" then DWE.heldWatch = nil end
         if event == "ITEM_TEXT_CLOSED" then
+            DWE.bookLookHold = nil
             DWE.ForceBlizzBook(event)
             if bookState.reachedEnd then DWE.MarkBook(bookState.title, true) end
             DWE.bookResumeHold = nil
@@ -3667,6 +3668,13 @@ f:SetScript("OnEvent", function(_, event)
     if (event == "ITEM_TEXT_BEGIN" or event == "ITEM_TEXT_READY") and DWE.ForgetOpenText then DWE.ForgetOpenText() end
     if event == "ITEM_TEXT_BEGIN" then
         DWE.bookSpokenView = false
+        -- Le jeu renvoie parfois ITEM_TEXT_BEGIN en pleine lecture (certaines pages tournees) :
+        -- le livre deja ouvert garde son allure jusqu'a la page suivante, sinon il s'affiche une
+        -- image en page seule a la mauvaise taille (le "livre en double").
+        local same = DWE.choiceBox:IsShown() and DWE.bookMode and DWE.BookLook() == "book"
+            and bookState.title ~= "" and bookState.title == (NonEmpty(ItemTextGetItem and ItemTextGetItem()) or "")
+        DWE.bookLookHold = same and "book" or nil
+        if same and DWE.LookLog then DWE.LookLog("reouverture du meme livre : on garde le livre") end
         DWE.bookInfo = nil
         ResetBook(true, NonEmpty(ItemTextGetItem and ItemTextGetItem()) or NonEmpty(UnitName("npc")) or "")
         do

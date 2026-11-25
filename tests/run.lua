@@ -1557,6 +1557,13 @@ if DWE.BookLook() == "book" then
     DWE.BookGoTo(3)
     for _ = 1, 5 do M.FlushPending() end
     check(DWE.textBody:GetText() == "p3", "far page reached from a fresh open (got " .. tostring(DWE.textBody:GetText()) .. ")")
+    -- Le jeu renvoie ITEM_TEXT_BEGIN en pleine lecture : le livre ne passe pas en page seule.
+    local wasLook = DWE.BookLook()
+    M.FireEvent("ITEM_TEXT_BEGIN")
+    check(DWE.BookLook() == wasLook and DWE.textBox.dweBook == true, "book keeps its look when the game reopens it (got " .. tostring(DWE.BookLook()) .. ")")
+    M.FireEvent("ITEM_TEXT_READY")
+    for _ = 1, 5 do M.FlushPending() end
+    check(DWE.bookLookHold == nil, "look hold cleared once the page is back")
 end
 M.FireEvent("ITEM_TEXT_CLOSED")
 M.RunTimers()

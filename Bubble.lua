@@ -9,7 +9,7 @@
 local ADDON_PATH = "Interface\\AddOns\\Storytale\\"
 local DEFAULT_WIDTH = 300      -- largeur max par defaut
 local SEGMENT_MAX = 150        -- longueur max d'un morceau (en octets)
-local TYPE_SPEED = 30          -- vitesse d'ecriture sans voix, en lettres par seconde
+local TYPE_SPEED = 25          -- vitesse d'ecriture sans voix, en lettres par seconde
 -- Sans voix reconnue (meme avec Spoken installe) : meme vitesse que sans Spoken.
 local SPOKEN_PACE = TYPE_SPEED
 DWE.fadeWiggle = false -- (essai du 25/11, inutile depuis l'ecriture sans le fondu du jeu)

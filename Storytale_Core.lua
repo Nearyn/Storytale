@@ -3200,6 +3200,7 @@ function DWE.BookLook()
     if pref == "frame" then DialogueWheelE_BookLook, pref = nil, "auto" end
     if pref == "note" or pref == "book" then return pref end
     local bi = DWE.bookInfo
+    if bi then DWE.bookLookHold = nil elseif DWE.bookLookHold then return DWE.bookLookHold end
     return (bi and ((bi.total or 1) > 1 or bi.hasNext)) and "book" or "note"
 end
 
