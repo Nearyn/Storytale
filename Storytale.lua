@@ -2309,11 +2309,145 @@ function DWE.PadActiveFrame()
     if not ok or type(af) ~= "table" or (sec and sec(af)) then return nil end
     return af
 end
--- Ancienne correction manette retiree : Storytale appelait FrameHidden du gestionnaire manette du
--- jeu (GamepadMode.FrameControlsManager). Appele depuis un addon, cela marquait le gestionnaire
--- comme contamine : sorts, cible et interaction a la manette bloques ("Interface action failed")
--- jusqu'au /reload. Storytale ne touche plus jamais a ce gestionnaire.
-function DWE.PadUnfocusHidden() end
+function DWE.PadUnfocusHidden()
+    local m, af = DWE.PadFCM(), DWE.PadActiveFrame()
+    if not (m and af) or InCombatLockdown() then return end
+    -- Pendant la conversation, la fenetre du chat restait seule dans la liste manette du jeu une
+    -- fois les fenetres cachees retirees : le jeu lui donnait la manette (le PNJ n'etait plus vise,
+    -- la roue se decrochait). On la retire aussi de cette liste (le chat reste affiche).
+    if DWE.choiceBox and DWE.choiceBox:IsShown() and not DWE.ConvToDUI() then
+        local sec = rawget(_G, "issecretvalue")
+        local okN, n = pcall(af.GetName, af)
+        local focused = rawget(m, "isUIFocused")
+        if okN and type(n) == "string" and not (sec and sec(n)) and n:find("^ChatFrame")
+            and focused == true and m.FrameHidden then
+            local now = GetTime and GetTime() or 0
+            DWE.padRate = DWE.padRate or {}
+            local r = DWE.padRate[af]
+            if not r or now - r.t > 2 then r = { t = now, n = 0 } DWE.padRate[af] = r end
+            r.n = r.n + 1
+            if r.n <= 3 then
+                pcall(m.FrameHidden, m, af)
+                DWE.padUnfocusN = (DWE.padUnfocusN or 0) + 1
+                DWE.padUnfocusLast = n
+                if DWE.FLog then DWE.FLog("chat retire de la liste manette du jeu") end
+            end
+            return
+        end
+    end
+    -- Conversation ou livre montres par DialogueUI : il pilote lui-meme la manette, on n'y touche pas.
+    if DWE.ConvToDUI() and not DWE.BookByAddon() then return end
+    -- Fenetre selectionnee par le jeu mais invisible (cachee par Storytale) : on rend la main.
+    -- Fenetres de PNJ ou de livre : on la rend des leur ouverture, avant meme que Storytale ne les
+    -- cache (sinon un geste du stick commence entre-temps reste a la fenetre tant qu'on le tient).
+    local okA, a = pcall(af.GetEffectiveAlpha, af)
+    local sec = rawget(_G, "issecretvalue")
+    local early = false
+    for _, n in ipairs(STICK_FRAMES) do if rawget(_G, n) == af then early = true end end
+    -- Seules les fenetres que Storytale cache sont concernees. Les autres fenetres du jeu (le
+    -- butin, en fondu a l'ouverture) passent un instant par une transparence presque nulle : on
+    -- leur retirait la manette, et le butin ne se ramassait plus.
+    if not early then
+        local ours = false
+        for _, n in ipairs({ "DUIBookFrame", "DUIQuestFrame" }) do if rawget(_G, n) == af then ours = true end end
+        local busy = (DWE.choiceBox and DWE.choiceBox:IsShown()) or DWE.bookMode
+        if not (ours and busy) then return end
+    end
+    if early then DWE.padEarly = { f = af, t = GetTime and GetTime() or 0 } end
+    if early or (okA and not (sec and sec(a)) and (a or 1) < 0.05) then
+        -- On dit au gestionnaire que la fenetre est cachee (il la retire de sa selection), puis on
+        -- rend la main au joueur.
+        -- On ne retire jamais la fenetre du suivi du jeu (FrameHidden) : a sa vraie fermeture, le jeu
+        -- se perdait et la fenetre suivante (un marchand) n'etait plus pilotable a la manette.
+        -- On rend seulement la main au joueur, et seulement si l'interface l'a prise.
+        local focused = rawget(m, "isUIFocused")
+        if sec and sec(focused) then focused = true end
+        if focused == false and not (okA and not (sec and sec(a)) and (a or 1) < 0.05) then return end
+        -- Fenetre vraiment cachee : on la retire de la liste du jeu (sinon il la reprend et bloque la
+        -- camera). A sa vraie fermeture, la fenetre suivante (un marchand) est reselectionnee : voir
+        -- DWE.PadRefocusAfterClose.
+        local hidden = okA and not (sec and sec(a)) and (a or 1) < 0.05
+        -- Une seule fois par ouverture, tant que le jeu ne la reselectionne pas.
+        DWE.padCycled = DWE.padCycled or {}
+        if hidden and focused == false and DWE.padCycled[af] then return end
+        -- Garde-fou : jamais plus de 3 allers-retours en 2 secondes pour une meme fenetre (une
+        -- boucle de milliers d'allers-retours avec le jeu finissait par bloquer la manette).
+        do
+            local now = GetTime and GetTime() or 0
+            DWE.padRate = DWE.padRate or {}
+            local r = DWE.padRate[af]
+            if not r or now - r.t > 2 then r = { t = now, n = 0 } DWE.padRate[af] = r end
+            r.n = r.n + 1
+            if r.n > 3 then return end
+        end
+        if hidden then
+            DWE.padCycled[af] = true
+            DWE.padHideHooked = DWE.padHideHooked or {}
+            if not DWE.padHideHooked[af] and af.HookScript then
+                DWE.padHideHooked[af] = true
+                af:HookScript("OnHide", function(fr) DWE.padCycled[fr] = nil end)
+            end
+        end
+        if hidden and m.FrameHidden then
+            pcall(m.FrameHidden, m, af)
+            DWE.padUntracked = DWE.padUntracked or {}
+            DWE.padUntracked[af] = true
+            -- Les autres fenetres du jeu cachees par Storytale (le gossip, encore connu a
+            -- l'ouverture d'une quete) recevaient la selection a sa place : la manette restait a
+            -- l'interface, ne visait plus le PNJ et la roue se decrochait. On les retire aussi :
+            -- sans fenetre restante, le jeu rend lui-meme la main au joueur.
+            if DWE.choiceBox and DWE.choiceBox:IsShown() then
+                for _, n in ipairs(STICK_FRAMES) do
+                    local f = rawget(_G, n)
+                    if f and f ~= af then
+                        local okE, ea = pcall(f.GetEffectiveAlpha, f)
+                        local okV, vis = pcall(f.IsShown, f)
+                        if okV and vis and okE and not (sec and sec(ea)) and (ea or 1) < 0.05 then
+                            pcall(m.FrameHidden, m, f)
+                            DWE.padUntracked[f] = true
+                        end
+                    end
+                end
+            end
+        end
+        -- Puis on la remet dans la liste du jeu, sans la selectionner : il la connait encore a sa
+        -- vraie fermeture (le marchand qui suit reste pilotable).
+        -- Pendant la conversation, on ne la remet pas dans la liste du jeu : l'y remettre
+        -- redonnait la manette a l'interface (le PNJ n'etait plus vise). Elle y revient a la fin
+        -- de la conversation si elle est encore ouverte (voir plus bas).
+        -- Plus jamais remise dans la liste du jeu : y remettre une fenetre (FrameShown) redonne
+        -- d'office la manette a l'interface. Le jeu restait alors sur une autre fenetre (le chat) :
+        -- plus moyen de parler aux PNJ, camera bloquee. A sa vraie fermeture, la fenetre
+        -- suivante (un marchand) est annoncee par le jeu lui-meme.
+        if false then
+            C_Timer.After(0, function()
+                if InCombatLockdown() then return end
+                local okS, shown = pcall(af.IsShown, af)
+                if not (okS and shown) then return end
+                pcall(m.FrameShown, m, af, false, false)
+                if DWE.padUntracked then DWE.padUntracked[af] = nil end
+                local now = DWE.PadActiveFrame()
+                local f2 = rawget(m, "isUIFocused")
+                -- Le jeu peut selectionner une autre fenetre cachee (ex. celle du gossip, encore
+                -- connue) : la manette restait alors a l'interface, le PNJ n'etait plus vise et la
+                -- roue se decrochait. Fenetre selectionnee invisible pendant la conversation : on
+                -- rend aussi la main au joueur.
+                local nowHidden = false
+                if now and now ~= af and DWE.choiceBox and DWE.choiceBox:IsShown() then
+                    local okH, ha = pcall(now.GetEffectiveAlpha, now)
+                    nowHidden = okH and not (sec and sec(ha)) and (ha or 1) < 0.05
+                end
+                -- (ReturnToPlayerControl ne s'appelle pas ainsi : il ne faisait rien.)
+            end)
+        end
+        DWE.padUnfocusN = (DWE.padUnfocusN or 0) + 1
+        local okN, n = pcall(af.GetName, af)
+        DWE.padUnfocusLast = okN and not (sec and sec(n)) and n or "?"
+        local after = DWE.PadActiveFrame()
+        local okM, an = pcall(function() return after and after:GetName() end)
+        DWE.padUnfocusAfter = after and (okM and not (sec and sec(an)) and an or "?") or "aucune"
+    end
+end
 -- Surveillance independante de la roue : le jeu selectionne la fenetre des l'ouverture du PNJ,
 -- avant que la roue (et son capteur manette) ne s'affiche. On reagit aussi tout de suite quand le
 -- gestionnaire change de selection.
@@ -2374,6 +2508,17 @@ DWE.padFocusWatch:SetScript("OnUpdate", function(self, el)
             end
         end
         DWE.PadLogSample()
+        local m = DWE.PadFCM()
+        if m and not DWE.padFCMHooked then
+            DWE.padFCMHooked = true
+            -- Jamais pendant le traitement du jeu (il continue avec la fenetre) : a l'image suivante.
+            local function Soon()
+                if C_Timer then C_Timer.After(0, DWE.PadUnfocusHidden) end
+            end
+            for _, k in ipairs({ "FocusFrame", "FrameShown", "RefreshFocus", "FocusFirstFrameShown" }) do
+                if type(m[k]) == "function" then pcall(hooksecurefunc, m, k, Soon) end
+            end
+        end
     end
 end)
 -- Journal de l'etat manette (diagnostic du blocage de camera) : une ligne a chaque changement.
@@ -2445,7 +2590,11 @@ end
 -- FrameHidden/FrameShown sont protegees (appelees en securite). Appeler directement FocusFrame
 -- depuis Storytale salissait le gestionnaire, puis le jeu refusait de viser les PNJ
 -- ("Interface action failed", plus moyen de parler aux PNJ a la manette jusqu'au /reload).
-function DWE.PadSecureFocus() end
+function DWE.PadSecureFocus(m, f)
+    if not (m and f and m.FrameHidden and m.FrameShown) or InCombatLockdown() then return end
+    pcall(m.FrameHidden, m, f)
+    pcall(m.FrameShown, m, f, false, true)
+end
 
 function DWE.PadRefocusAfterClose()
     local u = DWE.padUntracked
