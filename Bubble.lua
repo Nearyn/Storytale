@@ -49,7 +49,7 @@ for id, sk in pairs(DWE.BUBBLE_SKINS) do
     end
 end
 -- Personnalise : bulle blanche en deux calques (remplissage, contour) teintes aux couleurs choisies.
-STYLES.custom = { pad = 14, color = { 1, 1, 1 }, shadow = true, art = "BubbleCustomFill", slice = 16, optFont = true, custom = true }
+STYLES.custom = { pad = 14, color = { 1, 1, 1 }, shadow = true, art = "BubbleCustomFill", slice = 16, optFont = true, custom = true, split = true }
 -- Murmure en d'autres couleurs.
 for id, c in pairs(DWE.WHISPER_COLORS or {}) do
     STYLES[id] = { pad = 14, color = c.text, shadow = false, art = "Bubble" .. c.art, slice = 16, split = true }
@@ -273,15 +273,20 @@ local MOUTH = 6           -- demi-largeur de l'ouverture (bords de la pointe aux
 local TAIL_ROW = 9        -- premiere ligne de la pointe gardee (debut de ses bords)
 local TAIL_TOP = 3        -- cette ligne se pose sur le contour (lignes 1 et 2 depuis le bas)
 local split = {}
+-- Theme Personnalise : son contour, decoupe pareil (au-dessus du fond), ouvert sous la pointe.
+local splitEdge = {}
 for _, k in ipairs({ "tl", "t", "tr", "l", "c", "r", "bl", "bL", "m", "bR", "br" }) do
     split[k] = bubble:CreateTexture(nil, "BACKGROUND")
     split[k]:Hide()
+    splitEdge[k] = bubble:CreateTexture(nil, "BORDER")
+    splitEdge[k]:Hide()
 end
-local function SplitArt(st)
+local function SplitArt(st, set, art)
     local S, u = st.slice, st.slice / 64
     local v = 1 - TAIL_TOP / 64
-    for _, t in pairs(split) do t:SetTexture(ADDON_PATH .. st.art .. ".png"); t:ClearAllPoints() end
-    local p = split
+    set = set or split
+    for _, t in pairs(set) do t:SetTexture(ADDON_PATH .. (art or st.art) .. ".png"); t:ClearAllPoints() end
+    local p = set
     p.tl:SetSize(S, S); p.tl:SetPoint("TOPLEFT", bubble, "TOPLEFT"); p.tl:SetTexCoord(0, u, 0, u)
     p.tr:SetSize(S, S); p.tr:SetPoint("TOPRIGHT", bubble, "TOPRIGHT"); p.tr:SetTexCoord(1 - u, 1, 0, u)
     p.bl:SetSize(S, S); p.bl:SetPoint("BOTTOMLEFT", bubble, "BOTTOMLEFT"); p.bl:SetTexCoord(0, u, 1 - u, 1)
@@ -302,10 +307,12 @@ local function SplitArt(st)
     p.m:SetPoint("BOTTOMLEFT", bubble, "BOTTOM", -MOUTH, TAIL_TOP)
     p.m:SetPoint("TOPRIGHT", bubble, "BOTTOM", MOUTH, S)
     p.m:SetTexCoord(u, 1 - u, 1 - u, v)
-    for _, t in pairs(split) do t:Show() end
+    for _, t in pairs(set) do t:Show() end
+    if set == splitEdge then p.m:Hide() end -- (pas de contour dans l'ouverture)
 end
 local function HideSplit()
     for _, t in pairs(split) do t:Hide() end
+    for _, t in pairs(splitEdge) do t:Hide() end
 end
 
 local styleName -- style actuellement affiche
@@ -351,8 +358,8 @@ function DWE.ApplyBubbleOpacity()
     local op = tonumber(DialogueWheelE_Opacity) or 1
     for _, t in ipairs({ fantasy, fantasyTail, tail, customEdge, customTailEdge }) do t:SetAlpha(op) end
     -- Personnalise : alpha porte par les couleurs (fond 0.86 x opacite).
-    if styleName == "custom" and DWE.Bubble and DWE.Bubble.RefreshCustom then DWE.Bubble.RefreshCustom() end
     for _, t in pairs(split) do t:SetAlpha(op) end
+    if styleName == "custom" and DWE.Bubble and DWE.Bubble.RefreshCustom then DWE.Bubble.RefreshCustom() end
     if bubble.art then bubble.art:SetAlpha(op) end
     if bubble.GetBackdrop and bubble:GetBackdrop() then
         if gameArt == "fallback" then
@@ -402,12 +409,20 @@ local function ApplyStyle(name)
         ShowGameStyle()
     end
     if st.custom then
-        fantasyTail:SetTexture(ADDON_PATH .. "BubbleCustomFillTail.png")
-        customEdge:Show(); customTailEdge:Show()
+        -- Ouverte comme les autres bulles : contour decoupe autour de la pointe, pointe posee
+        -- dessus (avant : contour entier sous une pointe plus etroite, encoche ouverte).
+        SplitArt(st, splitEdge, "BubbleCustomEdge")
+        customEdge:Hide()
+        customTailEdge:SetTexCoord(0, 1, TAIL_ROW / 32, 1)
+        customTailEdge:SetSize(32, 32 - TAIL_ROW)
+        customTailEdge:ClearAllPoints()
+        customTailEdge:SetPoint("TOP", bubble, "BOTTOM", 0, TAIL_TOP)
+        customTailEdge:Show()
     else
         customEdge:Hide(); customTailEdge:Hide()
         local op = tonumber(DialogueWheelE_Opacity) or 1
         fantasy:SetVertexColor(1, 1, 1, op); fantasyTail:SetVertexColor(1, 1, 1, op)
+        for _, t in pairs(split) do t:SetVertexColor(1, 1, 1, 1) end
     end
     if DWE.Bubble and DWE.Bubble.RefreshCustom then DWE.Bubble.RefreshCustom() end
     if DWE.ApplyBubbleOpacity then DWE.ApplyBubbleOpacity() end
@@ -1893,6 +1908,10 @@ function DWE.Bubble.RefreshCustom()
     fantasyTail:SetVertexColor(bg[1], bg[2], bg[3], a)
     customEdge:SetVertexColor(bd[1], bd[2], bd[3], op)
     customTailEdge:SetVertexColor(bd[1], bd[2], bd[3], op)
+    -- (bulle decoupee : l'alpha est deja dans la couleur)
+    for _, t in pairs(split) do t:SetAlpha(1); t:SetVertexColor(bg[1], bg[2], bg[3], a) end
+    for _, t in pairs(splitEdge) do t:SetAlpha(1); t:SetVertexColor(bd[1], bd[2], bd[3], op) end
+    fantasyTail:SetAlpha(1); customTailEdge:SetAlpha(1)
     text:SetTextColor(tx[1], tx[2], tx[3])
 end
 
