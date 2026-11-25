@@ -58,6 +58,7 @@ function Object:GetAlpha() return self._alpha end
 function Object:SetVertexColor(r, g, b, a) self._vc = { r, g, b, a or 1 }; self._alpha = a or 1 end
 function Object:SetScript(ev, fn) self._scripts[ev] = fn end
 function Object:GetScript(ev) return self._scripts[ev] end
+function Object:Click(button) local fn = self._scripts.OnClick; if fn then fn(self, button or "LeftButton", false) end end
 function Object:HookScript(ev, fn)
     local old = self._scripts[ev]
     self._scripts[ev] = function(...) if old then old(...) end fn(...) end
@@ -278,6 +279,19 @@ function M.Install(locale)
         end,
         CreateCheckbox = function(cat, st, tip) M.nativeControls[#M.nativeControls + 1] = { kind = "check", setting = st, tip = tip } end,
         CreateDropdown = function(cat, st, opts, tip) M.nativeControls[#M.nativeControls + 1] = { kind = "dropdown", setting = st, options = opts() } end,
+        -- Lignes a nous (liste de choix de Storytale) : un reglage factice pour les tests.
+        CreateElementInitializer = function(template, data)
+            local init = { template = template, data = data, AddSearchTags = noop,
+                AddModifyPredicate = function(self, f) self.modifyPredicates = self.modifyPredicates or {}; table.insert(self.modifyPredicates, f) end,
+                SetParentInitializer = function(self, parent, f) self.parent = parent; if f then self:AddModifyPredicate(f) end end }
+            if data and data.id then
+                M.nativeSettings["Storytale_" .. data.id] = { var = "Storytale_" .. data.id, init = init,
+                    GetValue = function() return data.get() end, SetValue = function(self, v) data.set(v) end,
+                    NotifyUpdate = function(self) self.notified = (self.notified or 0) + 1 end }
+            end
+            M.nativeControls[#M.nativeControls + 1] = { kind = "choice", init = init }
+            return init
+        end,
         CreateSliderOptions = function(min, max, step) return { min = min, max = max, step = step } end,
         CreateSlider = function(cat, st, opts, tip) M.nativeControls[#M.nativeControls + 1] = { kind = "slider", setting = st, options = opts } end,
         CreateControlTextContainer = function()

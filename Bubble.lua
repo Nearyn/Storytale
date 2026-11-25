@@ -33,12 +33,14 @@ local READ_PER_CHAR, READ_MIN, READ_MAX = 0.05, 2, 8 -- temps de lecture apres e
 -- Reglages propres a chaque style de bulle.
 local STYLES = {
     game = { pad = 14, color = { 1, 1, 1 }, shadow = false },
+    -- Bulle d'Azeroth facon PNJ : le texte jaune pale des PNJ qui parlent (ChatTypeInfo.MONSTER_SAY).
+    game_npc = { pad = 14, color = { 1, 1, 0.624 }, shadow = false },
     fantasy = { pad = 20, color = { 0.18, 0.10, 0.04 }, shadow = false, art = "BubbleFantasy", slice = 24 },
     whisper = { pad = 14, color = { 1, 0.66, 1 }, shadow = false, art = "BubbleWhisper", slice = 16, split = true },
 }
 -- Bulles 64x64 dont la pointe (32x32) a ses bords a partir de la 10e ligne : le bas de la bulle
 -- est ouvert a l'endroit de la pointe pour que ses bords prolongent le contour (voir SplitArt).
-local SPLIT = { Arcane = true, Glass = true, Ink = true, ParchDark = true, Parch = true, Starry = true,
+local SPLIT = { Arcane = true, Folio = true, FolioDark = true, Glass = true, Ink = true, ParchDark = true, Parch = true, Starry = true,
     Sylvan = true, Veil = true, Velin = true, Whisper = true }
 -- Les autres themes en bulle : leur image Bubble<art>.png et la couleur de texte du theme.
 for id, sk in pairs(DWE.BUBBLE_SKINS) do
@@ -49,7 +51,7 @@ for id, sk in pairs(DWE.BUBBLE_SKINS) do
     end
 end
 -- Personnalise : bulle blanche en deux calques (remplissage, contour) teintes aux couleurs choisies.
-STYLES.custom = { pad = 14, color = { 1, 1, 1 }, shadow = true, art = "BubbleCustomFill", slice = 16, optFont = true, custom = true }
+STYLES.custom = { pad = 14, color = { 1, 1, 1 }, shadow = true, art = "BubbleCustomFill", slice = 16, optFont = true, custom = true, split = true }
 -- Murmure en d'autres couleurs.
 for id, c in pairs(DWE.WHISPER_COLORS or {}) do
     STYLES[id] = { pad = 14, color = c.text, shadow = false, art = "Bubble" .. c.art, slice = 16, split = true }
@@ -208,6 +210,16 @@ local function ShowGameStyle()
         bubble.art:Show()
         if AtlasExists("ChatBubble-Tail") then
             tail:SetAtlas("ChatBubble-Tail", true)
+            -- Pointe du jeu : sa place et sa taille reglables (/storytale pointe), pour qu'elle
+            -- prolonge le contour comme sur les bulles du jeu.
+            -- (a sa taille d'origine dans le jeu ; /storytale pointe peut l'agrandir)
+            local sc = DWE.gameTailScale or 1.3
+            if sc ~= 1 then
+                local w, h = tail:GetSize()
+                tail:SetSize((w or 16) * sc, (h or 16) * sc)
+            end
+            tail:ClearAllPoints()
+            tail:SetPoint("TOP", bubble, "BOTTOM", DWE.gameTailX or 0, DWE.gameTailY or 6)
             tail:Show()
         else
             tail:Hide()
@@ -273,15 +285,20 @@ local MOUTH = 6           -- demi-largeur de l'ouverture (bords de la pointe aux
 local TAIL_ROW = 9        -- premiere ligne de la pointe gardee (debut de ses bords)
 local TAIL_TOP = 3        -- cette ligne se pose sur le contour (lignes 1 et 2 depuis le bas)
 local split = {}
+-- Theme Personnalise : son contour, decoupe pareil (au-dessus du fond), ouvert sous la pointe.
+local splitEdge = {}
 for _, k in ipairs({ "tl", "t", "tr", "l", "c", "r", "bl", "bL", "m", "bR", "br" }) do
     split[k] = bubble:CreateTexture(nil, "BACKGROUND")
     split[k]:Hide()
+    splitEdge[k] = bubble:CreateTexture(nil, "BORDER")
+    splitEdge[k]:Hide()
 end
-local function SplitArt(st)
+local function SplitArt(st, set, art)
     local S, u = st.slice, st.slice / 64
     local v = 1 - TAIL_TOP / 64
-    for _, t in pairs(split) do t:SetTexture(ADDON_PATH .. st.art .. ".png"); t:ClearAllPoints() end
-    local p = split
+    set = set or split
+    for _, t in pairs(set) do t:SetTexture(ADDON_PATH .. (art or st.art) .. ".png"); t:ClearAllPoints() end
+    local p = set
     p.tl:SetSize(S, S); p.tl:SetPoint("TOPLEFT", bubble, "TOPLEFT"); p.tl:SetTexCoord(0, u, 0, u)
     p.tr:SetSize(S, S); p.tr:SetPoint("TOPRIGHT", bubble, "TOPRIGHT"); p.tr:SetTexCoord(1 - u, 1, 0, u)
     p.bl:SetSize(S, S); p.bl:SetPoint("BOTTOMLEFT", bubble, "BOTTOMLEFT"); p.bl:SetTexCoord(0, u, 1 - u, 1)
@@ -301,11 +318,16 @@ local function SplitArt(st)
     -- ouverture : le bas de la bulle sans son contour (lignes au-dessus de celui-ci)
     p.m:SetPoint("BOTTOMLEFT", bubble, "BOTTOM", -MOUTH, TAIL_TOP)
     p.m:SetPoint("TOPRIGHT", bubble, "BOTTOM", MOUTH, S)
-    p.m:SetTexCoord(u, 1 - u, 1 - u, v)
-    for _, t in pairs(split) do t:Show() end
+    -- (seulement le milieu de l'image, a sa taille : etire sur 12 pixels, tout le bas d'un
+    -- parchemin faisait une bande plus claire au-dessus de la pointe)
+    local mw = MOUTH / 64
+    p.m:SetTexCoord(0.5 - mw, 0.5 + mw, 1 - u, v)
+    for _, t in pairs(set) do t:Show() end
+    if set == splitEdge then p.m:Hide() end -- (pas de contour dans l'ouverture)
 end
 local function HideSplit()
     for _, t in pairs(split) do t:Hide() end
+    for _, t in pairs(splitEdge) do t:Hide() end
 end
 
 local styleName -- style actuellement affiche
@@ -351,8 +373,8 @@ function DWE.ApplyBubbleOpacity()
     local op = tonumber(DialogueWheelE_Opacity) or 1
     for _, t in ipairs({ fantasy, fantasyTail, tail, customEdge, customTailEdge }) do t:SetAlpha(op) end
     -- Personnalise : alpha porte par les couleurs (fond 0.86 x opacite).
-    if styleName == "custom" and DWE.Bubble and DWE.Bubble.RefreshCustom then DWE.Bubble.RefreshCustom() end
     for _, t in pairs(split) do t:SetAlpha(op) end
+    if styleName == "custom" and DWE.Bubble and DWE.Bubble.RefreshCustom then DWE.Bubble.RefreshCustom() end
     if bubble.art then bubble.art:SetAlpha(op) end
     if bubble.GetBackdrop and bubble:GetBackdrop() then
         if gameArt == "fallback" then
@@ -402,12 +424,22 @@ local function ApplyStyle(name)
         ShowGameStyle()
     end
     if st.custom then
-        fantasyTail:SetTexture(ADDON_PATH .. "BubbleCustomFillTail.png")
-        customEdge:Show(); customTailEdge:Show()
+        -- Ouverte comme les autres bulles : contour decoupe autour de la pointe, pointe posee
+        -- dessus (avant : contour entier sous une pointe plus etroite, encoche ouverte).
+        SplitArt(st, splitEdge, "BubbleCustomEdge")
+        customEdge:Hide()
+        customTailEdge:SetTexCoord(0, 1, TAIL_ROW / 32, 1)
+        customTailEdge:SetSize(32, 32 - TAIL_ROW)
+        customTailEdge:ClearAllPoints()
+        customTailEdge:SetPoint("TOP", bubble, "BOTTOM", 0, TAIL_TOP)
+        customTailEdge:Show()
     else
         customEdge:Hide(); customTailEdge:Hide()
+        -- (contour decoupe du theme Personnalise : sinon il restait par-dessus le theme suivant)
+        for _, t in pairs(splitEdge) do t:Hide() end
         local op = tonumber(DialogueWheelE_Opacity) or 1
         fantasy:SetVertexColor(1, 1, 1, op); fantasyTail:SetVertexColor(1, 1, 1, op)
+        for _, t in pairs(split) do t:SetVertexColor(1, 1, 1, 1) end
     end
     if DWE.Bubble and DWE.Bubble.RefreshCustom then DWE.Bubble.RefreshCustom() end
     if DWE.ApplyBubbleOpacity then DWE.ApplyBubbleOpacity() end
@@ -417,6 +449,8 @@ local function ApplyStyle(name)
     text:SetTextColor(tc[1], tc[2], tc[3])
     text:SetShadowOffset(st.shadow and 1 or 0, st.shadow and -1 or 0)
     bubble.fontKey = nil -- police a reappliquer
+    -- (lignes deja ecrites et bord adouci : copies du texte, a remettre a sa nouvelle couleur)
+    if DWE.BubbleRecolor then DWE.BubbleRecolor() end
 end
 
 local function Measure(fn, default)
@@ -452,6 +486,17 @@ local function FitTo(s, shown)
     -- +4 : une largeur pile au pixel peut faire passer le dernier mot a la ligne.
     local w = math.max(24, math.min(maxInner, math.ceil(unbounded) + 4))
     text:SetWidth(w)
+    -- Nombre de lignes exact, d'apres nos propres retours a la ligne (les memes que l'ecriture) :
+    -- l'estimation pouvait compter une ligne de trop, et la bulle, trop haute une image, se
+    -- resserrait aussitot (« comme si on etirait la fenetre », video du 25/11).
+    if DWE.BubbleWrapped and type(s) == "string" and not (issecretvalue and issecretvalue(s)) then
+        local okW, wrapped = pcall(DWE.BubbleWrapped, s)
+        local lh = DWE.BubbleLineHeight and DWE.BubbleLineHeight()
+        if okW and type(wrapped) == "string" and lh and lh > 0 then
+            local _, breaks = wrapped:gsub("\n", "")
+            h = (breaks + 1) * lh
+        end
+    end
     bubble:SetSize(w + 2 * pad, h + 2 * pad + 2)
     text:SetText(shown or s)
     -- Le jeu peut ne finir la mise en page qu'a l'image suivante : on revérifie la hauteur.
@@ -464,7 +509,7 @@ local function FitTo(s, shown)
             text:SetText(s)
             local ok, real = pcall(text.GetStringHeight, text)
             text:SetText(cur)
-            if ok and type(real) == "number" and real >= fontSize * 0.8 and math.abs(real - h) > 1 then
+            if ok and type(real) == "number" and real >= fontSize * 0.8 and math.abs(real - h) > 3 then
                 h = real
                 bubble:SetHeight(real + 2 * pad + 2)
             end
@@ -816,6 +861,8 @@ local function Wrapped(seg)
     for _, t in ipairs(tails) do CopyLook(t) end
     return state.wrapText
 end
+DWE.BubbleWrapped = Wrapped
+DWE.BubbleLineHeight = LineHeight
 local function HideTails()
     for _, t in ipairs(tails) do t:Hide() end
     state.tailKey = nil
@@ -943,7 +990,8 @@ local function SoftSetup(seg)
             r.cum[k] = Width(acc)
         end
     end
-    for b = 1, SOFT_BANDS + 1 do CopyLook(SoftClip(b).fs) end
+    for b = 1, 2 * SOFT_BANDS + 2 do CopyLook(SoftClip(b).fs) end
+    soft.sp = math.max(0, Width("a a") - Width("aa")) -- largeur d'un espace
 end
 -- pos : lettre en cours (avec sa part deja ecrite), dans le texte avec retours a la ligne ;
 -- limit : derniere lettre que le bord adouci peut toucher (pause a une ponctuation).
@@ -997,6 +1045,35 @@ local function SoftShow(pos, limit, hlAt, hlLen)
             c.fs:ClearAllPoints()
             c.fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, row.y)
             if c.fs:GetText() ~= shownText then c.fs:SetText(shownText) end
+            c.f:SetAlpha(a)
+            c.f:Show()
+            c.fs:Show()
+        end
+    end
+    -- Fin de ligne : le bord adouci continue au debut de la ligne suivante (avant, il s'arretait
+    -- au bout de la ligne, puis les premieres lettres de la suivante apparaissaient d'un coup).
+    local nxt = soft.rows[ri + 1]
+    local rowW = row.cum[row.chars] or 0
+    local xmax2 = 0
+    if nxt and limit then
+        local lc2 = math.max(0, math.min(nxt.chars, limit - nxt.start + 1))
+        xmax2 = nxt.cum[math.floor(lc2)] or 0
+    end
+    for b = 2, SOFT_BANDS + 1 do
+        local c = SoftClip(SOFT_BANDS + b)
+        local x0 = x + (b - 2) * bw - rowW - (soft.sp or 0)
+        local s0, s1 = math.max(0, x0), math.min(x0 + bw, xmax2)
+        local a = 1 - (b - 1.5) / SOFT_BANDS
+        if not nxt or s1 - s0 < 0.5 or a <= 0.02 then
+            c.f:Hide()
+        else
+            local t = SoftColored(nxt, hlAt, hlLen)
+            c.f:ClearAllPoints()
+            c.f:SetPoint("TOPLEFT", text, "TOPLEFT", s0, nxt.y + 2)
+            c.f:SetSize(s1 - s0, lh + 4)
+            c.fs:ClearAllPoints()
+            c.fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, nxt.y)
+            if c.fs:GetText() ~= t then c.fs:SetText(t) end
             c.f:SetAlpha(a)
             c.f:Show()
             c.fs:Show()
@@ -1115,7 +1192,9 @@ local function StartSegment(i)
     HideTails()
     HideSoft()
     HighlightReset() -- FitTo remet le texte sans couleur
-    state.fresh = true
+    -- (Ecriture de Storytale : ses lignes s'affichent des la premiere image, pas besoin
+    -- d'attendre ; sans ca, la bulle restait vide une image entre deux pages.)
+    state.fresh = not (DWE.noGradient and i > 1) or nil
     FitTo(seg, seg)
     Reveal()
 end
@@ -1848,6 +1927,10 @@ function DWE.Bubble.RefreshCustom()
     fantasyTail:SetVertexColor(bg[1], bg[2], bg[3], a)
     customEdge:SetVertexColor(bd[1], bd[2], bd[3], op)
     customTailEdge:SetVertexColor(bd[1], bd[2], bd[3], op)
+    -- (bulle decoupee : l'alpha est deja dans la couleur)
+    for _, t in pairs(split) do t:SetAlpha(1); t:SetVertexColor(bg[1], bg[2], bg[3], a) end
+    for _, t in pairs(splitEdge) do t:SetAlpha(1); t:SetVertexColor(bd[1], bd[2], bd[3], op) end
+    fantasyTail:SetAlpha(1); customTailEdge:SetAlpha(1)
     text:SetTextColor(tx[1], tx[2], tx[3])
 end
 
@@ -1922,6 +2005,23 @@ function DWE.Bubble.Refit()
     end
 end
 
+function DWE.BubbleRecolor()
+    CopyLook(measure)
+    for _, t in ipairs(tails) do CopyLook(t) end
+    for _, fs in ipairs(soft.lines) do CopyLook(fs) end
+    for b = 1, 2 * SOFT_BANDS + 2 do CopyLook(SoftClip(b).fs) end
+    pcall(function() ghost:SetTextColor(text:GetTextColor()) end)
+end
+function DWE.BubbleRestyle()
+    if styleName then local n = styleName; styleName = nil; pcall(ApplyStyle, n) end
+end
+-- Theme change dialogue ouvert : tout est redessine au prochain affichage (style, police,
+-- couleur du texte, lignes deja ecrites et bord adouci gardes en cache avec l'ancienne couleur).
+function DWE.Bubble.Restyle()
+    styleName = nil
+    bubble.fontKey = nil
+    DWE.Bubble.RefreshHighlight()
+end
 function DWE.Bubble.SetShown(show)
     bubble.dweOff = not show
     if not show then

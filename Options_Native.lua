@@ -1,526 +1,500 @@
--- Options en lignes natives du jeu (comme les options de Blizzard) : navigation a la manette
--- fiable, recherche du jeu, bouton "Par defaut" de chaque page.
--- Chaque reglage lit et ecrit les memes variables que les anciennes pages : les deux restent
--- d'accord tant que les anciennes pages existent (refonte page par page).
+-- Fenetre d'options de Storytale : les pages d'options de toujours (vignettes des themes,
+-- couleurs...) dans une fenetre a nous, avec onglets et navigation a la manette. Rien ne passe
+-- par le panneau d'options du jeu : sa manette se bloquait des qu'un addon y ajoutait des
+-- lignes ("Interface action failed", taint.log du 25/11).
 local DWE = DWE
 if not DWE then return end
 
 local Native = {}
 DWE.Native = Native
--- Pages natives visibles (branche de travail). A mettre a false dans une version publiee tant
--- que la refonte n'est pas finie.
-DWE.NATIVE_OPTIONS = false
-Native.settings = {}
+-- Fenetre d'options de Storytale (a la place des pages du panneau d'options du jeu).
+-- (false : les pages restent dans le menu du jeu, comme avant.)
+DWE.NATIVE_OPTIONS = true
 
-local function Supported()
-    return type(Settings) == "table" and type(Settings.RegisterVerticalLayoutSubcategory) == "function"
-        and type(Settings.RegisterProxySetting) == "function" and type(Settings.CreateCheckbox) == "function"
-end
-Native.Supported = Supported
+---------------------------------------------------------------------------- Fenetre
+-- La fenetre montre les pages d'options de toujours (vignettes des themes, couleurs...), avec
+-- un onglet par page, et les rend faciles a la manette : un cadre dore suit l'element choisi.
+-- Manette : croix (aller vers l'element voisin ; gauche/droite reglent un curseur), A (cliquer),
+-- B (fermer), L1 / R1 (onglets). Clavier : Echap ferme, le reste va au jeu. Souris : tout.
+-- Rien ne passe par le panneau d'options du jeu (sa manette se bloquait, voir plus haut).
+local W, H, TABS_W = 860, 660, 170
 
--- Libelle de ligne sans les deux-points de l'ancienne page ("Touche Dialogue :" -> "Touche Dialogue").
-local function Bare(text)
-    return (tostring(text or ""):gsub("%s*[:：]%s*$", ""))
-end
-Native.Bare = Bare
-
-local function Tip(key)
-    local L = DWE.L or {}
-    return L[key .. "_TIP"]
-end
-
--- Reglage relie a une valeur de Storytale : get() la lit, set(v) l'applique (memes effets que
--- l'ancienne case ou liste).
-local function Proxy(cat, id, kind, label, default, get, set)
-    local ok, setting = pcall(Settings.RegisterProxySetting, cat, "Storytale_" .. id, kind, label, default, get, set)
-    if ok and setting then
-        Native.settings[#Native.settings + 1] = setting
-        return setting
+-- Couleurs de la fenetre selon le theme choisi : un fond sombre teinte (le texte et les cases du
+-- jeu restent lisibles, meme avec un theme clair) et un accent (bord, onglet, curseur, titre).
+local THEME_COLORS = {
+    bubble = { { 1, 0.82, 0 }, { 0.11, 0.11, 0.12 } },
+    bubble_npc = { { 1, 1, 0.62 }, { 0.09, 0.09, 0.09 } },
+    bubble_fantasy = { { 0.92, 0.70, 0.36 }, { 0.17, 0.12, 0.07 } },
+    whisper = { { 0.82, 0.58, 1 }, { 0.11, 0.08, 0.15 } },
+    emerald = { { 0.45, 0.95, 0.60 }, { 0.06, 0.13, 0.09 } },
+    ruby = { { 1, 0.45, 0.50 }, { 0.15, 0.06, 0.07 } },
+    sapphire = { { 0.55, 0.78, 1 }, { 0.06, 0.09, 0.16 } },
+    amber = { { 1, 0.75, 0.40 }, { 0.15, 0.10, 0.05 } },
+    transparent = { { 1, 0.82, 0 }, { 0.10, 0.10, 0.10 } },
+    dark = { { 0.88, 0.88, 0.92 }, { 0.08, 0.08, 0.09 } },
+    glass = { { 1, 0.84, 0.50 }, { 0.10, 0.10, 0.11 } },
+    halo = { { 1, 0.84, 0.50 }, { 0.09, 0.09, 0.10 } },
+    inkgold = { { 1, 0.84, 0.47 }, { 0.09, 0.08, 0.06 } },
+    cinema = { { 1, 0.82, 0 }, { 0.07, 0.07, 0.07 } },
+    velin = { { 0.96, 0.86, 0.60 }, { 0.18, 0.15, 0.11 } },
+    arcane = { { 0.72, 0.76, 1 }, { 0.11, 0.11, 0.17 } },
+    sylvan = { { 0.72, 0.92, 0.50 }, { 0.09, 0.13, 0.07 } },
+    starry = { { 0.76, 0.82, 1 }, { 0.07, 0.08, 0.15 } },
+    parchment = { { 0.96, 0.80, 0.50 }, { 0.19, 0.14, 0.09 } },
+    parchment_dark = { { 0.90, 0.70, 0.40 }, { 0.13, 0.09, 0.06 } },
+    folio = { { 0.96, 0.82, 0.55 }, { 0.17, 0.13, 0.09 } },
+    folio_dark = { { 0.86, 0.66, 0.40 }, { 0.11, 0.08, 0.05 } },
+    dui = { { 0.92, 0.74, 0.45 }, { 0.15, 0.11, 0.07 } },
+}
+local function ThemeColors()
+    local id = DialogueWheelE_Theme or "bubble"
+    if id == "scroll" then id = "parchment" end
+    -- Theme Personnalise : ses propres couleurs (contour = accent ; fond assombri si besoin, pour
+    -- que le texte et les cases du jeu restent lisibles).
+    if id == "custom" and DWE.CustomColor then
+        local a, bg = DWE.CustomColor("border"), DWE.CustomColor("bg")
+        local lum = 0.3 * bg[1] + 0.59 * bg[2] + 0.11 * bg[3]
+        if lum > 0.2 then
+            local k = 0.2 / lum
+            bg = { bg[1] * k, bg[2] * k, bg[3] * k }
+        end
+        local la = 0.3 * a[1] + 0.59 * a[2] + 0.11 * a[3]
+        if la < 0.35 then a = DWE.CustomColor("sel") end -- contour trop sombre : la couleur du choix
+        return a, bg
     end
+    local c = THEME_COLORS[id] or THEME_COLORS.bubble
+    return c[1], c[2]
 end
+Native.ThemeColors = ThemeColors
 
-function Native.Check(cat, id, label, tip, default, get, set)
-    local s = Proxy(cat, id, type(true), label, default, function() return get() and true or false end, set)
-    local init
-    if s then
-        local ok, r = pcall(Settings.CreateCheckbox, cat, s, tip)
-        if ok then init = r end
-    end
-    return s, init
-end
-
-function Native.Choice(cat, id, label, tip, default, items, get, set)
-    local s = Proxy(cat, id, type(""), label, default, get, set)
-    if not s then return end
-    -- items : liste fixe, ou fonction relue a chaque ouverture de la liste (profils).
-    local function Options()
-        local c = Settings.CreateControlTextContainer()
-        for _, it in ipairs(type(items) == "function" and items() or items) do c:Add(it[1], it[2]) end
-        return c:GetData()
-    end
-    local ok, init = pcall(Settings.CreateDropdown, cat, s, Options, tip)
-    return s, ok and init or nil
-end
-
--- Curseur : min, max, pas ; fmt pour la valeur affichee ("%d pt", "%.2f").
-function Native.Slider(cat, id, label, tip, default, min, max, step, fmt, get, set)
-    local s = Proxy(cat, id, Settings.VarType and Settings.VarType.Number or type(1), label, default, get, set)
-    if not (s and type(Settings.CreateSliderOptions) == "function" and type(Settings.CreateSlider) == "function") then return s end
-    local okO, opts = pcall(Settings.CreateSliderOptions, min, max, step)
-    if not okO or not opts then return s end
-    local side = rawget(_G, "MinimalSliderWithSteppersMixin")
-    if fmt and opts.SetLabelFormatter and side and side.Label then
-        pcall(opts.SetLabelFormatter, opts, side.Label.Right, function(v) return fmt:format(v) end)
-    end
-    local ok, init = pcall(Settings.CreateSlider, cat, s, opts, tip)
-    return s, ok and init or nil
-end
-
--- La ligne `child` n'est active que si when() est vrai (grisee sinon), comme dans les options du jeu.
-function Native.DependsOn(child, parent, when)
-    if type(child) == "table" and type(parent) == "table" and type(child.SetParentInitializer) == "function" then
-        pcall(child.SetParentInitializer, child, parent, when)
-    end
-end
-
-function Native.Button(layout, label, text, onClick, tip)
-    local make = rawget(_G, "CreateSettingsButtonInitializer")
-    if not (layout and make) then return end
-    local ok, init = pcall(make, label, text, onClick, tip, true)
-    if ok and init then pcall(layout.AddInitializer, layout, init) return init end
-end
--- Nouveau texte d'un bouton (repris par la ligne a son prochain affichage).
-function Native.SetButtonText(init, text)
-    if type(init) == "table" and type(init.data) == "table" then init.data.buttonText = text end
-end
-
-function Native.Header(layout, text)
-    local make = rawget(_G, "CreateSettingsListSectionHeaderInitializer")
-    if not (layout and make) then return end
-    local ok, init = pcall(make, text)
-    if ok and init then pcall(layout.AddInitializer, layout, init) end
-end
-
--- Profil change, page remise a zero... : les lignes affichees relisent leur valeur.
-function Native.Refresh()
-    -- Jamais pendant que les options du jeu sont ouvertes : NotifyUpdate fait noter le reglage
-    -- comme modifie dans la liste du panneau, au nom de Storytale ; a la fermeture (Echap), le jeu
-    -- parcourt cette liste contaminee et la manette se bloque ("Default all" puis Echap). Les
-    -- lignes relisent de toute facon leur valeur quand la page s'affiche.
-    local sp = rawget(_G, "SettingsPanel")
-    if sp and sp.IsShown and sp:IsShown() then return end
-    for _, s in ipairs(Native.settings) do
-        if s.NotifyUpdate then pcall(s.NotifyUpdate, s) end
-    end
-end
-
----------------------------------------------------------------------------- Placement
-local function BuildPlacement(parent)
+local function MakeWindow()
     local L = DWE.L
-    local cat, layout = Settings.RegisterVerticalLayoutSubcategory(parent, L.SEC_PLACE .. " (2)")
-    if not cat then return end
-    Native.Check(cat, "AttachNPC", L.ATTACH_NPC, L.ATTACH_TIP, true,
-        function() return DialogueWheelE_AttachNPC ~= false end,
-        function(v)
-            DialogueWheelE_AttachNPC = v and true or false
-            if not v and DWE.StopFollow then DWE.StopFollow() end
-            if DWE.SettingsChanged then DWE.SettingsChanged() end
+    if DWE.InitOptionsPanel then pcall(DWE.InitOptionsPanel) end
+    local pages = DWE.optionPages or {}
+    local f = CreateFrame("Frame", "StorytaleOptionsWindow", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    Native.window = f
+    f:SetSize(W, H)
+    f:SetPoint("CENTER")
+    f:SetFrameStrata("FULLSCREEN")
+    f:SetToplevel(true)
+    f:EnableMouse(true)
+    f:SetMovable(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:SetClampedToScreen(true)
+    -- Fond plein (on ne voit plus le jeu a travers), bord du jeu teinte par l'accent du theme.
+    if f.SetBackdrop then
+        f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
+            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = false, edgeSize = 32,
+            insets = { left = 10, right = 10, top = 10, bottom = 10 } })
+    end
+    -- Leger degrade (plus clair en haut) et colonne des onglets un peu plus claire.
+    f.shade = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+    f.shade:SetPoint("TOPLEFT", 10, -10)
+    f.shade:SetPoint("BOTTOMRIGHT", -10, 10)
+    f.shade:SetColorTexture(1, 1, 1, 1)
+    f.tabsBg = f:CreateTexture(nil, "BACKGROUND", nil, 2)
+    f.tabsBg:SetPoint("TOPLEFT", 12, -48)
+    f.tabsBg:SetPoint("BOTTOMLEFT", 12, 34)
+    f.tabsBg:SetWidth(TABS_W)
+    f.tabsBg:SetColorTexture(1, 1, 1, 0.05)
+    f.title = f:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    f.title:SetPoint("TOP", 0, -18)
+    f.title:SetText("Storytale")
+    f.titleLine = f:CreateTexture(nil, "ARTWORK")
+    f.titleLine:SetHeight(1)
+    f.titleLine:SetPoint("TOPLEFT", 16, -42)
+    f.titleLine:SetPoint("TOPRIGHT", -16, -42)
+    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", -6, -6)
+    close:SetScript("OnClick", function() f:Hide() end)
+    f.hint = f:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    f.hint:SetPoint("BOTTOM", 0, 16)
+    f.hint:SetText(L.OPT_WINDOW_HINT or "")
+
+    -- Onglets : une page d'options chacun.
+    f.tabs = {}
+    for i, pg in ipairs(pages) do
+        local b = CreateFrame("Button", nil, f)
+        b:SetSize(TABS_W - 10, 30)
+        b:SetPoint("TOPLEFT", 18, -50 - (i - 1) * 32)
+        b.bg = b:CreateTexture(nil, "BACKGROUND")
+        b.bg:SetAllPoints()
+        b.bg:SetColorTexture(1, 0.82, 0, 0.16)
+        b.hl = b:CreateTexture(nil, "HIGHLIGHT")
+        b.hl:SetAllPoints()
+        b.hl:SetColorTexture(1, 1, 1, 0.07)
+        b.text = b:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+        b.text:SetPoint("LEFT", 10, 0)
+        b.text:SetPoint("RIGHT", -6, 0)
+        b.text:SetJustifyH("LEFT")
+        local name = pg.panel and pg.panel.name or ""
+        if i == 1 then name = L.OPT_TAB_MAIN or name end
+        b.text:SetText(name)
+        b:SetScript("OnClick", function() f.ShowPage(i) end)
+        f.tabs[i] = b
+    end
+    -- Le chat de Nearyn, en bas des onglets ; ses yeux brillent quand on le survole (ou que le
+    -- cadre de la manette arrive dessus) ; un clic les fait briller un instant.
+    do
+        local path = "Interface\\AddOns\\Storytale\\"
+        local cat = CreateFrame("Button", nil, f)
+        cat:SetSize(64, 64)
+        cat:SetPoint("BOTTOM", f, "BOTTOMLEFT", 12 + TABS_W / 2, 58)
+        cat.tex = cat:CreateTexture(nil, "ARTWORK")
+        cat.tex:SetAllPoints()
+        cat.tex:SetTexture(path .. "NearynCat.png")
+        cat.glow = cat:CreateTexture(nil, "OVERLAY")
+        cat.glow:SetAllPoints()
+        cat.glow:SetTexture(path .. "NearynCatGlow.png")
+        cat.glow:SetBlendMode("ADD")
+        cat.glow:SetAlpha(0)
+        cat.by = cat:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+        cat.by:SetPoint("TOP", cat, "BOTTOM", 0, -2)
+        cat.by:SetText("by Nearyn")
+        local function Glow(target)
+            cat.target = target
+            cat:SetScript("OnUpdate", function(self, elapsed)
+                local a = self.glow:GetAlpha() + (self.target - self.glow:GetAlpha()) * math.min(1, elapsed * 8)
+                if math.abs(a - self.target) < 0.01 then a = self.target; self:SetScript("OnUpdate", nil) end
+                self.glow:SetAlpha(a)
+            end)
+        end
+        cat:SetScript("OnEnter", function() Glow(1) end)
+        cat:SetScript("OnLeave", function() Glow(0) end)
+        cat:SetScript("OnClick", function()
+            Glow(1)
+            if C_Timer and C_Timer.After then C_Timer.After(0.6, function() if not cat:IsMouseOver() then Glow(0) end end) end
         end)
-    Native.Button(layout, L.NPC_RESET, L.NPC_RESET, function() if DWE.ResetNPCOffset then DWE.ResetNPCOffset() end end)
-    Native.Check(cat, "Locked", L.LOCK, Tip("LOCK"), false,
-        function() return DWE.IsLocked and DWE.IsLocked() end,
-        function(v)
-            DialogueWheelE_Locked = v and true or false
-            if DWE.ApplyLock then DWE.ApplyLock() end
-            if DWE.SettingsChanged then DWE.SettingsChanged() end
-        end)
-    Native.Choice(cat, "WheelSide", L.WHEEL_SIDE, nil, "right",
-        { { "right", L.SIDE_RIGHT }, { "left", L.SIDE_LEFT } },
-        function() return DialogueWheelE_WheelSide == "left" and "left" or "right" end,
-        function(v)
-            DialogueWheelE_WheelSide = (v == "left") and "left" or nil
-            if not DialogueWheelE_Pos and DWE.RestorePosition then DWE.RestorePosition() end
-            if DWE.SettingsChanged then DWE.SettingsChanged() end
-        end)
-    Native.Check(cat, "QuestAuto", L.QUEST_AUTO_W, Tip("QUEST_AUTO_W"), true,
-        function() return DialogueWheelE_QuestAuto ~= false end,
-        function(v)
-            if v then DialogueWheelE_QuestAuto = nil else DialogueWheelE_QuestAuto = false end
-            if DialogueWheelE_QuestAuto == false and not tonumber(DialogueWheelE_QuestWidth) and DWE.AutoQuestWidth then
-                DialogueWheelE_QuestWidth = DWE.AutoQuestWidth()
+        f.cat = cat
+    end
+    local sep = f:CreateTexture(nil, "ARTWORK")
+    sep:SetColorTexture(1, 0.82, 0, 0.25)
+    sep:SetSize(1, H - 90)
+    sep:SetPoint("TOPLEFT", TABS_W + 14, -48)
+
+    -- Zone de la page
+    f.content = CreateFrame("Frame", nil, f)
+    f.content:SetPoint("TOPLEFT", TABS_W + 20, -46)
+    f.content:SetPoint("BOTTOMRIGHT", -14, 34)
+
+    -- Cadre dore : l'element choisi a la manette / au clavier.
+    f.cursor = CreateFrame("Frame", nil, f, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    f.cursor:SetFrameStrata("FULLSCREEN")
+    f.cursor:SetFrameLevel(f:GetFrameLevel() + 50)
+    if f.cursor.SetBackdrop then
+        f.cursor:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 2 })
+        f.cursor:SetBackdropBorderColor(1, 0.82, 0, 1)
+    end
+    f.cursor:EnableMouse(false)
+    f.cursor:Hide()
+
+    function f.ApplyColors()
+        local a, bg = ThemeColors()
+        if f.SetBackdropColor then
+            -- (un peu transparent : on devine le jeu derriere, sans gener la lecture)
+            f:SetBackdropColor(bg[1], bg[2], bg[3], 0.90)
+            f:SetBackdropBorderColor(math.min(1, a[1] * 0.9 + 0.1), math.min(1, a[2] * 0.9 + 0.1), math.min(1, a[3] * 0.9 + 0.1), 1)
+        end
+        if f.shade.SetGradient and CreateColor then
+            pcall(f.shade.SetGradient, f.shade, "VERTICAL", CreateColor(0, 0, 0, 0.25), CreateColor(1, 1, 1, 0.06))
+        else
+            f.shade:SetColorTexture(1, 1, 1, 0.03)
+        end
+        f.title:SetTextColor(a[1], a[2], a[3])
+        f.titleLine:SetColorTexture(a[1], a[2], a[3], 0.35)
+        sep:SetColorTexture(a[1], a[2], a[3], 0.30)
+        for i, t in ipairs(f.tabs) do
+            t.bg:SetColorTexture(a[1], a[2], a[3], 0.22)
+            t.text:SetTextColor(i == f.pageIndex and 1 or a[1], i == f.pageIndex and 1 or a[2], i == f.pageIndex and 1 or a[3])
+        end
+        if f.cursor.SetBackdropBorderColor then f.cursor:SetBackdropBorderColor(a[1], a[2], a[3], 1) end
+    end
+
+    f.pageIndex = 1
+    local function Page() return pages[f.pageIndex] end
+
+    -- Les elements cliquables de la page affichee.
+    local KINDS = { Button = true, CheckButton = true, Slider = true }
+    local function Collect()
+        local pg = Page()
+        local list = {}
+        if not (pg and pg.panel) then return list end
+        local function Walk(fr)
+            for _, c in ipairs({ fr:GetChildren() }) do
+                local okV, vis = pcall(c.IsVisible, c)
+                -- La page defilante : seulement son contenu (pas sa barre de defilement).
+                if c == pg.scroll then
+                    if pg.child then Walk(pg.child) end
+                elseif okV and vis then
+                    local okT, kind = pcall(c.GetObjectType, c)
+                    if okT and KINDS[kind] then
+                        local okE, en = pcall(function() return c.IsEnabled == nil or c:IsEnabled() end)
+                        if (not okE or en) and c:IsMouseEnabled() then list[#list + 1] = c end
+                        if kind ~= "Slider" then Walk(c) end
+                    else
+                        Walk(c)
+                    end
+                end
             end
-            if DWE.SettingsChanged then DWE.SettingsChanged() end
-        end)
-    Native.placement = cat
-    return cat
-end
-
----------------------------------------------------------------------------- Livres, lettres et plaques
-local function BuildBooks(parent)
-    local L = DWE.L
-    local cat = Settings.RegisterVerticalLayoutSubcategory(parent, L.SEC_BOOKS .. " (2)")
-    if not cat then return end
-    -- Qui affiche : Storytale, DialogueUI (seulement s'il est actif) ou le jeu.
-    local duiOn = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DialogueUI")
-    local function Shown(withDUI)
-        local list = { { "addon", L.PLATE_ADDON } }
-        if withDUI then list[#list + 1] = { "dui", L.BOOK_DUI } end
-        list[#list + 1] = { "blizzard", L.BOOK_BLIZZ }
+        end
+        -- Toute la page (boutons "Par defaut" en haut compris), et les onglets a gauche.
+        Walk(pg.panel)
+        for _, t in ipairs(f.tabs) do list[#list + 1] = t end
+        if f.cat then list[#list + 1] = f.cat end
         return list
     end
-    local function Visuals()
-        if DWE.bookMode and DWE.textBox and DWE.textBox:IsShown() and DWE.UpdateTextPanelVisuals then DWE.UpdateTextPanelVisuals() end
+    local function Center(w)
+        local x, y = w:GetCenter()
+        return x or 0, y or 0
     end
-    local _, styleInit = Native.Choice(cat, "BookStyle", L.BOOK_STYLE, L.BOOK_ADDON_TIP, "addon", Shown(duiOn),
-        function()
-            local v = DialogueWheelE_BookStyle or "addon"
-            if v == "dui" and not duiOn then v = "addon" end
-            return v
-        end,
-        function(v)
-            DialogueWheelE_BookStyle = v
-            if DWE.RefreshBookLookOptions then DWE.RefreshBookLookOptions() end
-        end)
-    local _, lookInit = Native.Choice(cat, "BookLook", L.BOOK_LOOK, nil, "auto",
-        { { "auto", L.BOOK_LOOK_AUTO }, { "note", L.BOOK_LOOK_NOTE }, { "book", L.BOOK_LOOK_BOOK } },
-        function() return (DialogueWheelE_BookLook ~= "frame" and DialogueWheelE_BookLook) or "auto" end,
-        function(v) DialogueWheelE_BookLook = v; Visuals() end)
-    -- Le style ne concerne que les livres affiches par Storytale.
-    Native.DependsOn(lookInit, styleInit, function() return (DialogueWheelE_BookStyle or "addon") == "addon" end)
-    local _, plateInit = Native.Choice(cat, "PlateStyle", L.PLATE_STYLE, L.PLATE_ADDON_TIP, "addon", Shown(duiOn),
-        function()
-            local v = DialogueWheelE_PlateStyle or "addon"
-            if v == "dui" and not duiOn then v = "addon" end
-            return v
-        end,
-        function(v)
-            DialogueWheelE_PlateStyle = (v ~= "addon") and v or nil
-            if DWE.RefreshPlateLookOptions then DWE.RefreshPlateLookOptions() end
-        end)
-    local _, matInit = Native.Choice(cat, "PlateLook", L.PLATE_LOOK, L.PLATE_AUTO_TIP, "auto",
-        { { "auto", L.BOOK_LOOK_AUTO }, { "Stone", L.PLATE_STONE }, { "Marble", L.PLATE_MARBLE },
-            { "Bronze", L.PLATE_BRONZE }, { "Silver", L.PLATE_SILVER } },
-        function() return DialogueWheelE_PlateLook or "auto" end,
-        function(v) DialogueWheelE_PlateLook = (v ~= "auto") and v or nil; Visuals() end)
-    -- La matiere ne concerne que les plaques affichees par Storytale.
-    Native.DependsOn(matInit, plateInit, function() return (DialogueWheelE_PlateStyle or "addon") == "addon" end)
-    Native.Check(cat, "ReadMarks", L.READ_MARKS, Tip("READ_MARKS"), true,
-        function() return DialogueWheelE_ReadMarks ~= false end,
-        function(v) if v then DialogueWheelE_ReadMarks = nil else DialogueWheelE_ReadMarks = false end end)
-    Native.Check(cat, "BookTipCursor", L.BOOK_TIP_CURSOR, Tip("BOOK_TIP_CURSOR"), false,
-        function() return DialogueWheelE_BookTipCursor == true end,
-        function(v) DialogueWheelE_BookTipCursor = v and true or false end)
-    Native.Check(cat, "BookAutoScroll", L.BOOK_AUTOSCROLL, Tip("BOOK_AUTOSCROLL"), true,
-        function() return DialogueWheelE_BookAutoScroll ~= false end,
-        function(v) DialogueWheelE_BookAutoScroll = v and true or false end)
-    Native.Check(cat, "BookTurnFX", L.BOOK_TURN_FX, Tip("BOOK_TURN_FX"), true,
-        function() return DialogueWheelE_BookTurnFX ~= false end,
-        function(v) DialogueWheelE_BookTurnFX = v and true or false end)
-    Native.books = cat
-    return cat
-end
-
----------------------------------------------------------------------------- Touches et manette
-local function BuildKeys(parent)
-    local L = DWE.L
-    local cat, layout = Settings.RegisterVerticalLayoutSubcategory(parent, L.CAT_KEYS .. " (2)")
-    if not cat then return end
-    local Label = DWE.KeyLabel or function(k) return (k and k ~= "") and k or "-" end
-    local keyInit
-    local function KeyText()
-        if DialogueWheelE_UseBlizzKey ~= false then
-            return Label(DWE.GetEffectiveInteractKey and DWE.GetEffectiveInteractKey()) .. (L.KEY_BLIZZ_TAG or "")
+    local function Leave(w)
+        if w and w.GetScript then
+            local fn = w:GetScript("OnLeave")
+            if fn then pcall(fn, w) end
         end
-        return Label(DialogueWheelE_InteractKey)
+        GameTooltip:Hide()
     end
-    local _, blizzInit = Native.Check(cat, "UseBlizzKey", L.KEY_USE_BLIZZ, Tip("KEY_USE_BLIZZ"), true,
-        function() return DialogueWheelE_UseBlizzKey ~= false end,
-        function(v)
-            DialogueWheelE_UseBlizzKey = v and true or false
-            Native.SetButtonText(keyInit, KeyText())
-            if DWE.RefreshBindings then DWE.RefreshBindings() end
-            if DWE.SettingsChanged then DWE.SettingsChanged() end
-        end)
-    -- Touche dediee : une fenetre attend la touche (Echap = aucune).
-    keyInit = Native.Button(layout, Bare(L.KEY_CUSTOM), KeyText(), function()
-        if DialogueWheelE_UseBlizzKey ~= false or not DWE.AskKey then return end
-        DWE.AskKey(L.KEY_CUSTOM, DialogueWheelE_InteractKey, function(k)
-            DialogueWheelE_InteractKey = k
-            Native.SetButtonText(keyInit, KeyText())
+    -- La page defile pour montrer l'element choisi.
+    local function Reveal(w)
+        local pg = Page()
+        local sc = pg and pg.scroll
+        if not (sc and pg.child and w) then return end
+        -- Seulement ce qui est dans la partie qui defile (pas les onglets, ni le haut de la page).
+        local inside, p = false, w
+        while p do
+            if p == pg.child then inside = true break end
+            p = p:GetParent()
+        end
+        if not inside then return end
+        local okT, top = pcall(pg.child.GetTop, pg.child)
+        local wt, wh = w:GetTop(), w:GetHeight()
+        if not (okT and top and wt and wh) then return end
+        local at = (top - wt) / ((w:GetEffectiveScale() or 1) / (pg.child:GetEffectiveScale() or 1))
+        local cur, viewH = sc:GetVerticalScroll() or 0, sc:GetHeight() or 0
+        local range = (sc.GetVerticalScrollRange and sc:GetVerticalScrollRange()) or 0
+        local new = cur
+        if at - 10 < cur then new = at - 10 elseif at + wh + 10 > cur + viewH then new = at + wh + 10 - viewH end
+        new = math.max(0, math.min(range, new))
+        if new ~= cur then sc:SetVerticalScroll(new) end
+    end
+    function f.Select(w)
+        if f.sel and f.sel ~= w then Leave(f.sel) end
+        f.sel = w
+        if not w then f.cursor:Hide() return end
+        Reveal(w)
+        f.cursor:ClearAllPoints()
+        f.cursor:SetPoint("TOPLEFT", w, "TOPLEFT", -3, 3)
+        f.cursor:SetPoint("BOTTOMRIGHT", w, "BOTTOMRIGHT", 3, -3)
+        f.cursor:Show()
+        local fn = w:GetScript("OnEnter")
+        if fn then pcall(fn, w) end
+    end
+    -- Vers l'element le plus proche dans la direction (dx, dy).
+    function f.Move(dx, dy)
+        local list = Collect()
+        if #list == 0 then f.Select(nil) return end
+        local cur = f.sel
+        local valid = false
+        for _, w in ipairs(list) do if w == cur then valid = true end end
+        if not valid then
+            -- premier element : le plus haut, puis le plus a gauche
+            local best, bx, by
+            for _, w in ipairs(list) do
+                local x, y = Center(w)
+                if not best or y > by + 4 or (math.abs(y - by) <= 4 and x < bx) then best, bx, by = w, x, y end
+            end
+            f.Select(best)
+            return
+        end
+        local x, y = Center(cur)
+        local best, score
+        for _, w in ipairs(list) do
+            if w ~= cur then
+                local cx, cy = Center(w)
+                local ok, sc
+                if dy ~= 0 then
+                    local d = (cy - y) * dy
+                    ok = d > 4
+                    sc = d + 2.5 * math.abs(cx - x)
+                else
+                    local d = (cx - x) * dx
+                    ok = d > 4 and math.abs(cy - y) < 16
+                    sc = d + 4 * math.abs(cy - y)
+                end
+                if ok and (not score or sc < score) then best, score = w, sc end
+            end
+        end
+        if best then f.Select(best) end
+    end
+    local function IsSlider(w)
+        local ok, kind = pcall(w.GetObjectType, w)
+        return ok and kind == "Slider"
+    end
+    function f.Side(dir)
+        local w = f.sel
+        if w and IsSlider(w) then
+            local step = (w.GetValueStep and w:GetValueStep()) or 1
+            if not step or step <= 0 then step = 1 end
+            local lo, hi = w:GetMinMaxValues()
+            w:SetValue(math.max(lo, math.min(hi, (w:GetValue() or lo) + dir * step)))
+            return
+        end
+        f.Move(dir, 0)
+    end
+    function f.Activate()
+        local w = f.sel
+        if not w then f.Move(0, -1) return end
+        if IsSlider(w) then return end
+        if w.Click then pcall(w.Click, w) end
+        f.ApplyColors() -- (theme peut-etre change)
+        -- La page a pu changer (theme choisi, case cochee qui en grise d'autres).
+        if C_Timer and C_Timer.After then C_Timer.After(0, function() if f.sel and not f.sel:IsVisible() then f.Select(nil) end end) end
+    end
+
+    -- Page d'options prise dans la fenetre, rendue a sa place a la fermeture.
+    local function Detach()
+        local pg = f.shown
+        if not pg then return end
+        f.Select(nil)
+        pg.panel:Hide()
+        pg.panel:ClearAllPoints()
+        pg.panel:SetParent(pg.oldParent)
+        for _, pt in ipairs(pg.oldPoints or {}) do pcall(pg.panel.SetPoint, pg.panel, unpack(pt)) end
+        f.shown = nil
+    end
+    local function IsTab(w)
+        for _, t in ipairs(f.tabs) do if t == w then return true end end
+        return false
+    end
+    function f.ShowPage(i)
+        local pg = pages[i]
+        if not pg then return end
+        -- Cadre sur les onglets : il y reste (sur l'onglet ouvert), pour continuer a les parcourir.
+        local onTabs = f.sel and IsTab(f.sel)
+        Detach()
+        f.pageIndex = i
+        for k, t in ipairs(f.tabs) do t.bg:SetShown(k == i) end
+        pg.oldParent = pg.panel:GetParent()
+        pg.oldPoints = {}
+        for n = 1, pg.panel:GetNumPoints() do pg.oldPoints[n] = { pg.panel:GetPoint(n) } end
+        pg.panel:SetParent(f.content)
+        pg.panel:ClearAllPoints()
+        pg.panel:SetAllPoints(f.content)
+        pg.panel:Show()
+        f.shown = pg
+        if pg.scroll then pg.scroll:SetVerticalScroll(0) end
+        if onTabs and f.tabs[i] then f.Select(f.tabs[i]) end
+        f.ApplyColors()
+    end
+    local function Tab(dir)
+        local n = #pages
+        if n == 0 then return end
+        local i = f.pageIndex + dir
+        if i < 1 then i = n elseif i > n then i = 1 end
+        f.ShowPage(i)
+    end
+    f.Tab = Tab
+
+    f:EnableKeyboard(true)
+    -- Clavier : seule Echap est prise (ferme la fenetre). Tout le reste va au jeu : on peut se
+    -- deplacer, sauter, lancer des sorts en changeant ses options (la souris suffit ici).
+    f:SetScript("OnKeyDown", function(self, key)
+        local busy = (DWE.askFrame and DWE.askFrame:IsShown())
+            or (GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus())
+        local mine = key == "ESCAPE" and not busy
+        if self.SetPropagateKeyboardInput and not InCombatLockdown() then pcall(self.SetPropagateKeyboardInput, self, not mine) end
+        if mine then f:Hide() end
+    end)
+    -- Manette : les boutons sont pris a la place de leurs actions du jeu tant que la fenetre est
+    -- ouverte (sinon A faisait aussi sauter le personnage). Liaisons de remplacement, retirees a
+    -- la fermeture (pas en combat : le jeu l'interdit, la fenetre ne prend alors que le clavier).
+    local function Pad(b)
+        -- Fenetre de choix ou de confirmation ouverte : c'est elle qui recoit le bouton.
+        for _, w in ipairs({ DWE.askFrame }) do
+            if w and w:IsShown() then
+                local h = w:GetScript("OnGamePadButtonDown")
+                if h then w.fromOptions = true; pcall(h, w, b); w.fromOptions = nil end
+                return
+            end
+        end
+        if b == "PADDUP" then f.Move(0, 1)
+        elseif b == "PADDDOWN" then f.Move(0, -1)
+        elseif b == "PADDLEFT" then f.Side(-1)
+        elseif b == "PADDRIGHT" then f.Side(1)
+        elseif b == "PAD1" then f.Activate()
+        elseif b == "PAD2" then f:Hide()
+        elseif b == "PADLSHOULDER" or b == "PADLTRIGGER" then Tab(-1)
+        elseif b == "PADRSHOULDER" or b == "PADRTRIGGER" then Tab(1) end
+    end
+    f.Pad = Pad
+    local PAD_KEYS = { "PADDUP", "PADDDOWN", "PADDLEFT", "PADDRIGHT", "PAD1", "PAD2",
+        "PADLSHOULDER", "PADRSHOULDER", "PADLTRIGGER", "PADRTRIGGER" }
+    f.padButtons = {}
+    for _, k in ipairs(PAD_KEYS) do
+        local name = "StorytaleOptionsPad_" .. k
+        local btn = CreateFrame("Button", name, f)
+        btn:SetScript("OnClick", function() Pad(k) end)
+        f.padButtons[k] = name
+    end
+    function f.BindPad(on)
+        if InCombatLockdown() then return end
+        if not on then
+            if ClearOverrideBindings then ClearOverrideBindings(f) end
+            f.padBound = false
+            return
+        end
+        if not SetOverrideBindingClick then return end
+        for k, name in pairs(f.padButtons) do pcall(SetOverrideBindingClick, f, true, k, name) end
+        f.padBound = true
+    end
+    f:SetScript("OnShow", function()
+        f.BindPad(true)
+        -- Couleurs du theme Personnalise changees dans la page : la fenetre suit (relu 2 fois/s).
+        f.colorT = 0
+        f:SetScript("OnUpdate", function(self, elapsed)
+            self.colorT = self.colorT + elapsed
+            if self.colorT > 0.5 then self.colorT = 0; self.ApplyColors() end
         end)
     end)
-    Native.DependsOn(keyInit, blizzInit, function() return DialogueWheelE_UseBlizzKey == false end)
-    Native.Check(cat, "EscClose", L.ESC_CLOSE, Tip("ESC_CLOSE"), true,
-        function() return DialogueWheelE_EscClose ~= false end,
-        function(v) DialogueWheelE_EscClose = v and true or false end)
-    Native.Check(cat, "WheelScroll", L.WHEEL_SCROLL, Tip("WHEEL_SCROLL"), true,
-        function() return DialogueWheelE_WheelScroll ~= false end,
-        function(v)
-            DialogueWheelE_WheelScroll = v and true or false
-            if DWE.RefreshBindings then DWE.RefreshBindings() end
-        end)
-    Native.Header(layout, L.SEC_PAD)
-    -- Les lignes d'aide de l'ancienne page vont dans l'infobulle (pas de texte libre ici).
-    local help = {}
-    for _, k in ipairs({ "PAD_HELP1", "PAD_HELP2", "PAD_HELP4", "PAD_HELP3" }) do
-        if L[k] then help[#help + 1] = L[k] end
-    end
-    Native.Check(cat, "GamePad", L.PAD_USE, table.concat(help, "\n\n"), true,
-        function() return DialogueWheelE_GamePad ~= false end,
-        function(v)
-            DialogueWheelE_GamePad = v and true or false
-            if DWE.RefreshBindings then DWE.RefreshBindings() end
-        end)
-    Native.keys = cat
-    return cat
+    f:SetScript("OnHide", function()
+        f:SetScript("OnUpdate", nil)
+        f.BindPad(false)
+        Detach()
+        GameTooltip:Hide()
+    end)
+    f.Draw = function() end
+    f:Hide()
+    return f
 end
 
----------------------------------------------------------------------------- Spoken
--- Ligne active seulement si when() est vrai (grisee sinon), sans ligne parente.
-function Native.EnabledIf(init, when)
-    if type(init) == "table" and type(init.AddModifyPredicate) == "function" then pcall(init.AddModifyPredicate, init, when) end
+function DWE.OpenOptionsWindow(pageIndex)
+    local f = Native.window or MakeWindow()
+    f:Show()
+    f:Raise()
+    f.ShowPage(pageIndex or f.pageIndex or 1)
+    return f
+end
+function DWE.OptionsPadActive()
+    return Native.window and Native.window:IsShown() and Native.window.padBound or false
+end
+function DWE.ToggleOptionsWindow()
+    if Native.window and Native.window:IsShown() then Native.window:Hide() else DWE.OpenOptionsWindow() end
 end
 
-local function BuildSpoken(parent)
-    local L = DWE.L
-    local cat, layout = Settings.RegisterVerticalLayoutSubcategory(parent, L.SEC_SPOKEN .. " (2)")
-    if not cat then return end
-    local function SpokenOn() return DWE.SpokenFocus and DWE.SpokenFocus.Available and DWE.SpokenFocus.Available() and true or false end
-    if not SpokenOn() then Native.Header(layout, L.SPOKEN_NEEDED) end
-    local all = {}
-    local function Keep(init) if init then all[#all + 1] = init end return init end
-    local function Skin()
-        if DWE.spokenSkinShow then pcall(DWE.spokenSkinShow) end
-        if DWE.RefreshSpoken then DWE.RefreshSpoken() end
-    end
-    local _, themeInit = Native.Check(cat, "SpokenTheme", L.SPOKEN_THEME, Tip("SPOKEN"), false,
-        function() return DialogueWheelE_SpokenTheme == true end,
-        function(v) DialogueWheelE_SpokenTheme = v and true or false; Skin() end)
-    Keep(themeInit)
-    -- Habillage du lecteur : "follow" = le reglage n'est pas choisi (nil), comme la case de l'ancienne page.
-    local function Themes(list)
-        for _, t in ipairs(DWE.THEME_LIST or {}) do list[#list + 1] = { t.id, L[t.key] or t.id } end
-        return list
-    end
-    local mats = { { "mat:Stone", L.PLATE_STONE }, { "mat:Marble", L.PLATE_MARBLE },
-        { "mat:Bronze", L.PLATE_BRONZE }, { "mat:Silver", L.PLATE_SILVER } }
-    local paper = { "paper", L.SKIN_PAPER or L.PLACE_PAPER }
-    local function List(first, ...)
-        local list = { first }
-        for _, part in ipairs({ ... }) do for _, e in ipairs(part) do list[#list + 1] = e end end
-        return Themes(list)
-    end
-    local function SkinChoice(id, label, var, items, check)
-        local _, init = Native.Choice(cat, id, label, nil, "follow", items,
-            function()
-                local v = _G[var]
-                if v == nil or (check and not check(v)) then return "follow" end
-                return v
-            end,
-            function(v)
-                _G[var] = (v ~= "follow") and v or nil
-                Skin()
-            end)
-        Native.DependsOn(init, themeInit, function() return DialogueWheelE_SpokenTheme == true end)
-        return Keep(init)
-    end
-    SkinChoice("SpokenSkin", L.SKIN_ROW_VOICE, "DialogueWheelE_SpokenSkin", List({ "follow", L.SPOKEN_SKIN_FOLLOW }))
-    local placeExtra = { paper }
-    if DWE.DUI_ON then placeExtra[2] = { "dui", L.BOOK_DUI } end
-    SkinChoice("PlaceSkin", L.SKIN_ROW_PLACE, "DialogueWheelE_PlaceSkin", List({ "follow", L.PLACE_FOLLOW }, placeExtra),
-        function(v) return v ~= "dui" or DWE.DUI_ON end)
-    -- Livres : "Page de livre" est le choix par defaut (nil) ; "paper" choisi revient au meme.
-    SkinChoice("BookSkin", L.SKIN_ROW_BOOK, "DialogueWheelE_BookSkin", List({ "follow", L.SKIN_PAPER or L.PLACE_PAPER }, mats),
-        function(v) return v ~= "paper" end)
-    SkinChoice("PlateSkin", L.SKIN_ROW_PLATE, "DialogueWheelE_PlateSkin", List({ "follow", L.PLATE_FOLLOW }, mats, { paper }))
-    -- Bulle ou lecteur Spoken : bouton sur la roue, choix de l'affichage, touche.
-    Keep(select(2, Native.Check(cat, "SpokenButton", L.SPOKEN_BUTTON, Tip("SPOKEN_BUTTON"), false,
-        function() return DialogueWheelE_SpokenButton == true end,
-        function(v)
-            DialogueWheelE_SpokenButton = v and true or false
-            if DWE.RefreshBindings then DWE.RefreshBindings() end
-        end)))
-    Keep(select(2, Native.Choice(cat, "TextIn", Bare(L.TEXT_IN), nil, "spoken",
-        { { "storytale", L.TEXT_IN_STORYTALE }, { "spoken", L.TEXT_IN_SPOKEN } },
-        function() return DialogueWheelE_ShowText == true and "storytale" or "spoken" end,
-        function(v)
-            if (DialogueWheelE_ShowText == true) ~= (v == "storytale") and DWE.ToggleDialogueText then DWE.ToggleDialogueText() end
-        end)))
-    local Label = DWE.KeyLabel or function(k) return (k and k ~= "") and k or "-" end
-    local toggleInit
-    toggleInit = Keep(Native.Button(layout, Bare(L.KEY_TOGGLE), Label(DialogueWheelE_ToggleKey), function()
-        if not (SpokenOn() and DWE.AskKey) then return end
-        DWE.AskKey(L.KEY_TOGGLE, DialogueWheelE_ToggleKey, function(k)
-            DialogueWheelE_ToggleKey = k
-            Native.SetButtonText(toggleInit, Label(k))
-        end)
-    end))
-    local smartTip = L.SPOKEN_SMART_TIP
-    if smartTip and L.SPOKEN_SMART_HINT then smartTip = smartTip .. "\n\n" .. L.SPOKEN_SMART_HINT end
-    Keep(select(2, Native.Check(cat, "SpokenSmart", L.SPOKEN_SMART, smartTip, true,
-        function() return DialogueWheelE_SpokenSmart ~= false end,
-        function(v) DialogueWheelE_SpokenSmart = v and true or false end)))
-    local function Highlight() if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end end
-    Keep(select(2, Native.Check(cat, "BubbleHighlight", L.BUBBLE_HIGHLIGHT, Tip("BUBBLE_HIGHLIGHT"), false,
-        function() return DialogueWheelE_BubbleHighlight == true end,
-        function(v) DialogueWheelE_BubbleHighlight = v and true or nil; Highlight() end)))
-    local modeTip
-    if L.BUBBLE_MODE_TYPE_TIP and L.BUBBLE_MODE_PAGE_TIP then
-        modeTip = "|cffffd100" .. L.BUBBLE_MODE_TYPE .. "|r\n" .. L.BUBBLE_MODE_TYPE_TIP .. "\n\n|cffffd100" .. L.BUBBLE_MODE_PAGE .. "|r\n" .. L.BUBBLE_MODE_PAGE_TIP
-    end
-    Keep(select(2, Native.Choice(cat, "BubbleMode", Bare(L.BUBBLE_MODE), modeTip, "type",
-        { { "type", L.BUBBLE_MODE_TYPE }, { "page", L.BUBBLE_MODE_PAGE } },
-        function() return DialogueWheelE_BubbleMode == "page" and "page" or "type" end,
-        function(v) DialogueWheelE_BubbleMode = (v == "page") and "page" or nil; Highlight() end)))
-    Keep(select(2, Native.Check(cat, "BookVoiceTurn", L.BOOK_VOICE_TURN, nil, false,
-        function() return DialogueWheelE_BookVoiceTurn == true end,
-        function(v) DialogueWheelE_BookVoiceTurn = v and true or nil end)))
-    Keep(select(2, Native.Check(cat, "BookStopOnClose", L.BOOK_STOP_CLOSE, nil, false,
-        function() return DialogueWheelE_BookStopOnClose == true end,
-        function(v) DialogueWheelE_BookStopOnClose = v and true or nil end)))
-    local function Art() if DWE.ZoneArtRefresh then DWE.ZoneArtRefresh() end end
-    local _, artInit = Native.Check(cat, "ZoneArt", L.ZONE_ART, Tip("ZONE_ART"), true,
-        function() return DialogueWheelE_ZoneArt ~= false end,
-        function(v) DialogueWheelE_ZoneArt = v and true or false; Art() end)
-    Keep(artInit)
-    local _, paperInit = Native.Check(cat, "ZoneArtPaper", L.ZONE_ART_PAPER, nil, false,
-        function() return DialogueWheelE_ZoneArtPaper == true end,
-        function(v) DialogueWheelE_ZoneArtPaper = v and true or nil; Art() end)
-    Native.DependsOn(paperInit, artInit, function() return DialogueWheelE_ZoneArt ~= false end)
-    Keep(paperInit)
-    -- Sans Spoken : tout est grise.
-    for _, init in ipairs(all) do Native.EnabledIf(init, SpokenOn) end
-    Native.spoken = cat
-    return cat
-end
-
----------------------------------------------------------------------------- Profils
-local function BuildProfiles(parent)
-    local L = DWE.L
-    local cat, layout = Settings.RegisterVerticalLayoutSubcategory(parent, L.SEC_PROFILES .. " (2)")
-    if not (cat and DWE.ProfileList) then return end
-    local function Named(list)
-        local out = {}
-        for _, n in ipairs(list) do out[#out + 1] = { n, DWE.ProfileLabel(n) } end
-        return out
-    end
-    local function Others(withDefault)
-        local l = { { "", "-" } }
-        for _, n in ipairs(DWE.ProfileList()) do
-            if n ~= DWE.profile and (withDefault or n ~= "Default") then l[#l + 1] = { n, DWE.ProfileLabel(n) } end
+-- Theme change (clic sur une vignette) : la fenetre prend tout de suite ses couleurs.
+do
+    local orig = DWE.OnThemeChanged
+    if type(orig) == "function" then
+        DWE.OnThemeChanged = function(...)
+            local r = { orig(...) }
+            if Native.window and Native.window:IsShown() and Native.window.ApplyColors then pcall(Native.window.ApplyColors) end
+            return unpack(r)
         end
-        return l
     end
-    -- Profil utilise : change tout de suite (rien n'est perdu, on peut revenir).
-    Native.Choice(cat, "Profile", Bare(L.PROFILE_CUR), L.PROFILE_HINT, "Default",
-        function() return Named(DWE.ProfileList()) end,
-        function() return DWE.profile or "Default" end,
-        function(v) if v and v ~= DWE.profile then DWE.AskProfile("switch", v) end end)
-    -- Copier depuis / supprimer : une action, la ligne revient a "-" ; confirmation demandee.
-    Native.Choice(cat, "ProfileCopyFrom", Bare(L.PROFILE_COPY_FROM), nil, "",
-        function() return Others(true) end,
-        function() return "" end,
-        function(v) if v and v ~= "" then DWE.AskProfile("copyfrom", v) end end)
-    Native.Choice(cat, "ProfileDelete", Bare(L.PROFILE_DEL_ROW), nil, "",
-        function() return Others(false) end,
-        function() return "" end,
-        function(v) if v and v ~= "" then DWE.AskProfile("delete", v) end end)
-    Native.Button(layout, L.PROFILE_NEW_BTN, L.PROFILE_NEW_BTN, function() DWE.AskProfile("new") end)
-    Native.Choice(cat, "ProfileForNew", Bare(L.PROFILE_FOR_NEW), nil, "Default",
-        function() return Named(DWE.ProfileList()) end,
-        function() return DWE.ProfileNewCharName and DWE.ProfileNewCharName() or "Default" end,
-        function(v)
-            if v and DWE.ProfileSetForNew then DWE.ProfileSetForNew(v) end
-            if DWE.RefreshProfilesUI then DWE.RefreshProfilesUI() end
-        end)
-    -- Tout remettre par defaut : la fenetre de Storytale (atteignable a la manette).
-    Native.Button(layout, L.RESET_ALL, L.RESET_ALL, function() if DWE.AskResetAll then DWE.AskResetAll() end end)
-    Native.profiles = cat
-    return cat
 end
 
----------------------------------------------------------------------------- Apparence
--- Les vignettes des themes et les couleurs du theme Personnalise restent sur la page Storytale
--- (dessins, pas des lignes) ; ici le theme se choisit dans une liste.
-local function BuildLooks(parent)
-    local L = DWE.L
-    local cat = Settings.RegisterVerticalLayoutSubcategory(parent, L.SEC_THEME .. " (2)")
-    if not cat then return end
-    local function Theme()
-        if DWE.RefreshOptionsExtra then pcall(DWE.RefreshOptionsExtra) end
-        if DWE.OnThemeChanged then DWE.OnThemeChanged() end
-    end
-    local function Wheel()
-        if DWE.choiceBox and DWE.choiceBox:IsShown() and DWE.UpdateVisuals then DWE.UpdateVisuals() end
-    end
-    Native.Choice(cat, "Theme", Bare(L.SEC_THEME), L.THEME_HINT, "bubble",
-        function()
-            local list = {}
-            for _, t in ipairs(DWE.THEME_LIST or {}) do list[#list + 1] = { t.id, L[t.key] or t.id } end
-            return list
-        end,
-        function()
-            local v = DialogueWheelE_Theme or "bubble"
-            if v == "scroll" then v = "parchment" end
-            return v
-        end,
-        function(v) DialogueWheelE_Theme = v; Theme() end)
-    Native.Check(cat, "ThemeFrames", L.THEME_BUBBLES, Tip("THEME_BUBBLES"), true,
-        function() return DialogueWheelE_ThemeFrames ~= true end,
-        function(v) DialogueWheelE_ThemeFrames = not v; Theme() end)
-    Native.Check(cat, "WheelTheme", L.WHEEL_THEME, nil, false,
-        function() return DialogueWheelE_WheelTheme == true end,
-        function(v) DialogueWheelE_WheelTheme = v and true or false; if DWE.OnThemeChanged then DWE.OnThemeChanged() end end)
-    Native.Slider(cat, "Opacity", L.OPACITY_LBL, nil, 1, 0.2, 1, 0.05, "%.2f",
-        function() return tonumber(DialogueWheelE_Opacity) or 1 end,
-        function(v)
-            DialogueWheelE_Opacity = v
-            if DWE.OnThemeChanged then DWE.OnThemeChanged() end
-            if DWE.ApplyBubbleOpacity then DWE.ApplyBubbleOpacity() end
-            Wheel()
-        end)
-    Native.Check(cat, "HideUI", L.HIDE_UI, Tip("HIDE_UI"), false,
-        function() return DialogueWheelE_HideUI == true end,
-        function(v) DialogueWheelE_HideUI = v and true or false end)
-    Native.Check(cat, "MinimapHide", L.MINIMAP_BTN, L.MINIMAP_TIP, true,
-        function() return DialogueWheelE_MinimapHide ~= true end,
-        function(v)
-            DialogueWheelE_MinimapHide = (not v) and true or nil
-            if DWE.MinimapButtonRefresh then DWE.MinimapButtonRefresh() end
-        end)
-    -- Texte : police (pas en chinois/coreen : la police du jeu est imposee), tailles.
-    if not DWE.IS_CJK then
-        Native.Choice(cat, "Font", Bare(L.FONT_FAMILY), nil, "friz",
-            function()
-                local list = {}
-                for _, f in ipairs(DWE.FONTS or {}) do
-                    list[#list + 1] = { f.id, f.default and (f.name .. " (" .. (L.FONT_DEFAULT or "") .. ")") or f.name }
-                end
-                return list
-            end,
-            function() return DialogueWheelE_Font or "friz" end,
-            function(v) DialogueWheelE_Font = v; if DWE.ApplyFont then DWE.ApplyFont() end end)
-    end
-    Native.Slider(cat, "FontSize", L.FONT_SIZE, nil, 14, 10, 22, 1, "%d pt",
-        function() return tonumber(DialogueWheelE_FontSize) or 14 end,
-        function(v) DialogueWheelE_FontSize = v; if DWE.ApplyFont then DWE.ApplyFont() end end)
-    Native.Slider(cat, "ChoiceSize", L.CHOICE_SIZE, nil, 15, 10, 24, 1, "%d pt",
-        function() return DWE.ChoiceSize and DWE.ChoiceSize() or 15 end,
-        function(v) DialogueWheelE_ChoiceSize = v; Wheel() end)
-    Native.looks = cat
-    return cat
-end
-
--- Appele une fois les anciennes pages creees (DWE.InitOptionsPanel).
-function DWE.BuildNativeOptions(parent)
-    if Native.built or not parent or not Supported() then return end
-    Native.built = true
-    pcall(BuildLooks, parent)
-    pcall(BuildBooks, parent)
-    pcall(BuildPlacement, parent)
-    pcall(BuildKeys, parent)
-    pcall(BuildSpoken, parent)
-    pcall(BuildProfiles, parent)
-end
-
-DWE.NativeRefresh = function() Native.Refresh() end
+-- Raccourci du jeu (Options > Raccourcis > Storytale), pour ouvrir la fenetre a la manette.
+BINDING_HEADER_STORYTALE = "Storytale"
+BINDING_NAME_STORYTALE_OPTIONS = (DWE.L and DWE.L.OPT_WINDOW_OPEN) or "Storytale options"

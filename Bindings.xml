@@ -1,0 +1,5 @@
+<Bindings>
+	<Binding name="STORYTALE_OPTIONS" header="STORYTALE" category="ADDONS">
+		if DWE and DWE.ToggleOptionsWindow then DWE.ToggleOptionsWindow() end
+	</Binding>
+</Bindings>

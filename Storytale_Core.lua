@@ -681,6 +681,7 @@ end
 -- bubble = style de Bubble.lua, pill = images Pill<pill>*.png, palette = couleurs des choix.
 local BUBBLE_SKINS = {
     bubble = { bubble = "game", pill = "game", palette = WHEEL_DEFAULT, always = true },
+    bubble_npc = { bubble = "game_npc", pill = "game", palette = WHEEL_DEFAULT, always = true },
     bubble_fantasy = { bubble = "fantasy", pill = "fantasy", palette = WHEEL_INK, always = true, optFont = true },
     whisper = { bubble = "whisper", pill = "whisper", palette = WHEEL_WHISPER, always = true },
 }
@@ -1714,7 +1715,7 @@ function DWE.SpokenThemeOverride()
 end
 
 -- Pour la fenetre Spoken, les bulles empruntent le style d'un theme "bloc".
-local SPOKEN_STYLE_ALIAS = { bubble = "spk_bubble", bubble_fantasy = "spk_fantasy", whisper = "spk_whisper",
+local SPOKEN_STYLE_ALIAS = { bubble = "spk_bubble", bubble_npc = "spk_bubble", bubble_fantasy = "spk_fantasy", whisper = "spk_whisper",
     emerald = "spk_emerald", ruby = "spk_ruby", sapphire = "spk_sapphire", amber = "spk_amber",
     transparent = "spk_transparent", cinema = "spk_cinema" }
 -- Style "plaque" de la matiere `mat` (petite taille : texture S, marges divisees par 2).
@@ -2827,6 +2828,7 @@ cineBars.alpha = 0
 -- Restent visibles : l'addon, DialogueUI/Spoken (deja geres), les infobulles et les fenetres
 -- systeme (menu Echap, options, fenetres de confirmation).
 local hiddenUI = {} -- cadre -> opacite d'origine
+local ignoredUI = {} -- cadres remis a suivre l'opacite de leur parent (a rendre a la fin)
 local KEEP_UI = {
     GameTooltip = true, ItemRefTooltip = true, ShoppingTooltip1 = true, ShoppingTooltip2 = true,
     GameMenuFrame = true, SettingsPanel = true, InterfaceOptionsFrame = true, StaticPopup1 = true,
@@ -2843,16 +2845,31 @@ end
 local function CollectUI()
     if InCombatLockdown and InCombatLockdown() then return end
     if not UIParent.GetChildren then return end
-    for _, fr in ipairs({ UIParent:GetChildren() }) do
-        -- Cadres proteges (fenetres Blizzard interdites aux addons) : on n'y touche pas.
-        local okF, forbidden = pcall(function() return fr.IsForbidden and fr:IsForbidden() end)
-        local okS, shown = false, false
-        if okF and not forbidden then okS, shown = pcall(fr.IsShown, fr) end
-        if okS and shown and not hiddenUI[fr] and fr.GetAlpha and not KeepFrame(fr) then
-            local ok, a = pcall(fr.GetAlpha, fr)
-            if ok and type(a) == "number" and a > 0 then hiddenUI[fr] = a end
+    local list = { UIParent:GetChildren() }
+    -- (chaque cadre dans un pcall : un cadre interdit aux addons ne doit rien casser)
+    local function One(fr)
+        if fr.IsForbidden and fr:IsForbidden() then return end
+        if KeepFrame(fr) then return end
+        -- Fenetres qui ignorent l'opacite de leur parent (fenetres de chat de Chattynator) : elles
+        -- la suivent de nouveau le temps de la conversation, pour s'effacer avec le reste.
+        for _, k in ipairs({ fr:GetChildren() }) do
+            pcall(function()
+                if k:IsForbidden() or k:IsProtected() or ignoredUI[k] or KeepFrame(k) then return end
+                local ign = k:IsIgnoringParentAlpha()
+                -- (valeur secrete du jeu : on n'y touche pas)
+                if issecretvalue and issecretvalue(ign) then return end
+                if ign == true then
+                    k:SetIgnoreParentAlpha(false)
+                    ignoredUI[k] = true
+                end
+            end)
+        end
+        if fr:IsShown() and not hiddenUI[fr] then
+            local a = fr:GetAlpha()
+            if type(a) == "number" and a > 0 then hiddenUI[fr] = a end
         end
     end
+    for _, fr in ipairs(list) do pcall(One, fr) end
 end
 local function FadeUI(f)
     for fr, a in pairs(hiddenUI) do pcall(fr.SetAlpha, fr, a * (1 - f)) end
@@ -2860,6 +2877,9 @@ end
 local function RestoreUI()
     FadeUI(0)
     wipe(hiddenUI)
+    -- (jamais de cadre protege ici : rendu meme en combat)
+    for k in pairs(ignoredUI) do pcall(k.SetIgnoreParentAlpha, k, true) end
+    wipe(ignoredUI)
 end
 DWE.HiddenUI = hiddenUI
 
@@ -2869,10 +2889,10 @@ cineBars:SetScript("OnUpdate", function(self, dt)
     if math.abs(target - a) < 0.01 then a = target end
     self.alpha = a
     self:SetAlpha(a)
-    -- Pendant le fondu a chaque image ; ensuite deux fois par seconde (si un autre addon
-    -- remontre un cadre, il repart).
+    -- Pendant le fondu a chaque image ; ensuite dix fois par seconde (si un autre addon
+    -- remontre un cadre ou change son opacite, comme le fondu d'un chat, il repart).
     self.tick = (self.tick or 0) + dt
-    if a ~= self.lastA or self.tick > 0.5 then
+    if a ~= self.lastA or self.tick > 0.1 then
         self.lastA, self.tick = a, 0
         FadeUI(a)
     end
@@ -7142,7 +7162,15 @@ function DWE.OnThemeChanged()
     DWE.ApplyFont()
     DWE.RefreshSpoken()
     if choiceBox:IsShown() then
+        -- Bulle ou cadre du texte du PNJ : change aussi, dialogue ouvert (theme essaye en direct).
+        -- La bulle est redessinee de zero, sans garder de morceaux de l'ancien theme.
+        if DWE.Bubble and DWE.Bubble.Restyle then
+            DWE.Bubble.Restyle()
+            DWE.Bubble.SetShown(false)
+        end
         DWE.UpdateVisuals()
+        DWE.UpdateTextPanelVisuals()
+        if DWE.Bubble and DWE.Bubble.Refit then DWE.Bubble.Refit() end
         if DWE.RefreshPreview then DWE.RefreshPreview() else DWE.PaintWheelTheme() end
     else
         DWE.PaintWheelTheme()
@@ -7166,6 +7194,7 @@ DWE.KeyLabel = KeyLabel
 -- Themes proposes dans les options, par famille, avec leur vignette (Thumbs\*.png).
 local THEME_LIST = {
     { id = "bubble", key = "THEME_BUBBLE", thumb = "Bubble" },
+    { id = "bubble_npc", key = "THEME_BUBBLE_NPC", thumb = "BubbleNPC" },
     { id = "bubble_fantasy", key = "THEME_BUBBLE_FANTASY", thumb = "BubbleFantasy" },
     { id = "whisper", key = "THEME_WHISPER", thumb = "Whisper" },
     { id = "emerald", key = "THEME_EMERALD", thumb = "Emerald" },
@@ -7279,6 +7308,8 @@ function DWE.Ask(opts)
             pcall(f.EnableGamePadButton, f, true)
             if f.SetPropagateGamePadInput then pcall(f.SetPropagateGamePadInput, f, false) end
             f:SetScript("OnGamePadButtonDown", function(_, b)
+                -- Fenetre d'options ouverte : ses liaisons transmettent deja le bouton (pas deux fois).
+                if DWE.OptionsPadActive and DWE.OptionsPadActive() and not f.fromOptions then return end
                 if b == "PAD1" then Done(f.sel ~= 2)
                 elseif b == "PAD2" then Done(false)
                 elseif b == "PADDLEFT" then Pick(1)
@@ -7475,6 +7506,7 @@ function DWE.InitOptionsPanel()
     local panel = CreateFrame("Frame", "DialogueWheelEOptionsPanel")
     panel.name = "Storytale"
     DWE.optionsPanel = panel
+    -- Bouton vers la fenetre d'options de Storytale (faite pour la manette).
 
     -- Tout le contenu defile (le panneau est plus haut que la fenetre des options).
     local scroll = CreateFrame("ScrollFrame", "DialogueWheelEOptionsScroll", panel, "UIPanelScrollFrameTemplate")
@@ -8663,7 +8695,15 @@ function DWE.InitOptionsPanel()
         count:SetText(i .. " / " .. #found)
         -- Option d'une autre categorie : on ouvre sa page, puis on y va (une fois affichee).
         local pg = e.page or pages[1]
-        if not pg.panel:IsVisible() and pg.cat and Settings and Settings.OpenToCategory then
+        -- Fenetre d'options de Storytale : on passe a l'onglet de la page.
+        local win = DWE.Native and DWE.Native.window
+        if not pg.panel:IsVisible() and win and win:IsShown() and win.ShowPage then
+            for k, page in ipairs(pages) do if page == pg then win.ShowPage(k) end end
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0.05, function() Place(e) end)
+                return
+            end
+        elseif not pg.panel:IsVisible() and pg.cat and Settings and Settings.OpenToCategory then
             local id = pg.cat.GetID and pg.cat:GetID() or pg.cat.ID
             pcall(Settings.OpenToCategory, id)
             if C_Timer and C_Timer.After then
@@ -8765,7 +8805,7 @@ function DWE.InitOptionsPanel()
         if not (okH and okC and viewH and childH) then return end
         local fits = childH <= viewH + 1
         local bar = sc.ScrollBar or (sc.GetName and sc:GetName() and _G[sc:GetName() .. "ScrollBar"])
-        if bar and bar.SetShown then bar:SetShown(not fits) end
+        if type(bar) == "table" and bar.SetShown then bar:SetShown(not fits) end
         if fits then
             sc:SetVerticalScroll(0)
             sc:EnableMouseWheel(false)
@@ -8788,7 +8828,23 @@ function DWE.InitOptionsPanel()
         end)
     end
 
-    if Settings and Settings.RegisterCanvasLayoutCategory then
+    -- Options dans leur propre fenetre (Options_Native.lua) : le menu du jeu n'a plus qu'une page
+    -- qui l'ouvre (pas de doublon, et plus aucun reglage de Storytale dans le panneau du jeu, dont
+    -- la manette se bloquait).
+    -- Page faite de lignes du jeu (comme celles de Spoken) : son bouton se choisit a la manette,
+    -- ce qu'une page dessinee par l'addon ne permet pas. Aucun reglage dedans : juste le bouton.
+    local makeBtn = rawget(_G, "CreateSettingsButtonInitializer")
+    local makeHdr = rawget(_G, "CreateSettingsListSectionHeaderInitializer")
+    if DWE.NATIVE_OPTIONS and Settings and Settings.RegisterVerticalLayoutCategory and makeBtn then
+        local cat, layout = Settings.RegisterVerticalLayoutCategory("Storytale")
+        if makeHdr then pcall(function() layout:AddInitializer(makeHdr(L.OPT_LAUNCH_TEXT or "")) end) end
+        pcall(function()
+            layout:AddInitializer(makeBtn(L.OPT_WINDOW_OPEN or "Storytale", L.OPT_WINDOW_OPEN or "Storytale",
+                function() if DWE.OpenOptionsWindow then DWE.OpenOptionsWindow() end end, L.OPT_LAUNCH_HOW, true))
+        end)
+        Settings.RegisterAddOnCategory(cat)
+        DWE.optionsCategory = cat
+    elseif Settings and Settings.RegisterCanvasLayoutCategory then
         local cat = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
         Settings.RegisterAddOnCategory(cat)
         DWE.optionsCategory = cat
@@ -8801,7 +8857,6 @@ function DWE.InitOptionsPanel()
         end
         -- Pages en lignes natives (refonte page par page, voir Options_Native.lua).
         -- (Cachees dans les versions publiees tant que la refonte n'est pas finie.)
-        if DWE.NATIVE_OPTIONS and DWE.BuildNativeOptions then pcall(DWE.BuildNativeOptions, cat) end
         -- Sous-pages toujours depliees dans la liste du jeu : a la manette, le petit "+" a cote du
         -- nom est difficile (voire impossible) a atteindre.
         if type(cat.SetExpanded) == "function" then pcall(cat.SetExpanded, cat, true) else cat.expanded = true end

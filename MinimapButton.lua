@@ -23,6 +23,8 @@ local function PlaceButton(btn)
 end
 
 local function OpenOptions()
+    -- Fenetre d'options de Storytale (manette, clavier, souris), voir Options_Native.lua.
+    if DWE.NATIVE_OPTIONS and DWE.OpenOptionsWindow then DWE.OpenOptionsWindow() return end
     local cat = DWE.optionsCategory
     if Settings and Settings.OpenToCategory and cat then
         local id = cat.GetID and cat:GetID() or cat.ID
@@ -58,7 +60,10 @@ local function Build()
     border:SetPoint("TOPLEFT")
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")
-    btn:SetScript("OnClick", function() OpenOptions() end)
+    -- (un clic ouvre les options, un second clic les referme)
+    btn:SetScript("OnClick", function()
+        if DWE.NATIVE_OPTIONS and DWE.ToggleOptionsWindow then DWE.ToggleOptionsWindow() else OpenOptions() end
+    end)
     btn:SetScript("OnDragStart", function(self)
         self:SetScript("OnUpdate", function()
             local mx, my = Minimap:GetCenter()

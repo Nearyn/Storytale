@@ -456,9 +456,28 @@ for loc, list in pairs(NAMES) do
     if dest then for i, key in ipairs(NAME_KEYS) do dest[key] = list[i] end end
 end
 
+-- Bulle d'Azeroth facon PNJ (texte jaune pale des bulles du jeu).
+local BUBBLE_NPC = {
+    enUS = "Azeroth NPC Bubble",
+    frFR = "Bulle d'Azeroth (PNJ)",
+    deDE = "Azeroth-Sprechblase (NSC)",
+    esES = "Bocadillo de Azeroth (PNJ)",
+    itIT = "Fumetto di Azeroth (PNG)",
+    ptBR = "Balão de Azeroth (PNJ)",
+    ruRU = "Облачко Азерота (НИП)",
+    koKR = "아제로스 말풍선 (NPC)",
+    zhCN = "艾泽拉斯气泡（NPC）",
+    zhTW = "艾澤拉斯對話泡泡（NPC）",
+}
+BUBBLE_NPC.esMX = BUBBLE_NPC.esES
+for loc, str in pairs(BUBBLE_NPC) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.THEME_BUBBLE_NPC = str end
+end
+
 -- Titres des sections et libelles revus des options.
 local OPTS = {
-    enUS = { SEC_THEME = "Theme", SEC_TEXT = "Text", SEC_PLACE = "Placement", SEC_KEYS = "Controls",
+    enUS = { OPT_WINDOW_OPEN = "Open Storytale options", OPT_LAUNCH_TEXT = "Storytale's options open in their own window, with theme previews and full gamepad support.", OPT_LAUNCH_HOW = "You can also type /storytale, use the minimap button, or set a key in Options > Keybindings > AddOns > Storytale.", OPT_TAB_MAIN = "General", OPT_WINDOW_HINT = "Gamepad: D-pad to move, A to select, B to close, L1 / R1 (LB / RB) to change tab", SEC_THEME = "Theme", SEC_TEXT = "Text", SEC_PLACE = "Placement", SEC_KEYS = "Controls",
         THEME_HINT = "Click a theme to apply it.", FONT_FAMILY = "Font", FONT_SIZE = "Text size",
         OPACITY_LBL = "Frame opacity", WHEEL_THEME = "Also dress the choice wheel",
         SPOKEN_THEME = "Also dress the Spoken player", ATTACH_NPC = "Follow the NPC on screen",
@@ -468,7 +487,7 @@ local OPTS = {
         WHEEL_SCROLL = "Mouse wheel browses choices (hold click to zoom)",
         BOOK_STYLE = "Books and letters:", BOOK_ADDON = "This addon, with a parchment theme (Gilded Vellum if a bubble theme is chosen)",
         BOOK_DUI = "DialogueUI", BOOK_BLIZZ = "Blizzard" },
-    frFR = { SEC_THEME = "Thème", SEC_TEXT = "Texte", SEC_PLACE = "Placement", SEC_KEYS = "Commandes",
+    frFR = { OPT_WINDOW_OPEN = "Ouvrir les options Storytale", OPT_LAUNCH_TEXT = "Les options de Storytale s'ouvrent dans leur propre fenêtre, avec l'aperçu des thèmes et la manette.", OPT_LAUNCH_HOW = "Vous pouvez aussi taper /storytale, utiliser le bouton de la mini-carte, ou choisir une touche dans Options > Raccourcis > AddOns > Storytale.", OPT_TAB_MAIN = "Général", OPT_WINDOW_HINT = "Manette : croix pour se déplacer, A pour valider, B pour fermer, L1 / R1 (LB / RB) pour changer d'onglet", SEC_THEME = "Thème", SEC_TEXT = "Texte", SEC_PLACE = "Placement", SEC_KEYS = "Commandes",
         THEME_HINT = "Cliquez sur un thème pour l'appliquer.", FONT_FAMILY = "Police", FONT_SIZE = "Taille du texte",
         OPACITY_LBL = "Opacité du cadre", WHEEL_THEME = "Habiller aussi la roue des choix",
         SPOKEN_THEME = "Habiller aussi le lecteur Spoken", ATTACH_NPC = "Suivre le PNJ à l'écran",

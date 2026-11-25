@@ -2691,6 +2691,10 @@ function DWE.PadZoomTick(el)
         -- Pas de nom de configuration : le 2e stick est le droit.
         if not found and st.sticks[2] then y = st.sticks[2].y or 0 end
     end
+    -- Valeur du stick perimee (le jeu n'envoie pas toujours le retour au centre) : ignoree,
+    -- sinon L1 + R1 seuls continuaient a zoomer sans toucher au stick.
+    if padZoom.evY and padZoom.evT and (GetTime and GetTime() or 0) - padZoom.evT > 0.3 then padZoom.evY = nil end
+    if not found then y = 0 end -- 2e stick sans nom : peut etre une gachette, pas la camera
     if padZoom.evY and math.abs(padZoom.evY) > math.abs(y) then y = padZoom.evY end
     padZoom.logT = (padZoom.logT or 0) + el
     if DWE.FLog and padZoom.logT > 0.5 then
@@ -2717,6 +2721,7 @@ end
 local function ZoomStick(_, stick, x, y)
     if stick == "Movement" or stick == "Left" then return end
     padZoom.evY = tonumber(y) or 0
+    padZoom.evT = GetTime and GetTime() or 0
 end
 function DWE.PadZoomStick(on)
     local c = DWE.padCatcher
@@ -3260,6 +3265,17 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         local v = tonumber((string.gsub(msg:match("^%s*delai%s+([%d%.,]+)") or "", ",", ".")))
         if v then DWE.VOICE_LEAD = math.max(0, math.min(3, v)) end
         Out(("delai de la voix : %.1f s (/storytale delai 0.8 pour changer)."):format(DWE.VOICE_LEAD or 0))
+    elseif msg:match("^%s*pointe") then
+        -- Pointe de la bulle Azeroth : /storytale pointe <hauteur> <taille> [decalage]
+        local y, sc, x = msg:match("^%s*pointe%s+([%-%d%.]+)%s*([%d%.]*)%s*([%-%d%.]*)")
+        if y then
+            DWE.gameTailY = tonumber(y)
+            DWE.gameTailScale = tonumber(sc) or DWE.gameTailScale
+            DWE.gameTailX = tonumber(x) or DWE.gameTailX
+            if DWE.BubbleRestyle then DWE.BubbleRestyle() end
+        end
+        Out(("pointe : hauteur %s, taille %s, decalage %s (/storytale pointe 6 1.3 0)"):format(
+            tostring(DWE.gameTailY or 6), tostring(DWE.gameTailScale or 1.3), tostring(DWE.gameTailX or 0)))
     elseif msg:match("^%s*livrelog") then
         local log = DWE.lookLog or {}
         DWE.PadShowText(#log > 0 and table.concat(log, "\n") or "(rien : ouvre un livre et tourne les pages)")
