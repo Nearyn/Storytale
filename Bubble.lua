@@ -1384,6 +1384,57 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
     end
 end))
 
+-- /storytale fluide : mesure en jeu des arrets de l'ecriture hors ponctuation (plus besoin de
+-- video). A la fin de chaque replique : nombre d'arrets, le pire et sur quel mot, et le mode suivi
+-- (durees Spoken, durees generees, rythme moyen, sans voix).
+local fluid = {}
+DWE.bubbleFluid = fluid
+local function FluidMode()
+    if not state.voiced then return "sans voix" end
+    if state.generated then return "durees generees" end
+    if state.timed then return "durees Spoken" end
+    return "rythme moyen"
+end
+local function FluidWord(seg, n)
+    local before = seg:sub(1, n):match("(%S*)$") or ""
+    local after = seg:sub(n + 1):match("^(%S*)") or ""
+    return before .. "|" .. after
+end
+function DWE.BubbleFluidReport()
+    if fluid.done or not fluid.raw then return end
+    local f = fluid
+    fluid.done = true
+    if not DWE.fluidLog then return end
+    local worst = f.worst or 0
+    print(("|cff33ff99Storytale|r fluidite : %d arret(s) hors ponctuation (> 0,15 s), le pire %.2f s%s | %s | %s"):format(
+        f.count or 0, worst, f.where and (" sur « " .. f.where .. " »") or "", f.mode or "?",
+        tostring(UnitName and UnitName("npc") or "?")))
+end
+bubble:HookScript("OnUpdate", function(_, elapsed)
+    if not DWE.fluidLog then return end
+    if state.raw ~= fluid.raw then
+        DWE.BubbleFluidReport()
+        fluid.raw, fluid.done, fluid.count, fluid.worst, fluid.where, fluid.still, fluid.lastN, fluid.lastI = state.raw, nil, 0, 0, nil, 0, nil, nil
+    end
+    if state.phase == "reading" and state.index == #state.segs then DWE.BubbleFluidReport() return end
+    if state.phase ~= "typing" or state.manual then fluid.still = 0 return end
+    fluid.mode = FluidMode()
+    local n, i = state.shownN or 0, state.index
+    if n == fluid.lastN and i == fluid.lastI and n > 0 then
+        fluid.still = fluid.still + elapsed
+    else
+        if fluid.still > 0.15 then
+            local seg = state.segs[fluid.lastI or 1] or ""
+            local prev = seg:sub(1, fluid.lastN or 0):match("(%S)%s*$") or ""
+            if not prev:find("[%.,!?;:%-]") then
+                fluid.count = fluid.count + 1
+                if fluid.still > fluid.worst then fluid.worst, fluid.where = fluid.still, FluidWord(seg, fluid.lastN or 0) end
+            end
+        end
+        fluid.still, fluid.lastN, fluid.lastI = 0, n, i
+    end
+end)
+
 bubble:SetScript("OnMouseUp", function(_, button)
     if button == "LeftButton" and not DWE.JustDragged() then Advance() end
 end)

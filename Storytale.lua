@@ -3260,6 +3260,9 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         local v = tonumber((string.gsub(msg:match("^%s*delai%s+([%d%.,]+)") or "", ",", ".")))
         if v then DWE.VOICE_LEAD = math.max(0, math.min(3, v)) end
         Out(("delai de la voix : %.1f s (/storytale delai 0.8 pour changer)."):format(DWE.VOICE_LEAD or 0))
+    elseif msg:match("^%s*fluide") then
+        DWE.fluidLog = not DWE.fluidLog
+        Out("fluidite de la bulle : " .. (DWE.fluidLog and "mesure activee (un resume a la fin de chaque replique ecrite)" or "mesure coupee") .. ".")
     elseif msg:match("^%s*sync") then
         DWE.bubbleSyncDebug = not DWE.bubbleSyncDebug
         Out("suivi de la voix (bulle) : diagnostic " .. (DWE.bubbleSyncDebug and "active" or "coupe") .. ".")
