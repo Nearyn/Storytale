@@ -1132,6 +1132,50 @@ for loc, v in pairs({
     zhTW = { "醒目標示正在朗讀的詞", "在對話泡泡中，為語音正在朗讀的詞上色，與 Spoken 的視窗相同。僅當 Spoken 選項中也勾選了「Highlight Words」時生效。" },
 }) do if T[loc] then T[loc].BUBBLE_HIGHLIGHT, T[loc].BUBBLE_HIGHLIGHT_TIP = v[1], v[2] end end
 
+-- Affichage de la bulle quand une voix lit : ecriture progressive ou page entiere.
+local BUBBLE_MODE = {
+    enUS = { "Bubble display while a voice reads:", "Typewriter", "Whole page",
+        "The text is written as the voice speaks it.",
+        "The whole page is shown at once and the word the voice is saying is coloured, like Spoken's narrator. Colour only when \"Highlight Words\" is checked in Spoken's options." },
+    frFR = { "Affichage de la bulle quand une voix lit :", "Écriture progressive", "Page entière",
+        "Le texte s'écrit au rythme de la voix.",
+        "Toute la page s'affiche d'un coup et le mot que dit la voix est mis en couleur, comme le narrateur de Spoken. Couleur seulement si « Highlight Words » est coché dans les options de Spoken." },
+    deDE = { "Sprechblase, während eine Stimme liest:", "Schreibmaschine", "Ganze Seite",
+        "Der Text wird im Tempo der Stimme geschrieben.",
+        "Die ganze Seite wird auf einmal angezeigt und das Wort, das die Stimme spricht, wird farbig hervorgehoben, wie beim Erzähler von Spoken. Farbe nur, wenn „Highlight Words“ in den Optionen von Spoken aktiviert ist." },
+    esES = { "Bocadillo mientras lee una voz:", "Escritura progresiva", "Página entera",
+        "El texto se escribe al ritmo de la voz.",
+        "Toda la página se muestra de una vez y la palabra que dice la voz se colorea, como el narrador de Spoken. Color solo si «Highlight Words» está marcado en las opciones de Spoken." },
+    esMX = { "Globo mientras lee una voz:", "Escritura progresiva", "Página completa",
+        "El texto se escribe al ritmo de la voz.",
+        "Toda la página se muestra de una vez y la palabra que dice la voz se colorea, como el narrador de Spoken. Color solo si «Highlight Words» está marcado en las opciones de Spoken." },
+    itIT = { "Fumetto mentre una voce legge:", "Scrittura progressiva", "Pagina intera",
+        "Il testo si scrive al ritmo della voce.",
+        "Tutta la pagina appare subito e la parola che la voce sta dicendo viene colorata, come il narratore di Spoken. Colore solo se «Highlight Words» è selezionato nelle opzioni di Spoken." },
+    ptBR = { "Balão enquanto uma voz lê:", "Escrita progressiva", "Página inteira",
+        "O texto é escrito no ritmo da voz.",
+        "A página inteira aparece de uma vez e a palavra que a voz está dizendo fica colorida, como o narrador do Spoken. Cor só se «Highlight Words» estiver marcado nas opções do Spoken." },
+    ruRU = { "Облачко, пока читает голос:", "Постепенно", "Вся страница",
+        "Текст пишется в темпе голоса.",
+        "Вся страница показывается сразу, а слово, которое произносит голос, выделяется цветом, как у рассказчика Spoken. Цвет только если в настройках Spoken включено «Highlight Words»." },
+    koKR = { "목소리가 읽는 동안 말풍선 표시:", "한 글자씩", "페이지 전체",
+        "목소리의 속도에 맞춰 글이 써집니다.",
+        "페이지 전체가 한 번에 표시되고 목소리가 읽는 단어에 색을 입힙니다. Spoken의 내레이터와 같습니다. Spoken 설정에서 「Highlight Words」가 켜져 있을 때만 색이 표시됩니다." },
+    zhCN = { "语音朗读时的气泡显示：", "逐字显示", "整页显示",
+        "文字随语音的节奏逐字出现。",
+        "整页文字一次显示，语音正在朗读的词会着色，与 Spoken 的旁白相同。仅当 Spoken 选项中勾选了「Highlight Words」时才着色。" },
+    zhTW = { "語音朗讀時的泡泡顯示：", "逐字顯示", "整頁顯示",
+        "文字隨語音的節奏逐字出現。",
+        "整頁文字一次顯示，語音正在朗讀的詞會上色，與 Spoken 的旁白相同。僅當 Spoken 選項中勾選了「Highlight Words」時才上色。" },
+}
+for loc, v in pairs(BUBBLE_MODE) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then
+        dest.BUBBLE_MODE, dest.BUBBLE_MODE_TYPE, dest.BUBBLE_MODE_PAGE = v[1], v[2], v[3]
+        dest.BUBBLE_MODE_TYPE_TIP, dest.BUBBLE_MODE_PAGE_TIP = v[4], v[5]
+    end
+end
+
 -- Libelles courts des options (details dans l'infobulle de chaque case, cles *_TIP).
 local SHORT = {
     enUS = { DEFAULTS_ALL_BTN = "Default all", PAGE_RESET_CONFIRM = "Reset the options of the page \"%s\" to their defaults?", DEFAULTS_BTN = "Defaults", PROFILE_COPY_FROM = "Copy settings from", PROFILE_DEL_ROW = "Delete profile", PROFILE_NEW_BTN = "New profile", PROFILE_FOR_NEW = "Profile for new characters", PROFILE_CLICK_TIP = "Pick with the arrows, then click to apply.", PROFILE_COPY_CONFIRM = "Copy the options of \"%s\" into this profile?", PROFILE_DEL_CONFIRM = "Delete the profile \"%s\"?\nCharacters using it go back to Main.", LOCK = "Lock windows", LOCK_TIP = "Prevents moving and resizing the wheel, the bubble and books.", ATTACH_NPC = "Wheel and bubble stick to the NPC", READ_MARKS = "Show if already read", READ_MARKS_TIP = "In the tooltip and in Spoken's queue.", BOOK_TIP_CURSOR = "Tooltip at the mouse", BOOK_TIP_CURSOR_TIP = "Instead of the corner of the screen.", BOOK_AUTOSCROLL = "Follow Spoken's voice", BOOK_AUTOSCROLL_TIP = "The text scrolls and the pages turn with the voice.", BOOK_TURN_FX = "Page-turn animation and sound", BOOK_VOICE_TURN = "Voice follows my pages", BOOK_STOP_CLOSE = "Stop the voice when closing a book", PLATE_STYLE = "Engraved plaques", FONT_SIZE = "Text size", HIDE_UI = "Hide UI while talking or reading", HIDE_UI_TIP = "During conversations and books.", PAD_USE = "Use the gamepad", QUEST_AUTO_W = "Automatic quest preview width", QUEST_AUTO_W_TIP = "Uncheck to set it with its grip.", THEME_BUBBLES = "Bubble above the NPC", THEME_BUBBLES_TIP = "Uncheck for a fixed frame.", WHEEL_THEME = "Theme on the wheel too", SPOKEN_THEME = "Theme on Spoken's player too", SPOKEN_BUTTON = "Bubble / Spoken button on the wheel", SPOKEN_BUTTON_TIP = "Switches between the bubble and Spoken's player.", KEY_TOGGLE = "Bubble / Spoken key:", ZONE_ART = "Area pictures (Spoken)", ZONE_ART_TIP = "In Spoken's small window.", ZONE_ART_PAPER = "Painted paper edge", PROFILE_FACTORY_NOTE = "The Defaults profile keeps no changes." },

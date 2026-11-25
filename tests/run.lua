@@ -941,6 +941,64 @@ do
     env.Addon = oAddon
     if oEnv == nil then _G.SpokenEnv = nil end
 end
+-- Affichage "page entiere" : quand la voix lit, toute la page d'un coup et le mot lu en couleur
+-- (avec "Highlight Words" de Spoken) ; le mot avance avec la voix ; sans couleur si Spoken ne
+-- surligne pas ; ecriture normale par defaut et si le joueur tourne la page lui-meme.
+do
+    local oEnv = rawget(_G, "SpokenEnv")
+    local env = type(oEnv) == "table" and oEnv or {}
+    _G.SpokenEnv = env
+    local oAddon = rawget(env, "Addon")
+    env.Addon = { db = { profile = { Transcript = { HighlightWord = true } } } }
+    local pb = "Alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike."
+    local function plain(x) return (x or ""):gsub("|cff%x%x%x%x%x%x", ""):gsub("|r", "") end
+    -- Par defaut : ecriture progressive (le texte n'est pas encore entier au debut).
+    clip = { length = 8, spokenAt = now + 8, text = pb, present = { transcript = pb } }
+    DWE.SetDialogueText("x", pb)
+    for _ = 1, 20 do now = now + 0.05; tick(0.05) end
+    check(not DWE.BubblePageMode(), "page mode: off by default")
+    DialogueWheelE_BubbleMode = "page"
+    clip = { length = 8, spokenAt = now + 8, text = pb, present = { transcript = pb } }
+    DWE.SetDialogueText("x", pb .. " ")
+    DWE.SetDialogueText("x", pb)
+    for _ = 1, 6 do now = now + 0.05; tick(0.05) end
+    check(DWE.BubblePageMode(), "page mode: on while the voice reads")
+    check(plain(full()) == pb and bt:GetAlpha() > 0, "page mode: the whole page is shown at once: '" .. plain(full()) .. "'")
+    local w1 = (full() or ""):match("|cff%x%x%x%x%x%x(.-)|r")
+    check(w1 ~= nil, "page mode: the word being read is coloured: " .. tostring(w1))
+    -- Image par image : un seul mot en couleur, toujours plus loin dans le texte, texte entier.
+    local seen, lastAt, ok1, okWhole = {}, 0, true, true
+    for _ = 1, 30 do
+        now = now + 0.05; tick(0.05)
+        if not DWE.BubblePageMode() then break end
+        local cur = full() or ""
+        local _, nc = cur:gsub("|cff", "")
+        if nc > 1 then ok1 = false end
+        if plain(cur) ~= pb then okWhole = false end
+        local w = cur:match("|cff%x%x%x%x%x%x(.-)|r")
+        if w then
+            local at = pb:find(w, 1, true)
+            if at < lastAt then ok1 = false end
+            if at > lastAt then seen[#seen + 1] = w end
+            lastAt = at
+        end
+    end
+    check(#seen >= 2, "page mode: the coloured word moves on with the voice: " .. table.concat(seen, " "))
+    check(ok1, "page mode: one coloured word at a time, never going back")
+    check(okWhole, "page mode: the whole page stays shown while the voice reads")
+    env.Addon.db.profile.Transcript.HighlightWord = false
+    clip = { length = 8, spokenAt = now + 8, text = pb, present = { transcript = pb } }
+    DWE.SetDialogueText("x", pb .. " ")
+    DWE.SetDialogueText("x", pb)
+    for _ = 1, 6 do now = now + 0.05; tick(0.05) end
+    check(DWE.BubblePageMode() and full() == pb, "page mode: whole page without colour when Spoken's Highlight Words is off: '" .. tostring(full()) .. "'")
+    -- Le joueur tourne la page lui-meme : on quitte la page entiere.
+    DWE.bubble._scripts.OnMouseUp(DWE.bubble, "LeftButton")
+    check(not DWE.BubblePageMode(), "page mode: off once the player turns the page himself")
+    DialogueWheelE_BubbleMode = nil
+    env.Addon = oAddon
+    if oEnv == nil then _G.SpokenEnv = nil end
+end
 -- Voix qui vient de commencer ce texte : on part du debut, comme avant.
 local body4 = "Alpha one two three four five six seven eight nine ten. Eleven twelve thirteen fourteen."
 clip = { length = 10, spokenAt = now + 9.5, text = body4, present = { transcript = body4 } }

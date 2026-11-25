@@ -534,8 +534,7 @@ end
 -- le mot que la bulle ecrit au rythme de la voix prend la couleur de Spoken (or sur fond
 -- sombre, rouge fonce sur fond clair).
 local HL_ON_DARK, HL_ON_LIGHT = "|cffffd100", "|cff9c1a1a"
-local function HighlightOn()
-    if DialogueWheelE_BubbleHighlight ~= true then return false end
+local function SpokenHighlightWords()
     local env = rawget(_G, "SpokenEnv")
     local addon = type(env) == "table" and rawget(env, "Addon")
     if type(addon) ~= "table" then return false end
@@ -544,6 +543,9 @@ local function HighlightOn()
         return t.Enabled ~= false and t.HighlightWord == true
     end)
     return ok and on == true
+end
+local function HighlightOn()
+    return DialogueWheelE_BubbleHighlight == true and SpokenHighlightWords()
 end
 DWE.BubbleHighlightOn = HighlightOn
 
@@ -632,13 +634,75 @@ local function HighlightStep(seg, n)
 end
 
 local function HighlightReset()
-    state.hlKey, state.hlStage, state.hlNext = nil, nil, nil
+    state.hlKey, state.hlStage, state.hlNext, state.pgKey = nil, nil, nil, nil
     ghost:Hide()
+end
+
+-- Affichage "page entiere" (option DialogueWheelE_BubbleMode = "page") : quand une voix lit,
+-- toute la page s'affiche d'un coup et le mot que dit la voix passe en couleur (or sur fond
+-- sombre, rouge fonce sur fond clair), comme le narrateur de Spoken. Le mot suit la position de
+-- la bulle, qui suit la voix (vraies durees de Spoken, durees generees ou estimation). Sans voix,
+-- avant qu'elle parte, ou si le joueur tourne les pages lui-meme : la bulle s'ecrit comme
+-- d'habitude. Couleur seulement si "Highlight Words" est coche dans Spoken.
+local function PageMode()
+    return DialogueWheelE_BubbleMode == "page" and state.voiced and not state.manual and not state.dots
+        and state.phase == "typing"
+end
+DWE.BubblePageMode = PageMode
+
+-- Le mot que dit la voix dans la page affichee (debut et longueur en lettres dans la page).
+local function PageWord(n)
+    if not state.words then return nil end
+    local segStart = 0
+    for k = 1, (state.index or 1) - 1 do segStart = segStart + (state.lens[k] or 0) end
+    local segEnd = segStart + (state.lens[state.index or 1] or 0)
+    local pos, found = segStart + math.max(0, n), nil
+    for _, w in ipairs(state.words) do
+        if w.start >= segEnd then break end
+        if w.start >= segStart then
+            if found and w.start > pos then break end
+            found = w
+        end
+    end
+    if not found then return nil end
+    return found.start - segStart, found.len
+end
+
+local function PageReveal(seg, n)
+    local want, key = seg, "plain"
+    local at, len = PageWord(n)
+    if at and not seg:find("|", 1, true) and SpokenHighlightWords() then
+        local a, b = #Utf8Prefix(seg, at), #Utf8Prefix(seg, at + len)
+        local okC, r, g = pcall(text.GetTextColor, text)
+        if not okC then r, g = 1, 1 end
+        local light = (r or 1) * 0.6 + (g or 1) * 0.4 > 0.5 -- texte clair : fond sombre
+        want = seg:sub(1, a) .. (light and HL_ON_DARK or HL_ON_LIGHT) .. seg:sub(a + 1, b) .. "|r" .. seg:sub(b + 1)
+        key = state.index .. ":" .. at
+    end
+    if key ~= state.pgKey then
+        -- (Tout le texte est visible : le changer d'un coup ne montre rien de plus.)
+        state.hlKey, state.hlStage, state.hlNext = nil, nil, nil
+        ghost:Hide()
+        state.pgKey = key
+        text:SetText(want)
+    end
+    state.fresh = nil
+    text:SetAlpha(1)
+    bubble:DWEWaitHide(false)
+    if hasGradient then text:SetAlphaGradient((state.lens[state.index] or Utf8Len(seg)) + FADE_LETTERS + 1, 1) end
+    state.shownN = n
 end
 
 local function Reveal()
     local seg = state.segs[state.index] or ""
     local n = math.floor(state.typed or 0)
+    if PageMode() then PageReveal(seg, n) return end
+    if state.pgKey then
+        -- On quitte la page entiere (option changee) : texte sans couleur, l'ecriture reprend.
+        HighlightReset()
+        text:SetText(seg)
+        state.shownN = nil
+    end
     if hasGradient and state.phase == "typing" and not state.dots and HighlightStep(seg, n) then return end
 
     if n == state.shownN then
@@ -1288,6 +1352,7 @@ end
 -- Option du mot surligne changee : la bulle se redessine a l'image suivante.
 function DWE.Bubble.RefreshHighlight()
     if not state.hlStage then state.hlKey = "?" end
+    if state.pgKey then state.pgKey = "?" end
 end
 
 -- Texte de la bulle si une voix de Spoken l'a deja lu (la bulle l'a suivie), sinon nil.

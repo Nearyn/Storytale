@@ -7024,7 +7024,7 @@ DWE.THEME_LIST = THEME_LIST
 -- deja entendus avec Spoken (ce n'est pas un reglage).
 -- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
 DWE.OPTION_VARS = {}
-for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight CustomColors HideUI ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
+for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
@@ -7265,7 +7265,7 @@ function DWE.InitOptionsPanel()
     -- Precisions des options (infobulle au survol) : texte court a l'ecran, details ici.
     local TIP_OF = {}
     for _, k in ipairs({ "LOCK", "READ_MARKS", "BOOK_TIP_CURSOR", "BOOK_AUTOSCROLL", "QUEST_AUTO_W",
-        "THEME_BUBBLES", "SPOKEN_BUTTON", "ZONE_ART", "BUBBLE_HIGHLIGHT" }) do
+        "THEME_BUBBLES", "SPOKEN_BUTTON", "ZONE_ART", "BUBBLE_HIGHLIGHT", "BUBBLE_MODE_TYPE", "BUBBLE_MODE_PAGE" }) do
         if L[k] and L[k .. "_TIP"] then TIP_OF[L[k]] = L[k .. "_TIP"] end
     end
     -- Chaque reglage sait relire sa valeur (profil change, page remise a zero) : il se remet a
@@ -8056,21 +8056,33 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_BubbleHighlight = self:GetChecked() and true or nil
         if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end
     end), spokenOn)
+    -- Affichage de la bulle quand une voix lit : ecriture progressive (par defaut) ou page entiere
+    -- (tout le texte d'un coup, le mot lu en couleur, comme le narrateur de Spoken).
+    local modeLbl = AddText(L.BUBBLE_MODE, 36, y - 378, "GameFontHighlightSmall")
+    local modeBoxes = AddGroup({
+        { id = "type", label = L.BUBBLE_MODE_TYPE },
+        { id = "page", label = L.BUBBLE_MODE_PAGE },
+    }, 300, y - 374, 26, function() return DialogueWheelE_BubbleMode == "page" and "page" or "type" end, function(id)
+        DialogueWheelE_BubbleMode = (id == "page") and "page" or nil
+        if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end
+    end, 1, 160)
+    for _, cb in ipairs(modeBoxes) do Grey(cb, spokenOn) end
+    if modeLbl.SetAlpha then modeLbl:SetAlpha(spokenOn and 1 or 0.5) end
     -- Page tournee a la main dans un livre lu par Spoken : la voix reprend a cette page.
-    Grey(AddCheck(L.BOOK_VOICE_TURN, 16, y - 374, function() return DialogueWheelE_BookVoiceTurn == true end, function(self)
+    Grey(AddCheck(L.BOOK_VOICE_TURN, 16, y - 402, function() return DialogueWheelE_BookVoiceTurn == true end, function(self)
         DialogueWheelE_BookVoiceTurn = self:GetChecked() and true or nil
     end), spokenOn)
     -- Livre ferme : Spoken arrete de le lire (decoche par defaut : la lecture continue).
-    Grey(AddCheck(L.BOOK_STOP_CLOSE, 16, y - 400, function() return DialogueWheelE_BookStopOnClose == true end, function(self)
+    Grey(AddCheck(L.BOOK_STOP_CLOSE, 16, y - 428, function() return DialogueWheelE_BookStopOnClose == true end, function(self)
         DialogueWheelE_BookStopOnClose = self:GetChecked() and true or nil
     end), spokenOn)
     -- Illustration du lieu au-dessus de la petite fenetre de Spoken (narrations de Spoken Places).
-    Grey(AddCheck(L.ZONE_ART, 16, y - 426, function() return DialogueWheelE_ZoneArt ~= false end, function(self)
+    Grey(AddCheck(L.ZONE_ART, 16, y - 454, function() return DialogueWheelE_ZoneArt ~= false end, function(self)
         DialogueWheelE_ZoneArt = self:GetChecked() and true or false
         if DWE.ZoneArtRefresh then DWE.ZoneArtRefresh() end
     end), spokenOn)
     -- Bord de papier peint dans l'illustration (decoche : la scene seule, dans le fond du theme).
-    Grey(AddCheck(L.ZONE_ART_PAPER, 36, y - 452, function() return DialogueWheelE_ZoneArtPaper == true end, function(self)
+    Grey(AddCheck(L.ZONE_ART_PAPER, 36, y - 480, function() return DialogueWheelE_ZoneArtPaper == true end, function(self)
         DialogueWheelE_ZoneArtPaper = self:GetChecked() and true or nil
         if DWE.ZoneArtRefresh then DWE.ZoneArtRefresh() end
     end), spokenOn)
@@ -8132,7 +8144,7 @@ function DWE.InitOptionsPanel()
     -- Une ligne par action, avec une liste deroulante du jeu (souris et manette). Changer de
     -- profil, copier ou supprimer demande confirmation ; le profil des nouveaux personnages
     -- change tout de suite.
-    local py = y - 484
+    local py = y - 512
     local profilesPage = NewPage(L.SEC_PROFILES, py)
     AddSection(L.SEC_PROFILES, py)
     local rows = {}
@@ -8282,7 +8294,7 @@ function DWE.InitOptionsPanel()
             "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos" },
         { "AttachNPC", "Locked", "WheelSide", "QuestAuto", "QuestWidth", "NPCOffset", "Pos", "TextPos", "WheelWidth", "TextW", "TextH", "BubbleWidth" },
         { "UseBlizzKey", "InteractKey", "ToggleKey", "EscClose", "WheelScroll", "GamePad", "PadTips", "PadFreeLook" },
-        { "SpokenTheme", "SpokenSkin", "BookSkin", "PlateSkin", "PlaceSkin", "SpokenButton", "ShowText", "SpokenSmart", "BubbleHighlight",
+        { "SpokenTheme", "SpokenSkin", "BookSkin", "PlateSkin", "PlaceSkin", "SpokenButton", "ShowText", "SpokenSmart", "BubbleHighlight", "BubbleMode",
             "BookVoiceTurn", "BookStopOnClose", "ZoneArt", "ZoneArtPaper" },
     }
     for k, pg in ipairs(pages) do
