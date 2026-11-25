@@ -17,6 +17,15 @@ local FADE_LETTERS = 10        -- nombre de lettres en cours d'apparition (fondu
 -- Lettres 1..n nettes, les FADE_LETTERS suivantes en fondu.
 local function GradientAt(fs, n, fade)
     fs:SetAlphaGradient(n, fade or FADE_LETTERS)
+    -- /storytale fluide : journal detaille de chaque changement d'affichage (/storytale fluide voir)
+    local tr = DWE.fluidTrace
+    if tr and DWE.fluidLog and fs == DWE.bubbleTextFS and (n ~= tr.n or fade ~= tr.f) and #tr < 3000 then
+        tr.n, tr.f = n, fade
+        local st, g = DWE.bubbleState, DWE.bubbleState and DWE.bubbleState.genDbg
+        tr[#tr + 1] = string.format("%.2f n=%d fondu=%s ecrit=%.1f voix=%.1f motsuivant=%.2f attente=%s",
+            (GetTime and GetTime() or 0) - (tr.t0 or 0), n, tostring(fade), g and g.pos or -1, g and g.target or -1,
+            g and g.next or -1, tostring(st and st.genWaitAt))
+    end
 end
 local READ_PER_CHAR, READ_MIN, READ_MAX = 0.05, 2, 8 -- temps de lecture apres ecriture
 
@@ -301,6 +310,7 @@ end
 local styleName -- style actuellement affiche
 
 local text = holder:CreateFontString(nil, "OVERLAY")
+DWE.bubbleTextFS = text
 text:SetFontObject(ChatBubbleFont or GameFontHighlight)
 text:SetJustifyH("LEFT")
 text:SetJustifyV("TOP")
@@ -1399,6 +1409,7 @@ end))
 -- (durees Spoken, durees generees, rythme moyen, sans voix).
 local fluid = {}
 DWE.bubbleFluid = fluid
+DWE.bubbleState = state
 local function FluidMode()
     if not state.voiced then return "sans voix" end
     if state.generated then return "durees generees" end
@@ -1431,6 +1442,7 @@ bubble:HookScript("OnUpdate", function(_, elapsed)
         fluid.id = state.fluidId
         fluid.raw, fluid.done, fluid.count, fluid.worst, fluid.where, fluid.still, fluid.lastN, fluid.lastI = state.raw, nil, 0, 0, nil, 0, nil, nil
         fluid.detail, fluid.dbg0 = nil, nil
+        DWE.fluidTrace = { t0 = GetTime and GetTime() or 0, who = UnitName and UnitName("npc") }
     end
     if state.phase == "reading" and state.index == #state.segs then DWE.BubbleFluidReport() return end
     if state.phase ~= "typing" or state.manual then fluid.still = 0 return end
