@@ -3512,6 +3512,47 @@ else
         DWE.SettingsChanged()
     end
 end
+if DWE.NATIVE_OPTIONS and M.nativeSettings and M.nativeSettings.Storytale_UseBlizzKey then
+    -- Page native "Touches et manette" : memes variables que l'ancienne page.
+    local S = M.nativeSettings
+    check(S.Storytale_EscClose and S.Storytale_WheelScroll and S.Storytale_GamePad, "native options: keys page settings registered")
+    local save = { DialogueWheelE_UseBlizzKey, DialogueWheelE_InteractKey, DialogueWheelE_EscClose, DialogueWheelE_WheelScroll, DialogueWheelE_GamePad }
+    local btn
+    for _, l in pairs(M.nativeLayouts or {}) do
+        for _, i in ipairs(l.inits) do if i.kind == "button" and i.label == DWE.L.KEY_CUSTOM then btn = i end end
+    end
+    check(btn ~= nil, "native options: custom key button")
+    if btn then
+        S.Storytale_UseBlizzKey:SetValue(false)
+        check(DialogueWheelE_UseBlizzKey == false, "native options: own interact key")
+        btn.data.buttonClick()
+        local f = DWE.askFrame
+        check(f and f:IsShown() and not f.yes:IsShown(), "custom key: the key dialog opens with Cancel only")
+        if f then
+            M.keys = M.keys or {}
+            f._scripts.OnKeyDown(f, "LSHIFT")
+            check(f:IsShown(), "custom key: a modifier alone is not a key")
+            f._scripts.OnKeyDown(f, "F")
+            check(DialogueWheelE_InteractKey == "F" and not f:IsShown(), "custom key: F chosen (" .. tostring(DialogueWheelE_InteractKey) .. ")")
+            check(btn.data.buttonText == "F", "custom key: button shows the new key: " .. tostring(btn.data.buttonText))
+            btn.data.buttonClick()
+            f._scripts.OnKeyDown(f, "ESCAPE")
+            check(DialogueWheelE_InteractKey == "", "custom key: Escape = no key")
+            btn.data.buttonClick()
+            f.no._scripts.OnClick(f.no)
+            check(DialogueWheelE_InteractKey == "" and not f:IsShown(), "custom key: Cancel keeps the key")
+        end
+        S.Storytale_UseBlizzKey:SetValue(true)
+        check(tostring(btn.data.buttonText):find(DWE.L.KEY_BLIZZ_TAG, 1, true), "native options: Blizzard key shown on the button")
+        S.Storytale_EscClose:SetValue(false)
+        check(DialogueWheelE_EscClose == false, "native options: Escape does not close")
+        S.Storytale_GamePad:SetValue(false)
+        check(DialogueWheelE_GamePad == false, "native options: gamepad off")
+    end
+    DialogueWheelE_UseBlizzKey, DialogueWheelE_InteractKey, DialogueWheelE_EscClose, DialogueWheelE_WheelScroll, DialogueWheelE_GamePad = unpack(save, 1, 5)
+    DWE.SettingsChanged()
+    if DWE.askFrame then DWE.askFrame:Hide() end
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end

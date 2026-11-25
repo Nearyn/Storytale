@@ -66,7 +66,11 @@ function Native.Button(layout, label, text, onClick, tip)
     local make = rawget(_G, "CreateSettingsButtonInitializer")
     if not (layout and make) then return end
     local ok, init = pcall(make, label, text, onClick, tip, true)
-    if ok and init then pcall(layout.AddInitializer, layout, init) end
+    if ok and init then pcall(layout.AddInitializer, layout, init) return init end
+end
+-- Nouveau texte d'un bouton (repris par la ligne a son prochain affichage).
+function Native.SetButtonText(init, text)
+    if type(init) == "table" and type(init.data) == "table" then init.data.buttonText = text end
 end
 
 function Native.Header(layout, text)
@@ -195,12 +199,68 @@ local function BuildBooks(parent)
     return cat
 end
 
+---------------------------------------------------------------------------- Touches et manette
+local function BuildKeys(parent)
+    local L = DWE.L
+    local cat, layout = Settings.RegisterVerticalLayoutSubcategory(parent, L.CAT_KEYS .. " (2)")
+    if not cat then return end
+    local Label = DWE.KeyLabel or function(k) return (k and k ~= "") and k or "-" end
+    local keyInit
+    local function KeyText()
+        if DialogueWheelE_UseBlizzKey ~= false then
+            return Label(DWE.GetEffectiveInteractKey and DWE.GetEffectiveInteractKey()) .. (L.KEY_BLIZZ_TAG or "")
+        end
+        return Label(DialogueWheelE_InteractKey)
+    end
+    local _, blizzInit = Native.Check(cat, "UseBlizzKey", L.KEY_USE_BLIZZ, Tip("KEY_USE_BLIZZ"), true,
+        function() return DialogueWheelE_UseBlizzKey ~= false end,
+        function(v)
+            DialogueWheelE_UseBlizzKey = v and true or false
+            Native.SetButtonText(keyInit, KeyText())
+            if DWE.RefreshBindings then DWE.RefreshBindings() end
+            if DWE.SettingsChanged then DWE.SettingsChanged() end
+        end)
+    -- Touche dediee : une fenetre attend la touche (Echap = aucune).
+    keyInit = Native.Button(layout, L.KEY_CUSTOM, KeyText(), function()
+        if DialogueWheelE_UseBlizzKey ~= false or not DWE.AskKey then return end
+        DWE.AskKey(L.KEY_CUSTOM, DialogueWheelE_InteractKey, function(k)
+            DialogueWheelE_InteractKey = k
+            Native.SetButtonText(keyInit, KeyText())
+        end)
+    end)
+    Native.DependsOn(keyInit, blizzInit, function() return DialogueWheelE_UseBlizzKey == false end)
+    Native.Check(cat, "EscClose", L.ESC_CLOSE, Tip("ESC_CLOSE"), true,
+        function() return DialogueWheelE_EscClose ~= false end,
+        function(v) DialogueWheelE_EscClose = v and true or false end)
+    Native.Check(cat, "WheelScroll", L.WHEEL_SCROLL, Tip("WHEEL_SCROLL"), true,
+        function() return DialogueWheelE_WheelScroll ~= false end,
+        function(v)
+            DialogueWheelE_WheelScroll = v and true or false
+            if DWE.RefreshBindings then DWE.RefreshBindings() end
+        end)
+    Native.Header(layout, L.SEC_PAD)
+    -- Les lignes d'aide de l'ancienne page vont dans l'infobulle (pas de texte libre ici).
+    local help = {}
+    for _, k in ipairs({ "PAD_HELP1", "PAD_HELP2", "PAD_HELP4", "PAD_HELP3" }) do
+        if L[k] then help[#help + 1] = L[k] end
+    end
+    Native.Check(cat, "GamePad", L.PAD_USE, table.concat(help, "\n\n"), true,
+        function() return DialogueWheelE_GamePad ~= false end,
+        function(v)
+            DialogueWheelE_GamePad = v and true or false
+            if DWE.RefreshBindings then DWE.RefreshBindings() end
+        end)
+    Native.keys = cat
+    return cat
+end
+
 -- Appele une fois les anciennes pages creees (DWE.InitOptionsPanel).
 function DWE.BuildNativeOptions(parent)
     if Native.built or not parent or not Supported() then return end
     Native.built = true
     pcall(BuildBooks, parent)
     pcall(BuildPlacement, parent)
+    pcall(BuildKeys, parent)
 end
 
 DWE.NativeRefresh = function() Native.Refresh() end

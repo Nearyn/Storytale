@@ -283,7 +283,10 @@ function M.Install(locale)
             return { Add = function(_, v, l) data[#data + 1] = { value = v, label = l } end, GetData = function() return data end }
         end,
     }
-    _G.CreateSettingsButtonInitializer = function(label, text, onClick) return { kind = "button", label = label, text = text, onClick = onClick } end
+    _G.CreateSettingsButtonInitializer = function(label, text, onClick, tip)
+        return { kind = "button", label = label, text = text, onClick = onClick,
+            data = { name = label, buttonText = text, buttonClick = onClick, tooltip = tip } }
+    end
     _G.CreateSettingsListSectionHeaderInitializer = function(text) return { kind = "header", text = text } end
     _G.GetItemQualityColor = function() return 1, 1, 1 end
     _G.C_Item = { GetItemInfo = function() return nil end, GetItemCount = function() return 0 end }

@@ -7028,6 +7028,7 @@ local MODIFIER_KEYS = { LSHIFT = true, RSHIFT = true, LCTRL = true, RCTRL = true
 local function KeyLabel(key)
     return (key and key ~= "") and key or L.KEY_NONE
 end
+DWE.KeyLabel = KeyLabel
 
 -- Themes proposes dans les options, par famille, avec leur vignette (Thumbs\*.png).
 local THEME_LIST = {
@@ -7105,7 +7106,7 @@ function DWE.Ask(opts)
         f.no:SetPoint("BOTTOMLEFT", f, "BOTTOM", 6, 16)
         local function Done(ok)
             local cb, txt = f.onAccept, f.edit:IsShown() and f.edit:GetText() or nil
-            f.onAccept = nil
+            f.onAccept, f.onKey = nil, nil
             f:Hide()
             if ok and cb then cb(txt) end
         end
@@ -7123,6 +7124,20 @@ function DWE.Ask(opts)
         f.Pick = Pick
         f:EnableKeyboard(true)
         f:SetScript("OnKeyDown", function(self, key)
+            -- Choix d'une touche : la prochaine touche pressee (avec Maj/Ctrl/Alt) ; Echap = aucune.
+            if f.onKey then
+                if self.SetPropagateKeyboardInput and not InCombatLockdown() then pcall(self.SetPropagateKeyboardInput, self, false) end
+                if MODIFIER_KEYS[key] then return end
+                local cb = f.onKey
+                f.onKey = nil
+                f:Hide()
+                if key == "ESCAPE" then
+                    cb("")
+                else
+                    cb((IsShiftKeyDown() and "SHIFT-" or "") .. (IsControlKeyDown() and "CTRL-" or "") .. (IsAltKeyDown() and "ALT-" or "") .. key)
+                end
+                return
+            end
             local mine = key == "ESCAPE" or key == "ENTER"
             if self.SetPropagateKeyboardInput and not InCombatLockdown() then pcall(self.SetPropagateKeyboardInput, self, not mine) end
             if key == "ESCAPE" then Done(false) elseif key == "ENTER" then Done(f.sel ~= 2) end
@@ -7145,6 +7160,11 @@ function DWE.Ask(opts)
     f.yes:SetText(opts.yes or YES or "Yes")
     f.no:SetText(opts.no or NO or "No")
     f.onAccept = opts.onAccept
+    f.onKey = opts.onKey
+    -- Choix d'une touche : seulement "Annuler" (la manette ne choisit pas de touche clavier).
+    f.yes:SetShown(not opts.onKey)
+    f.no:ClearAllPoints()
+    if opts.onKey then f.no:SetPoint("BOTTOM", f, "BOTTOM", 0, 16) else f.no:SetPoint("BOTTOMLEFT", f, "BOTTOM", 6, 16) end
     local th = f.text:GetStringHeight() or 14
     if opts.edit then
         f.edit:Show()
@@ -7156,11 +7176,21 @@ function DWE.Ask(opts)
         f.edit:Hide()
         f:SetHeight(100 + th)
     end
-    f.Pick(1)
+    f.Pick(opts.onKey and 2 or 1)
     f:Show()
     f:Raise()
     if opts.edit then f.edit:SetFocus() end
     return f
+end
+
+-- Choisir une touche : fenetre "Appuyez sur une touche" ; set(k) recoit la touche ("" = aucune).
+function DWE.AskKey(label, current, set)
+    local L = DWE.L
+    DWE.Ask({ text = (label or "") .. " " .. KeyLabel(current) .. "\n\n" .. (L.KEY_PRESS or ""), no = CANCEL or "Cancel",
+        onKey = function(k)
+            set(k)
+            if DWE.RefreshBindings then DWE.RefreshBindings() end
+        end })
 end
 
 -- Profils : confirmation (changer, supprimer) ou nom a saisir (nouveau, copie).
