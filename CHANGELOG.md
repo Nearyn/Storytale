@@ -1,5 +1,43 @@
 # Changelog / Journal des versions
 
+## 1.9.1
+
+**English**
+
+### Improved
+- Bubbles: the typewriter writing is now fully smooth. Storytale draws its own fade instead of the game's, which froze for a moment after each pause of the voice (e.g. "one may find…"). Same look, no more stutter.
+- Bubbles follow the voices more closely (steadier pace, pauses only on punctuation).
+- "Highlight the word being read" works with the typewriter writing too.
+- Bubbles fit their text exactly: no more empty space at the bottom.
+- Without a voice, the bubble writes a bit slower (20 letters per second), easier to read.
+- Open book: the page number shows as "(page/?)" until the last page is reached, then "(page/total)".
+
+### Fixed
+- Long books (e.g. "Translated Tale of I'lalai") no longer make the game lag, when reading or turning pages.
+- A copy of the book no longer flashes for a moment when turning some pages.
+- Library books no longer turn into troll steles (e.g. "Empires' Fall", which shares its title with a Zul'Gurub stele), and the stele look no longer sticks to the next books.
+- A book no longer follows the last NPC you talked to: it stays in place when moving the camera, keeps its size and can be dragged again.
+- A book reopened by the game while reading keeps its look and place.
+
+---
+
+**Français**
+
+### Améliorations
+- Bulles : l'écriture progressive est maintenant parfaitement fluide. Storytale dessine son propre fondu au lieu de celui du jeu, qui se figeait un instant après chaque pause de la voix (ex. « one may find… »). Même rendu, plus d'à-coups.
+- Les bulles suivent mieux les voix (rythme plus régulier, arrêts seulement à la ponctuation).
+- « Surligner le mot lu » fonctionne aussi avec l'écriture progressive.
+- Les bulles s'ajustent exactement à leur texte : plus d'espace vide en bas.
+- Sans voix, la bulle écrit un peu moins vite (20 lettres par seconde), plus agréable à lire.
+- Livre ouvert : le numéro de page s'affiche « (page/?) » tant que la dernière page n'est pas atteinte, puis « (page/total) ».
+
+### Corrections
+- Les longs livres (ex. « Translated Tale of I'lalai ») ne font plus ramer le jeu, à la lecture comme en tournant les pages.
+- Une copie du livre n'apparaît plus un instant en tournant certaines pages.
+- Les livres de bibliothèque ne deviennent plus des stèles trolles (ex. « Empires' Fall », qui porte le même titre qu'une stèle de Zul'Gurub), et l'allure de stèle ne reste plus sur les livres suivants.
+- Un livre ne suit plus le dernier PNJ à qui on a parlé : il reste en place quand on bouge la caméra, garde sa taille et se déplace de nouveau.
+- Un livre rouvert par le jeu pendant la lecture garde son allure et sa place.
+
 ## 1.9.0
 
 **English**
