@@ -1565,6 +1565,12 @@ if DWE.BookLook() == "book" then
     M.FireEvent("ITEM_TEXT_READY")
     for _ = 1, 5 do M.FlushPending() end
     check(DWE.bookLookHold == nil, "look hold cleared once the page is back")
+    -- Ferme puis rouvert aussitot par le jeu : toujours le livre ouvert.
+    M.FireEvent("ITEM_TEXT_CLOSED")
+    M.FireEvent("ITEM_TEXT_BEGIN")
+    check(DWE.BookLook() == wasLook, "book keeps its look when the game closes and reopens it at once (got " .. tostring(DWE.BookLook()) .. ")")
+    M.FireEvent("ITEM_TEXT_READY")
+    for _ = 1, 5 do M.FlushPending() end
 end
 M.FireEvent("ITEM_TEXT_CLOSED")
 M.RunTimers()

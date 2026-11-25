@@ -3596,6 +3596,8 @@ f:SetScript("OnEvent", function(_, event)
         if event ~= "ITEM_TEXT_CLOSED" and event ~= "QUEST_FINISHED" then DWE.heldWatch = nil end
         if event == "ITEM_TEXT_CLOSED" then
             DWE.bookLookHold = nil
+            -- Le jeu ferme et rouvre parfois le meme livre aussitot : on se souvient de son allure.
+            DWE.closedBook = { title = bookState.title, look = DWE.lastLook, t = GetTime and GetTime() or 0 }
             DWE.ForceBlizzBook(event)
             if bookState.reachedEnd then DWE.MarkBook(bookState.title, true) end
             DWE.bookResumeHold = nil
@@ -3672,8 +3674,10 @@ f:SetScript("OnEvent", function(_, event)
         -- le livre deja ouvert garde son allure jusqu'a la page suivante, sinon il s'affiche une
         -- image en page seule a la mauvaise taille (le "livre en double").
         -- (la fenetre peut etre deja cachee a ce moment : on se fie a la derniere allure affichee)
-        local same = DWE.bookMode and DWE.lastLook == "book"
-            and bookState.title ~= "" and bookState.title == (NonEmpty(ItemTextGetItem and ItemTextGetItem()) or "")
+        local nowTitle = NonEmpty(ItemTextGetItem and ItemTextGetItem()) or ""
+        local cb = DWE.closedBook
+        local same = DWE.bookMode and nowTitle ~= "" and DWE.lastLook == "book" and (bookState.title == nowTitle
+            or (cb and cb.title == nowTitle and cb.look == "book" and (GetTime and GetTime() or 0) - cb.t < 1.5))
         DWE.bookLookHold = same and "book" or nil
         if same and DWE.LookLog then DWE.LookLog("reouverture du meme livre : on garde le livre") end
         DWE.bookInfo = nil

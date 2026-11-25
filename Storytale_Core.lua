@@ -4651,8 +4651,8 @@ function DWE.UpdateTextPanelVisuals()
             if #DWE.lookLog < 200 then
                 local bi = DWE.bookInfo or {}
                 local okP, plate = pcall(DWE.RawPlate)
-                DWE.lookLog[#DWE.lookLog + 1] = string.format("%.2f %s -> %s | style=%s plaque=%s page=%s/%s suite=%s | %s",
-                    GetTime and GetTime() or 0, tostring(DWE.lastLook), tostring(look), tostring(DWE.BookStyleNow()),
+                DWE.lookLog[#DWE.lookLog + 1] = string.format("%.2f %s -> %s | echelle=%.2f voulue=%.2f | style=%s plaque=%s page=%s/%s suite=%s | %s",
+                    GetTime and GetTime() or 0, tostring(DWE.lastLook), tostring(look), textBox:GetScale() or 0, DWE.BookScaleWanted(), tostring(DWE.BookStyleNow()),
                     tostring(okP and plate), tostring(bi.page), tostring(bi.total), tostring(bi.hasNext),
                     (debugstack and debugstack(2, 3, 0) or ""):gsub("Interface[/\\]AddOns[/\\]", ""):gsub("\n", " < "))
             end
