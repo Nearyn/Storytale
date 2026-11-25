@@ -1115,7 +1115,9 @@ local function StartSegment(i)
     HideTails()
     HideSoft()
     HighlightReset() -- FitTo remet le texte sans couleur
-    state.fresh = true
+    -- (Ecriture de Storytale : ses lignes s'affichent des la premiere image, pas besoin
+    -- d'attendre ; sans ca, la bulle restait vide une image entre deux pages.)
+    state.fresh = not (DWE.noGradient and i > 1) or nil
     FitTo(seg, seg)
     Reveal()
 end

@@ -869,7 +869,8 @@ for _ = 1, 400 do tick(0.05); if vis() ~= fullSeen then nextStarted = true break
 check(nextStarted and vis():sub(1, #fullSeen) ~= fullSeen, "next segment starts writing")
 DWE.bubble._scripts.OnMouseUp(DWE.bubble, "LeftButton")
 local seg2 = full()
-check(vis() == seg2, "click finishes the segment instantly")
+-- (ecriture de Storytale : lignes coupees d'avance, un retour a la ligne a la place d'un espace)
+check((vis():gsub("\n", " ")) == seg2, "click finishes the segment instantly (" .. vis():gsub("\n", "|") .. ")")
 DWE.bubble._scripts.OnMouseUp(DWE.bubble, "LeftButton")
 check(full() ~= seg2, "click again goes to next segment")
 for _ = 1, 40 do DWE.bubble._scripts.OnMouseUp(DWE.bubble, "LeftButton") end
