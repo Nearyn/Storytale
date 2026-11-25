@@ -447,6 +447,8 @@ local function ApplyStyle(name)
     text:SetTextColor(tc[1], tc[2], tc[3])
     text:SetShadowOffset(st.shadow and 1 or 0, st.shadow and -1 or 0)
     bubble.fontKey = nil -- police a reappliquer
+    -- (lignes deja ecrites et bord adouci : copies du texte, a remettre a sa nouvelle couleur)
+    if DWE.BubbleRecolor then DWE.BubbleRecolor() end
 end
 
 local function Measure(fn, default)
@@ -2001,6 +2003,13 @@ function DWE.Bubble.Refit()
     end
 end
 
+function DWE.BubbleRecolor()
+    CopyLook(measure)
+    for _, t in ipairs(tails) do CopyLook(t) end
+    for _, fs in ipairs(soft.lines) do CopyLook(fs) end
+    for b = 1, 2 * SOFT_BANDS + 2 do CopyLook(SoftClip(b).fs) end
+    pcall(function() ghost:SetTextColor(text:GetTextColor()) end)
+end
 function DWE.BubbleRestyle()
     if styleName then local n = styleName; styleName = nil; pcall(ApplyStyle, n) end
 end
@@ -2009,9 +2018,6 @@ end
 function DWE.Bubble.Restyle()
     styleName = nil
     bubble.fontKey = nil
-    state.wrapKey, state.wrapText = nil, nil
-    soft.key = nil
-    for _, fs in ipairs(soft.lines) do fs:Hide() end
     DWE.Bubble.RefreshHighlight()
 end
 function DWE.Bubble.SetShown(show)
