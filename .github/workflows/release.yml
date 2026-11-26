@@ -17,6 +17,9 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      # Cle Wago (secret du depot) : sans elle, l'envoi sur Wago est simplement saute.
+      WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -65,3 +68,19 @@ jobs:
           V="${{ steps.v.outputs.version }}"
           gh release create "v$V" build/Storytale.zip \
             --title "Storytale v$V" --notes-file notes.md --target "$GITHUB_SHA" --latest
+
+      # Meme zip et meme changelog sur Wago Addons (projet aNer2062), pour WoW Forever.
+      - name: Publier sur Wago
+        if: steps.exists.outputs.skip == 'false' && env.WAGO_API_TOKEN != ''
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          PATCH=$(curl -s https://addons.wago.io/api/data/game | jq -r '.patches.forever // [] | max // empty')
+          [ -n "$PATCH" ] || PATCH="1.60.1"
+          jq -n --arg l "$V" --arg p "$PATCH" --rawfile c notes.md \
+            '{label: $l, supported_forever_patches: [$p], stability: "stable", changelog: $c}' > wago.json
+          code=$(curl -sS --retry 3 --retry-delay 10 -w "%{http_code}" -o wago_result.json \
+            -H "authorization: Bearer $WAGO_API_TOKEN" -H "accept: application/json" \
+            -F "metadata=<wago.json" -F "file=@build/Storytale.zip" \
+            "https://addons.wago.io/api/projects/aNer2062/version")
+          echo "Wago : HTTP $code (Forever $PATCH)"
+          if [ "$code" != "200" ] && [ "$code" != "201" ]; then cat wago_result.json; exit 1; fi
