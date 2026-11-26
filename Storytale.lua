@@ -676,13 +676,27 @@ local function FillItemButton(btn, info, isBestSell, suffix)
     -- Rarete pas encore connue (objet pas encore charge par le jeu) : on rafraichira.
     if quality == nil and (info.link or info.itemID) then isPending = true end
     btn.text:SetText(displayName .. (suffix or "") .. (isBestSell and COIN_ICON or ""))
+    DWE.MarkUnusable(btn, info.usable == false)
     return isPending
+end
+
+-- Objet que le personnage ne peut pas utiliser (armure, arme, classe, niveau) : icone rougie comme
+-- dans la fenetre du jeu, et nom pali, pour reperer d'un coup d'oeil ce qui ne sert a rien.
+function DWE.MarkUnusable(btn, unusable)
+    if unusable then
+        btn.icon:SetVertexColor(1, 0.15, 0.15)
+        btn.text:SetAlpha(0.55)
+    else
+        btn.icon:SetVertexColor(1, 1, 1)
+        btn.text:SetAlpha(1)
+    end
+    btn.dweUnusable = unusable or nil
 end
 
 -- Objet de la fenetre de quete ouverte ("required", "reward" ou "choice").
 local function AddQuestItemButton(btnIndex, itemType, itemIndex, anchorFrame, offsetY, isBestSell, canChoose)
     if not GetQuestItemInfo then return false end
-    local name, texture, numItems, quality, _, itemID = GetQuestItemInfo(itemType, itemIndex)
+    local name, texture, numItems, quality, isUsable, itemID = GetQuestItemInfo(itemType, itemIndex)
     if not texture and not name then return false end
     local link = GetQuestItemLink and GetQuestItemLink(itemType, itemIndex)
 
@@ -697,7 +711,7 @@ local function AddQuestItemButton(btnIndex, itemType, itemIndex, anchorFrame, of
         local hex = DWE.WheelPalette().hex
         suffix = " " .. ((have >= need) and hex.ok or hex.bad) .. "(" .. have .. "/" .. need .. ")|r"
     end
-    local pending = FillItemButton(btn, { name = name, texture = texture, numItems = numItems, quality = quality, link = link, itemID = tonumber(itemID) }, isBestSell, suffix)
+    local pending = FillItemButton(btn, { name = name, texture = texture, numItems = numItems, quality = quality, link = link, itemID = tonumber(itemID), usable = isUsable }, isBestSell, suffix)
     AnchorButton(btn, anchorFrame, offsetY)
     return true, pending, btn
 end
@@ -731,6 +745,7 @@ local function AddTicketButton(btnIndex, count, anchorFrame, offsetY)
     btn.count:Show()
     btn.text:SetTextColor(QualityColor(1))
     btn.text:SetText(NonEmpty(currName) or DarkmoonTicketName())
+    DWE.MarkUnusable(btn, false)
     AnchorButton(btn, anchorFrame, offsetY)
     return btn
 end
@@ -813,10 +828,10 @@ local function GetQuestLogDataForProgress(qID)
     }
     local function Collect(list, count, infoFn, kind)
         for i = 1, count do
-            local name, texture, numItems, quality, _, itemID = infoFn(i, qID)
+            local name, texture, numItems, quality, isUsable, itemID = infoFn(i, qID)
             if texture or name then
                 local link = GetQuestLogItemLink and GetQuestLogItemLink(kind, i, qID)
-                table.insert(list, { name = name, texture = texture, numItems = numItems or 1, quality = quality, link = link, itemID = itemID })
+                table.insert(list, { name = name, texture = texture, numItems = numItems or 1, quality = quality, link = link, itemID = itemID, usable = isUsable })
             end
         end
     end

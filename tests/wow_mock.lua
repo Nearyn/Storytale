@@ -336,7 +336,7 @@ function M.Install(locale)
     _G.GetNumQuestItems = function() return 1 end
     _G.GetNumQuestRewards = function() return 1 end
     _G.GetNumQuestChoices = function() return M.numChoices or 0 end
-    _G.GetQuestItemInfo = function(kind, i) return "Item " .. kind .. i, 134400, 2, 3 end
+    _G.GetQuestItemInfo = function(kind, i) return "Item " .. kind .. i, 134400, 2, 3, not (kind == "choice" and i == 2) end
     _G.GetQuestItemLink = function(kind, i) return "|Hitem:" .. i .. "|h[x]|h" end
     _G.GetRewardXP = function() return 450 end
     _G.GetRewardMoney = function() return 12345 end
