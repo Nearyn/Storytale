@@ -377,6 +377,13 @@ DWE.DUI_ART = "Interface\\AddOns\\DialogueUI\\Art\\"
 do
     local loaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
     DWE.DUI_ON = loaded and loaded("DialogueUI") and true or false
+    DWE.GW2_ON = loaded and loaded("GW2_UI") and true or false
+end
+-- Theme "GW2 UI" range apres Ambre dans la liste des options.
+function DWE.AddGw2Theme(list)
+    for i = 1, #list do
+        if list[i].id == "amber" then table.insert(list, i + 1, { id = "gw2", key = "THEME_GW2", thumb = "Gw2" }) return end
+    end
 end
 local THEME_STYLES = {
     dark = {
@@ -627,6 +634,14 @@ DWE.WHISPER_COLORS = {
         common = nil, shadow = 1,
         hex = { hdr = "|cffffd99c", body = "|cfff7ede6", num = "|cffffffff", rep = "|cffffa1a3", ok = "|cffb0ff9c", bad = "|cffff6080" },
     } },
+    -- GW2 UI : bande bleu nuit et texte blanc, dans l'esprit des bulles de GW2 UI (dessin propre a
+    -- Storytale, aucune image de GW2 UI). Propose dans la liste seulement si GW2 UI est charge.
+    gw2 = { art = "Gw2", text = { 0.96, 0.97, 0.98 }, palette = {
+        normal = { 0.90, 0.92, 0.95 }, selected = { 1, 0.82, 0.42 }, disabled = { 0.50, 0.54, 0.60 },
+        goodbye = { 0.70, 0.74, 0.80 }, goodbyeSel = { 1, 0.45, 0.45 }, dim = { 0.76, 0.80, 0.86 },
+        common = nil, shadow = 1,
+        hex = { hdr = "|cffffd16b", body = "|cfff2f4f7", num = "|cffffffff", rep = "|cffa1d2ff", ok = "|cffb0ff9c", bad = "|cffff6080" },
+    } },
 }
 -- Verre fume, Encre et or : palette par defaut, mais surbrillance or pale (couleur du nom du PNJ).
 DWE.HDR_PALETTE = {
@@ -812,7 +827,7 @@ do
         folio = { { 0.81, 0.66, 0.49 }, { 0.56, 0.40, 0.26 } }, folio_dark = { { 0.03, 0.03, 0.04 }, { 0.50, 0.50, 0.55 } },
         whisper = { { 0.15, 0.06, 0.18 }, { 0.82, 0.53, 0.88 } }, emerald = { { 0.06, 0.18, 0.07 }, { 0.53, 0.88, 0.57 } },
         ruby = { { 0.18, 0.06, 0.09 }, { 0.88, 0.53, 0.60 } }, sapphire = { { 0.06, 0.13, 0.18 }, { 0.53, 0.72, 0.88 } },
-        amber = { { 0.18, 0.11, 0.06 }, { 0.88, 0.69, 0.53 } }, bubble_fantasy = { { 0.87, 0.77, 0.58 }, { 0.30, 0.18, 0.08 } },
+        amber = { { 0.18, 0.11, 0.06 }, { 0.88, 0.69, 0.53 } }, gw2 = { { 0.10, 0.17, 0.25 }, { 0.90, 0.92, 0.95 } }, bubble_fantasy = { { 0.87, 0.77, 0.58 }, { 0.30, 0.18, 0.08 } },
     }
     function DWE.CustomFromTheme(id)
         local f = FROM[id]
@@ -1611,7 +1626,7 @@ end
 -- Couleur du texte Spoken pour chaque theme de DWE : 2 = texte clair, 1 = texte fonce.
 local SPOKEN_PALETTE_OF = {
     transparent = 2, dark = 2, parchment_dark = 2, dui_dark = 2, folio_dark = 2, bubble = 2, bubble_fantasy = 1,
-    whisper = 2, emerald = 2, ruby = 2, sapphire = 2, amber = 2, glass = 2, halo = 2, inkgold = 2, cinema = 2,
+    whisper = 2, emerald = 2, ruby = 2, sapphire = 2, amber = 2, gw2 = 2, glass = 2, halo = 2, inkgold = 2, cinema = 2,
     parchment = 1, dui_brown = 1, folio = 1, velin = 1, arcane = 1, sylvan = 1, starry = 2,
 }
 
@@ -1774,7 +1789,7 @@ end
 
 -- Pour la fenetre Spoken, les bulles empruntent le style d'un theme "bloc".
 local SPOKEN_STYLE_ALIAS = { bubble = "spk_bubble", bubble_npc = "spk_bubble", bubble_fantasy = "spk_fantasy", whisper = "spk_whisper",
-    emerald = "spk_emerald", ruby = "spk_ruby", sapphire = "spk_sapphire", amber = "spk_amber",
+    emerald = "spk_emerald", ruby = "spk_ruby", sapphire = "spk_sapphire", amber = "spk_amber", gw2 = "spk_gw2",
     transparent = "spk_transparent", cinema = "spk_cinema" }
 -- Style "plaque" de la matiere `mat` (petite taille : texture S, marges divisees par 2).
 local function PlateStyle(mat)
@@ -7332,6 +7347,8 @@ local THEME_LIST = {
     { id = "custom", key = "THEME_CUSTOM", thumb = "Custom" },
 }
 -- Themes DialogueUI : seulement avec DialogueUI installe (images lues dans son dossier).
+-- GW2 UI : son theme seulement s'il est charge (un profil qui l'a deja garde son theme).
+if DWE.GW2_ON then DWE.AddGw2Theme(THEME_LIST) end
 if DWE.DUI_ON then
     -- La vraie interface de DialogueUI (brun ou sombre selon ses propres options).
     THEME_LIST[#THEME_LIST + 1] = { id = "dui", key = "THEME_DUI", thumbTex = DWE.DUI_ART .. "Theme_Brown\\Parchment.png", thumbCoord = { 0.22, 0.78, 0.14, 0.34 } }

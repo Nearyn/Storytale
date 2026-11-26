@@ -37,7 +37,7 @@ end
 -- Fake DialogueUI ----------------------------------------------------------
 local duiListener, duiVignette, spokenPortraitWatcher
 if withDUI then
-    _G.C_AddOns = { IsAddOnLoaded = function(n) return n == "DialogueUI" end }
+    _G.C_AddOns = { IsAddOnLoaded = function(n) return n == "DialogueUI" or n == "GW2_UI" end }
     _G.DialogueUI_DB = { HideUI = true, BookUIEnabled = true, BookDarkenScreen = true }
     duiListener = CreateFrame("Frame")
     function duiListener:ListenEvents(state)
@@ -2560,6 +2560,14 @@ if withDUI then -- theme DialogueUI : la conversation est laissee a DialogueUI
         DialogueWheelE_Theme = "emerald"; DWE.OnThemeChanged()
         M.FireEvent("GOSSIP_SHOW")
         check(DWE.choiceBox:IsShown(), "emerald theme: wheel opens")
+        M.FireEvent("GOSSIP_CLOSED")
+        -- Theme GW2 UI : dans la liste seulement avec GW2 UI, et il s'affiche.
+        local gwListed = false
+        for _, t in ipairs(DWE.THEME_LIST) do if t.id == "gw2" then gwListed = true end end
+        check(gwListed == DWE.GW2_ON, "GW2 UI theme listed only with GW2 UI loaded")
+        DialogueWheelE_Theme = "gw2"; DWE.OnThemeChanged()
+        M.FireEvent("GOSSIP_SHOW")
+        check(DWE.choiceBox:IsShown(), "gw2 theme: wheel opens")
         M.FireEvent("GOSSIP_CLOSED")
         DialogueWheelE_Theme = oldT; DWE.OnThemeChanged()
         -- Boutons de Spoken sur le parchemin : Share les pilote.

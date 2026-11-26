@@ -556,6 +556,7 @@ for loc, list in pairs(GEM_THEMES) do
     local dest = (loc == "enUS") and enUS or T[loc]
     if dest then
         dest.THEME_EMERALD, dest.THEME_RUBY, dest.THEME_SAPPHIRE, dest.THEME_AMBER = list[1], list[2], list[3], list[4]
+        dest.THEME_GW2 = "GW2 UI" -- (nom de l'addon, le meme partout)
     end
 end
 
