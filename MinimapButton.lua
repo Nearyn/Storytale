@@ -18,8 +18,10 @@ local function PlaceButton(btn)
         local m = math.max(math.abs(x), math.abs(y))
         if m > 0 then x, y = x / m, y / m end
     end
+    btn.dwePlacing = true
     btn:ClearAllPoints()
     btn:SetPoint("CENTER", mm, "CENTER", x * w, y * h)
+    btn.dwePlacing = nil
 end
 
 local function OpenOptions()
@@ -82,27 +84,27 @@ local function Build()
         GameTooltip:Show()
     end)
     btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- C'est le bouton de Storytale : si un autre addon de mini-carte le deplace (rangement en
+    -- colonne...), il revient aussitot a la place choisie par le joueur.
+    if hooksecurefunc then
+        hooksecurefunc(btn, "SetPoint", function(self)
+            if self.dwePlacing or self.dweFixQueued then return end
+            -- (un addon qui le replace lui aussi en boucle : on cesse au bout de 20 fois par
+            -- seconde, plutot que de faire trembler le bouton)
+            local now = GetTime and GetTime() or 0
+            if now - (self.dweFixT or 0) > 1 then self.dweFixT, self.dweFixN = now, 0 end
+            self.dweFixN = (self.dweFixN or 0) + 1
+            if self.dweFixN > 20 then return end
+            self.dweFixQueued = true
+            local function Fix() self.dweFixQueued = nil; PlaceButton(self) end
+            if C_Timer and C_Timer.After then C_Timer.After(0, Fix) else Fix() end
+        end)
+    end
     PlaceButton(btn)
 end
 
--- Angle ou le bouton se trouve VRAIMENT (un autre addon de mini-carte peut l'avoir deplace sans
--- passer par notre glisser) : retenu avant de le cacher et a la deconnexion, pour qu'il revienne
--- exactement au meme endroit.
-local function RememberAngle()
-    if not (btn and btn:IsShown() and Minimap) then return end
-    local bx, by = btn:GetCenter()
-    local mx, my = Minimap:GetCenter()
-    if not (bx and by and mx and my) then return end
-    local s = (btn:GetEffectiveScale() or 1) / (Minimap:GetEffectiveScale() or 1)
-    bx, by = bx * s, by * s
-    if math.abs(bx - mx) + math.abs(by - my) < 1 then return end
-    DialogueWheelE_MinimapAngle = math.deg(math.atan2(by - my, bx - mx)) % 360
-end
-DWE.MinimapRememberAngle = RememberAngle
-
 function DWE.MinimapButtonRefresh()
     if DialogueWheelE_MinimapHide == true then
-        RememberAngle()
         if btn then btn:Hide() end
         return
     end
@@ -112,8 +114,6 @@ end
 
 local ev = CreateFrame("Frame")
 ev:RegisterEvent("PLAYER_LOGIN")
-ev:RegisterEvent("PLAYER_LOGOUT")
 ev:SetScript("OnEvent", function(_, event)
-    if event == "PLAYER_LOGOUT" then pcall(RememberAngle) return end
     pcall(DWE.MinimapButtonRefresh)
 end)
