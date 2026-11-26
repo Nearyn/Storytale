@@ -7489,6 +7489,24 @@ function DWE.OnThemeChanged()
         -- (theme Cinematique choisi ou quitte : bandes noires et interface tout de suite)
         if DWE.UpdateCinemaBars then DWE.UpdateCinemaBars() end
         if DWE.RefreshPreview then DWE.RefreshPreview() else DWE.PaintWheelTheme() end
+        -- Une police utilisee pour la premiere fois n'est chargee par le jeu qu'apres coup : le
+        -- texte de la bulle gardait parfois l'ancienne police ou l'ancienne mise en page (vu en
+        -- jeu le 27/11, theme change dialogue ouvert). On redessine encore un peu plus tard.
+        if C_Timer and C_Timer.After then
+            DWE.themeSerial = (DWE.themeSerial or 0) + 1
+            local serial = DWE.themeSerial
+            local function Again()
+                if serial ~= DWE.themeSerial or not choiceBox:IsShown() then return end
+                DWE.ApplyFont()
+                if DWE.bubble and DWE.bubble:IsShown() and DWE.Bubble and DWE.Bubble.Restyle then
+                    DWE.Bubble.Restyle()
+                    DWE.Bubble.SetShown(true)
+                end
+                if DWE.Bubble and DWE.Bubble.Refit then DWE.Bubble.Refit() end
+            end
+            C_Timer.After(0.05, Again)
+            C_Timer.After(0.3, Again)
+        end
     else
         DWE.PaintWheelTheme()
     end
