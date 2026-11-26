@@ -1334,6 +1334,12 @@ M.FireEvent("QUEST_FINISHED")
 M.numChoices = 3
 M.FireEvent("QUEST_COMPLETE")
 check(DWE.currentOptions[2 + OFF].disabled == true, "complete disabled until reward picked")
+do -- choice 2 cannot be used by the character: red icon, dimmed name (as the game's window)
+    local u, ok = {}, true
+    for i = 1, 12 do local b = DWE.GetRewardButton(i) if b:IsShown() and b.canChoose then u[b.itemIndex] = b end end
+    check(u[2] and u[2].dweUnusable == true and u[2].icon._vc[2] < 0.5, "unusable reward: icon tinted red")
+    check(u[1] and not u[1].dweUnusable and u[1].icon._vc[2] == 1, "usable reward: icon untouched")
+end
 DWE.selectedRewardIndex = 2
 DWE.OnRewardSelected()
 check(DWE.currentOptions[2 + OFF].disabled == false, "complete enabled after pick")
