@@ -85,8 +85,24 @@ local function Build()
     PlaceButton(btn)
 end
 
+-- Angle ou le bouton se trouve VRAIMENT (un autre addon de mini-carte peut l'avoir deplace sans
+-- passer par notre glisser) : retenu avant de le cacher et a la deconnexion, pour qu'il revienne
+-- exactement au meme endroit.
+local function RememberAngle()
+    if not (btn and btn:IsShown() and Minimap) then return end
+    local bx, by = btn:GetCenter()
+    local mx, my = Minimap:GetCenter()
+    if not (bx and by and mx and my) then return end
+    local s = (btn:GetEffectiveScale() or 1) / (Minimap:GetEffectiveScale() or 1)
+    bx, by = bx * s, by * s
+    if math.abs(bx - mx) + math.abs(by - my) < 1 then return end
+    DialogueWheelE_MinimapAngle = math.deg(math.atan2(by - my, bx - mx)) % 360
+end
+DWE.MinimapRememberAngle = RememberAngle
+
 function DWE.MinimapButtonRefresh()
     if DialogueWheelE_MinimapHide == true then
+        RememberAngle()
         if btn then btn:Hide() end
         return
     end
@@ -96,4 +112,8 @@ end
 
 local ev = CreateFrame("Frame")
 ev:RegisterEvent("PLAYER_LOGIN")
-ev:SetScript("OnEvent", function() pcall(DWE.MinimapButtonRefresh) end)
+ev:RegisterEvent("PLAYER_LOGOUT")
+ev:SetScript("OnEvent", function(_, event)
+    if event == "PLAYER_LOGOUT" then pcall(RememberAngle) return end
+    pcall(DWE.MinimapButtonRefresh)
+end)
