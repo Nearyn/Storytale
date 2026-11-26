@@ -3577,6 +3577,14 @@ f:SetScript("OnEvent", function(_, event)
                 or "please delete the old |cffffd200Interface\\AddOns\\DialogueWheelE|r folder (the addon is now called Storytale)."))
         end
         DWE.ApplyInstallDefaults()
+        -- Immersion remplace aussi la fenetre de dialogue : les deux ensemble s'affichent l'un sur
+        -- l'autre. Un mot dans le chat a chaque connexion, tant que les deux sont actives.
+        if loaded and loaded("Immersion") then
+            local function warn()
+                if DEFAULT_CHAT_FRAME then DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99Storytale|r: " .. L.IMMERSION_WARN) end
+            end
+            if C_Timer and C_Timer.After then C_Timer.After(6, warn) else warn() end
+        end
         -- (1.6.8) Une seule fois par compte : sans Spoken, une ligne dans le chat le fait connaitre.
         if not DialogueWheelE_SpokenTipSeen then
             local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded

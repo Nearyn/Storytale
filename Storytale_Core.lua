@@ -398,13 +398,13 @@ DWE.GW2_INSET = { 7.5, 5.5, 13, 5 } -- place des bords autour du fond (gauche, h
 function DWE.Gw2Decor(owner, layer, sub)
     local d = { list = {}, borders = {} }
     local bg = owner:CreateTexture(nil, layer or "BACKGROUND", nil, sub or -6)
-    bg:SetTexture(DWE.GW2_ART .. "background-inverted")
+    bg:SetTexture(DWE.GW2_ART .. "background-inverted.png")
     bg:SetTexCoord(0, 0.8515625, 0, 0.58203125)
     d.bg = bg
     d.list[1] = bg
     for _, p in ipairs(DWE.GW2_PIECES) do
         local t = owner:CreateTexture(nil, layer or "BACKGROUND", nil, sub or -6)
-        t:SetTexture(DWE.GW2_ART .. p[2])
+        t:SetTexture(DWE.GW2_ART .. p[2] .. ".png")
         t:SetTexCoord(p[3][1], p[3][2], p[3][3], p[3][4])
         if p[4] then t:SetWidth(p[4]) end
         if p[5] then t:SetHeight(p[5]) end
