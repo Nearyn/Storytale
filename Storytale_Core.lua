@@ -475,6 +475,29 @@ function DWE.Gw2Color(d, bgMul, edge, alpha)
     local e = edge or { 1, 1, 1 }
     for _, t in ipairs(d.borders) do t:SetVertexColor(e[1], e[2], e[3], alpha or 1) end
 end
+-- Taille d'un pixel de l'ecran en points de `frame`, et arrondi a un pixel entier.
+function DWE.PixelSize(frame)
+    local okS, es = pcall(frame.GetEffectiveScale, frame)
+    local okP, _, ph = pcall(function() return GetPhysicalScreenSize() end)
+    if okS and okP and type(es) == "number" and type(ph) == "number" and es > 0 and ph > 0 then
+        return 768 / ph / es
+    end
+    return nil
+end
+function DWE.PixelRound(frame, v)
+    local u = DWE.PixelSize(frame)
+    if not u or type(v) ~= "number" then return v end
+    return math.floor(v / u + 0.5) * u
+end
+-- La roue qui suit le PNJ : posee sur un pixel entier de l'ecran. Au milieu de deux pixels, les
+-- traits fins (bords des choix, filets) changeaient d'eclat a chaque image : ils scintillaient.
+function DWE.SnapToPixels(frame)
+    local okL, l = pcall(frame.GetLeft, frame)
+    local okT, t = pcall(frame.GetTop, frame)
+    if not (okL and okT and type(l) == "number" and type(t) == "number") then return end
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", DWE.PixelRound(frame, l), DWE.PixelRound(frame, t))
+end
 -- Theme GW2 UI dessine avec les vraies images de GW2 UI (sinon : dessin propre a Storytale).
 function DWE.Gw2Native(style)
     return style == "gw2" and DWE.GW2_ON and true or false
@@ -5701,6 +5724,7 @@ local function AnchorTo(plate)
     -- quand on tourne autour ou qu'on s'approche, car le zoom suit la camera, pas la distance.)
     local kx = f * math.min(0.7, sf)
     choiceBox:SetPoint(m == 1 and "LEFT" or "RIGHT", plate, "CENTER", m * o.wheelX * kx / ws, wy / ws)
+    DWE.SnapToPixels(choiceBox)
     if not DWE.IsCinema() then
         local tp = m == 1 and "BOTTOMRIGHT" or "BOTTOMLEFT"
         textBox:ClearAllPoints()
@@ -6635,7 +6659,7 @@ local function PositionRows()
     for i, row in ipairs(optionRows) do
         local top, h = scroll.tops[i], scroll.heights[i]
         if top and DWE.currentOptions[i] then
-            local y = -(top - scroll.px)
+            local y = DWE.PixelRound(listClip, -(top - scroll.px))
             row:ClearAllPoints()
             -- Roue a gauche du PNJ : encoches a droite et barre de defilement a gauche (miroir).
             local barGap = scroll.active and DWE.SCROLL_BAR.gap or 4

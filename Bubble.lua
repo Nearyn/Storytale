@@ -2125,10 +2125,10 @@ function DWE.Bubble.SetShown(show)
     local size = (tonumber(DialogueWheelE_FontSize) or 13) + 2
     local face = (name == "fantasy" or STYLES[name].optFont) and DWE.FontPath(DWE.ThemeFontId())
         or (ChatBubbleFont and ChatBubbleFont:GetFont()) or STANDARD_TEXT_FONT
-    -- Bulle de GW2 UI : sa police et sa taille (11, a l'echelle du monde), comme celles des PNJ autour.
+    -- Bulle de GW2 UI : sa police ; la taille reste celle de l'option "Taille de police" (a
+    -- l'echelle de GW2 UI, 11 a l'echelle du monde, le texte etait juge trop gros).
     if DWE.Gw2Native and DWE.Gw2Native(name) then
         face = UNIT_NAME_FONT or STANDARD_TEXT_FONT
-        size = math.floor(11 * DWE.Gw2Scale(bubble) * 2 + 0.5) / 2
     end
     if bubble.fontKey ~= face .. size then
         bubble.fontKey = face .. size
