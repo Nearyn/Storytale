@@ -449,12 +449,19 @@ function DWE.Gw2Place(d, rel, l, t, r, b, inset)
     d.bg:ClearAllPoints()
     d.bg:SetPoint("TOPLEFT", rel, "TOPLEFT", l, -t)
     d.bg:SetPoint("BOTTOMRIGHT", rel, "BOTTOMRIGHT", -r, b)
+    -- Bords en pixels entiers (et accroches aux pixels, comme le jeu le fait par defaut) : une
+    -- epaisseur fractionnaire changeait d'un pixel a l'autre quand la roue suivait le PNJ, et
+    -- les filets clairs scintillaient.
+    local px = 1
+    local okS, es = pcall(rel.GetEffectiveScale, rel)
+    local okP, _, ph = pcall(function() return GetPhysicalScreenSize() end)
+    if okS and okP and type(es) == "number" and type(ph) == "number" and es > 0 and ph > 0 then
+        px = 768 / ph / es -- taille d'un pixel de l'ecran, en points de `rel`
+    end
+    local function Snap(v) return math.max(1, math.floor(v / px + 0.5)) * px end
     for _, x in ipairs(d.list) do
-        if x.dweW then x:SetWidth(x.dweW * k) end
-        if x.dweH then x:SetHeight(x.dweH * k) end
-        -- (pas d'accroche aux pixels : en mouvement, les bords sautaient d'un pixel a l'autre)
-        if x.SetSnapToPixelGrid then pcall(x.SetSnapToPixelGrid, x, false) end
-        if x.SetTexelSnappingBias then pcall(x.SetTexelSnappingBias, x, 0) end
+        if x.dweW then x:SetWidth(Snap(x.dweW * k)) end
+        if x.dweH then x:SetHeight(Snap(x.dweH * k)) end
         x:Show()
     end
 end
