@@ -325,6 +325,7 @@ local function SplitArt(st, set, art)
     for _, t in pairs(set) do t:Show() end
     if set == splitEdge then p.m:Hide() end -- (pas de contour dans l'ouverture)
 end
+local gw2Decor, gw2Name -- bulle de GW2 UI (theme GW2 UI, GW2 UI installe), voir ShowGw2
 local function HideSplit()
     for _, t in pairs(split) do t:Hide() end
     for _, t in pairs(splitEdge) do t:Hide() end
@@ -376,6 +377,7 @@ function DWE.ApplyBubbleOpacity()
     for _, t in pairs(split) do t:SetAlpha(op) end
     if styleName == "custom" and DWE.Bubble and DWE.Bubble.RefreshCustom then DWE.Bubble.RefreshCustom() end
     if bubble.art then bubble.art:SetAlpha(op) end
+    if gw2Decor and gw2Name:IsShown() then DWE.Gw2Color(gw2Decor, 1, nil, op) end
     if bubble.GetBackdrop and bubble:GetBackdrop() then
         if gameArt == "fallback" then
             bubble:SetBackdropColor(0.04, 0.04, 0.05, 0.8 * op)
@@ -387,11 +389,60 @@ function DWE.ApplyBubbleOpacity()
     end
 end
 
+-- Theme GW2 UI avec GW2 UI installe : la vraie bulle de GW2 UI (ses images, sans pointe, le
+-- nom du PNJ au-dessus, a gauche), a la place de l'image de Storytale.
+local function Gw2NpcName()
+    for _, u in ipairs({ "npc", "questnpc" }) do
+        local ok, n = pcall(UnitName, u)
+        if ok and type(n) == "string" and n ~= "" then return n end
+    end
+    return ""
+end
+function DWE.BubbleGw2Name()
+    if gw2Name and gw2Name:IsShown() then gw2Name:SetText(Gw2NpcName()) end
+end
+do
+    local f = CreateFrame("Frame")
+    for _, e in ipairs({ "GOSSIP_SHOW", "QUEST_GREETING", "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE" }) do
+        pcall(f.RegisterEvent, f, e)
+    end
+    f:SetScript("OnEvent", function() DWE.BubbleGw2Name() end)
+end
+local function ShowGw2(on)
+    if on then
+        if not gw2Decor then
+            gw2Decor = DWE.Gw2Decor(bubble, "BACKGROUND", -7)
+            gw2Name = bubble:CreateFontString(nil, "OVERLAY")
+            pcall(gw2Name.SetFont, gw2Name, UNIT_NAME_FONT or STANDARD_TEXT_FONT, 10, "OUTLINE")
+            gw2Name:SetTextColor(1, 1, 1, 1)
+            gw2Name:SetJustifyH("LEFT")
+            gw2Name:SetPoint("BOTTOMLEFT", gw2Decor.bg, "TOPLEFT", 0, 0)
+        end
+        local g = DWE.GW2_INSET
+        DWE.Gw2Place(gw2Decor, bubble, g[1], g[2], g[3], g[4])
+        DWE.Gw2Color(gw2Decor, 1, nil, tonumber(DialogueWheelE_Opacity) or 1)
+        gw2Name:Show()
+        gw2Name:SetText(Gw2NpcName())
+    elseif gw2Decor then
+        DWE.Gw2Hide(gw2Decor)
+        gw2Name:Hide()
+    end
+end
+
 local function ApplyStyle(name)
     if styleName == name then return end
     styleName = name
     local st = STYLES[name]
-    if st.art then
+    local native = DWE.Gw2Native and DWE.Gw2Native(name)
+    ShowGw2(native)
+    if native then
+        bubble:SetBackdrop(nil)
+        if bubble.art then bubble.art:Hide() end
+        tail:Hide()
+        HideSplit()
+        fantasy:Hide()
+        fantasyTail:Hide()
+    elseif st.art then
         -- bulle dessinee par l'addon (texture decoupee en 9 + pointe)
         bubble:SetBackdrop(nil)
         if bubble.art then bubble.art:Hide() end
