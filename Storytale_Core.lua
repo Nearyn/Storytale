@@ -8272,7 +8272,8 @@ function DWE.InitOptionsPanel()
     -- Touches 1 a 9 : choisir directement un choix de la roue (comme DialogueUI).
     local numVisCheck
     AddCheck(L.NUMBER_KEYS or "Keys 1-9 pick a choice", 300, keysY - 56, function() return DialogueWheelE_NumberKeys ~= false end, function(self)
-        DialogueWheelE_NumberKeys = (not self:GetChecked()) and false or nil
+        -- (« (not x) and false or nil » donnait toujours nil : la case ne se decochait jamais)
+        if self:GetChecked() then DialogueWheelE_NumberKeys = nil else DialogueWheelE_NumberKeys = false end
         DWE.RefreshBindings()
         for _, cb in ipairs({ numVisCheck, DWE.numBrightCheck }) do
             if cb then if self:GetChecked() then cb:Enable() else cb:Disable() end end
@@ -8302,7 +8303,7 @@ function DWE.InitOptionsPanel()
     end
 
     ---------------------------------------------------------------- Manette
-    y = keysY - 186
+    y = keysY - 214
     AddSection(L.SEC_PAD, y)
     AddCheck(L.PAD_USE, 16, y - 32, function() return DialogueWheelE_GamePad ~= false end, function(self)
         DialogueWheelE_GamePad = self:GetChecked() and true or false
