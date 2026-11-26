@@ -1377,6 +1377,22 @@ function DWE.HideExtras(frame, hidden)
     -- la transparence de la fenetre et restait a l'ecran au-dessus de la roue.
     if frame == rawget(_G, "GossipFrame") or frame == rawget(_G, "QuestFrame") then
         DWE.HideModels(frame, hidden)
+        -- (le portrait de GW2 UI : la transparence ne suffit pas a un modele 3D, il est cache
+        -- pour de bon, et recache si GW2 UI le remontre pendant la conversation)
+        local gw = frame == rawget(_G, "GossipFrame") and rawget(_G, "GwGossipModelFrame")
+        if type(gw) == "table" and gw.Hide then
+            DWE.gwPortraitHidden = hidden or nil
+            if not gw.dweHooked and gw.HookScript then
+                gw.dweHooked = true
+                gw:HookScript("OnShow", function(self) if DWE.gwPortraitHidden then self:Hide() end end)
+            end
+            if hidden then
+                if gw:IsShown() then gw.dweWasShown = true; gw:Hide() end
+            elseif gw.dweWasShown then
+                gw.dweWasShown = nil
+                gw:Show()
+            end
+        end
     end
     -- Fenetre de livre du jeu, invisible sous le livre de Storytale : les boutons que Spoken
     -- Readables y pose (Lire / Arreter, Compendium) restaient actifs, invisibles. La navigation
