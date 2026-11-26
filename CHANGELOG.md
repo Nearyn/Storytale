@@ -1,5 +1,25 @@
 # Changelog / Journal des versions
 
+## 1.11.4
+
+**English**
+
+### New
+- GW2 UI theme (listed when GW2 UI is installed, after Amber): the NPC's bubble, the wheel choices and Spoken's player use GW2 UI's own bubbles, so Storytale's dialogues look like the bubbles of the NPCs around. The NPC's name sits above the bubble and the text is centered, like theirs. Without GW2 UI, the theme keeps a look of its own in the same spirit.
+
+### Changed
+- Immersion: when it is enabled together with Storytale, a line in the chat explains that both addons show the dialogues and that one of the two should be disabled.
+
+---
+
+**Français**
+
+### Nouveautés
+- Thème GW2 UI (proposé quand GW2 UI est installé, après Ambre) : la bulle du PNJ, les choix de la roue et le lecteur de Spoken prennent les bulles de GW2 UI, pour que les dialogues de Storytale ressemblent aux bulles des PNJ autour. Le nom du PNJ s'affiche au-dessus de la bulle et le texte est centré, comme chez GW2 UI. Sans GW2 UI, le thème garde un dessin à lui, dans le même esprit.
+
+### Changements
+- Immersion : s'il est activé en même temps que Storytale, une ligne dans le chat explique que les deux addons affichent les dialogues et qu'il faut désactiver l'un des deux.
+
 ## 1.11.3
 
 **English**
