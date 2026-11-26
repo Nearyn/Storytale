@@ -22,12 +22,13 @@ do
     -- entendues, marque-pages) et les couleurs perso restent communs a tous les profils.
     local NOT_IN_PROFILE = { CustomColors = true, CustomPresets = true, SpokenStyleChosen = true,
         RibbonSeen = true, PadTipSeen = true, SpokenTipSeen = true, RoundRibbonSeen = true, Profiles = true, PlateRestore = true,
-        SpokenHeard = true, ReadBooks = true, Bookmarks = true }
+        SpokenHeard = true, ReadBooks = true, Bookmarks = true,
+        MinimapAngle = true } -- (le bouton de la mini-carte reste a sa place, quel que soit le profil)
     local function ProfileVars()
         local list, seen = {}, {}
         local function Add(k) if not seen[k] and not NOT_IN_PROFILE[k] then seen[k] = true; list[#list + 1] = k end end
         for _, k in ipairs(DWE.OPTION_VARS or {}) do Add(k) end
-        for _, k in ipairs({ "GamePad", "PadTips", "PadFreeLook", "DUIPos", "MinimapAngle" }) do Add(k) end
+        for _, k in ipairs({ "GamePad", "PadTips", "PadFreeLook", "DUIPos" }) do Add(k) end
         return list
     end
     DWE.ProfileVars = ProfileVars
