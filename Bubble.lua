@@ -325,12 +325,17 @@ local function SplitArt(st, set, art)
     for _, t in pairs(set) do t:Show() end
     if set == splitEdge then p.m:Hide() end -- (pas de contour dans l'ouverture)
 end
+local gw2Decor, gw2Name -- bulle de GW2 UI (theme GW2 UI, GW2 UI installe), voir ShowGw2
 local function HideSplit()
     for _, t in pairs(split) do t:Hide() end
     for _, t in pairs(splitEdge) do t:Hide() end
 end
 
 local styleName -- style actuellement affiche
+-- Texte centre dans la bulle : la bulle de GW2 UI (theme GW2 UI, GW2 UI installe), comme les siennes.
+function DWE.BubbleCentered()
+    return DWE.Gw2Native and DWE.Gw2Native(styleName) or false
+end
 
 local text = holder:CreateFontString(nil, "OVERLAY")
 DWE.bubbleTextFS = text
@@ -376,6 +381,7 @@ function DWE.ApplyBubbleOpacity()
     for _, t in pairs(split) do t:SetAlpha(op) end
     if styleName == "custom" and DWE.Bubble and DWE.Bubble.RefreshCustom then DWE.Bubble.RefreshCustom() end
     if bubble.art then bubble.art:SetAlpha(op) end
+    if gw2Decor and gw2Name:IsShown() then DWE.Gw2Color(gw2Decor, 1, nil, op) end
     if bubble.GetBackdrop and bubble:GetBackdrop() then
         if gameArt == "fallback" then
             bubble:SetBackdropColor(0.04, 0.04, 0.05, 0.8 * op)
@@ -387,11 +393,72 @@ function DWE.ApplyBubbleOpacity()
     end
 end
 
+-- Theme GW2 UI avec GW2 UI installe : la vraie bulle de GW2 UI (ses images, sans pointe, le
+-- nom du PNJ au-dessus, a gauche), a la place de l'image de Storytale.
+local function Gw2NpcName()
+    for _, u in ipairs({ "npc", "questnpc" }) do
+        local ok, n = pcall(UnitName, u)
+        if ok and type(n) == "string" and n ~= "" then return n end
+    end
+    return ""
+end
+-- Nom a la taille de celui des bulles de GW2 UI : elles sont dans le monde (WorldFrame, taille 10),
+-- pas dans l'interface ; avec l'echelle d'interface reduite (GW2 UI "Pixel Perfection"), le meme
+-- 10 etait bien plus petit dans notre bulle.
+local function Gw2NameSize()
+    local size = 10
+    local okW, ws = pcall(function() return WorldFrame:GetEffectiveScale() end)
+    local okB, bs = pcall(bubble.GetEffectiveScale, bubble)
+    if okW and okB and type(ws) == "number" and type(bs) == "number" and bs > 0 then size = 10 * ws / bs end
+    if size < 6 then size = 6 elseif size > 40 then size = 40 end
+    pcall(gw2Name.SetFont, gw2Name, UNIT_NAME_FONT or STANDARD_TEXT_FONT, size, "OUTLINE")
+end
+function DWE.BubbleGw2Name()
+    if gw2Name and gw2Name:IsShown() then Gw2NameSize(); gw2Name:SetText(Gw2NpcName()) end
+end
+do
+    local f = CreateFrame("Frame")
+    for _, e in ipairs({ "GOSSIP_SHOW", "QUEST_GREETING", "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE" }) do
+        pcall(f.RegisterEvent, f, e)
+    end
+    f:SetScript("OnEvent", function() DWE.BubbleGw2Name() end)
+end
+local function ShowGw2(on)
+    if on then
+        if not gw2Decor then
+            gw2Decor = DWE.Gw2Decor(bubble, "BACKGROUND", -7)
+            gw2Name = bubble:CreateFontString(nil, "OVERLAY")
+            pcall(gw2Name.SetFont, gw2Name, UNIT_NAME_FONT or STANDARD_TEXT_FONT, 10, "OUTLINE")
+            gw2Name:SetTextColor(1, 1, 1, 1)
+            gw2Name:SetJustifyH("LEFT")
+            gw2Name:SetPoint("BOTTOMLEFT", gw2Decor.bg, "TOPLEFT", 0, 0)
+        end
+        local g = DWE.GW2_INSET
+        DWE.Gw2Place(gw2Decor, bubble, g[1], g[2], g[3], g[4])
+        DWE.Gw2Color(gw2Decor, 1, nil, tonumber(DialogueWheelE_Opacity) or 1)
+        gw2Name:Show()
+        Gw2NameSize()
+        gw2Name:SetText(Gw2NpcName())
+    elseif gw2Decor then
+        DWE.Gw2Hide(gw2Decor)
+        gw2Name:Hide()
+    end
+end
+
 local function ApplyStyle(name)
     if styleName == name then return end
     styleName = name
     local st = STYLES[name]
-    if st.art then
+    local native = DWE.Gw2Native and DWE.Gw2Native(name)
+    ShowGw2(native)
+    if native then
+        bubble:SetBackdrop(nil)
+        if bubble.art then bubble.art:Hide() end
+        tail:Hide()
+        HideSplit()
+        fantasy:Hide()
+        fantasyTail:Hide()
+    elseif st.art then
         -- bulle dessinee par l'addon (texture decoupee en 9 + pointe)
         bubble:SetBackdrop(nil)
         if bubble.art then bubble.art:Hide() end
@@ -966,8 +1033,9 @@ DWE.BubbleHideBufs = HideSoft
 -- Lignes du texte et largeur de chaque debut de ligne (mesurees une fois par texte).
 local function SoftSetup(seg)
     local w = Wrapped(seg)
-    if soft.key == state.wrapKey then return end
-    soft.key = state.wrapKey
+    local key = tostring(state.wrapKey) .. (DWE.BubbleCentered() and "|c" or "")
+    if soft.key == key then return end
+    soft.key = key
     soft.rows = {}
     local lh = state.lineH or 14
     local i, start = 0, 1
@@ -975,8 +1043,6 @@ local function SoftSetup(seg)
         i = i + 1
         local fs = SoftLine(i)
         CopyLook(fs)
-        fs:ClearAllPoints()
-        fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, -(i - 1) * lh)
         fs:SetText(line)
         fs:Hide()
         local k = 0
@@ -986,6 +1052,7 @@ local function SoftSetup(seg)
     end
     for j = i + 1, #soft.lines do soft.lines[j]:Hide() end
     -- largeurs cumulees (prefixes exacts)
+    local widest = 0
     for _, r in ipairs(soft.rows) do
         r.cum = { [0] = 0 }
         local acc, k = "", 0
@@ -994,6 +1061,17 @@ local function SoftSetup(seg)
             acc = acc .. ch
             r.cum[k] = Width(acc)
         end
+        widest = math.max(widest, r.cum[k] or 0)
+    end
+    -- Texte centre (bulle de GW2 UI) : chaque ligne decalee de la moitie de la place qui lui reste.
+    local centered = DWE.BubbleCentered()
+    local okW, tw = pcall(text.GetWidth, text)
+    local full = (okW and type(tw) == "number" and tw > widest) and tw or widest
+    for i, r in ipairs(soft.rows) do
+        r.x = centered and math.floor((full - (r.cum[r.chars] or 0)) / 2 + 0.5) or 0
+        local fs = soft.lines[i]
+        fs:ClearAllPoints()
+        fs:SetPoint("TOPLEFT", text, "TOPLEFT", r.x, r.y)
     end
     for b = 1, 2 * SOFT_BANDS + 2 do CopyLook(SoftClip(b).fs) end
     soft.sp = math.max(0, Width("a a") - Width("aa")) -- largeur d'un espace
@@ -1045,10 +1123,10 @@ local function SoftShow(pos, limit, hlAt, hlLen)
             c.f:Hide()
         else
             c.f:ClearAllPoints()
-            c.f:SetPoint("TOPLEFT", text, "TOPLEFT", x0, row.y + 2)
+            c.f:SetPoint("TOPLEFT", text, "TOPLEFT", x0 + (row.x or 0), row.y + 2)
             c.f:SetSize(x1 - x0, lh + 4)
             c.fs:ClearAllPoints()
-            c.fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, row.y)
+            c.fs:SetPoint("TOPLEFT", text, "TOPLEFT", row.x or 0, row.y)
             if c.fs:GetText() ~= shownText then c.fs:SetText(shownText) end
             c.f:SetAlpha(a)
             c.f:Show()
@@ -1074,10 +1152,10 @@ local function SoftShow(pos, limit, hlAt, hlLen)
         else
             local t = SoftColored(nxt, hlAt, hlLen)
             c.f:ClearAllPoints()
-            c.f:SetPoint("TOPLEFT", text, "TOPLEFT", s0, nxt.y + 2)
+            c.f:SetPoint("TOPLEFT", text, "TOPLEFT", s0 + (nxt.x or 0), nxt.y + 2)
             c.f:SetSize(s1 - s0, lh + 4)
             c.fs:ClearAllPoints()
-            c.fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, nxt.y)
+            c.fs:SetPoint("TOPLEFT", text, "TOPLEFT", nxt.x or 0, nxt.y)
             if c.fs:GetText() ~= t then c.fs:SetText(t) end
             c.f:SetAlpha(a)
             c.f:Show()
@@ -1983,7 +2061,7 @@ function DWE.Bubble.SetText(s)
     state.wmap, state.posW = BuildMap(state.words, state.total), nil
     -- Pas de texte : "..." affiche d'un coup, centre dans la bulle.
     state.dots = nil
-    text:SetJustifyH(#state.segs == 0 and "CENTER" or "LEFT")
+    text:SetJustifyH((#state.segs == 0 or DWE.BubbleCentered()) and "CENTER" or "LEFT")
     if #state.segs == 0 then
         state.phase = "idle"
         bubble:DWEWaitHide(false)

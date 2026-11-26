@@ -477,6 +477,25 @@ end
 
 -- Section « Interface » de la page General, et renvoi de la page des touches vers la touche
 -- Bulle / Spoken (page Spoken).
+-- (1.11.4) Immersion charge en meme temps que Storytale : les deux affichent les dialogues.
+local IMMERSION_WARN = {
+    enUS = "Immersion is also enabled: both addons show the dialogues. Disable one of the two.",
+    frFR = "Immersion est aussi activé : les deux addons affichent les dialogues. Désactivez l'un des deux.",
+    deDE = "Immersion ist ebenfalls aktiviert: Beide Addons zeigen die Dialoge an. Deaktiviere eines der beiden.",
+    esES = "Immersion también está activado: ambos addons muestran los diálogos. Desactiva uno de los dos.",
+    esMX = "Immersion también está activado: ambos addons muestran los diálogos. Desactiva uno de los dos.",
+    itIT = "Anche Immersion è attivo: entrambi gli addon mostrano i dialoghi. Disattivane uno dei due.",
+    ptBR = "O Immersion também está ativado: os dois addons mostram os diálogos. Desative um dos dois.",
+    ruRU = "Immersion тоже включён: оба аддона показывают диалоги. Отключите один из них.",
+    koKR = "Immersion도 켜져 있습니다: 두 애드온이 모두 대화를 표시합니다. 둘 중 하나를 끄세요.",
+    zhCN = "Immersion 也已启用：两个插件都会显示对话。请禁用其中一个。",
+    zhTW = "Immersion 也已啟用：兩個插件都會顯示對話。請停用其中一個。",
+}
+for loc, txt in pairs(IMMERSION_WARN) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.IMMERSION_WARN = txt end
+end
+
 local UI_EXTRA = {
     enUS = { "Interface", "The key to switch between the bubble and Spoken's narrator is set in Storytale's \"Spoken\" tab, on the left.", "Keys 1-9 pick a choice", "Numbers follow the scrolling (long lists)", "Number intensity" },
     frFR = { "Interface", "La touche pour passer de la bulle au narrateur de Spoken se règle dans l'onglet « Spoken » de Storytale, à gauche.", "Touches 1 à 9 : choisir directement", "Numéros qui suivent le défilement (longues listes)", "Intensité des numéros" },
@@ -556,6 +575,7 @@ for loc, list in pairs(GEM_THEMES) do
     local dest = (loc == "enUS") and enUS or T[loc]
     if dest then
         dest.THEME_EMERALD, dest.THEME_RUBY, dest.THEME_SAPPHIRE, dest.THEME_AMBER = list[1], list[2], list[3], list[4]
+        dest.THEME_GW2 = "GW2 UI" -- (nom de l'addon, le meme partout)
     end
 end
 

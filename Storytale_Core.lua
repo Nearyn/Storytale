@@ -377,6 +377,83 @@ DWE.DUI_ART = "Interface\\AddOns\\DialogueUI\\Art\\"
 do
     local loaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
     DWE.DUI_ON = loaded and loaded("DialogueUI") and true or false
+    DWE.GW2_ON = loaded and loaded("GW2_UI") and true or false
+end
+-- Habillage GW2 UI : les images de bulle de GW2 UI installe chez le joueur (lues dans son
+-- dossier, jamais copiees dans Storytale), posees comme GW2 UI pose les siennes : un fond et
+-- huit morceaux de bord autour. Seulement si GW2 UI est charge.
+DWE.GW2_ART = "Interface\\AddOns\\GW2_UI\\textures\\chat\\chatbubbles\\"
+DWE.GW2_PIECES = {
+    -- cle, image, coordonnees, largeur, hauteur, point, point du fond
+    { "top", "borderhori-inverted", { 0, 0.8515625, 0, 0.34375 }, nil, 5.5 },
+    { "bottom", "borderhori-inverted", { 0, 0.8515625, 0.6875, 1 }, nil, 5 },
+    { "right", "border-inverted", { 0.1484375, 0.3515625, 0, 0.58203125 }, 13, nil },
+    { "left", "border-inverted", { 0, 0.1171875, 0, 0.58203125 }, 7.5, nil },
+    { "tr", "border-inverted", { 0.484375, 0.609375, 0, 0.021484375 }, 8, 5.5, "BOTTOMLEFT", "TOPRIGHT" },
+    { "tl", "border-inverted", { 0.328125, 0.4453125, 0, 0.021484375 }, 7.5, 5.5, "BOTTOMRIGHT", "TOPLEFT" },
+    { "bl", "border-inverted", { 0.671875, 0.7890625, 0, 0.01953125 }, 7.5, 5, "TOPRIGHT", "BOTTOMLEFT" },
+    { "br", "border-inverted", { 0.828125, 1, 0, 0.01953125 }, 11, 5, "TOPLEFT", "BOTTOMRIGHT" },
+}
+DWE.GW2_INSET = { 7.5, 5.5, 13, 5 } -- place des bords autour du fond (gauche, haut, droite, bas)
+function DWE.Gw2Decor(owner, layer, sub)
+    local d = { list = {}, borders = {} }
+    local bg = owner:CreateTexture(nil, layer or "BACKGROUND", nil, sub or -6)
+    bg:SetTexture(DWE.GW2_ART .. "background-inverted.png")
+    bg:SetTexCoord(0, 0.8515625, 0, 0.58203125)
+    d.bg = bg
+    d.list[1] = bg
+    for _, p in ipairs(DWE.GW2_PIECES) do
+        local t = owner:CreateTexture(nil, layer or "BACKGROUND", nil, sub or -6)
+        t:SetTexture(DWE.GW2_ART .. p[2] .. ".png")
+        t:SetTexCoord(p[3][1], p[3][2], p[3][3], p[3][4])
+        if p[4] then t:SetWidth(p[4]) end
+        if p[5] then t:SetHeight(p[5]) end
+        local k = p[1]
+        if k == "top" then
+            t:SetPoint("BOTTOMLEFT", bg, "TOPLEFT"); t:SetPoint("BOTTOMRIGHT", bg, "TOPRIGHT")
+        elseif k == "bottom" then
+            t:SetPoint("TOPLEFT", bg, "BOTTOMLEFT"); t:SetPoint("TOPRIGHT", bg, "BOTTOMRIGHT")
+        elseif k == "right" then
+            t:SetPoint("TOPLEFT", bg, "TOPRIGHT"); t:SetPoint("BOTTOMLEFT", bg, "BOTTOMRIGHT")
+        elseif k == "left" then
+            t:SetPoint("TOPRIGHT", bg, "TOPLEFT"); t:SetPoint("BOTTOMRIGHT", bg, "BOTTOMLEFT")
+        else
+            t:SetPoint(p[6], bg, p[7])
+        end
+        d[k] = t
+        d.list[#d.list + 1] = t
+        d.borders[#d.borders + 1] = t
+    end
+    return d
+end
+-- Pose le fond a l'interieur de `rel` (marges gauche, haut, droite, bas), bords compris si
+-- les marges valent DWE.GW2_INSET.
+function DWE.Gw2Place(d, rel, l, t, r, b)
+    d.bg:ClearAllPoints()
+    d.bg:SetPoint("TOPLEFT", rel, "TOPLEFT", l, -t)
+    d.bg:SetPoint("BOTTOMRIGHT", rel, "BOTTOMRIGHT", -r, b)
+    for _, x in ipairs(d.list) do x:Show() end
+end
+function DWE.Gw2Hide(d)
+    if d then for _, x in ipairs(d.list) do x:Hide() end end
+end
+-- Couleurs : fond (multiplie), bords (teinte, comme GW2 UI teinte les siens), opacite.
+function DWE.Gw2Color(d, bgMul, edge, alpha)
+    local m = bgMul or 1
+    d.bg:SetVertexColor(m, m, m, alpha or 1)
+    local e = edge or { 1, 1, 1 }
+    for _, t in ipairs(d.borders) do t:SetVertexColor(e[1], e[2], e[3], alpha or 1) end
+end
+-- Theme GW2 UI dessine avec les vraies images de GW2 UI (sinon : dessin propre a Storytale).
+function DWE.Gw2Native(style)
+    return style == "gw2" and DWE.GW2_ON and true or false
+end
+
+-- Theme "GW2 UI" range apres Ambre dans la liste des options.
+function DWE.AddGw2Theme(list)
+    for i = 1, #list do
+        if list[i].id == "amber" then table.insert(list, i + 1, { id = "gw2", key = "THEME_GW2", thumb = "Gw2" }) return end
+    end
 end
 local THEME_STYLES = {
     dark = {
@@ -627,6 +704,14 @@ DWE.WHISPER_COLORS = {
         common = nil, shadow = 1,
         hex = { hdr = "|cffffd99c", body = "|cfff7ede6", num = "|cffffffff", rep = "|cffffa1a3", ok = "|cffb0ff9c", bad = "|cffff6080" },
     } },
+    -- GW2 UI : bande bleu nuit et texte blanc, dans l'esprit des bulles de GW2 UI (dessin propre a
+    -- Storytale, aucune image de GW2 UI). Propose dans la liste seulement si GW2 UI est charge.
+    gw2 = { art = "Gw2", text = { 0.96, 0.97, 0.98 }, palette = {
+        normal = { 0.90, 0.92, 0.95 }, selected = { 1, 0.82, 0.42 }, disabled = { 0.50, 0.54, 0.60 },
+        goodbye = { 0.70, 0.74, 0.80 }, goodbyeSel = { 1, 0.45, 0.45 }, dim = { 0.76, 0.80, 0.86 },
+        common = nil, shadow = 1,
+        hex = { hdr = "|cffffd16b", body = "|cfff2f4f7", num = "|cffffffff", rep = "|cffa1d2ff", ok = "|cffb0ff9c", bad = "|cffff6080" },
+    } },
 }
 -- Verre fume, Encre et or : palette par defaut, mais surbrillance or pale (couleur du nom du PNJ).
 DWE.HDR_PALETTE = {
@@ -653,6 +738,7 @@ do
     end
     THEME_STYLES.spk_whisper = Gem("Whisper", WHEEL_WHISPER.hex)
     for id, c in pairs(DWE.WHISPER_COLORS) do THEME_STYLES["spk_" .. id] = Gem(c.art, c.palette.hex) end
+    THEME_STYLES.spk_gw2.gw2native = true
     THEME_STYLES.spk_fantasy = {
         tex = ADDON_PATH .. "BubbleFantasy.png", slice = { 24, 24, 24, 24 }, pad = { 22, 18, 22, 18 },
         tint = { 1, 1, 1, 1 }, div = { 0.40, 0.22, 0.08, 0.45 },
@@ -812,7 +898,7 @@ do
         folio = { { 0.81, 0.66, 0.49 }, { 0.56, 0.40, 0.26 } }, folio_dark = { { 0.03, 0.03, 0.04 }, { 0.50, 0.50, 0.55 } },
         whisper = { { 0.15, 0.06, 0.18 }, { 0.82, 0.53, 0.88 } }, emerald = { { 0.06, 0.18, 0.07 }, { 0.53, 0.88, 0.57 } },
         ruby = { { 0.18, 0.06, 0.09 }, { 0.88, 0.53, 0.60 } }, sapphire = { { 0.06, 0.13, 0.18 }, { 0.53, 0.72, 0.88 } },
-        amber = { { 0.18, 0.11, 0.06 }, { 0.88, 0.69, 0.53 } }, bubble_fantasy = { { 0.87, 0.77, 0.58 }, { 0.30, 0.18, 0.08 } },
+        amber = { { 0.18, 0.11, 0.06 }, { 0.88, 0.69, 0.53 } }, gw2 = { { 0.10, 0.17, 0.25 }, { 0.90, 0.92, 0.95 } }, bubble_fantasy = { { 0.87, 0.77, 0.58 }, { 0.30, 0.18, 0.08 } },
     }
     function DWE.CustomFromTheme(id)
         local f = FROM[id]
@@ -946,6 +1032,17 @@ function PaintThemeParts(parts, content, divAnchor, id)
         border:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 14 })
         border:SetBackdropBorderColor(unpack(cfg.border))
         border:Show()
+        return cfg
+    end
+    -- GW2 UI installe : ses propres images de bulle (lecteur Spoken, cadres).
+    if cfg.gw2native and DWE.GW2_ON then
+        if not parts.gw2 then
+            parts.gw2 = DWE.Gw2Decor(parts.border:GetParent(), "BACKGROUND", -6)
+            for _, t in ipairs(parts.gw2.list) do parts.list[#parts.list + 1] = t end
+        end
+        local pl, pt, pr, pb = unpack(cfg.pad)
+        DWE.Gw2Place(parts.gw2, content, -pl + DWE.GW2_INSET[1], -pt + DWE.GW2_INSET[2], -pr + DWE.GW2_INSET[3], -pb + DWE.GW2_INSET[4])
+        DWE.Gw2Color(parts.gw2, 1, nil, op)
         return cfg
     end
     -- Bulle de discussion du jeu (theme Bulle d'Azeroth) : son cadre "ChatBubble" si le jeu l'a,
@@ -1611,7 +1708,7 @@ end
 -- Couleur du texte Spoken pour chaque theme de DWE : 2 = texte clair, 1 = texte fonce.
 local SPOKEN_PALETTE_OF = {
     transparent = 2, dark = 2, parchment_dark = 2, dui_dark = 2, folio_dark = 2, bubble = 2, bubble_fantasy = 1,
-    whisper = 2, emerald = 2, ruby = 2, sapphire = 2, amber = 2, glass = 2, halo = 2, inkgold = 2, cinema = 2,
+    whisper = 2, emerald = 2, ruby = 2, sapphire = 2, amber = 2, gw2 = 2, glass = 2, halo = 2, inkgold = 2, cinema = 2,
     parchment = 1, dui_brown = 1, folio = 1, velin = 1, arcane = 1, sylvan = 1, starry = 2,
 }
 
@@ -1774,7 +1871,7 @@ end
 
 -- Pour la fenetre Spoken, les bulles empruntent le style d'un theme "bloc".
 local SPOKEN_STYLE_ALIAS = { bubble = "spk_bubble", bubble_npc = "spk_bubble", bubble_fantasy = "spk_fantasy", whisper = "spk_whisper",
-    emerald = "spk_emerald", ruby = "spk_ruby", sapphire = "spk_sapphire", amber = "spk_amber",
+    emerald = "spk_emerald", ruby = "spk_ruby", sapphire = "spk_sapphire", amber = "spk_amber", gw2 = "spk_gw2",
     transparent = "spk_transparent", cinema = "spk_cinema" }
 -- Style "plaque" de la matiere `mat` (petite taille : texture S, marges divisees par 2).
 local function PlateStyle(mat)
@@ -6246,6 +6343,20 @@ local function SkinPill(frame, style, selected, tail)
         t:SetAlpha(tonumber(DialogueWheelE_Opacity) or 1)
         t:Show()
     end
+    -- GW2 UI installe : chaque choix dans une vraie bulle de GW2 UI (sans encoche, comme elles).
+    if DWE.Gw2Native(style) then
+        frame.dweTex:Hide()
+        if frame.dweEdge then frame.dweEdge:Hide() end
+        if not frame.dweGw2 then frame.dweGw2 = DWE.Gw2Decor(frame, "BACKGROUND", -6) end
+        local g = DWE.GW2_INSET
+        DWE.Gw2Place(frame.dweGw2, frame, g[1], g[2], g[3], g[4])
+        -- Surligne : bords dores (GW2 UI teinte ses bords), fond a pleine lumiere.
+        DWE.Gw2Color(frame.dweGw2, selected and 1 or 0.78, selected and { 1, 0.82, 0.42 } or nil,
+            tonumber(DialogueWheelE_Opacity) or 1)
+        frame.dweTexPath, frame.dweShape = nil, nil
+        return
+    end
+    if frame.dweGw2 then DWE.Gw2Hide(frame.dweGw2) end
     local t = frame.dweTex
     Place(t, tex[selected and "selected" or "normal"] .. suffix)
     frame.dweTexPath, frame.dweShape = t.dweTexPath, t.dweShape
@@ -7332,6 +7443,8 @@ local THEME_LIST = {
     { id = "custom", key = "THEME_CUSTOM", thumb = "Custom" },
 }
 -- Themes DialogueUI : seulement avec DialogueUI installe (images lues dans son dossier).
+-- GW2 UI : son theme seulement s'il est charge (un profil qui l'a deja garde son theme).
+if DWE.GW2_ON then DWE.AddGw2Theme(THEME_LIST) end
 if DWE.DUI_ON then
     -- La vraie interface de DialogueUI (brun ou sombre selon ses propres options).
     THEME_LIST[#THEME_LIST + 1] = { id = "dui", key = "THEME_DUI", thumbTex = DWE.DUI_ART .. "Theme_Brown\\Parchment.png", thumbCoord = { 0.22, 0.78, 0.14, 0.34 } }
