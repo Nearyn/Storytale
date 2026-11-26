@@ -6319,6 +6319,7 @@ function DWE.CursorStill()
 end
 
 local optionRows = {}
+DWE.optionRows = optionRows -- (diagnostic /storytale pixels)
 
 -- Marges du texte d'un choix : normales, ou a l'interieur d'une bulle de choix.
 local ROW_PAD = { left = 2, iconLeft = 24, top = 3, right = 2, iconTop = 4 }
@@ -6994,6 +6995,7 @@ function DWE.UpdateVisualsInner()
 
     local mirrored = DWE.WheelLeft()
     listClip:ClearAllPoints()
+    topPad = DWE.PixelRound(choiceBox, topPad) -- (choix sur des pixels entiers, voir SnapToPixels)
     listClip:SetPoint("TOPLEFT", choiceBox, "TOPLEFT", mirrored and 0 or -LIST_PAD, -topPad)
     listClip:SetPoint("TOPRIGHT", choiceBox, "TOPRIGHT", mirrored and LIST_PAD or 0, -topPad)
     listClip:SetHeight(view + (scroll.active and gap - 1 or 12))
