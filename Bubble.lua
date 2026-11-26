@@ -433,8 +433,7 @@ local function ShowGw2(on)
             gw2Name:SetJustifyH("LEFT")
             gw2Name:SetPoint("BOTTOMLEFT", gw2Decor.bg, "TOPLEFT", 0, 0)
         end
-        local g = DWE.GW2_INSET
-        DWE.Gw2Place(gw2Decor, bubble, g[1], g[2], g[3], g[4])
+        DWE.Gw2Place(gw2Decor, bubble, 0, 0, 0, 0, true)
         DWE.Gw2Color(gw2Decor, 1, nil, tonumber(DialogueWheelE_Opacity) or 1)
         gw2Name:Show()
         Gw2NameSize()

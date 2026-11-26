@@ -406,8 +406,7 @@ function DWE.Gw2Decor(owner, layer, sub)
         local t = owner:CreateTexture(nil, layer or "BACKGROUND", nil, sub or -6)
         t:SetTexture(DWE.GW2_ART .. p[2] .. ".png")
         t:SetTexCoord(p[3][1], p[3][2], p[3][3], p[3][4])
-        if p[4] then t:SetWidth(p[4]) end
-        if p[5] then t:SetHeight(p[5]) end
+        t.dweW, t.dweH = p[4], p[5]
         local k = p[1]
         if k == "top" then
             t:SetPoint("BOTTOMLEFT", bg, "TOPLEFT"); t:SetPoint("BOTTOMRIGHT", bg, "TOPRIGHT")
@@ -426,13 +425,38 @@ function DWE.Gw2Decor(owner, layer, sub)
     end
     return d
 end
--- Pose le fond a l'interieur de `rel` (marges gauche, haut, droite, bas), bords compris si
--- les marges valent DWE.GW2_INSET.
-function DWE.Gw2Place(d, rel, l, t, r, b)
+-- Echelle des bulles de GW2 UI par rapport a `frame` : elles sont dans le monde (WorldFrame), pas
+-- dans l'interface. A notre echelle (souvent reduite par GW2 UI), leurs filets faisaient moins
+-- d'un pixel et scintillaient quand la roue suivait le PNJ.
+function DWE.Gw2Scale(frame)
+    local okW, ws = pcall(function() return WorldFrame:GetEffectiveScale() end)
+    local okF, fs = pcall(frame.GetEffectiveScale, frame)
+    if okW and okF and type(ws) == "number" and type(fs) == "number" and fs > 0 then
+        local k = ws / fs
+        if k >= 0.5 and k <= 4 then return k end
+    end
+    return 1
+end
+-- Pose le fond a l'interieur de `rel` (marges gauche, haut, droite, bas ; `inset` : plus la place
+-- des bords). Les bords sont a l'echelle des bulles de GW2 UI.
+function DWE.Gw2Place(d, rel, l, t, r, b, inset)
+    local k = DWE.Gw2Scale(rel)
+    if inset then
+        local g = DWE.GW2_INSET
+        -- (marges a la taille d'origine : le fond garde sa place, les bords agrandis debordent un peu)
+        l, t, r, b = (l or 0) + g[1], (t or 0) + g[2], (r or 0) + g[3], (b or 0) + g[4]
+    end
     d.bg:ClearAllPoints()
     d.bg:SetPoint("TOPLEFT", rel, "TOPLEFT", l, -t)
     d.bg:SetPoint("BOTTOMRIGHT", rel, "BOTTOMRIGHT", -r, b)
-    for _, x in ipairs(d.list) do x:Show() end
+    for _, x in ipairs(d.list) do
+        if x.dweW then x:SetWidth(x.dweW * k) end
+        if x.dweH then x:SetHeight(x.dweH * k) end
+        -- (pas d'accroche aux pixels : en mouvement, les bords sautaient d'un pixel a l'autre)
+        if x.SetSnapToPixelGrid then pcall(x.SetSnapToPixelGrid, x, false) end
+        if x.SetTexelSnappingBias then pcall(x.SetTexelSnappingBias, x, 0) end
+        x:Show()
+    end
 end
 function DWE.Gw2Hide(d)
     if d then for _, x in ipairs(d.list) do x:Hide() end end
@@ -1041,7 +1065,7 @@ function PaintThemeParts(parts, content, divAnchor, id)
             for _, t in ipairs(parts.gw2.list) do parts.list[#parts.list + 1] = t end
         end
         local pl, pt, pr, pb = unpack(cfg.pad)
-        DWE.Gw2Place(parts.gw2, content, -pl + DWE.GW2_INSET[1], -pt + DWE.GW2_INSET[2], -pr + DWE.GW2_INSET[3], -pb + DWE.GW2_INSET[4])
+        DWE.Gw2Place(parts.gw2, content, -pl, -pt, -pr, -pb, true)
         DWE.Gw2Color(parts.gw2, 1, nil, op)
         return cfg
     end
@@ -6348,8 +6372,7 @@ local function SkinPill(frame, style, selected, tail)
         frame.dweTex:Hide()
         if frame.dweEdge then frame.dweEdge:Hide() end
         if not frame.dweGw2 then frame.dweGw2 = DWE.Gw2Decor(frame, "BACKGROUND", -6) end
-        local g = DWE.GW2_INSET
-        DWE.Gw2Place(frame.dweGw2, frame, g[1], g[2], g[3], g[4])
+        DWE.Gw2Place(frame.dweGw2, frame, 0, 0, 0, 0, true)
         -- Surligne : bords dores (GW2 UI teinte ses bords), fond a pleine lumiere.
         DWE.Gw2Color(frame.dweGw2, selected and 1 or 0.78, selected and { 1, 0.82, 0.42 } or nil,
             tonumber(DialogueWheelE_Opacity) or 1)
