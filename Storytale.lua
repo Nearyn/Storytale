@@ -3277,6 +3277,12 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
             if g then
                 Out("fond GW2 : haut " .. P(g.bg, "GetTop") .. ", bas " .. P(g.bg, "GetBottom")
                     .. " ; filet du bas : haut " .. P(g.bottom, "GetTop") .. ", bas " .. P(g.bottom, "GetBottom"))
+                local t = g.bottom
+                local okA, snap = pcall(function() return t:IsSnappingToPixelGrid() end)
+                local okB, bias = pcall(function() return t:GetTexelSnappingBias() end)
+                local okH, h = pcall(t.GetHeight, t)
+                Out("filet du bas : accroche " .. tostring(okA and snap) .. ", biais " .. tostring(okB and bias)
+                    .. ", hauteur " .. tostring(okH and h) .. " (" .. string.format("%.2f", (okH and h or 0) / (DWE.PixelSize(t) or 1)) .. " px)")
             end
         end
     elseif msg:match("^%s*bubblelog") then

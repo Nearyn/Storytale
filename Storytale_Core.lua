@@ -462,6 +462,11 @@ function DWE.Gw2Place(d, rel, l, t, r, b, inset)
     for _, x in ipairs(d.list) do
         if x.dweW then x:SetWidth(Snap(x.dweW * k)) end
         if x.dweH then x:SetHeight(Snap(x.dweH * k)) end
+        -- Accroche aux pixels demandee explicitement : la roue suit la plaque du PNJ, dont le jeu
+        -- ne donne pas la position (zone protegee) ; on ne peut donc pas caler la roue elle-meme.
+        -- Chaque morceau saute d'un pixel entier, a taille fixe : les filets ne changent plus d'eclat.
+        if x.SetSnapToPixelGrid then pcall(x.SetSnapToPixelGrid, x, true) end
+        if x.SetTexelSnappingBias then pcall(x.SetTexelSnappingBias, x, 1) end
         x:Show()
     end
 end
