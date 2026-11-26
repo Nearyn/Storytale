@@ -4633,7 +4633,7 @@ function DWE.UpdateBookBar()
         end
         if b.iconBorder then b.iconBorder:SetShown(ic ~= nil) end
         b.icon:SetSize(ic and 12 or 16, ic and 12 or 16)
-        b.text:SetText(opt.rawLabel)
+        b.text:SetText(DWE.ChoiceLabel(opt, i))
         local sel = i == DWE.selectedIndex
         if opt.disabled then
             b.text:SetTextColor(0.5, 0.5, 0.5)
@@ -6255,7 +6255,18 @@ function DWE.SetOptionIcon(t, opt)
     else t:SetTexCoord(0, 1, 0, 1) end
 end
 
-local function PaintRow(row, opt, selected, pillWidth)
+-- Libelle d'un choix, precede de son numero quand les touches 1 a 9 le choisissent (comme
+-- DialogueUI) ; pas de numero a la manette ni dans un livre.
+function DWE.ChoiceLabel(opt, i)
+    local label = opt.rawLabel or opt.label or ""
+    if i and i <= 9 and DialogueWheelE_NumberKeys ~= false and not DWE.bookMode
+        and not (DWE.PadInUse and DWE.PadInUse()) then
+        return "|cff8c8c8c" .. i .. ".|r " .. label
+    end
+    return label
+end
+
+local function PaintRow(row, opt, selected, pillWidth, index)
     local pill = DWE.WheelPillStyle()
     local pad = pill and PILL_PAD or ROW_PAD
     if opt.icon then
@@ -6271,7 +6282,7 @@ local function PaintRow(row, opt, selected, pillWidth)
         row.text:SetPoint("TOPLEFT", row, "TOPLEFT", pad.left, -pad.top)
     end
     row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -pad.right, -pad.top)
-    row.text:SetText(opt.rawLabel)
+    row.text:SetText(DWE.ChoiceLabel(opt, index))
 
     -- Bulle du choix : ajustee a son texte, pleine pour le choix surligne.
     if pill then
@@ -6620,7 +6631,7 @@ function DWE.UpdateVisualsInner()
                 local row = optionRows[i]
                 if row then
                     DWE.ChoiceFont(row.text)
-                    row.text:SetText(opt.rawLabel)
+                    row.text:SetText(DWE.ChoiceLabel(opt, i))
                     local tw = MeasureTextWidth(row.text)
                     if not tw then need = nil break end
                     need = math.max(need, (opt.icon and pad.iconLeft or pad.left) + tw + pad.right + 24)
@@ -6641,7 +6652,7 @@ function DWE.UpdateVisualsInner()
             local row = optionRows[i]
             if row then
                 DWE.ChoiceFont(row.text)
-                row.text:SetText(opt.rawLabel)
+                row.text:SetText(DWE.ChoiceLabel(opt, i))
                 local tw = MeasureTextWidth(row.text)
                 if not tw then pillWidth = full break end
                 pillWidth = math.max(pillWidth, (opt.icon and PILL_PAD.iconLeft or PILL_PAD.left) + tw + PILL_PAD.right + 4)
@@ -6681,7 +6692,7 @@ function DWE.UpdateVisualsInner()
     local yy = 0
     for i, opt in ipairs(DWE.currentOptions) do
         local row = DWE.GetRow(i)
-        PaintRow(row, opt, i == DWE.selectedIndex, pillWidth)
+        PaintRow(row, opt, i == DWE.selectedIndex, pillWidth, i)
         local h = pill and math.max(36, TextHeight(row.text, 16) + 20) or math.max(24, TextHeight(row.text, 16) + 6)
         row:SetHeight(h)
         tops[i], heights[i] = yy, h
