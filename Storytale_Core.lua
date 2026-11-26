@@ -1554,8 +1554,17 @@ function DWE.HookGW2()
     end
     if not q.dweHooked then
         q.dweHooked = true
-        q:HookScript("OnShow", function()
-            if C_Timer and C_Timer.After then C_Timer.After(0, Close) else Close() end
+        -- Sa vue s'ouvre parfois avant la roue (meme evenement) : elle restait visible une image
+        -- (cadre noir). Transparente des l'ouverture ; a l'image suivante, fermee si la roue est
+        -- la, sinon rendue visible (sans Storytale, la vue s'affiche avec une image de retard).
+        q:HookScript("OnShow", function(self)
+            if choiceBox:IsShown() then Close() return end
+            self:SetAlpha(0)
+            local function Later()
+                Close()
+                if self.fadingOut ~= true then self:SetAlpha(1) end
+            end
+            if C_Timer and C_Timer.After then C_Timer.After(0, Later) else Later() end
         end)
     end
     Close()
