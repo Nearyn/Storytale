@@ -7216,6 +7216,8 @@ function DWE.OnThemeChanged()
         DWE.UpdateVisuals()
         DWE.UpdateTextPanelVisuals()
         if DWE.Bubble and DWE.Bubble.Refit then DWE.Bubble.Refit() end
+        -- (theme Cinematique choisi ou quitte : bandes noires et interface tout de suite)
+        if DWE.UpdateCinemaBars then DWE.UpdateCinemaBars() end
         if DWE.RefreshPreview then DWE.RefreshPreview() else DWE.PaintWheelTheme() end
     else
         DWE.PaintWheelTheme()
@@ -8054,6 +8056,8 @@ function DWE.InitOptionsPanel()
     AddSection(L.SEC_UI or "Interface", y)
     AddCheck(L.HIDE_UI, 16, y - 32, function() return DialogueWheelE_HideUI == true end, function(self)
         DialogueWheelE_HideUI = self:GetChecked() and true or false
+        -- (en direct pendant une conversation : l'interface s'efface ou revient tout de suite)
+        DWE.UpdateCinemaBars()
     end)
     -- Bouton de la mini-carte (ouvre ces options).
     AddCheck(L.MINIMAP_BTN, 16, y - 62, function() return DialogueWheelE_MinimapHide ~= true end, function(self)

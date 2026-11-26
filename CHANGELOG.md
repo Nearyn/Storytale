@@ -10,6 +10,7 @@
 
 ### Fixed
 - Font and text size now apply live with a conversation open: the bubble, its text and the choices change at once.
+- "Hide UI while talking or reading" and the Cinematic theme now apply live too, with a conversation open.
 
 ---
 
@@ -21,6 +22,7 @@
 
 ### Corrections
 - La police et la taille du texte s'appliquent en direct pendant une conversation : la bulle, son texte et les choix changent aussitôt.
+- « Cacher l'interface en dialogue et en lecture » et le thème Cinématique s'appliquent aussi en direct pendant une conversation.
 
 ## 1.10.1
 

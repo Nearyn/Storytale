@@ -3581,6 +3581,20 @@ do
     end
 end
 end
+if not DWE.IS_CJK then -- Police et taille changees dialogue ouvert (police imposee en CJK)
+    local oldTheme, oldFont, oldSize, oldWT = DialogueWheelE_Theme, DialogueWheelE_Font, DialogueWheelE_FontSize, DialogueWheelE_WheelTheme
+    DialogueWheelE_Theme = "custom"; DialogueWheelE_WheelTheme = true; DialogueWheelE_Font = "friz"; DialogueWheelE_FontSize = 14
+    M.FireEvent("GOSSIP_SHOW")
+    DialogueWheelE_Font = "lora"; DWE.ApplyFont()
+    local row = DWE.GetRow(1)
+    local f1 = row and row.text:GetFont()
+    check(f1 and tostring(f1):lower():find("lora"), "live font: choice uses the new font: " .. tostring(f1))
+    local bt = DWE.bubbleTextFS or (DWE.Bubble and DWE.Bubble.Text and DWE.Bubble.Text())
+    if bt then local f2 = bt:GetFont(); check(f2 and tostring(f2):lower():find("lora"), "live font: bubble uses the new font: " .. tostring(f2)) end
+    DialogueWheelE_Theme, DialogueWheelE_Font, DialogueWheelE_FontSize, DialogueWheelE_WheelTheme = oldTheme, oldFont, oldSize, oldWT
+    DWE.ApplyFont()
+end
+
 do -- /storytale perf now : chaque fonction chronometree pendant la mesure, puis remise telle quelle
     local hadClock = rawget(_G, "debugprofilestop")
     _G.debugprofilestop = hadClock or function() return os.clock() * 1000 end

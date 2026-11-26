@@ -1996,7 +1996,10 @@ function DWE.Bubble.Refit()
     if state.phase == "typing" or state.phase == "reading" then
         local seg = state.segs[state.index]
         if seg then
-            FitTo(seg, hasGradient and seg or text:GetText())
+            -- Page deja ecrite : ses lignes etaient dessinees a l'ancienne police / taille (elles
+            -- debordaient de la bulle) ; la page entiere est remise dans le texte et remesuree.
+            if state.phase == "reading" then HideSoft() end
+            FitTo(seg, (hasGradient or state.phase == "reading") and seg or text:GetText())
             state.shownN = nil
             if state.phase == "typing" then Reveal() end
         end
