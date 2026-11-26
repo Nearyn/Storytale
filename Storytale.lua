@@ -20,7 +20,7 @@ do
     -- charge les reglages du dernier personnage joue ; a l'arrivee on y met ceux du profil du
     -- personnage, au depart on les range dans son profil. L'historique (livres lus, repliques
     -- entendues, marque-pages) et les couleurs perso restent communs a tous les profils.
-    local NOT_IN_PROFILE = { CustomColors = true, CustomPresets = true, SpokenStyleChosen = true,
+    local NOT_IN_PROFILE = { CustomPresets = true, SpokenStyleChosen = true,
         RibbonSeen = true, PadTipSeen = true, SpokenTipSeen = true, RoundRibbonSeen = true, Profiles = true, PlateRestore = true,
         SpokenHeard = true, ReadBooks = true, Bookmarks = true,
         MinimapAngle = true } -- (le bouton de la mini-carte reste a sa place, quel que soit le profil)
@@ -46,8 +46,17 @@ do
         end
         return t
     end
+    -- (Couleurs du theme Personnalise : propres a chaque profil depuis la 1.11.0. Un profil d'avant,
+    -- qui ne les a pas encore, garde celles du moment au lieu de les perdre.)
+    local KEEP_IF_MISSING = { CustomColors = true }
     local function Apply(set)
-        for _, k in ipairs(ProfileVars()) do _G["DialogueWheelE_" .. k] = Copy(set and set[k]) end
+        for _, k in ipairs(ProfileVars()) do
+            local v = set and set[k]
+            if v == nil and KEEP_IF_MISSING[k] and set and next(set) ~= nil then
+                v = rawget(_G, "DialogueWheelE_" .. k)
+            end
+            _G["DialogueWheelE_" .. k] = Copy(v)
+        end
     end
     local function CharKey()
         local name = UnitName and UnitName("player")

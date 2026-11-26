@@ -8684,7 +8684,10 @@ function DWE.InitOptionsPanel()
         end
     end
     DWE.RefreshProfilesUI = RefreshProfiles
-    AddText(L.PROFILE_HINT, 36, py - 200, "GameFontDisableSmall")
+    do
+        local hint = AddText(L.PROFILE_HINT, 36, py - 200, "GameFontDisableSmall")
+        if hint and hint.SetWidth then hint:SetWidth(560); hint:SetJustifyH("LEFT") end
+    end
     profilesPage:HookScript("OnShow", function() RefreshProfiles() end)
     RefreshProfiles()
     pages[#pages].child:SetHeight((py - 12) - (py - 210) + 30)

@@ -1,5 +1,19 @@
 # Changelog / Journal des versions
 
+## 1.11.1
+
+**English**
+
+### Fixed
+- Profiles: each profile now keeps its own Custom colours. They used to be shared by every profile, so switching profiles could show another profile's Custom theme. Saved custom themes stay shared.
+
+---
+
+**Français**
+
+### Corrections
+- Profils : chaque profil garde maintenant ses propres couleurs Personnalisé. Elles étaient communes à tous les profils, si bien qu'en changeant de profil on pouvait retrouver le thème Personnalisé d'un autre. Les thèmes perso enregistrés restent communs.
+
 ## 1.11.0
 
 **English**
