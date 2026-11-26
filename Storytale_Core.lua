@@ -1219,7 +1219,14 @@ function DWE.ApplyFont()
     local sz = tonumber(DialogueWheelE_FontSize) or 13
     SafeSetFont(textHeader, path, sz + 3)
     SafeSetFont(textBody, path, sz)
-    if textBox:IsShown() then DWE.UpdateTextPanelVisuals() end
+    -- Police ou taille changee dialogue ouvert : bulle, cadre du texte et choix suivent tout de suite.
+    if choiceBox:IsShown() then
+        DWE.UpdateVisuals()
+        DWE.UpdateTextPanelVisuals()
+        if DWE.Bubble and DWE.Bubble.Refit then DWE.Bubble.Refit() end
+    elseif textBox:IsShown() then
+        DWE.UpdateTextPanelVisuals()
+    end
 end
 
 -- Les cadres ne sont plus zoomes : leur taille se regle avec les poignees, la police avec
@@ -6259,13 +6266,31 @@ end
 -- DialogueUI) ; pas de numero a la manette ni dans un livre.
 -- Le numero prend la couleur du texte du choix, adoucie (melee a un gris moyen) : en retrait,
 -- mais accorde a chaque theme ; gris neutre si la couleur n'est pas encore connue (mesures).
+-- Numero d'un choix : son rang dans la liste (1 a 9, comme DialogueUI), ou, avec l'option
+-- « numeroter les choix a l'ecran », son rang parmi les choix visibles (les longues listes,
+-- comme celle des gardes, ont alors un numero pour chaque choix montre).
+function DWE.ChoiceNumber(i)
+    if not i or DialogueWheelE_NumberKeys == false or DWE.bookMode then return nil end
+    if DWE.PadInUse and DWE.PadInUse() then return nil end
+    local n = i
+    if DialogueWheelE_NumberVisible == true then n = i - (DWE.wheelFirst or 1) + 1 end
+    if n >= 1 and n <= 9 then return n end
+end
+function DWE.ChoiceForNumber(n)
+    if DialogueWheelE_NumberVisible == true then return (DWE.wheelFirst or 1) + n - 1 end
+    return n
+end
+
 function DWE.ChoiceLabel(opt, i, color)
     local label = opt.rawLabel or opt.label or ""
-    if i and i <= 9 and DialogueWheelE_NumberKeys ~= false and not DWE.bookMode
-        and not (DWE.PadInUse and DWE.PadInUse()) then
+    i = DWE.ChoiceNumber(i)
+    if i then
         local hex = "8c8c8c"
         if type(color) == "table" and color[1] then
-            local function c(v) return math.floor(math.max(0, math.min(1, (v or 0.5) * 0.6 + 0.2)) * 255 + 0.5) end
+            -- (option « numeros bien lisibles » : la couleur du texte telle quelle, pour la vue)
+            local k, b = 0.6, 0.2
+            if DialogueWheelE_NumberBright == true then k, b = 1, 0 end
+            local function c(v) return math.floor(math.max(0, math.min(1, (v or 0.5) * k + b)) * 255 + 0.5) end
             hex = string.format("%02x%02x%02x", c(color[1]), c(color[2]), c(color[3]))
         end
         return "|cff" .. hex .. i .. ".|r " .. label
@@ -8225,18 +8250,39 @@ function DWE.InitOptionsPanel()
         DWE.RefreshBindings()
     end)
     -- Touches 1 a 9 : choisir directement un choix de la roue (comme DialogueUI).
+    local numVisCheck
     AddCheck(L.NUMBER_KEYS or "Keys 1-9 pick a choice", 300, keysY - 56, function() return DialogueWheelE_NumberKeys ~= false end, function(self)
         DialogueWheelE_NumberKeys = (not self:GetChecked()) and false or nil
         DWE.RefreshBindings()
+        for _, cb in ipairs({ numVisCheck, DWE.numBrightCheck }) do
+            if cb then if self:GetChecked() then cb:Enable() else cb:Disable() end end
+        end
+        if choiceBox:IsShown() then DWE.UpdateVisuals() end
     end)
+    -- Sous-option : numeroter les choix a l'ecran plutot que la liste entiere (decochee par defaut).
+    numVisCheck = AddCheck(L.NUMBER_VISIBLE or "Number the choices on screen", 320, keysY - 82, function() return DialogueWheelE_NumberVisible == true end, function(self)
+        DialogueWheelE_NumberVisible = self:GetChecked() and true or nil
+        if choiceBox:IsShown() then DWE.UpdateVisuals() end
+    end)
+    -- Sous-option : numeros de la couleur du texte, sans attenuation (meilleure lisibilite).
+    local numBrightCheck
+    numBrightCheck = AddCheck(L.NUMBER_BRIGHT or "Easy-to-read numbers", 320, keysY - 108, function() return DialogueWheelE_NumberBright == true end, function(self)
+        DialogueWheelE_NumberBright = self:GetChecked() and true or nil
+        if choiceBox:IsShown() then DWE.UpdateVisuals() end
+    end)
+    DWE.numBrightCheck = numBrightCheck
+    if DialogueWheelE_NumberKeys == false then
+        if numVisCheck then numVisCheck:Disable() end
+        if numBrightCheck then numBrightCheck:Disable() end
+    end
     -- (qui cherche une touche regarde ici : la touche Bulle / Spoken est dans la page Spoken)
     if L.KEY_SPOKEN_HINT then
-        local hint = AddText(L.KEY_SPOKEN_HINT, 300, keysY - 86, "GameFontDisableSmall")
+        local hint = AddText(L.KEY_SPOKEN_HINT, 300, keysY - 138, "GameFontDisableSmall")
         if hint and hint.SetWidth then hint:SetWidth(300); hint:SetJustifyH("LEFT") end
     end
 
     ---------------------------------------------------------------- Manette
-    y = keysY - 104
+    y = keysY - 156
     AddSection(L.SEC_PAD, y)
     AddCheck(L.PAD_USE, 16, y - 32, function() return DialogueWheelE_GamePad ~= false end, function(self)
         DialogueWheelE_GamePad = self:GetChecked() and true or false
@@ -8663,7 +8709,7 @@ function DWE.InitOptionsPanel()
         { "BookStyle", "BookLook", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookTurnFX",
             "BookVoiceTurn", "BookStopOnClose", "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos" },
         { "AttachNPC", "Locked", "WheelSide", "QuestAuto", "QuestWidth", "NPCOffset", "Pos", "TextPos", "WheelWidth", "TextW", "TextH", "BubbleWidth" },
-        { "UseBlizzKey", "InteractKey", "ToggleKey", "EscClose", "WheelScroll", "NumberKeys", "GamePad", "PadTips", "PadFreeLook" },
+        { "UseBlizzKey", "InteractKey", "ToggleKey", "EscClose", "WheelScroll", "NumberKeys", "NumberVisible", "NumberBright", "GamePad", "PadTips", "PadFreeLook" },
         { "SpokenTheme", "SpokenSkin", "BookSkin", "PlateSkin", "PlaceSkin", "SpokenButton", "ShowText", "SpokenSmart", "BubbleHighlight",
             "ZoneArt", "ZoneArtPaper" },
     }

@@ -1725,9 +1725,11 @@ btnToggleText:SetScript("OnClick", function() DWE.ToggleDialogueText() end)
 for i = 1, 9 do
     local b = CreateFrame("Button", "DWE_NumBtn" .. i, UIParent)
     b:SetScript("OnClick", function()
-        local opt = DWE.currentOptions and DWE.currentOptions[i]
+        local idx = DWE.ChoiceForNumber and DWE.ChoiceForNumber(i) or i
+        local opt = DWE.currentOptions and DWE.currentOptions[idx]
         if not opt or opt.disabled or not opt.action then return end
-        DWE.selectedIndex = i
+        if DWE.ChoiceNumber and DWE.ChoiceNumber(idx) ~= i then return end
+        DWE.selectedIndex = idx
         if DWE.LagMark then DWE.LagMark(opt.rawLabel or opt.label) end
         opt.action()
     end)

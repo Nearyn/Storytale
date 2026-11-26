@@ -6,6 +6,10 @@
 
 ### New
 - Keys 1-9 (and the numpad) pick a choice directly while you talk to an NPC, like in DialogueUI. Each choice shows its number, in a soft shade of the theme's text colour. The keys go back to your action bars as soon as the conversation ends. Turn it off in Options > Keys and gamepad. (No numbers with a gamepad or in books.)
+- Two sub-options: "Number the choices on screen" (long lists such as city guards: the choices you see are always numbered 1 to 7, and the numbers follow the scrolling) and "Easy-to-read numbers" (numbers in the full text colour, for better readability). Both off by default.
+
+### Fixed
+- Font and text size now apply live with a conversation open: the bubble, its text and the choices change at once.
 
 ---
 
@@ -13,6 +17,10 @@
 
 ### Nouveautés
 - Les touches 1 à 9 (et le pavé numérique) choisissent directement une réponse pendant que vous parlez à un PNJ, comme dans DialogueUI. Chaque choix affiche son numéro, dans une teinte adoucie de la couleur du texte du thème. Les touches reviennent à vos barres d'action dès la fin de la conversation. Option à décocher dans Options > Touches et manette. (Pas de numéros à la manette ni dans les livres.)
+- Deux sous-options : « Numéroter les choix à l'écran » (longues listes comme celles des gardes : les choix visibles sont toujours numérotés de 1 à 7, et les numéros suivent le défilement) et « Numéros bien lisibles » (numéros de la couleur du texte, pour une meilleure lisibilité). Toutes deux décochées par défaut.
+
+### Corrections
+- La police et la taille du texte s'appliquent en direct pendant une conversation : la bulle, son texte et les choix changent aussitôt.
 
 ## 1.10.1
 

@@ -2041,6 +2041,8 @@ function DWE.Bubble.SetShown(show)
     if bubble.fontKey ~= face .. size then
         bubble.fontKey = face .. size
         DWE.SafeSetFont(text, face, size)
+        -- (lignes deja ecrites et bord adouci : copies du texte, a remettre a la nouvelle police)
+        if DWE.BubbleRecolor then DWE.BubbleRecolor() end
         changed = true
     end
     if changed then DWE.Bubble.Refit() end
