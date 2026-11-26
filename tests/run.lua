@@ -3624,6 +3624,30 @@ do -- Chaque reglage des options est sauvegarde (.toc ou DialogueWheelE_Extra), 
     end
 end
 
+do -- Profils : chaque profil garde son theme Personnalise (couleurs comprises), appliquees au changement
+    if DWE.ProfileCreate and DWE.ProfileSwitch and DWE.CustomRefresh then
+        local start = DWE.profile
+        DialogueWheelE_Theme = "custom"
+        DialogueWheelE_CustomColors = { bg = { 1, 0, 0 } }
+        DWE.SettingsChanged()
+        DWE.ProfileCreate("TestA", true, true); DWE.SettingsChanged()
+        DialogueWheelE_CustomColors = { bg = { 0, 0, 1 } }
+        DWE.SettingsChanged()
+        DWE.ProfileCreate("TestB", true, true); DWE.SettingsChanged()
+        DialogueWheelE_CustomColors = { bg = { 0, 1, 0 } }
+        DWE.SettingsChanged()
+        DWE.ProfileSwitch("TestA")
+        local a = DWE.CustomColor("bg")
+        check(DialogueWheelE_Theme == "custom" and a[3] == 1, "profiles: profile A back with its own custom colours: " .. tostring(DialogueWheelE_Theme) .. " " .. a[1] .. "," .. a[2] .. "," .. a[3])
+        local st = DWE.ThemeStyle and DWE.ThemeStyle("custom")
+        DWE.ProfileSwitch("TestB")
+        local b = DWE.CustomColor("bg")
+        check(b[2] == 1, "profiles: profile B back with its own custom colours: " .. b[1] .. "," .. b[2] .. "," .. b[3])
+        if start then DWE.ProfileSwitch(start) end
+        DWE.ProfileDelete("TestA", true); DWE.ProfileDelete("TestB", true)
+    end
+end
+
 do -- /storytale perf now : chaque fonction chronometree pendant la mesure, puis remise telle quelle
     local hadClock = rawget(_G, "debugprofilestop")
     _G.debugprofilestop = hadClock or function() return os.clock() * 1000 end

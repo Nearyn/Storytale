@@ -7465,9 +7465,10 @@ end
 function DWE.SettingsChanged()
     if DWE.ApplyInstallDefaults then pcall(DWE.ApplyInstallDefaults) end
     for _, f in ipairs(DWE.optionRefreshers or {}) do pcall(f) end
-    for _, name in ipairs({ "OnThemeChanged", "ApplyFont", "ApplyBubbleOpacity", "RefreshBindings", "ApplyLock",
+    -- (couleurs Personnalise d'abord : sinon le theme etait repeint avec celles du profil precedent)
+    for _, name in ipairs({ "CustomRefresh", "OnThemeChanged", "ApplyFont", "ApplyBubbleOpacity", "RefreshBindings", "ApplyLock",
         "RestorePosition", "RestoreTextPosition", "Repin", "RefreshSpoken", "ZoneArtRefresh", "MinimapButtonRefresh",
-        "RefreshBookLookOptions", "RefreshPlateLookOptions", "TextInRefresh", "CustomRefresh", "RefreshOptionsExtra",
+        "RefreshBookLookOptions", "RefreshPlateLookOptions", "TextInRefresh", "RefreshOptionsExtra",
         "RefreshProfilesUI", "NativeRefresh" }) do
         local f = DWE[name]
         if type(f) == "function" then pcall(f) end
