@@ -8305,8 +8305,8 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_ChoiceSize = v
         if DWE.choiceBox:IsShown() then DWE.UpdateVisuals() end
     end)
-    -- Affichage de la bulle : ecriture progressive (par defaut) ou page entiere (chaque page d'un
-    -- coup ; quand une voix lit, le mot lu en couleur, comme le narrateur de Spoken).
+    -- Affichage du texte : ecriture progressive (par defaut), tout d'un coup (chaque partie entiere ;
+    -- dans les bulles, quand une voix lit, le mot lu en couleur) ou avance manuelle (comme un livre).
     AddText(L.BUBBLE_MODE, 16, y - 80, "GameFontHighlightSmall")
     AddGroup({
         { id = "type", label = L.BUBBLE_MODE_TYPE },

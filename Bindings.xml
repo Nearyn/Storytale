@@ -5,4 +5,7 @@
 	<Binding name="STORYTALE_BUBBLE_NEXT" category="ADDONS">
 		if DWE and DWE.BubbleNext then DWE.BubbleNext() end
 	</Binding>
+	<Binding name="STORYTALE_BUBBLE_PREV" category="ADDONS">
+		if DWE and DWE.BubblePrev then DWE.BubblePrev() end
+	</Binding>
 </Bindings>

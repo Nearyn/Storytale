@@ -2131,10 +2131,38 @@ do
     else
         check(false, "manual pages: the test text should need several pages")
     end
+    -- Retour en arriere : clic droit ou "Texte : precedent", en avance manuelle seulement
+    check(DWE.BubblePrev() == true and st.index == 1, "manual pages: back to the previous part")
+    tick(0.05)
+    check(st.phase == "reading" and st.index == 1, "manual pages: the previous part is shown whole")
+    check(DWE.BubblePrev() == false and st.index == 1, "manual pages: nothing before the first part")
+    DWE.BubbleNext(); tick(0.05)
+    DWE.bubble._scripts.OnMouseUp(DWE.bubble, "RightButton")
+    check(st.index == 1, "manual pages: right-click goes back")
+    tick(0.05)
+    DWE.bubble._scripts.OnMouseUp(DWE.bubble, "LeftButton")
+    check(st.index == 2, "manual pages: left-click goes on")
+    DialogueWheelE_BubbleMode = "page"
+    check(DWE.BubblePrev() == false and st.index == 2, "all at once: no going back (the bubble would turn on its own)")
     DialogueWheelE_BubbleMode = nil
     check(not DWE.BubbleManualMode(), "manual pages: off by default")
     DWE.SetDialogueText("NPC", "")
     DialogueWheelE_BubbleMode, Spoken, GetTime = savedMode, savedSpoken, savedGT
+end
+-- Themes sans bulle : "Tout d'un coup" et "Avance manuelle" montrent tout le texte du cadre
+-- d'un coup, meme quand une voix de Spoken lit.
+do
+    local savedMode, savedSpoken, savedTheme, savedShow = DialogueWheelE_BubbleMode, Spoken, DialogueWheelE_Theme, DialogueWheelE_ShowText
+    DialogueWheelE_Theme, DialogueWheelE_ShowText = "dark", true
+    Spoken = { GetNowPlaying = function() return nil end, IsPaused = function() return false end }
+    for _, mode in ipairs({ "page", "manual" }) do
+        DialogueWheelE_BubbleMode = mode
+        DWE.SetDialogueText("NPC", "")
+        DWE.SetDialogueText("NPC", "A long road lies ahead of you, traveler, and the night is cold. " .. mode)
+        check((DWE.textBody._grad or 100000) >= 1000, "text box, " .. mode .. ": the whole text at once, even with Spoken")
+    end
+    DWE.SetDialogueText("NPC", "")
+    DialogueWheelE_BubbleMode, Spoken, DialogueWheelE_Theme, DialogueWheelE_ShowText = savedMode, savedSpoken, savedTheme, savedShow
 end
 Spoken = nil
 GetTime = nil

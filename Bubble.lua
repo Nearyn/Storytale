@@ -848,9 +848,10 @@ end
 -- seulement avec la case "Surligner le mot lu" de Storytale et "Highlight Words" dans Spoken
 -- (sans elles : la page entiere, sans couleur). (Avant : ecriture progressive tant que la
 -- voix n'etait pas partie, puis page entiere d'un coup : le passage se voyait.)
--- Mode "page a la main" (DialogueWheelE_BubbleMode = "manual", demande de joueur) : comme un
--- livre, la page entiere s'affiche sans aucune trace de la voix (ni ecriture, ni mot colore) et
--- reste jusqu'a ce que le joueur la tourne (clic, ou raccourci "Bulle : page suivante").
+-- Mode "avance manuelle" (DialogueWheelE_BubbleMode = "manual", demande de joueur) : comme un
+-- livre, chaque partie s'affiche entiere sans aucune trace de la voix (ni ecriture, ni mot colore)
+-- et reste jusqu'a ce que le joueur la tourne (clic gauche ou "Texte : suite") ou revienne en
+-- arriere (clic droit ou "Texte : precedent").
 -- La voix de Spoken lit toute la replique : le jeu ne sait pas reprendre un son au milieu.
 local function ManualMode()
     return DialogueWheelE_BubbleMode == "manual"
@@ -2064,15 +2065,29 @@ bubble:HookScript("OnUpdate", function(_, elapsed)
     end
 end)
 
--- Raccourci "Bulle : page suivante" (Raccourcis > AddOns > Storytale), comme un clic sur la bulle.
+-- Retour a la partie precedente : en avance manuelle seulement (dans les autres modes, la bulle
+-- repartirait seule vers l'avant).
+local function Back()
+    if not ManualMode() or state.dots or (state.index or 1) <= 1 then return false end
+    StartSegment(state.index - 1)
+    return true
+end
+
+-- Raccourcis "Texte : suite" et "Texte : precedent" (Raccourcis > AddOns > Storytale).
 function DWE.BubbleNext()
     if not bubble:IsShown() or state.phase == "idle" then return false end
     Advance()
     return true
 end
+function DWE.BubblePrev()
+    if not bubble:IsShown() or state.phase == "idle" then return false end
+    return Back()
+end
 
 bubble:SetScript("OnMouseUp", function(_, button)
-    if button == "LeftButton" and not DWE.JustDragged() then Advance() end
+    if DWE.JustDragged() then return end
+    if button == "LeftButton" then Advance()
+    elseif button == "RightButton" then Back() end
 end)
 bubble:SetScript("OnDragStart", function() DWE.DragStart("bubble") end)
 bubble:SetScript("OnDragStop", function() DWE.DragStop("bubble") end)
@@ -2275,7 +2290,10 @@ function DWE.Bubble.PopupText(s)
     pop.lastTarget, pop.tvel, pop.spd, pop.genStops, pop.genWaitAt, pop.genNextIn = nil, nil, nil, nil, nil, nil
     pop.setAt = GetTime and GetTime() or nil
     pop.len = (type(s) == "string" and not IsSecret(s)) and Utf8Len(s) or 0
-    if not popupHasGradient or not SpokenInstalled() or IsSecret(s) or pop.len == 0 then
+    -- "Tout d'un coup" et "Avance manuelle" : le cadre de texte (themes sans bulle) n'a qu'une
+    -- partie, montree entiere, sans suivre la voix.
+    local whole = DialogueWheelE_BubbleMode == "page" or DialogueWheelE_BubbleMode == "manual"
+    if whole or not popupHasGradient or not SpokenInstalled() or IsSecret(s) or pop.len == 0 then
         PopupShowAll()
         return
     end
