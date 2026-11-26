@@ -698,7 +698,46 @@ local function WordColor()
     end
     return light and HL_ON_DARK or HL_ON_LIGHT
 end
+-- API publique de Spoken (docs/spoken/API.md de Spoken) : un contrat que rusty garde stable.
+-- Les acces internes (SpokenEnv, champs prives des repliques) ne servent plus qu'en secours,
+-- pour un Spoken plus ancien que cette API.
+local function SpokenAPI()
+    local api = rawget(_G, "Spoken")
+    if type(api) ~= "table" or type(api.IsCompatible) ~= "function" then return nil end
+    local ok, yes = pcall(api.IsCompatible, api, 1)
+    return ok and yes and api or nil
+end
+DWE.SpokenAPI = SpokenAPI
+-- Sous-titre de la replique qui parle (ou en pause), seulement si c'est bien `clip` quand il est donne.
+local function SpokenCaption(clip)
+    local api = SpokenAPI()
+    if not (api and type(api.GetCaption) == "function") then return nil end
+    local ok, cap = pcall(api.GetCaption, api)
+    if not ok or type(cap) ~= "table" or type(cap.words) ~= "table" then return nil end
+    if clip ~= nil and not rawequal(cap.clip, clip) then return nil end
+    return cap
+end
+DWE.SpokenCaption = SpokenCaption
+-- Debut du son de `clip` (secondes, horloge GetTime), nil si inconnu : d'apres la part du son
+-- deja jouee (API publique), sinon d'apres le champ interne spokenAt (fin prevue du son).
+local function ClipStart(clip, length)
+    length = tonumber(length) or (type(clip) == "table" and tonumber(clip.length))
+    if not (length and length > 0) then return nil end
+    local cap = SpokenCaption(clip)
+    if cap then
+        local p = tonumber(cap.progress)
+        if p then return GetTime() - p * length end
+    end
+    local at = type(clip) == "table" and tonumber(clip.spokenAt)
+    return at and (at - length) or nil
+end
+DWE.SpokenClipStart = ClipStart
 local function SpokenHighlightWords()
+    local api = SpokenAPI()
+    if api and type(api.GetCaptionOptions) == "function" then
+        local ok, hl = pcall(api.GetCaptionOptions, api)
+        if ok then return hl == true end
+    end
     local env = rawget(_G, "SpokenEnv")
     local addon = type(env) == "table" and rawget(env, "Addon")
     if type(addon) ~= "table" then return false end
@@ -1545,23 +1584,48 @@ local function VoiceStep(st, pos, share, length, dt)
     return math.max(pos, new)
 end
 
--- Part du texte deja lue d'apres le mot courant des sous-titres de Spoken (SpokenEnv.Transcript),
+-- Part du texte deja lue d'apres le mot courant des sous-titres de Spoken (Spoken:GetCaption),
 -- nil si ce n'est pas disponible pour cette replique.
-local function WordShare(st, clip)
+-- Mot lu par Spoken pour `clip` : mots, poids total, progression et indice du mot, seulement
+-- avec les vraies durees des mots (fournies par la voix). API publique (GetCaption) d'abord,
+-- sinon l'objet interne SpokenEnv.Transcript d'un Spoken plus ancien.
+local function WordAtWeight(words, target)
+    local low, high = 1, #words
+    while low < high do
+        local mid = math.floor((low + high) / 2)
+        if (tonumber(words[mid].finish) or 0) <= target then low = mid + 1 else high = mid end
+    end
+    return low
+end
+local function SpokenWords(clip)
+    local cap = SpokenCaption(clip)
+    if cap then
+        local prog = tonumber(cap.progress)
+        if not cap.timed or not prog or #cap.words == 0 then return nil end
+        local total = tonumber(cap.totalWeight) or 0
+        return cap.words, total, prog, WordAtWeight(cap.words, prog * total)
+    end
     local env = rawget(_G, "SpokenEnv")
     local T = type(env) == "table" and rawget(env, "Transcript")
-    -- Seulement avec les vraies durees des mots (fournies par la voix) : sans elles, Spoken les
-    -- estime (un mot court y dure presque autant qu'un long), ce qui ferait hesiter l'ecriture
-    -- sur certains mots. Le rythme moyen de la voix est alors plus regulier.
     if type(T) ~= "table" or not T.timed or not rawequal(T.clip, clip) or type(T.words) ~= "table" then return nil end
-    local n, m = #T.words, st.words and #st.words or 0
-    if n == 0 or m == 0 or not (st.total and st.total > 0) then return nil end
     local okP, prog = pcall(T.GetProgress, T)
     if not okP or type(prog) ~= "number" then return nil end
     local okW, i = pcall(T.WordAt, T, prog)
-    local w = okW and type(i) == "number" and T.words[i]
+    if not okW or type(i) ~= "number" then return nil end
+    return T.words, tonumber(T.totalWeight) or 0, prog, i
+end
+DWE.SpokenWords = SpokenWords
+local function WordShare(st, clip)
+    -- Seulement avec les vraies durees des mots (fournies par la voix) : sans elles, Spoken les
+    -- estime (un mot court y dure presque autant qu'un long), ce qui ferait hesiter l'ecriture
+    -- sur certains mots. Le rythme moyen de la voix est alors plus regulier.
+    local words, totalW, prog, i = SpokenWords(clip)
+    if not words then return nil end
+    local n, m = #words, st.words and #st.words or 0
+    if n == 0 or m == 0 or not (st.total and st.total > 0) then return nil end
+    local w = words[i]
     if not w or type(w.start) ~= "number" or type(w.finish) ~= "number" then return nil end
-    local tw = (tonumber(T.totalWeight) or 0) * prog
+    local tw = totalW * prog
     local frac = math.max(0, math.min(1, (tw - w.start) / math.max(1e-6, w.finish - w.start)))
     local pos
     if n == m then
@@ -1631,7 +1695,9 @@ local function GeneratedShare(st, clip, length)
     if not t or m == 0 or not (st.total and st.total > 0) then return nil end
     -- Le son est entendu un peu apres son lancement par Spoken (chargement) : DWE.GEN_DELAY,
     -- mesure en jeu le 24/11 : 0,40 s d'avance sans delai, 0,27 s de retard avec 0,4 s.
-    local e = GetTime() - (clip.spokenAt - length) - DWE.GEN_DELAY
+    local start = ClipStart(clip, length)
+    if not start then return nil end
+    local e = GetTime() - start - DWE.GEN_DELAY
     if e <= t[1] then st.genNextIn = t[1] - e return 0 end
     local n, i = #t, #t
     for k = 1, n - 1 do
@@ -1679,16 +1745,16 @@ local function SpokenShare(st)
         -- commence juste apres l'ouverture de ce texte, c'est bien lui qu'elle lit.
         -- ... mais seulement si c'est la voix du PNJ a qui l'on parle : la voix d'un autre PNJ ou
         -- d'un livre (qui finit de parler) faisait attendre la bulle sur un texte qui n'est pas le sien.
-        if not st.clipMatch and st.setAt and tonumber(clip.spokenAt) and tonumber(clip.length)
-            and DWE.BubbleVoiceIsNPC(clip) then
-            local started = clip.spokenAt - clip.length
+        local started = not st.clipMatch and st.setAt and ClipStart(clip)
+        if started and DWE.BubbleVoiceIsNPC(clip) then
             st.clipMatch = started >= st.setAt - 1 and started <= st.setAt + 6
         end
     end
     if not st.clipMatch then return nil end
     if okP and paused then return "paused" end
     local length = tonumber(clip.length)
-    if not (length and length > 0 and tonumber(clip.spokenAt)) then return "hold" end
+    local start = length and length > 0 and ClipStart(clip, length)
+    if not start then return "hold" end
     -- Voix bien trop courte pour ce texte (ex. la salutation du PNJ, encore en cours, prise pour
     -- la voix du texte de quete) : ce n'est pas elle qui lit ce texte. On ne la suit pas, sinon le
     -- texte defilait a toute vitesse.
@@ -1705,7 +1771,7 @@ local function SpokenShare(st)
     -- Le son met un instant a etre entendu apres son lancement (chargement, silence au debut du
     -- fichier) : la voix parle pendant (duree - delai), a partir du delai.
     local lead = math.max(0, math.min(length * 0.3, tonumber(DWE.VOICE_LEAD) or 0))
-    local timeShare = math.max(0, math.min(1, (now - (clip.spokenAt - length) - lead) / (length - lead)))
+    local timeShare = math.max(0, math.min(1, (now - start - lead) / (length - lead)))
     -- Vraies durees des mots fournies par la voix : on suit directement le mot lu (pauses
     -- comprises), sans rien deviner ni ajouter (ni delai, ni pauses de page).
     local share = WordShare(st, clip)
@@ -1799,10 +1865,11 @@ DWE.JOIN_AFTER = 1.5
 function DWE.BubbleJoinVoice(st, share, length)
     local clip = st.clip
     if type(clip) ~= "table" or not st.setAt or share <= 0 then return end
-    local spokenAt, len = tonumber(clip.spokenAt), tonumber(clip.length)
-    if not (spokenAt and len) then return end
+    local len = tonumber(clip.length)
+    local start = len and ClipStart(clip, len)
+    if not start then return end
     local lead = math.max(0, math.min(len * 0.3, tonumber(DWE.VOICE_LEAD) or 0))
-    if st.setAt - (spokenAt - len) - lead < DWE.JOIN_AFTER then return end
+    if st.setAt - start - lead < DWE.JOIN_AFTER then return end
     local map = not st.timed and st.wmap
     local pos
     if map then
@@ -1850,17 +1917,11 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
             local clip = state.clip
             local present = type(clip) == "table" and type(clip.present) == "table" and clip.present or {}
             local who = type(clip) == "table" and DWE.SpokenFocus and DWE.SpokenFocus.SpeakerOf and DWE.SpokenFocus.SpeakerOf(clip)
-            local env = rawget(_G, "SpokenEnv")
-            local T = type(env) == "table" and rawget(env, "Transcript")
-            local tw = type(T) == "table" and rawequal(T.clip, clip) and T.words
-            local wi = "-"
-            if tw and type(T.GetProgress) == "function" and type(T.WordAt) == "function" then
-                local okP, prog = pcall(T.GetProgress, T)
-                local okW, i = pcall(T.WordAt, T, prog)
-                if okW and type(i) == "number" and tw[i] then wi = i .. ":" .. tostring(tw[i].text) end
-            end
-            print(("|cff33ff99Storytale|r sync: minutage=%s genere=%s motSpoken=%s"):format(
-                tostring(type(T) == "table" and T.timed), tostring(state.generated == true), wi))
+            local tw, _, _, wi = type(clip) == "table" and SpokenWords(clip)
+            local cap = type(clip) == "table" and SpokenCaption(clip)
+            wi = tw and tw[wi] and (wi .. ":" .. tostring(tw[wi].text)) or "-"
+            print(("|cff33ff99Storytale|r sync: api=%s minutage=%s genere=%s motSpoken=%s"):format(
+                tostring(cap ~= nil), tostring(tw ~= nil), tostring(state.generated == true), wi))
             print(("|cff33ff99Storytale|r sync: %s pos=%d/%d voix=%s match=%s duree=%s qui=%s texte=%s"):format(
                 tostring(state.phase), CurrentPos(), state.total or 0,
                 type(share) == "number" and string.format("%.0f%%", share * 100) or tostring(share),

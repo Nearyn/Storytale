@@ -2064,6 +2064,42 @@ end
 DWE.SetDialogueText("NPC", "")
 check(DWE.textBody._grad >= 1000, "no-text label fully visible")
 end
+-- Synchro des bulles par l'API publique de Spoken (GetCaption, GetCaptionOptions), sans
+-- SpokenEnv ni champ interne spokenAt : le debut du son vient de la progression du sous-titre.
+do
+    local savedSpoken, savedGT, savedHL = Spoken, GetTime, DialogueWheelE_BubbleHighlight
+    local t0 = 5000
+    GetTime = function() return t0 end
+    local txt = "Welcome to the inn, traveler. Rest your weary bones by the fire."
+    local tw = { { start = 0, finish = 5 } }
+    for i = 2, 12 do tw[i] = { start = 5 + (i - 2) * 5 / 11, finish = 5 + (i - 1) * 5 / 11 } end
+    local pub = { length = 10, text = txt, present = { transcript = txt } }
+    local prog = 0.5
+    local caption = { clip = pub, words = tw, totalWeight = 10, timed = true }
+    Spoken = { IsCompatible = function(_, v) return v <= 1 end,
+        GetNowPlaying = function() return pub end, IsPaused = function() return false end,
+        GetCaption = function() caption.progress = prog return caption end,
+        GetCaptionOptions = function() return true, false, "letter" end }
+    check(DWE.SpokenAPI() == Spoken, "public API: Spoken detected through IsCompatible(1)")
+    check(DWE.SpokenClipStart(pub) == t0 - 5, "public API: sound start from caption progress")
+    local words, total, p, i = DWE.SpokenWords(pub)
+    check(words == tw and total == 10 and p == 0.5 and i == 2, "public API: word read at 50% is word 2: " .. tostring(i))
+    caption.timed = false
+    check(DWE.SpokenWords(pub) == nil, "public API: estimated word times are not followed")
+    caption.timed = true
+    check(DWE.SpokenWords({ length = 10 }) == nil and DWE.SpokenClipStart({ length = 10 }) == nil,
+        "public API: another line's caption is ignored")
+    DialogueWheelE_BubbleHighlight = true
+    check(DWE.BubbleHighlightOn() == true, "public API: Highlight Words read from GetCaptionOptions")
+    Spoken.GetCaptionOptions = function() return false, false, "letter" end
+    check(DWE.BubbleHighlightOn() == false, "public API: Highlight Words off follows Spoken")
+    -- Spoken plus ancien que l'API publique : repli sur le champ interne spokenAt
+    Spoken = { GetNowPlaying = function() return pub end, IsPaused = function() return false end }
+    check(DWE.SpokenAPI() == nil, "older Spoken: no public API")
+    local old = { length = 10, spokenAt = t0 + 7 }
+    check(DWE.SpokenClipStart(old) == t0 - 3, "older Spoken: sound start from spokenAt")
+    Spoken, GetTime, DialogueWheelE_BubbleHighlight = savedSpoken, savedGT, savedHL
+end
 Spoken = nil
 GetTime = nil
 
