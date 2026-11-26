@@ -6557,12 +6557,20 @@ end
 
 local function PaintRow(row, opt, selected, pillWidth, index)
     local pill = DWE.WheelPillStyle()
-    local pad = pill and PILL_PAD or ROW_PAD
+    -- Marges en pixels entiers de l'ecran : la roue suit le PNJ a une position qui n'est pas un
+    -- pixel entier, et le jeu arrondit chaque piece (texte, icone, fond) pour elle-meme ; avec des
+    -- marges fractionnaires, l'icone et le cadre glissaient d'un pixel par rapport au texte quand on
+    -- zoomait (vu en video le 26/11 : les choix "tremblaient").
+    local P = function(v) return DWE.PixelRound(row, v) end
+    local src = pill and PILL_PAD or ROW_PAD
+    local pad = { left = P(src.left), iconLeft = P(src.iconLeft), top = P(src.top), right = P(src.right), iconTop = P(src.iconTop) }
     if opt.icon then
         DWE.SetOptionIcon(row.icon, opt)
         local ic = opt.iconColor
         row.icon:SetVertexColor(ic and ic[1] or 1, ic and ic[2] or 1, ic and ic[3] or 1)
         row.icon:ClearAllPoints()
+        local isz = P(16)
+        row.icon:SetSize(isz, isz)
         row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", pad.left, -pad.iconTop)
         row.icon:Show()
         row.text:SetPoint("TOPLEFT", row, "TOPLEFT", pad.iconLeft, -pad.top)
@@ -6584,7 +6592,7 @@ local function PaintRow(row, opt, selected, pillWidth, index)
         row.pill:ClearAllPoints()
         row.pill:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
         row.pill:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
-        row.pill:SetWidth(pillWidth or (DWE.WheelWidth() - 8))
+        row.pill:SetWidth(P(pillWidth or (DWE.WheelWidth() - 8)))
         row.pill:Show()
         -- Le texte s'arrete au bord de la bulle (largeur connue tout de suite, mesure juste).
         row.text:SetPoint("TOPRIGHT", row.pill, "TOPRIGHT", -pad.right, -pad.top)
