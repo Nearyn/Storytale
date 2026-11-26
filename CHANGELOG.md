@@ -24,7 +24,7 @@
 ### Corrections
 - La police et la taille du texte s'appliquent en direct pendant une conversation : la bulle, son texte et les choix changent aussitôt.
 - « Cacher l'interface en dialogue et en lecture » et le thème Cinématique s'appliquent aussi en direct pendant une conversation.
-- Pointes des bulles : l'intérieur de la pointe a maintenant la couleur du fond de la bulle (plus de tache plus claire sous la bulle avec Personnalisé, Folio, Vélin doré et Vieux parchemin).
+- Pointes des bulles : l'intérieur de la pointe a maintenant la couleur du fond de la bulle (plus de tache plus claire sous la bulle avec Personnalisé, Folio, Vélin doré et Parchemin ancien).
 
 ## 1.10.1
 
