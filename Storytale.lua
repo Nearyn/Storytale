@@ -11,7 +11,8 @@ local L = DWE.L
 do
     local EXTRA = { "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose",
         "BookVoiceOff", "RibbonSeen", "GamePad", "PadTipSeen", "PadTips", "DUIPos", "SpokenStyleChosen",
-        "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen", "Profiles", "PlateRestore", "BubbleHighlight", "BubbleMode" }
+        "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen", "Profiles", "PlateRestore", "BubbleHighlight", "BubbleMode",
+        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity" }
     DWE.EXTRA_VARS = EXTRA
     local me = ...
 
@@ -21,12 +22,13 @@ do
     -- entendues, marque-pages) et les couleurs perso restent communs a tous les profils.
     local NOT_IN_PROFILE = { CustomColors = true, CustomPresets = true, SpokenStyleChosen = true,
         RibbonSeen = true, PadTipSeen = true, SpokenTipSeen = true, RoundRibbonSeen = true, Profiles = true, PlateRestore = true,
-        SpokenHeard = true, ReadBooks = true, Bookmarks = true }
+        SpokenHeard = true, ReadBooks = true, Bookmarks = true,
+        MinimapAngle = true } -- (le bouton de la mini-carte reste a sa place, quel que soit le profil)
     local function ProfileVars()
         local list, seen = {}, {}
         local function Add(k) if not seen[k] and not NOT_IN_PROFILE[k] then seen[k] = true; list[#list + 1] = k end end
         for _, k in ipairs(DWE.OPTION_VARS or {}) do Add(k) end
-        for _, k in ipairs({ "GamePad", "PadTips", "PadFreeLook", "DUIPos", "MinimapAngle" }) do Add(k) end
+        for _, k in ipairs({ "GamePad", "PadTips", "PadFreeLook", "DUIPos" }) do Add(k) end
         return list
     end
     DWE.ProfileVars = ProfileVars
@@ -1720,6 +1722,21 @@ btnSelect:SetScript("OnClick", function()
 end)
 btnToggleText:SetScript("OnClick", function() DWE.ToggleDialogueText() end)
 
+-- Touches 1 a 9 (et pave numerique) : choisissent directement le choix de ce rang dans la roue,
+-- comme dans DialogueUI. Seulement pendant une conversation (pas dans un livre), jamais en combat.
+for i = 1, 9 do
+    local b = CreateFrame("Button", "DWE_NumBtn" .. i, UIParent)
+    b:SetScript("OnClick", function()
+        local idx = DWE.ChoiceForNumber and DWE.ChoiceForNumber(i) or i
+        local opt = DWE.currentOptions and DWE.currentOptions[idx]
+        if not opt or opt.disabled or not opt.action then return end
+        if DWE.ChoiceNumber and DWE.ChoiceNumber(idx) ~= i then return end
+        DWE.selectedIndex = idx
+        if DWE.LagMark then DWE.LagMark(opt.rawLabel or opt.label) end
+        opt.action()
+    end)
+end
+
 -- Bouton de bascule bulle / lecteur Spoken : toujours au meme endroit, le coin haut droit de la
 -- roue (elle reste a l'ecran dans les deux cas). Discret au repos, net au survol.
 do
@@ -3057,6 +3074,12 @@ local function EnableKeys()
     if DialogueWheelE_WheelScroll ~= false then
         SetOverrideBindingClick(f, true, "MOUSEWHEELUP", "DWE_WheelUpBtn")
         SetOverrideBindingClick(f, true, "MOUSEWHEELDOWN", "DWE_WheelDownBtn")
+    end
+    if DialogueWheelE_NumberKeys ~= false and not DWE.bookMode then
+        for i = 1, 9 do
+            SetOverrideBindingClick(f, true, tostring(i), "DWE_NumBtn" .. i)
+            SetOverrideBindingClick(f, true, "NUMPAD" .. i, "DWE_NumBtn" .. i)
+        end
     end
     local toggle = DWE.GetToggleKey()
     if toggle then SetOverrideBindingClick(f, true, toggle, "DWE_ToggleTextKeyBtn") end

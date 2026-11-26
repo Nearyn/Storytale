@@ -1219,7 +1219,14 @@ function DWE.ApplyFont()
     local sz = tonumber(DialogueWheelE_FontSize) or 13
     SafeSetFont(textHeader, path, sz + 3)
     SafeSetFont(textBody, path, sz)
-    if textBox:IsShown() then DWE.UpdateTextPanelVisuals() end
+    -- Police ou taille changee dialogue ouvert : bulle, cadre du texte et choix suivent tout de suite.
+    if choiceBox:IsShown() then
+        DWE.UpdateVisuals()
+        DWE.UpdateTextPanelVisuals()
+        if DWE.Bubble and DWE.Bubble.Refit then DWE.Bubble.Refit() end
+    elseif textBox:IsShown() then
+        DWE.UpdateTextPanelVisuals()
+    end
 end
 
 -- Les cadres ne sont plus zoomes : leur taille se regle avec les poignees, la police avec
@@ -4633,7 +4640,7 @@ function DWE.UpdateBookBar()
         end
         if b.iconBorder then b.iconBorder:SetShown(ic ~= nil) end
         b.icon:SetSize(ic and 12 or 16, ic and 12 or 16)
-        b.text:SetText(opt.rawLabel)
+        b.text:SetText(DWE.ChoiceLabel(opt, i))
         local sel = i == DWE.selectedIndex
         if opt.disabled then
             b.text:SetTextColor(0.5, 0.5, 0.5)
@@ -6255,7 +6262,59 @@ function DWE.SetOptionIcon(t, opt)
     else t:SetTexCoord(0, 1, 0, 1) end
 end
 
-local function PaintRow(row, opt, selected, pillWidth)
+-- Libelle d'un choix, precede de son numero quand les touches 1 a 9 le choisissent (comme
+-- DialogueUI) ; pas de numero a la manette ni dans un livre.
+-- Le numero prend la couleur du texte du choix, adoucie (melee a un gris moyen) : en retrait,
+-- mais accorde a chaque theme ; gris neutre si la couleur n'est pas encore connue (mesures).
+-- Numero d'un choix : son rang dans la liste (1 a 9, comme DialogueUI), ou, avec l'option
+-- « numeroter les choix a l'ecran », son rang parmi les choix visibles (les longues listes,
+-- comme celle des gardes, ont alors un numero pour chaque choix montre).
+function DWE.ChoiceNumber(i)
+    if not i or DialogueWheelE_NumberKeys == false or DWE.bookMode then return nil end
+    if DWE.PadInUse and DWE.PadInUse() then return nil end
+    local n = i
+    if DialogueWheelE_NumberVisible ~= false then n = i - (DWE.wheelFirst or 1) + 1 end
+    if n >= 1 and n <= 9 then return n end
+end
+function DWE.NumberIntensity()
+    local v = tonumber(DialogueWheelE_NumberIntensity)
+    if not v and DialogueWheelE_NumberBright == true then v = 100 end -- (ancienne case)
+    return math.max(20, math.min(100, v or 60))
+end
+function DWE.ChoiceForNumber(n)
+    if DialogueWheelE_NumberVisible ~= false then return (DWE.wheelFirst or 1) + n - 1 end
+    return n
+end
+
+-- Libelle pour MESURER la largeur de la roue : avec les numeros actifs, chaque choix compte
+-- la place d'un numero, qu'il en ait un a l'instant ou non. Sinon, quand les numeros suivent le
+-- defilement, la roue changeait de largeur a chaque cran (video du 26/11).
+function DWE.ChoiceMeasureLabel(opt)
+    local label = opt.rawLabel or opt.label or ""
+    if DWE.ChoiceNumber(1) or (DialogueWheelE_NumberVisible ~= false and DWE.ChoiceNumber(DWE.wheelFirst or 1)) then
+        return "9. " .. label
+    end
+    return label
+end
+
+function DWE.ChoiceLabel(opt, i, color)
+    local label = opt.rawLabel or opt.label or ""
+    i = DWE.ChoiceNumber(i)
+    if i then
+        local hex = "8c8c8c"
+        if type(color) == "table" and color[1] then
+            -- Intensite des numeros (curseur, 20 a 100 %) : 100 % = la couleur du texte telle
+            -- quelle ; moins = melee a un gris moyen, plus discrete (60 % par defaut).
+            local k = DWE.NumberIntensity() / 100
+            local function c(v) return math.floor(math.max(0, math.min(1, (v or 0.5) * k + 0.5 * (1 - k))) * 255 + 0.5) end
+            hex = string.format("%02x%02x%02x", c(color[1]), c(color[2]), c(color[3]))
+        end
+        return "|cff" .. hex .. i .. ".|r " .. label
+    end
+    return label
+end
+
+local function PaintRow(row, opt, selected, pillWidth, index)
     local pill = DWE.WheelPillStyle()
     local pad = pill and PILL_PAD or ROW_PAD
     if opt.icon then
@@ -6271,7 +6330,7 @@ local function PaintRow(row, opt, selected, pillWidth)
         row.text:SetPoint("TOPLEFT", row, "TOPLEFT", pad.left, -pad.top)
     end
     row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -pad.right, -pad.top)
-    row.text:SetText(opt.rawLabel)
+    row.text:SetText(DWE.ChoiceLabel(opt, index))
 
     -- Bulle du choix : ajustee a son texte, pleine pour le choix surligne.
     if pill then
@@ -6312,6 +6371,8 @@ local function PaintRow(row, opt, selected, pillWidth)
         row.icon:SetDesaturated(dimToggle)
     end
     row.text:SetTextColor(color[1], color[2], color[3])
+    -- (numero du choix : maintenant que la couleur du texte est connue)
+    row.text:SetText(DWE.ChoiceLabel(opt, index, color))
     row.text:SetShadowOffset(pal.shadow, -pal.shadow)
     DWE.ChoiceFont(row.text)
 end
@@ -6620,7 +6681,7 @@ function DWE.UpdateVisualsInner()
                 local row = optionRows[i]
                 if row then
                     DWE.ChoiceFont(row.text)
-                    row.text:SetText(opt.rawLabel)
+                    row.text:SetText(DWE.ChoiceMeasureLabel(opt))
                     local tw = MeasureTextWidth(row.text)
                     if not tw then need = nil break end
                     need = math.max(need, (opt.icon and pad.iconLeft or pad.left) + tw + pad.right + 24)
@@ -6641,7 +6702,7 @@ function DWE.UpdateVisualsInner()
             local row = optionRows[i]
             if row then
                 DWE.ChoiceFont(row.text)
-                row.text:SetText(opt.rawLabel)
+                row.text:SetText(DWE.ChoiceMeasureLabel(opt))
                 local tw = MeasureTextWidth(row.text)
                 if not tw then pillWidth = full break end
                 pillWidth = math.max(pillWidth, (opt.icon and PILL_PAD.iconLeft or PILL_PAD.left) + tw + PILL_PAD.right + 4)
@@ -6681,7 +6742,7 @@ function DWE.UpdateVisualsInner()
     local yy = 0
     for i, opt in ipairs(DWE.currentOptions) do
         local row = DWE.GetRow(i)
-        PaintRow(row, opt, i == DWE.selectedIndex, pillWidth)
+        PaintRow(row, opt, i == DWE.selectedIndex, pillWidth, i)
         local h = pill and math.max(36, TextHeight(row.text, 16) + 20) or math.max(24, TextHeight(row.text, 16) + 6)
         row:SetHeight(h)
         tops[i], heights[i] = yy, h
@@ -7171,6 +7232,8 @@ function DWE.OnThemeChanged()
         DWE.UpdateVisuals()
         DWE.UpdateTextPanelVisuals()
         if DWE.Bubble and DWE.Bubble.Refit then DWE.Bubble.Refit() end
+        -- (theme Cinematique choisi ou quitte : bandes noires et interface tout de suite)
+        if DWE.UpdateCinemaBars then DWE.UpdateCinemaBars() end
         if DWE.RefreshPreview then DWE.RefreshPreview() else DWE.PaintWheelTheme() end
     else
         DWE.PaintWheelTheme()
@@ -7228,7 +7291,7 @@ DWE.THEME_LIST = THEME_LIST
 -- deja entendus avec Spoken (ce n'est pas un reglage).
 -- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
 DWE.OPTION_VARS = {}
-for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
+for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
@@ -8009,6 +8072,8 @@ function DWE.InitOptionsPanel()
     AddSection(L.SEC_UI or "Interface", y)
     AddCheck(L.HIDE_UI, 16, y - 32, function() return DialogueWheelE_HideUI == true end, function(self)
         DialogueWheelE_HideUI = self:GetChecked() and true or false
+        -- (en direct pendant une conversation : l'interface s'efface ou revient tout de suite)
+        DWE.UpdateCinemaBars()
     end)
     -- Bouton de la mini-carte (ouvre ces options).
     AddCheck(L.MINIMAP_BTN, 16, y - 62, function() return DialogueWheelE_MinimapHide ~= true end, function(self)
@@ -8204,14 +8269,42 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_WheelScroll = self:GetChecked() and true or false
         DWE.RefreshBindings()
     end)
+    -- Touches 1 a 9 : choisir directement un choix de la roue (comme DialogueUI).
+    local numVisCheck
+    AddCheck(L.NUMBER_KEYS or "Keys 1-9 pick a choice", 300, keysY - 56, function() return DialogueWheelE_NumberKeys ~= false end, function(self)
+        -- (« (not x) and false or nil » donnait toujours nil : la case ne se decochait jamais)
+        if self:GetChecked() then DialogueWheelE_NumberKeys = nil else DialogueWheelE_NumberKeys = false end
+        DWE.RefreshBindings()
+        for _, cb in ipairs({ numVisCheck, DWE.numBrightCheck }) do
+            if cb then if self:GetChecked() then cb:Enable() else cb:Disable() end end
+        end
+        if choiceBox:IsShown() then DWE.UpdateVisuals() end
+    end)
+    -- Sous-option : numeroter les choix a l'ecran plutot que la liste entiere (cochee par defaut).
+    numVisCheck = AddCheck(L.NUMBER_VISIBLE or "Number the choices on screen", 320, keysY - 82, function() return DialogueWheelE_NumberVisible ~= false end, function(self)
+        -- (activee par defaut : ne change que les listes de plus de 7 choix)
+        if self:GetChecked() then DialogueWheelE_NumberVisible = nil else DialogueWheelE_NumberVisible = false end
+        if choiceBox:IsShown() then DWE.UpdateVisuals() end
+    end)
+    -- Intensite des numeros : plus sombres ou plus clairs, au gout (et a la vue) de chacun.
+    local numBrightCheck = AddSlider("DWESliderNumbers", L.NUMBER_INTENSITY or "Number intensity", 330, keysY - 122, 20, 100, 5, function() return DWE.NumberIntensity() end, "%d %%", function(v)
+        DialogueWheelE_NumberIntensity = v
+        DialogueWheelE_NumberBright = nil
+        if choiceBox:IsShown() then DWE.UpdateVisuals() end
+    end)
+    DWE.numBrightCheck = numBrightCheck
+    if DialogueWheelE_NumberKeys == false then
+        if numVisCheck then numVisCheck:Disable() end
+        if numBrightCheck then numBrightCheck:Disable() end
+    end
     -- (qui cherche une touche regarde ici : la touche Bulle / Spoken est dans la page Spoken)
     if L.KEY_SPOKEN_HINT then
-        local hint = AddText(L.KEY_SPOKEN_HINT, 300, keysY - 58, "GameFontDisableSmall")
+        local hint = AddText(L.KEY_SPOKEN_HINT, 300, keysY - 168, "GameFontDisableSmall")
         if hint and hint.SetWidth then hint:SetWidth(300); hint:SetJustifyH("LEFT") end
     end
 
     ---------------------------------------------------------------- Manette
-    y = keysY - 76
+    y = keysY - 214
     AddSection(L.SEC_PAD, y)
     AddCheck(L.PAD_USE, 16, y - 32, function() return DialogueWheelE_GamePad ~= false end, function(self)
         DialogueWheelE_GamePad = self:GetChecked() and true or false
@@ -8634,11 +8727,11 @@ function DWE.InitOptionsPanel()
     for k, pg in ipairs(pages) do pg.search = MakeSearch(pg.panel, k == 1 and "DialogueWheelEOptionsSearch" or nil) end
     -- "Par defaut" en haut de chaque page : remet les reglages de cette page seulement.
     local PAGE_VARS = {
-        { "Theme", "Font", "FontSize", "Opacity", "ThemeFrames", "WheelTheme", "HideUI", "ChoiceSize", "MinimapHide", "MinimapAngle", "BubbleMode" },
+        { "Theme", "Font", "FontSize", "Opacity", "ThemeFrames", "WheelTheme", "HideUI", "ChoiceSize", "MinimapHide", "BubbleMode" }, -- (position du bouton gardee : "MinimapAngle" n'est jamais remis par defaut)
         { "BookStyle", "BookLook", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookTurnFX",
             "BookVoiceTurn", "BookStopOnClose", "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos" },
         { "AttachNPC", "Locked", "WheelSide", "QuestAuto", "QuestWidth", "NPCOffset", "Pos", "TextPos", "WheelWidth", "TextW", "TextH", "BubbleWidth" },
-        { "UseBlizzKey", "InteractKey", "ToggleKey", "EscClose", "WheelScroll", "GamePad", "PadTips", "PadFreeLook" },
+        { "UseBlizzKey", "InteractKey", "ToggleKey", "EscClose", "WheelScroll", "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "GamePad", "PadTips", "PadFreeLook" },
         { "SpokenTheme", "SpokenSkin", "BookSkin", "PlateSkin", "PlaceSkin", "SpokenButton", "ShowText", "SpokenSmart", "BubbleHighlight",
             "ZoneArt", "ZoneArtPaper" },
     }

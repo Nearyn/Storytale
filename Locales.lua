@@ -478,21 +478,21 @@ end
 -- Section « Interface » de la page General, et renvoi de la page des touches vers la touche
 -- Bulle / Spoken (page Spoken).
 local UI_EXTRA = {
-    enUS = { "Interface", "The Bubble / Spoken key is on the Spoken page." },
-    frFR = { "Interface", "La touche Bulle / Spoken est dans la page Spoken." },
-    deDE = { "Oberfläche", "Die Taste Sprechblase / Spoken findet sich auf der Seite Spoken." },
-    esES = { "Interfaz", "La tecla Bocadillo / Spoken está en la página Spoken." },
-    itIT = { "Interfaccia", "Il tasto Fumetto / Spoken è nella pagina Spoken." },
-    ptBR = { "Interface", "A tecla Balão / Spoken fica na página Spoken." },
-    ruRU = { "Интерфейс", "Клавиша «Облачко / Spoken» — на странице Spoken." },
-    koKR = { "인터페이스", "말풍선 / Spoken 키는 Spoken 페이지에 있습니다." },
-    zhCN = { "界面", "气泡 / Spoken 按键在 Spoken 页面中。" },
-    zhTW = { "介面", "對話泡泡 / Spoken 按鍵在 Spoken 頁面中。" },
+    enUS = { "Interface", "The key to switch between the bubble and Spoken's narrator is set in Storytale's \"Spoken\" tab, on the left.", "Keys 1-9 pick a choice", "Numbers follow the scrolling (long lists)", "Number intensity" },
+    frFR = { "Interface", "La touche pour passer de la bulle au narrateur de Spoken se règle dans l'onglet « Spoken » de Storytale, à gauche.", "Touches 1 à 9 : choisir directement", "Numéros qui suivent le défilement (longues listes)", "Intensité des numéros" },
+    deDE = { "Oberfläche", "Die Taste zum Wechseln zwischen Sprechblase und Spokens Erzähler wird im Storytale-Reiter „Spoken“ links eingestellt.", "Tasten 1-9 wählen eine Antwort", "Nummern folgen dem Scrollen (lange Listen)", "Helligkeit der Nummern" },
+    esES = { "Interfaz", "La tecla para cambiar entre el bocadillo y el narrador de Spoken se ajusta en la pestaña «Spoken» de Storytale, a la izquierda.", "Teclas 1-9 eligen una opción", "Los números siguen el desplazamiento (listas largas)", "Intensidad de los números" },
+    itIT = { "Interfaccia", "Il tasto per passare dal fumetto al narratore di Spoken si imposta nella scheda «Spoken» di Storytale, a sinistra.", "Tasti 1-9 scelgono un'opzione", "I numeri seguono lo scorrimento (liste lunghe)", "Intensità dei numeri" },
+    ptBR = { "Interface", "A tecla para alternar entre o balão e o narrador do Spoken fica na aba \"Spoken\" do Storytale, à esquerda.", "Teclas 1-9 escolhem uma opção", "Números acompanham a rolagem (listas longas)", "Intensidade dos números" },
+    ruRU = { "Интерфейс", "Клавиша переключения между облачком и рассказчиком Spoken настраивается во вкладке «Spoken» Storytale слева.", "Клавиши 1-9 выбирают ответ", "Номера следуют за прокруткой (длинные списки)", "Яркость номеров" },
+    koKR = { "인터페이스", "말풍선과 Spoken 내레이터를 전환하는 키는 왼쪽 Storytale의 \"Spoken\" 탭에서 설정합니다.", "1-9 키로 선택지 고르기", "번호가 스크롤을 따라감 (긴 목록)", "번호 선명도" },
+    zhCN = { "界面", "在气泡和 Spoken 旁白之间切换的按键，在左侧 Storytale 的“Spoken”页中设置。", "按 1-9 直接选择选项", "编号随滚动变化（长列表）", "编号亮度" },
+    zhTW = { "介面", "在對話泡泡和 Spoken 旁白之間切換的按鍵，在左側 Storytale 的「Spoken」頁中設定。", "按 1-9 直接選擇選項", "編號隨捲動變化（長列表）", "編號亮度" },
 }
 UI_EXTRA.esMX = UI_EXTRA.esES
 for loc, v in pairs(UI_EXTRA) do
     local dest = (loc == "enUS") and enUS or T[loc]
-    if dest then dest.SEC_UI, dest.KEY_SPOKEN_HINT = v[1], v[2] end
+    if dest then dest.SEC_UI, dest.KEY_SPOKEN_HINT, dest.NUMBER_KEYS, dest.NUMBER_VISIBLE, dest.NUMBER_INTENSITY = v[1], v[2], v[3], v[4], v[5] end
 end
 
 -- Titres des sections et libelles revus des options.

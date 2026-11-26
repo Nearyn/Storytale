@@ -77,14 +77,19 @@ end
 function Object:GetText() return self._text end
 function Object:SetJustifyH(j) self._justH = j end
 function Object:GetJustifyH() return self._justH or "LEFT" end
+-- (comme le jeu : les codes couleur |cAARRGGBB et |r ne prennent pas de place)
+local function VisibleLen(t)
+    t = tostring(t):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    return #t
+end
 function Object:GetStringHeight()
     if not self._text then return 0 end
     local w = self._w or 300
-    local lines = math.max(1, math.ceil((#tostring(self._text) * 7) / math.max(w, 1)))
+    local lines = math.max(1, math.ceil((VisibleLen(self._text) * 7) / math.max(w, 1)))
     return 16 * lines
 end
-function Object:GetUnboundedStringWidth() return self._text and #tostring(self._text) * 7 or 0 end
-function Object:GetStringWidth() return self._text and math.min(#tostring(self._text) * 7, self._w or 300) or 0 end
+function Object:GetUnboundedStringWidth() return self._text and VisibleLen(self._text) * 7 or 0 end
+function Object:GetStringWidth() return self._text and math.min(VisibleLen(self._text) * 7, self._w or 300) or 0 end
 function Object:SetFont(path, size, flags)
     assert(type(path) == "string", "SetFont path must be a string, got " .. tostring(path))
     assert(type(size) == "number", "SetFont size must be number")

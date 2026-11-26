@@ -765,6 +765,10 @@ local function PageWord(n)
 end
 
 local function PageReveal(seg, n)
+    -- Passage a « page entiere » pendant l'ecriture : les lignes de l'ecriture progressive
+    -- restaient figees par-dessus le texte un moment ; on les retire tout de suite.
+    if state.customShown == "soft" and DWE.BubbleHideBufs then DWE.BubbleHideBufs() end
+    if DWE.BubbleHideTails then DWE.BubbleHideTails() end
     local want, key = seg, "plain"
     local at, len
     if state.voiced and not state.manual then at, len = PageWord(n) end
@@ -806,6 +810,7 @@ for i = 1, FADE_LETTERS do
     t:Hide()
     tails[i] = t
 end
+function DWE.BubbleHideTails() for _, t in ipairs(tails) do t:Hide() end end
 local function CopyLook(fs)
     pcall(function()
         local f, size, flags = text:GetFont()
@@ -1996,7 +2001,10 @@ function DWE.Bubble.Refit()
     if state.phase == "typing" or state.phase == "reading" then
         local seg = state.segs[state.index]
         if seg then
-            FitTo(seg, hasGradient and seg or text:GetText())
+            -- Page deja ecrite : ses lignes etaient dessinees a l'ancienne police / taille (elles
+            -- debordaient de la bulle) ; la page entiere est remise dans le texte et remesuree.
+            if state.phase == "reading" then HideSoft() end
+            FitTo(seg, (hasGradient or state.phase == "reading") and seg or text:GetText())
             state.shownN = nil
             if state.phase == "typing" then Reveal() end
         end
@@ -2041,6 +2049,8 @@ function DWE.Bubble.SetShown(show)
     if bubble.fontKey ~= face .. size then
         bubble.fontKey = face .. size
         DWE.SafeSetFont(text, face, size)
+        -- (lignes deja ecrites et bord adouci : copies du texte, a remettre a la nouvelle police)
+        if DWE.BubbleRecolor then DWE.BubbleRecolor() end
         changed = true
     end
     if changed then DWE.Bubble.Refit() end
