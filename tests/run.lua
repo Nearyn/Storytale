@@ -2568,6 +2568,7 @@ if withDUI then -- theme DialogueUI : la conversation est laissee a DialogueUI
         DialogueWheelE_Theme = "gw2"; DWE.OnThemeChanged()
         M.FireEvent("GOSSIP_SHOW")
         check(DWE.choiceBox:IsShown(), "gw2 theme: wheel opens")
+        check(DWE.BubbleCentered() == DWE.GW2_ON, "gw2 theme: bubble text centered with GW2 UI's own bubble")
         M.FireEvent("GOSSIP_CLOSED")
         DialogueWheelE_Theme = oldT; DWE.OnThemeChanged()
         -- Boutons de Spoken sur le parchemin : Share les pilote.

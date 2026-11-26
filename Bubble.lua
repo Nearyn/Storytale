@@ -332,6 +332,10 @@ local function HideSplit()
 end
 
 local styleName -- style actuellement affiche
+-- Texte centre dans la bulle : la bulle de GW2 UI (theme GW2 UI, GW2 UI installe), comme les siennes.
+function DWE.BubbleCentered()
+    return DWE.Gw2Native and DWE.Gw2Native(styleName) or false
+end
 
 local text = holder:CreateFontString(nil, "OVERLAY")
 DWE.bubbleTextFS = text
@@ -398,8 +402,19 @@ local function Gw2NpcName()
     end
     return ""
 end
+-- Nom a la taille de celui des bulles de GW2 UI : elles sont dans le monde (WorldFrame, taille 10),
+-- pas dans l'interface ; avec l'echelle d'interface reduite (GW2 UI "Pixel Perfection"), le meme
+-- 10 etait bien plus petit dans notre bulle.
+local function Gw2NameSize()
+    local size = 10
+    local okW, ws = pcall(function() return WorldFrame:GetEffectiveScale() end)
+    local okB, bs = pcall(bubble.GetEffectiveScale, bubble)
+    if okW and okB and type(ws) == "number" and type(bs) == "number" and bs > 0 then size = 10 * ws / bs end
+    if size < 6 then size = 6 elseif size > 40 then size = 40 end
+    pcall(gw2Name.SetFont, gw2Name, UNIT_NAME_FONT or STANDARD_TEXT_FONT, size, "OUTLINE")
+end
 function DWE.BubbleGw2Name()
-    if gw2Name and gw2Name:IsShown() then gw2Name:SetText(Gw2NpcName()) end
+    if gw2Name and gw2Name:IsShown() then Gw2NameSize(); gw2Name:SetText(Gw2NpcName()) end
 end
 do
     local f = CreateFrame("Frame")
@@ -422,6 +437,7 @@ local function ShowGw2(on)
         DWE.Gw2Place(gw2Decor, bubble, g[1], g[2], g[3], g[4])
         DWE.Gw2Color(gw2Decor, 1, nil, tonumber(DialogueWheelE_Opacity) or 1)
         gw2Name:Show()
+        Gw2NameSize()
         gw2Name:SetText(Gw2NpcName())
     elseif gw2Decor then
         DWE.Gw2Hide(gw2Decor)
@@ -1017,8 +1033,9 @@ DWE.BubbleHideBufs = HideSoft
 -- Lignes du texte et largeur de chaque debut de ligne (mesurees une fois par texte).
 local function SoftSetup(seg)
     local w = Wrapped(seg)
-    if soft.key == state.wrapKey then return end
-    soft.key = state.wrapKey
+    local key = tostring(state.wrapKey) .. (DWE.BubbleCentered() and "|c" or "")
+    if soft.key == key then return end
+    soft.key = key
     soft.rows = {}
     local lh = state.lineH or 14
     local i, start = 0, 1
@@ -1026,8 +1043,6 @@ local function SoftSetup(seg)
         i = i + 1
         local fs = SoftLine(i)
         CopyLook(fs)
-        fs:ClearAllPoints()
-        fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, -(i - 1) * lh)
         fs:SetText(line)
         fs:Hide()
         local k = 0
@@ -1037,6 +1052,7 @@ local function SoftSetup(seg)
     end
     for j = i + 1, #soft.lines do soft.lines[j]:Hide() end
     -- largeurs cumulees (prefixes exacts)
+    local widest = 0
     for _, r in ipairs(soft.rows) do
         r.cum = { [0] = 0 }
         local acc, k = "", 0
@@ -1045,6 +1061,17 @@ local function SoftSetup(seg)
             acc = acc .. ch
             r.cum[k] = Width(acc)
         end
+        widest = math.max(widest, r.cum[k] or 0)
+    end
+    -- Texte centre (bulle de GW2 UI) : chaque ligne decalee de la moitie de la place qui lui reste.
+    local centered = DWE.BubbleCentered()
+    local okW, tw = pcall(text.GetWidth, text)
+    local full = (okW and type(tw) == "number" and tw > widest) and tw or widest
+    for i, r in ipairs(soft.rows) do
+        r.x = centered and math.floor((full - (r.cum[r.chars] or 0)) / 2 + 0.5) or 0
+        local fs = soft.lines[i]
+        fs:ClearAllPoints()
+        fs:SetPoint("TOPLEFT", text, "TOPLEFT", r.x, r.y)
     end
     for b = 1, 2 * SOFT_BANDS + 2 do CopyLook(SoftClip(b).fs) end
     soft.sp = math.max(0, Width("a a") - Width("aa")) -- largeur d'un espace
@@ -1096,10 +1123,10 @@ local function SoftShow(pos, limit, hlAt, hlLen)
             c.f:Hide()
         else
             c.f:ClearAllPoints()
-            c.f:SetPoint("TOPLEFT", text, "TOPLEFT", x0, row.y + 2)
+            c.f:SetPoint("TOPLEFT", text, "TOPLEFT", x0 + (row.x or 0), row.y + 2)
             c.f:SetSize(x1 - x0, lh + 4)
             c.fs:ClearAllPoints()
-            c.fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, row.y)
+            c.fs:SetPoint("TOPLEFT", text, "TOPLEFT", row.x or 0, row.y)
             if c.fs:GetText() ~= shownText then c.fs:SetText(shownText) end
             c.f:SetAlpha(a)
             c.f:Show()
@@ -1125,10 +1152,10 @@ local function SoftShow(pos, limit, hlAt, hlLen)
         else
             local t = SoftColored(nxt, hlAt, hlLen)
             c.f:ClearAllPoints()
-            c.f:SetPoint("TOPLEFT", text, "TOPLEFT", s0, nxt.y + 2)
+            c.f:SetPoint("TOPLEFT", text, "TOPLEFT", s0 + (nxt.x or 0), nxt.y + 2)
             c.f:SetSize(s1 - s0, lh + 4)
             c.fs:ClearAllPoints()
-            c.fs:SetPoint("TOPLEFT", text, "TOPLEFT", 0, nxt.y)
+            c.fs:SetPoint("TOPLEFT", text, "TOPLEFT", nxt.x or 0, nxt.y)
             if c.fs:GetText() ~= t then c.fs:SetText(t) end
             c.f:SetAlpha(a)
             c.f:Show()
@@ -2034,7 +2061,7 @@ function DWE.Bubble.SetText(s)
     state.wmap, state.posW = BuildMap(state.words, state.total), nil
     -- Pas de texte : "..." affiche d'un coup, centre dans la bulle.
     state.dots = nil
-    text:SetJustifyH(#state.segs == 0 and "CENTER" or "LEFT")
+    text:SetJustifyH((#state.segs == 0 or DWE.BubbleCentered()) and "CENTER" or "LEFT")
     if #state.segs == 0 then
         state.phase = "idle"
         bubble:DWEWaitHide(false)
