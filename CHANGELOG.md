@@ -1,5 +1,19 @@
 # Changelog / Journal des versions
 
+## 1.11.2
+
+**English**
+
+### Fixed
+- Profiles: switching to a profile with the Custom theme now shows that profile's own colours straight away (it showed the previous profile's colours until the theme was picked again).
+
+---
+
+**Français**
+
+### Corrections
+- Profils : en passant à un profil avec le thème Personnalisé, ses propres couleurs s'affichent tout de suite (on voyait celles du profil précédent jusqu'à ce qu'on resélectionne le thème).
+
 ## 1.11.1
 
 **English**
