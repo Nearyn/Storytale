@@ -3609,6 +3609,21 @@ do -- Touches 1 a 9 : numeros affiches, puis retires en direct quand l'option es
     DialogueWheelE_NumberKeys = oldNK
 end
 
+do -- Chaque reglage des options est sauvegarde (.toc ou DialogueWheelE_Extra), sinon il se perd au /reload
+    local saved = {}
+    local fh = io.open((dir or ".") .. "/Storytale.toc", "r")
+    if fh then
+        for line in fh:lines() do
+            if line:find("^## SavedVariables") then for v in line:gmatch("DialogueWheelE_(%w+)") do saved[v] = true end end
+        end
+        fh:close()
+        for _, k in ipairs(DWE.EXTRA_VARS or {}) do saved[k] = true end
+        local missing = {}
+        for _, k in ipairs(DWE.OPTION_VARS or {}) do if not saved[k] then missing[#missing + 1] = k end end
+        check(#missing == 0, "every option is saved: missing " .. table.concat(missing, ", "))
+    end
+end
+
 do -- /storytale perf now : chaque fonction chronometree pendant la mesure, puis remise telle quelle
     local hadClock = rawget(_G, "debugprofilestop")
     _G.debugprofilestop = hadClock or function() return os.clock() * 1000 end

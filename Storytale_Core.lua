@@ -7291,7 +7291,7 @@ DWE.THEME_LIST = THEME_LIST
 -- deja entendus avec Spoken (ce n'est pas un reglage).
 -- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
 DWE.OPTION_VARS = {}
-for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
+for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
@@ -8727,7 +8727,7 @@ function DWE.InitOptionsPanel()
     for k, pg in ipairs(pages) do pg.search = MakeSearch(pg.panel, k == 1 and "DialogueWheelEOptionsSearch" or nil) end
     -- "Par defaut" en haut de chaque page : remet les reglages de cette page seulement.
     local PAGE_VARS = {
-        { "Theme", "Font", "FontSize", "Opacity", "ThemeFrames", "WheelTheme", "HideUI", "ChoiceSize", "MinimapHide", "MinimapAngle", "BubbleMode" },
+        { "Theme", "Font", "FontSize", "Opacity", "ThemeFrames", "WheelTheme", "HideUI", "ChoiceSize", "MinimapHide", "BubbleMode" }, -- (position du bouton gardee : "MinimapAngle" n'est jamais remis par defaut)
         { "BookStyle", "BookLook", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookTurnFX",
             "BookVoiceTurn", "BookStopOnClose", "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos" },
         { "AttachNPC", "Locked", "WheelSide", "QuestAuto", "QuestWidth", "NPCOffset", "Pos", "TextPos", "WheelWidth", "TextW", "TextH", "BubbleWidth" },
