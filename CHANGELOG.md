@@ -11,6 +11,7 @@
 ### Fixed
 - Font and text size now apply live with a conversation open: the bubble, its text and the choices change at once.
 - "Hide UI while talking or reading" and the Cinematic theme now apply live too, with a conversation open.
+- Bubble tails: the inside of the tail now matches the bubble's background (no lighter patch under the bubble on Custom, Folio, Gilded Vellum and Old Parchment).
 
 ---
 
@@ -23,6 +24,7 @@
 ### Corrections
 - La police et la taille du texte s'appliquent en direct pendant une conversation : la bulle, son texte et les choix changent aussitôt.
 - « Cacher l'interface en dialogue et en lecture » et le thème Cinématique s'appliquent aussi en direct pendant une conversation.
+- Pointes des bulles : l'intérieur de la pointe a maintenant la couleur du fond de la bulle (plus de tache plus claire sous la bulle avec Personnalisé, Folio, Vélin doré et Vieux parchemin).
 
 ## 1.10.1
 
