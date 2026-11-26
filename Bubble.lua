@@ -765,6 +765,10 @@ local function PageWord(n)
 end
 
 local function PageReveal(seg, n)
+    -- Passage a « page entiere » pendant l'ecriture : les lignes de l'ecriture progressive
+    -- restaient figees par-dessus le texte un moment ; on les retire tout de suite.
+    if state.customShown == "soft" and DWE.BubbleHideBufs then DWE.BubbleHideBufs() end
+    if DWE.BubbleHideTails then DWE.BubbleHideTails() end
     local want, key = seg, "plain"
     local at, len
     if state.voiced and not state.manual then at, len = PageWord(n) end
@@ -806,6 +810,7 @@ for i = 1, FADE_LETTERS do
     t:Hide()
     tails[i] = t
 end
+function DWE.BubbleHideTails() for _, t in ipairs(tails) do t:Hide() end end
 local function CopyLook(fs)
     pcall(function()
         local f, size, flags = text:GetFont()
