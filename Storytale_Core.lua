@@ -6273,7 +6273,7 @@ function DWE.ChoiceNumber(i)
     if not i or DialogueWheelE_NumberKeys == false or DWE.bookMode then return nil end
     if DWE.PadInUse and DWE.PadInUse() then return nil end
     local n = i
-    if DialogueWheelE_NumberVisible == true then n = i - (DWE.wheelFirst or 1) + 1 end
+    if DialogueWheelE_NumberVisible ~= false then n = i - (DWE.wheelFirst or 1) + 1 end
     if n >= 1 and n <= 9 then return n end
 end
 function DWE.NumberIntensity()
@@ -6282,7 +6282,7 @@ function DWE.NumberIntensity()
     return math.max(20, math.min(100, v or 60))
 end
 function DWE.ChoiceForNumber(n)
-    if DialogueWheelE_NumberVisible == true then return (DWE.wheelFirst or 1) + n - 1 end
+    if DialogueWheelE_NumberVisible ~= false then return (DWE.wheelFirst or 1) + n - 1 end
     return n
 end
 
@@ -6291,7 +6291,7 @@ end
 -- defilement, la roue changeait de largeur a chaque cran (video du 26/11).
 function DWE.ChoiceMeasureLabel(opt)
     local label = opt.rawLabel or opt.label or ""
-    if DWE.ChoiceNumber(1) or (DialogueWheelE_NumberVisible == true and DWE.ChoiceNumber(DWE.wheelFirst or 1)) then
+    if DWE.ChoiceNumber(1) or (DialogueWheelE_NumberVisible ~= false and DWE.ChoiceNumber(DWE.wheelFirst or 1)) then
         return "9. " .. label
     end
     return label
@@ -8280,9 +8280,10 @@ function DWE.InitOptionsPanel()
         end
         if choiceBox:IsShown() then DWE.UpdateVisuals() end
     end)
-    -- Sous-option : numeroter les choix a l'ecran plutot que la liste entiere (decochee par defaut).
-    numVisCheck = AddCheck(L.NUMBER_VISIBLE or "Number the choices on screen", 320, keysY - 82, function() return DialogueWheelE_NumberVisible == true end, function(self)
-        DialogueWheelE_NumberVisible = self:GetChecked() and true or nil
+    -- Sous-option : numeroter les choix a l'ecran plutot que la liste entiere (cochee par defaut).
+    numVisCheck = AddCheck(L.NUMBER_VISIBLE or "Number the choices on screen", 320, keysY - 82, function() return DialogueWheelE_NumberVisible ~= false end, function(self)
+        -- (activee par defaut : ne change que les listes de plus de 7 choix)
+        if self:GetChecked() then DialogueWheelE_NumberVisible = nil else DialogueWheelE_NumberVisible = false end
         if choiceBox:IsShown() then DWE.UpdateVisuals() end
     end)
     -- Intensite des numeros : plus sombres ou plus clairs, au gout (et a la vue) de chacun.
