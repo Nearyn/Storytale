@@ -1,5 +1,19 @@
 # Changelog / Journal des versions
 
+## 1.11.3
+
+**English**
+
+### Fixed
+- GW2 UI compatibility: no need to turn off GW2 UI's immersive questing anymore. While Storytale shows a dialogue, GW2 UI's full-screen quest view stays closed (it no longer flashes for an instant when a quest opens), and its 3D portrait on the dialogue window is hidden, then comes back afterwards.
+
+---
+
+**Français**
+
+### Corrections
+- Compatibilité avec GW2 UI : plus besoin de désactiver l'immersion des quêtes de GW2 UI. Tant que Storytale affiche un dialogue, la vue de quête plein écran de GW2 UI reste fermée (elle n'apparaît plus un instant à l'ouverture d'une quête), et son portrait 3D sur la fenêtre de dialogue est caché, puis revient ensuite.
+
 ## 1.11.2
 
 **English**
