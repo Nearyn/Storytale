@@ -1,5 +1,19 @@
 # Changelog / Journal des versions
 
+## 1.11.0
+
+**English**
+
+### New
+- Keys 1-9 (and the numpad) pick a choice directly while you talk to an NPC, like in DialogueUI. Each choice shows its number, in a soft shade of the theme's text colour. The keys go back to your action bars as soon as the conversation ends. Turn it off in Options > Keys and gamepad. (No numbers with a gamepad or in books.)
+
+---
+
+**Français**
+
+### Nouveautés
+- Les touches 1 à 9 (et le pavé numérique) choisissent directement une réponse pendant que vous parlez à un PNJ, comme dans DialogueUI. Chaque choix affiche son numéro, dans une teinte adoucie de la couleur du texte du thème. Les touches reviennent à vos barres d'action dès la fin de la conversation. Option à décocher dans Options > Touches et manette. (Pas de numéros à la manette ni dans les livres.)
+
 ## 1.10.1
 
 **English**

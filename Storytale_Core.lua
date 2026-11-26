@@ -6257,11 +6257,18 @@ end
 
 -- Libelle d'un choix, precede de son numero quand les touches 1 a 9 le choisissent (comme
 -- DialogueUI) ; pas de numero a la manette ni dans un livre.
-function DWE.ChoiceLabel(opt, i)
+-- Le numero prend la couleur du texte du choix, adoucie (melee a un gris moyen) : en retrait,
+-- mais accorde a chaque theme ; gris neutre si la couleur n'est pas encore connue (mesures).
+function DWE.ChoiceLabel(opt, i, color)
     local label = opt.rawLabel or opt.label or ""
     if i and i <= 9 and DialogueWheelE_NumberKeys ~= false and not DWE.bookMode
         and not (DWE.PadInUse and DWE.PadInUse()) then
-        return "|cff8c8c8c" .. i .. ".|r " .. label
+        local hex = "8c8c8c"
+        if type(color) == "table" and color[1] then
+            local function c(v) return math.floor(math.max(0, math.min(1, (v or 0.5) * 0.6 + 0.2)) * 255 + 0.5) end
+            hex = string.format("%02x%02x%02x", c(color[1]), c(color[2]), c(color[3]))
+        end
+        return "|cff" .. hex .. i .. ".|r " .. label
     end
     return label
 end
@@ -6323,6 +6330,8 @@ local function PaintRow(row, opt, selected, pillWidth, index)
         row.icon:SetDesaturated(dimToggle)
     end
     row.text:SetTextColor(color[1], color[2], color[3])
+    -- (numero du choix : maintenant que la couleur du texte est connue)
+    row.text:SetText(DWE.ChoiceLabel(opt, index, color))
     row.text:SetShadowOffset(pal.shadow, -pal.shadow)
     DWE.ChoiceFont(row.text)
 end
