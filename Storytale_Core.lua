@@ -406,8 +406,7 @@ function DWE.Gw2Decor(owner, layer, sub)
         local t = owner:CreateTexture(nil, layer or "BACKGROUND", nil, sub or -6)
         t:SetTexture(DWE.GW2_ART .. p[2] .. ".png")
         t:SetTexCoord(p[3][1], p[3][2], p[3][3], p[3][4])
-        if p[4] then t:SetWidth(p[4]) end
-        if p[5] then t:SetHeight(p[5]) end
+        t.dweW, t.dweH = p[4], p[5]
         local k = p[1]
         if k == "top" then
             t:SetPoint("BOTTOMLEFT", bg, "TOPLEFT"); t:SetPoint("BOTTOMRIGHT", bg, "TOPRIGHT")
@@ -426,13 +425,69 @@ function DWE.Gw2Decor(owner, layer, sub)
     end
     return d
 end
--- Pose le fond a l'interieur de `rel` (marges gauche, haut, droite, bas), bords compris si
--- les marges valent DWE.GW2_INSET.
-function DWE.Gw2Place(d, rel, l, t, r, b)
+-- Echelle des bulles de GW2 UI par rapport a `frame` : elles sont dans le monde (WorldFrame), pas
+-- dans l'interface. A notre echelle (souvent reduite par GW2 UI), leurs filets faisaient moins
+-- d'un pixel et scintillaient quand la roue suivait le PNJ.
+function DWE.Gw2Scale(frame)
+    local okW, ws = pcall(function() return WorldFrame:GetEffectiveScale() end)
+    local okF, fs = pcall(frame.GetEffectiveScale, frame)
+    if okW and okF and type(ws) == "number" and type(fs) == "number" and fs > 0 then
+        local k = ws / fs
+        if k >= 0.5 and k <= 4 then return k end
+    end
+    return 1
+end
+-- Pose le fond a l'interieur de `rel` (marges gauche, haut, droite, bas ; `inset` : plus la place
+-- des bords). Les bords sont a l'echelle des bulles de GW2 UI.
+function DWE.Gw2Place(d, rel, l, t, r, b, inset)
+    -- Taille du fond fixee en pixels : a refaire quand `rel` change de taille (largeur du choix
+    -- donnee apres l'habillage, bulle ajustee au texte).
+    d.last = { rel, l, t, r, b, inset }
+    if not d.sizeHooked and rel.HookScript then
+        d.sizeHooked = true
+        rel:HookScript("OnSizeChanged", function()
+            local a = d.last
+            if a and a[1] == rel and d.bg:IsShown() then DWE.Gw2Place(d, a[1], a[2], a[3], a[4], a[5], a[6]) end
+        end)
+    end
+    local k = DWE.Gw2Scale(rel)
+    if inset then
+        local g = DWE.GW2_INSET
+        -- (marges a la taille d'origine : le fond garde sa place, les bords agrandis debordent un peu)
+        l, t, r, b = (l or 0) + g[1], (t or 0) + g[2], (r or 0) + g[3], (b or 0) + g[4]
+    end
+    -- Bords en pixels entiers (et accroches aux pixels, comme le jeu le fait par defaut) : une
+    -- epaisseur fractionnaire changeait d'un pixel a l'autre quand la roue suivait le PNJ, et
+    -- les filets clairs scintillaient.
+    local px = 1
+    local okS, es = pcall(rel.GetEffectiveScale, rel)
+    local okP, _, ph = pcall(function() return GetPhysicalScreenSize() end)
+    if okS and okP and type(es) == "number" and type(ph) == "number" and es > 0 and ph > 0 then
+        px = 768 / ph / es -- taille d'un pixel de l'ecran, en points de `rel`
+    end
+    local function Snap(v) return math.max(1, math.floor(v / px + 0.5)) * px end
+    -- Fond a une taille fixe en pixels entiers (sinon, en suivant le PNJ au zoom, il gagnait ou
+    -- perdait un pixel d'une image a l'autre et les filets colles a lui scintillaient).
     d.bg:ClearAllPoints()
-    d.bg:SetPoint("TOPLEFT", rel, "TOPLEFT", l, -t)
-    d.bg:SetPoint("BOTTOMRIGHT", rel, "BOTTOMRIGHT", -r, b)
-    for _, x in ipairs(d.list) do x:Show() end
+    local okW, w = pcall(rel.GetWidth, rel)
+    local okH, h = pcall(rel.GetHeight, rel)
+    if okW and okH and type(w) == "number" and type(h) == "number" and w > l + r and h > t + b then
+        d.bg:SetPoint("TOPLEFT", rel, "TOPLEFT", Snap(l), -Snap(t))
+        d.bg:SetSize(Snap(w - l - r), Snap(h - t - b))
+    else
+        d.bg:SetPoint("TOPLEFT", rel, "TOPLEFT", l, -t)
+        d.bg:SetPoint("BOTTOMRIGHT", rel, "BOTTOMRIGHT", -r, b)
+    end
+    for _, x in ipairs(d.list) do
+        if x.dweW then x:SetWidth(Snap(x.dweW * k)) end
+        if x.dweH then x:SetHeight(Snap(x.dweH * k)) end
+        -- Accroche aux pixels demandee explicitement : la roue suit la plaque du PNJ, dont le jeu
+        -- ne donne pas la position (zone protegee) ; on ne peut donc pas caler la roue elle-meme.
+        -- Chaque morceau saute d'un pixel entier, a taille fixe : les filets ne changent plus d'eclat.
+        if x.SetSnapToPixelGrid then pcall(x.SetSnapToPixelGrid, x, true) end
+        if x.SetTexelSnappingBias then pcall(x.SetTexelSnappingBias, x, 1) end
+        x:Show()
+    end
 end
 function DWE.Gw2Hide(d)
     if d then for _, x in ipairs(d.list) do x:Hide() end end
@@ -443,6 +498,29 @@ function DWE.Gw2Color(d, bgMul, edge, alpha)
     d.bg:SetVertexColor(m, m, m, alpha or 1)
     local e = edge or { 1, 1, 1 }
     for _, t in ipairs(d.borders) do t:SetVertexColor(e[1], e[2], e[3], alpha or 1) end
+end
+-- Taille d'un pixel de l'ecran en points de `frame`, et arrondi a un pixel entier.
+function DWE.PixelSize(frame)
+    local okS, es = pcall(frame.GetEffectiveScale, frame)
+    local okP, _, ph = pcall(function() return GetPhysicalScreenSize() end)
+    if okS and okP and type(es) == "number" and type(ph) == "number" and es > 0 and ph > 0 then
+        return 768 / ph / es
+    end
+    return nil
+end
+function DWE.PixelRound(frame, v)
+    local u = DWE.PixelSize(frame)
+    if not u or type(v) ~= "number" then return v end
+    return math.floor(v / u + 0.5) * u
+end
+-- La roue qui suit le PNJ : posee sur un pixel entier de l'ecran. Au milieu de deux pixels, les
+-- traits fins (bords des choix, filets) changeaient d'eclat a chaque image : ils scintillaient.
+function DWE.SnapToPixels(frame)
+    local okL, l = pcall(frame.GetLeft, frame)
+    local okT, t = pcall(frame.GetTop, frame)
+    if not (okL and okT and type(l) == "number" and type(t) == "number") then return end
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", DWE.PixelRound(frame, l), DWE.PixelRound(frame, t))
 end
 -- Theme GW2 UI dessine avec les vraies images de GW2 UI (sinon : dessin propre a Storytale).
 function DWE.Gw2Native(style)
@@ -1041,7 +1119,7 @@ function PaintThemeParts(parts, content, divAnchor, id)
             for _, t in ipairs(parts.gw2.list) do parts.list[#parts.list + 1] = t end
         end
         local pl, pt, pr, pb = unpack(cfg.pad)
-        DWE.Gw2Place(parts.gw2, content, -pl + DWE.GW2_INSET[1], -pt + DWE.GW2_INSET[2], -pr + DWE.GW2_INSET[3], -pb + DWE.GW2_INSET[4])
+        DWE.Gw2Place(parts.gw2, content, -pl, -pt, -pr, -pb, true)
         DWE.Gw2Color(parts.gw2, 1, nil, op)
         return cfg
     end
@@ -5670,6 +5748,7 @@ local function AnchorTo(plate)
     -- quand on tourne autour ou qu'on s'approche, car le zoom suit la camera, pas la distance.)
     local kx = f * math.min(0.7, sf)
     choiceBox:SetPoint(m == 1 and "LEFT" or "RIGHT", plate, "CENTER", m * o.wheelX * kx / ws, wy / ws)
+    DWE.SnapToPixels(choiceBox)
     if not DWE.IsCinema() then
         local tp = m == 1 and "BOTTOMRIGHT" or "BOTTOMLEFT"
         textBox:ClearAllPoints()
@@ -6264,6 +6343,7 @@ function DWE.CursorStill()
 end
 
 local optionRows = {}
+DWE.optionRows = optionRows -- (diagnostic /storytale pixels)
 
 -- Marges du texte d'un choix : normales, ou a l'interieur d'une bulle de choix.
 local ROW_PAD = { left = 2, iconLeft = 24, top = 3, right = 2, iconTop = 4 }
@@ -6348,8 +6428,7 @@ local function SkinPill(frame, style, selected, tail)
         frame.dweTex:Hide()
         if frame.dweEdge then frame.dweEdge:Hide() end
         if not frame.dweGw2 then frame.dweGw2 = DWE.Gw2Decor(frame, "BACKGROUND", -6) end
-        local g = DWE.GW2_INSET
-        DWE.Gw2Place(frame.dweGw2, frame, g[1], g[2], g[3], g[4])
+        DWE.Gw2Place(frame.dweGw2, frame, 0, 0, 0, 0, true)
         -- Surligne : bords dores (GW2 UI teinte ses bords), fond a pleine lumiere.
         DWE.Gw2Color(frame.dweGw2, selected and 1 or 0.78, selected and { 1, 0.82, 0.42 } or nil,
             tonumber(DialogueWheelE_Opacity) or 1)
@@ -6605,7 +6684,7 @@ local function PositionRows()
     for i, row in ipairs(optionRows) do
         local top, h = scroll.tops[i], scroll.heights[i]
         if top and DWE.currentOptions[i] then
-            local y = -(top - scroll.px)
+            local y = DWE.PixelRound(listClip, -(top - scroll.px))
             row:ClearAllPoints()
             -- Roue a gauche du PNJ : encoches a droite et barre de defilement a gauche (miroir).
             local barGap = scroll.active and DWE.SCROLL_BAR.gap or 4
@@ -6899,13 +6978,17 @@ function DWE.UpdateVisualsInner()
     DWE.SizeQuestInfo()
 
     local pill = DWE.WheelPillStyle()
-    local gap = pill and 6 or 5
+    local gap = DWE.PixelRound(choiceBox, pill and 6 or 5)
     local tops, heights = {}, {}
     local yy = 0
     for i, opt in ipairs(DWE.currentOptions) do
         local row = DWE.GetRow(i)
         PaintRow(row, opt, i == DWE.selectedIndex, pillWidth, i)
         local h = pill and math.max(36, TextHeight(row.text, 16) + 20) or math.max(24, TextHeight(row.text, 16) + 6)
+        -- Hauteur et ecart en pixels entiers : un point vaut rarement un pixel tout rond (ex. 1,005),
+        -- les choix etaient espaces de 42 ou 43 pixels selon leur place, et les bords d'un choix
+        -- recouvraient plus ou moins le filet du precedent (il scintillait, toujours aux memes places).
+        h = DWE.PixelRound(choiceBox, h)
         row:SetHeight(h)
         tops[i], heights[i] = yy, h
         yy = yy + h + gap
@@ -6940,6 +7023,7 @@ function DWE.UpdateVisualsInner()
 
     local mirrored = DWE.WheelLeft()
     listClip:ClearAllPoints()
+    topPad = DWE.PixelRound(choiceBox, topPad) -- (choix sur des pixels entiers, voir SnapToPixels)
     listClip:SetPoint("TOPLEFT", choiceBox, "TOPLEFT", mirrored and 0 or -LIST_PAD, -topPad)
     listClip:SetPoint("TOPRIGHT", choiceBox, "TOPRIGHT", mirrored and LIST_PAD or 0, -topPad)
     listClip:SetHeight(view + (scroll.active and gap - 1 or 12))

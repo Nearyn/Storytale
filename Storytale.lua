@@ -3257,6 +3257,34 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
     elseif msg:match("^%s*followlog") then
         DWE.followLog = not DWE.followLog
         Out("journal du suivi du PNJ : " .. (DWE.followLog and "active" or "coupe") .. ".")
+    elseif msg:match("^%s*pixels") then
+        -- Diagnostic du scintillement : positions de la roue et du premier choix, en pixels de
+        -- l'ecran (des nombres entiers = bien cales sur les pixels).
+        local function P(fr, what)
+            local u = DWE.PixelSize and DWE.PixelSize(fr)
+            local ok, v = pcall(fr[what], fr)
+            if not (u and ok and type(v) == "number") then return "?" end
+            return string.format("%.2f", v / u)
+        end
+        local cb = DWE.choiceBox
+        local _, ph = GetPhysicalScreenSize()
+        Out(string.format("ecran %s px de haut, echelle roue %.3f", tostring(ph), cb:GetEffectiveScale()))
+        Out("roue : gauche " .. P(cb, "GetLeft") .. ", haut " .. P(cb, "GetTop"))
+        local row = DWE.optionRows and DWE.optionRows[1]
+        if row then
+            Out("choix 1 : haut " .. P(row, "GetTop") .. ", bas " .. P(row, "GetBottom"))
+            local g = row.pill and row.pill.dweGw2
+            if g then
+                Out("fond GW2 : haut " .. P(g.bg, "GetTop") .. ", bas " .. P(g.bg, "GetBottom")
+                    .. " ; filet du bas : haut " .. P(g.bottom, "GetTop") .. ", bas " .. P(g.bottom, "GetBottom"))
+                local t = g.bottom
+                local okA, snap = pcall(function() return t:IsSnappingToPixelGrid() end)
+                local okB, bias = pcall(function() return t:GetTexelSnappingBias() end)
+                local okH, h = pcall(t.GetHeight, t)
+                Out("filet du bas : accroche " .. tostring(okA and snap) .. ", biais " .. tostring(okB and bias)
+                    .. ", hauteur " .. tostring(okH and h) .. " (" .. string.format("%.2f", (okH and h or 0) / (DWE.PixelSize(t) or 1)) .. " px)")
+            end
+        end
     elseif msg:match("^%s*bubblelog") then
         DWE.bubbleLog = not DWE.bubbleLog
         Out("journal de la bulle : " .. (DWE.bubbleLog and "active" or "coupe") .. ".")

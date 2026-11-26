@@ -433,8 +433,9 @@ local function ShowGw2(on)
             gw2Name:SetJustifyH("LEFT")
             gw2Name:SetPoint("BOTTOMLEFT", gw2Decor.bg, "TOPLEFT", 0, 0)
         end
-        local g = DWE.GW2_INSET
-        DWE.Gw2Place(gw2Decor, bubble, g[1], g[2], g[3], g[4])
+        -- Fond a 8 points autour du texte (a l'echelle de GW2 UI), comme ses bulles.
+        local pad, m = STYLES.gw2 and STYLES.gw2.pad or 14, 8 * DWE.Gw2Scale(bubble)
+        DWE.Gw2Place(gw2Decor, bubble, pad - m, pad - m, pad - m, pad - m)
         DWE.Gw2Color(gw2Decor, 1, nil, tonumber(DialogueWheelE_Opacity) or 1)
         gw2Name:Show()
         Gw2NameSize()
@@ -2124,6 +2125,11 @@ function DWE.Bubble.SetShown(show)
     local size = (tonumber(DialogueWheelE_FontSize) or 13) + 2
     local face = (name == "fantasy" or STYLES[name].optFont) and DWE.FontPath(DWE.ThemeFontId())
         or (ChatBubbleFont and ChatBubbleFont:GetFont()) or STANDARD_TEXT_FONT
+    -- Bulle de GW2 UI : sa police ; la taille reste celle de l'option "Taille de police" (a
+    -- l'echelle de GW2 UI, 11 a l'echelle du monde, le texte etait juge trop gros).
+    if DWE.Gw2Native and DWE.Gw2Native(name) then
+        face = UNIT_NAME_FONT or STANDARD_TEXT_FONT
+    end
     if bubble.fontKey ~= face .. size then
         bubble.fontKey = face .. size
         DWE.SafeSetFont(text, face, size)
