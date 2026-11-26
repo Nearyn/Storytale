@@ -2100,6 +2100,42 @@ do
     check(DWE.SpokenClipStart(old) == t0 - 3, "older Spoken: sound start from spokenAt")
     Spoken, GetTime, DialogueWheelE_BubbleHighlight = savedSpoken, savedGT, savedHL
 end
+-- Mode "page a la main" : page entiere tout de suite, aucune avance seule, meme avec le temps ;
+-- le raccourci "Bulle : page suivante" (DWE.BubbleNext) tourne la page, comme un clic.
+do
+    local savedMode, savedSpoken, savedGT = DialogueWheelE_BubbleMode, Spoken, GetTime
+    local t1 = 9000
+    GetTime = function() return t1 end
+    Spoken = nil
+    DialogueWheelE_BubbleMode = "manual"
+    local st = DWE.bubbleState
+    local parts = {}
+    for i = 1, 60 do parts[i] = "word" .. i end
+    local long = table.concat(parts, " ") .. "."
+    DWE.SetDialogueText("NPC", long)
+    local tick = function(dt) t1 = t1 + dt; DWE.bubble._scripts.OnUpdate(DWE.bubble, dt) end
+    for _ = 1, 3 do tick(0.05) end
+    check(DWE.BubbleManualMode() and st.phase == "reading" and st.index == 1,
+        "manual pages: the first page is shown whole at once: " .. tostring(st.phase) .. " " .. tostring(st.index))
+    local manySegs = st.segs and #st.segs > 1
+    for _ = 1, 600 do tick(0.05) end
+    check(st.index == 1 and st.phase == "reading", "manual pages: the page never turns on its own (30 s)")
+    if manySegs then
+        DWE.bubble:Hide()
+        check(DWE.BubbleNext() == false and st.index == 1, "manual pages: the key binding does nothing while no bubble is shown")
+        DWE.bubble:Show()
+        local turned = DWE.BubbleNext() == true and st.index == 2
+        tick(0.05)
+        check(turned and st.index == 2 and st.phase == "reading",
+            "manual pages: the key binding turns to the next page, shown whole: " .. tostring(st.index))
+    else
+        check(false, "manual pages: the test text should need several pages")
+    end
+    DialogueWheelE_BubbleMode = nil
+    check(not DWE.BubbleManualMode(), "manual pages: off by default")
+    DWE.SetDialogueText("NPC", "")
+    DialogueWheelE_BubbleMode, Spoken, GetTime = savedMode, savedSpoken, savedGT
+end
 Spoken = nil
 GetTime = nil
 

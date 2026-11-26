@@ -499,3 +499,4 @@ end
 -- Raccourci du jeu (Options > Raccourcis > Storytale), pour ouvrir la fenetre a la manette.
 BINDING_HEADER_STORYTALE = "Storytale"
 BINDING_NAME_STORYTALE_OPTIONS = (DWE.L and DWE.L.OPT_WINDOW_OPEN) or "Storytale options"
+BINDING_NAME_STORYTALE_BUBBLE_NEXT = (DWE.L and DWE.L.BUBBLE_NEXT_KEY) or "Bubble: next page"

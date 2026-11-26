@@ -1195,43 +1195,44 @@ for loc, v in pairs({
 local BUBBLE_MODE = {
     enUS = { "Bubble display:", "Typewriter", "Whole page",
         "The text is written letter by letter, at the pace of the voice when a voice reads.",
-        "Each page is shown at once. While a voice reads, the word it is saying is coloured, like Spoken's narrator, when \"Highlight the word being read\" is checked (and \"Highlight Words\" in Spoken's options)." },
+        "Each page is shown at once. While a voice reads, the word it is saying is coloured, like Spoken's narrator, when \"Highlight the word being read\" is checked (and \"Highlight Words\" in Spoken's options).", "Page by hand", "Each page is shown at once, without highlighting, and stays until you turn it: click the bubble, or use the \"Bubble: next page\" key binding (Key Bindings > AddOns > Storytale), which you can also put on a gamepad button. A voice reads the whole line.", "Bubble: next page" },
     frFR = { "Affichage de la bulle :", "Écriture progressive", "Page entière",
         "Le texte s'écrit lettre par lettre, au rythme de la voix quand une voix lit.",
-        "Chaque page s'affiche d'un coup. Quand une voix lit, le mot qu'elle dit est mis en couleur, comme le narrateur de Spoken, si « Surligner le mot lu » est coché (et « Highlight Words » dans les options de Spoken)." },
+        "Chaque page s'affiche d'un coup. Quand une voix lit, le mot qu'elle dit est mis en couleur, comme le narrateur de Spoken, si « Surligner le mot lu » est coché (et « Highlight Words » dans les options de Spoken).", "Page à la main", "Chaque page s'affiche d'un coup, sans surlignage, et reste jusqu'à ce que vous la tourniez : clic sur la bulle, ou raccourci « Bulle : page suivante » (Raccourcis > AddOns > Storytale), que vous pouvez aussi mettre sur un bouton de manette. Une voix lit toute la réplique.", "Bulle : page suivante" },
     deDE = { "Anzeige der Sprechblase:", "Schreibmaschine", "Ganze Seite",
         "Der Text wird Buchstabe für Buchstabe geschrieben, im Tempo der Stimme, wenn eine Stimme liest.",
-        "Jede Seite wird auf einmal angezeigt. Während eine Stimme liest, wird das gesprochene Wort farbig hervorgehoben, wie beim Erzähler von Spoken, wenn „Gelesenes Wort hervorheben“ aktiviert ist (und „Highlight Words“ in den Optionen von Spoken)." },
+        "Jede Seite wird auf einmal angezeigt. Während eine Stimme liest, wird das gesprochene Wort farbig hervorgehoben, wie beim Erzähler von Spoken, wenn „Gelesenes Wort hervorheben“ aktiviert ist (und „Highlight Words“ in den Optionen von Spoken).", "Seite per Hand", "Jede Seite wird auf einmal angezeigt, ohne Hervorhebung, und bleibt, bis du sie umblätterst: Klick auf die Sprechblase oder die Tastenbelegung „Sprechblase: nächste Seite“ (Tastenbelegung > AddOns > Storytale), die du auch auf eine Controllertaste legen kannst. Eine Stimme liest den ganzen Satz.", "Sprechblase: nächste Seite" },
     esES = { "Visualización del bocadillo:", "Escritura progresiva", "Página entera",
         "El texto se escribe letra a letra, al ritmo de la voz cuando lee una voz.",
-        "Cada página se muestra de una vez. Mientras lee una voz, la palabra que dice se colorea, como el narrador de Spoken, si «Resaltar la palabra leída» está marcado (y «Highlight Words» en las opciones de Spoken)." },
+        "Cada página se muestra de una vez. Mientras lee una voz, la palabra que dice se colorea, como el narrador de Spoken, si «Resaltar la palabra leída» está marcado (y «Highlight Words» en las opciones de Spoken).", "Página a mano", "Cada página se muestra de una vez, sin resaltado, y se queda hasta que la pases: clic en el bocadillo o el atajo «Bocadillo: página siguiente» (Asignar teclas > Accesorios > Storytale), que también puedes poner en un botón del mando. Una voz lee toda la frase.", "Bocadillo: página siguiente" },
     esMX = { "Visualización del globo:", "Escritura progresiva", "Página completa",
         "El texto se escribe letra por letra, al ritmo de la voz cuando lee una voz.",
-        "Cada página se muestra de una vez. Mientras lee una voz, la palabra que dice se colorea, como el narrador de Spoken, si «Resaltar la palabra leída» está marcado (y «Highlight Words» en las opciones de Spoken)." },
+        "Cada página se muestra de una vez. Mientras lee una voz, la palabra que dice se colorea, como el narrador de Spoken, si «Resaltar la palabra leída» está marcado (y «Highlight Words» en las opciones de Spoken).", "Página a mano", "Cada página se muestra de una vez, sin resaltado, y se queda hasta que la pases: clic en el globo o el atajo «Globo: página siguiente» (Asignar teclas > Accesorios > Storytale), que también puedes poner en un botón del control. Una voz lee toda la frase.", "Globo: página siguiente" },
     itIT = { "Visualizzazione del fumetto:", "Scrittura progressiva", "Pagina intera",
         "Il testo si scrive lettera per lettera, al ritmo della voce quando una voce legge.",
-        "Ogni pagina appare subito. Mentre una voce legge, la parola che sta dicendo viene colorata, come il narratore di Spoken, se «Evidenzia la parola letta» è selezionato (e «Highlight Words» nelle opzioni di Spoken)." },
+        "Ogni pagina appare subito. Mentre una voce legge, la parola che sta dicendo viene colorata, come il narratore di Spoken, se «Evidenzia la parola letta» è selezionato (e «Highlight Words» nelle opzioni di Spoken).", "Pagina a mano", "Ogni pagina appare subito, senza evidenziazione, e resta finché non la giri: clic sul fumetto o la scorciatoia «Fumetto: pagina successiva» (Comandi > AddOn > Storytale), che puoi mettere anche su un tasto del controller. Una voce legge tutta la battuta.", "Fumetto: pagina successiva" },
     ptBR = { "Exibição do balão:", "Escrita progressiva", "Página inteira",
         "O texto é escrito letra por letra, no ritmo da voz quando uma voz lê.",
-        "Cada página aparece de uma vez. Enquanto uma voz lê, a palavra que ela diz fica colorida, como o narrador do Spoken, se «Destacar a palavra lida» estiver marcado (e «Highlight Words» nas opções do Spoken)." },
+        "Cada página aparece de uma vez. Enquanto uma voz lê, a palavra que ela diz fica colorida, como o narrador do Spoken, se «Destacar a palavra lida» estiver marcado (e «Highlight Words» nas opções do Spoken).", "Página manual", "Cada página aparece de uma vez, sem destaque, e fica até você virá-la: clique no balão ou use o atalho «Balão: próxima página» (Atalhos > AddOns > Storytale), que também pode ir num botão do controle. Uma voz lê a fala inteira.", "Balão: próxima página" },
     ruRU = { "Показ облачка:", "Постепенно", "Вся страница",
         "Текст пишется по буквам, в темпе голоса, когда читает голос.",
-        "Каждая страница показывается сразу. Пока читает голос, произносимое слово выделяется цветом, как у рассказчика Spoken, если включено «Подсвечивать читаемое слово» (и «Highlight Words» в настройках Spoken)." },
+        "Каждая страница показывается сразу. Пока читает голос, произносимое слово выделяется цветом, как у рассказчика Spoken, если включено «Подсвечивать читаемое слово» (и «Highlight Words» в настройках Spoken).", "Страница вручную", "Каждая страница показывается сразу, без подсветки, и остаётся, пока вы её не перевернёте: щелчок по облачку или команда «Облачко: следующая страница» (Назначение клавиш > Модификации > Storytale), которую можно повесить и на кнопку геймпада. Голос читает всю реплику.", "Облачко: следующая страница" },
     koKR = { "말풍선 표시:", "한 글자씩", "페이지 전체",
         "글이 한 글자씩 써집니다. 목소리가 읽을 때는 목소리의 속도에 맞춥니다.",
-        "각 페이지가 한 번에 표시됩니다. 목소리가 읽는 동안 읽고 있는 단어에 색을 입힙니다. Spoken의 내레이터와 같습니다. 「읽는 단어 강조」가 켜져 있을 때만 (Spoken 설정의 「Highlight Words」도 필요)." },
+        "각 페이지가 한 번에 표시됩니다. 목소리가 읽는 동안 읽고 있는 단어에 색을 입힙니다. Spoken의 내레이터와 같습니다. 「읽는 단어 강조」가 켜져 있을 때만 (Spoken 설정의 「Highlight Words」도 필요).", "페이지 수동 넘김", "각 페이지가 강조 없이 한 번에 표시되고, 직접 넘길 때까지 유지됩니다: 말풍선을 클릭하거나 「말풍선: 다음 페이지」 단축키(단축키 설정 > 애드온 > Storytale)를 사용하세요. 게임패드 버튼에도 지정할 수 있습니다. 목소리는 대사 전체를 읽습니다.", "말풍선: 다음 페이지" },
     zhCN = { "气泡显示：", "逐字显示", "整页显示",
         "文字逐字出现；有语音朗读时随语音的节奏。",
-        "每页文字一次显示。语音朗读时，正在朗读的词会着色，与 Spoken 的旁白相同（需勾选「高亮正在朗读的词」，以及 Spoken 选项中的「Highlight Words」）。" },
+        "每页文字一次显示。语音朗读时，正在朗读的词会着色，与 Spoken 的旁白相同（需勾选「高亮正在朗读的词」，以及 Spoken 选项中的「Highlight Words」）。", "手动翻页", "每页文字一次显示，不高亮，直到你翻页：点击气泡，或使用「气泡：下一页」快捷键（按键设置 > 插件 > Storytale），也可以设在手柄按键上。语音会读完整句台词。", "气泡：下一页" },
     zhTW = { "泡泡顯示：", "逐字顯示", "整頁顯示",
         "文字逐字出現；有語音朗讀時隨語音的節奏。",
-        "每頁文字一次顯示。語音朗讀時，正在朗讀的詞會上色，與 Spoken 的旁白相同（需勾選「醒目標示正在朗讀的詞」，以及 Spoken 選項中的「Highlight Words」）。" },
+        "每頁文字一次顯示。語音朗讀時，正在朗讀的詞會上色，與 Spoken 的旁白相同（需勾選「醒目標示正在朗讀的詞」，以及 Spoken 選項中的「Highlight Words」）。", "手動翻頁", "每頁文字一次顯示，不醒目標示，直到你翻頁：點擊泡泡，或使用「泡泡：下一頁」快捷鍵（按鍵設定 > 插件 > Storytale），也可以設在手把按鍵上。語音會讀完整句台詞。", "泡泡：下一頁" },
 }
 for loc, v in pairs(BUBBLE_MODE) do
     local dest = (loc == "enUS") and enUS or T[loc]
     if dest then
         dest.BUBBLE_MODE, dest.BUBBLE_MODE_TYPE, dest.BUBBLE_MODE_PAGE = v[1], v[2], v[3]
         dest.BUBBLE_MODE_TYPE_TIP, dest.BUBBLE_MODE_PAGE_TIP = v[4], v[5]
+        dest.BUBBLE_MODE_MANUAL, dest.BUBBLE_MODE_MANUAL_TIP, dest.BUBBLE_NEXT_KEY = v[6], v[7], v[8]
     end
 end
 

@@ -2,4 +2,7 @@
 	<Binding name="STORYTALE_OPTIONS" header="STORYTALE" category="ADDONS">
 		if DWE and DWE.ToggleOptionsWindow then DWE.ToggleOptionsWindow() end
 	</Binding>
+	<Binding name="STORYTALE_BUBBLE_NEXT" category="ADDONS">
+		if DWE and DWE.BubbleNext then DWE.BubbleNext() end
+	</Binding>
 </Bindings>

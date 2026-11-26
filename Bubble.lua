@@ -848,8 +848,16 @@ end
 -- seulement avec la case "Surligner le mot lu" de Storytale et "Highlight Words" dans Spoken
 -- (sans elles : la page entiere, sans couleur). (Avant : ecriture progressive tant que la
 -- voix n'etait pas partie, puis page entiere d'un coup : le passage se voyait.)
+-- Mode "page a la main" (DialogueWheelE_BubbleMode = "manual", demande de joueur) : comme un
+-- livre, la page entiere s'affiche sans aucune trace de la voix (ni ecriture, ni mot colore) et
+-- reste jusqu'a ce que le joueur la tourne (clic, ou raccourci "Bulle : page suivante").
+-- La voix de Spoken lit toute la replique : le jeu ne sait pas reprendre un son au milieu.
+local function ManualMode()
+    return DialogueWheelE_BubbleMode == "manual"
+end
+DWE.BubbleManualMode = ManualMode
 local function PageMode()
-    return DialogueWheelE_BubbleMode == "page" and not state.dots and state.phase == "typing"
+    return (DialogueWheelE_BubbleMode == "page" or ManualMode()) and not state.dots and state.phase == "typing"
 end
 DWE.BubblePageMode = PageMode
 
@@ -878,7 +886,7 @@ local function PageReveal(seg, n)
     if DWE.BubbleHideTails then DWE.BubbleHideTails() end
     local want, key = seg, "plain"
     local at, len
-    if state.voiced and not state.manual then at, len = PageWord(n) end
+    if state.voiced and not state.manual and not ManualMode() then at, len = PageWord(n) end
     if at and not seg:find("|", 1, true) and HighlightOn() then
         local a, b = #Utf8Prefix(seg, at), #Utf8Prefix(seg, at + len)
         want = seg:sub(1, a) .. WordColor() .. seg:sub(a + 1, b) .. "|r" .. seg:sub(b + 1)
@@ -1907,6 +1915,11 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
     if state.fresh then state.fresh = nil state.shownN = nil Reveal() end
     if state.phase == "typing" then Reveal() end -- garde le fondu en place, meme en pause
     if state.phase == "idle" then return end
+    -- Page a la main : la page s'affiche entiere tout de suite et n'avance jamais seule.
+    if ManualMode() and not state.dots then
+        if state.phase == "typing" then FinishTyping() end
+        return
+    end
 
     local share, length = SpokenShare(state)
     -- Diagnostic (/storytale sync) : une ligne par seconde sur le suivi de la voix.
@@ -2050,6 +2063,13 @@ bubble:HookScript("OnUpdate", function(_, elapsed)
         fluid.dbg0 = g and { pos = g.pos, target = g.target, next = g.next } or nil
     end
 end)
+
+-- Raccourci "Bulle : page suivante" (Raccourcis > AddOns > Storytale), comme un clic sur la bulle.
+function DWE.BubbleNext()
+    if not bubble:IsShown() or state.phase == "idle" then return false end
+    Advance()
+    return true
+end
 
 bubble:SetScript("OnMouseUp", function(_, button)
     if button == "LeftButton" and not DWE.JustDragged() then Advance() end

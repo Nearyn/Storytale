@@ -8311,10 +8311,14 @@ function DWE.InitOptionsPanel()
     AddGroup({
         { id = "type", label = L.BUBBLE_MODE_TYPE },
         { id = "page", label = L.BUBBLE_MODE_PAGE },
-    }, 300, y - 76, 26, function() return DialogueWheelE_BubbleMode == "page" and "page" or "type" end, function(id)
-        DialogueWheelE_BubbleMode = (id == "page") and "page" or nil
+        { id = "manual", label = L.BUBBLE_MODE_MANUAL },
+    }, 300, y - 76, 26, function()
+        local m = DialogueWheelE_BubbleMode
+        return (m == "page" or m == "manual") and m or "type"
+    end, function(id)
+        DialogueWheelE_BubbleMode = (id == "page" or id == "manual") and id or nil
         if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end
-    end, 1, 190) -- (colonnes plus larges : "Ecriture progressive" est long)
+    end, 2, 190) -- (deux par colonne : "Ecriture progressive" est long, la fenetre fait 600)
 
     ---------------------------------------------------------------- Interface
     y = y - 126
