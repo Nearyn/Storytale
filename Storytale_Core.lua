@@ -6276,9 +6276,25 @@ function DWE.ChoiceNumber(i)
     if DialogueWheelE_NumberVisible == true then n = i - (DWE.wheelFirst or 1) + 1 end
     if n >= 1 and n <= 9 then return n end
 end
+function DWE.NumberIntensity()
+    local v = tonumber(DialogueWheelE_NumberIntensity)
+    if not v and DialogueWheelE_NumberBright == true then v = 100 end -- (ancienne case)
+    return math.max(20, math.min(100, v or 60))
+end
 function DWE.ChoiceForNumber(n)
     if DialogueWheelE_NumberVisible == true then return (DWE.wheelFirst or 1) + n - 1 end
     return n
+end
+
+-- Libelle pour MESURER la largeur de la roue : avec les numeros actifs, chaque choix compte
+-- la place d'un numero, qu'il en ait un a l'instant ou non. Sinon, quand les numeros suivent le
+-- defilement, la roue changeait de largeur a chaque cran (video du 26/11).
+function DWE.ChoiceMeasureLabel(opt)
+    local label = opt.rawLabel or opt.label or ""
+    if DWE.ChoiceNumber(1) or (DialogueWheelE_NumberVisible == true and DWE.ChoiceNumber(DWE.wheelFirst or 1)) then
+        return "9. " .. label
+    end
+    return label
 end
 
 function DWE.ChoiceLabel(opt, i, color)
@@ -6287,10 +6303,10 @@ function DWE.ChoiceLabel(opt, i, color)
     if i then
         local hex = "8c8c8c"
         if type(color) == "table" and color[1] then
-            -- (option « numeros bien lisibles » : la couleur du texte telle quelle, pour la vue)
-            local k, b = 0.6, 0.2
-            if DialogueWheelE_NumberBright == true then k, b = 1, 0 end
-            local function c(v) return math.floor(math.max(0, math.min(1, (v or 0.5) * k + b)) * 255 + 0.5) end
+            -- Intensite des numeros (curseur, 20 a 100 %) : 100 % = la couleur du texte telle
+            -- quelle ; moins = melee a un gris moyen, plus discrete (60 % par defaut).
+            local k = DWE.NumberIntensity() / 100
+            local function c(v) return math.floor(math.max(0, math.min(1, (v or 0.5) * k + 0.5 * (1 - k))) * 255 + 0.5) end
             hex = string.format("%02x%02x%02x", c(color[1]), c(color[2]), c(color[3]))
         end
         return "|cff" .. hex .. i .. ".|r " .. label
@@ -6665,7 +6681,7 @@ function DWE.UpdateVisualsInner()
                 local row = optionRows[i]
                 if row then
                     DWE.ChoiceFont(row.text)
-                    row.text:SetText(DWE.ChoiceLabel(opt, i))
+                    row.text:SetText(DWE.ChoiceMeasureLabel(opt))
                     local tw = MeasureTextWidth(row.text)
                     if not tw then need = nil break end
                     need = math.max(need, (opt.icon and pad.iconLeft or pad.left) + tw + pad.right + 24)
@@ -6686,7 +6702,7 @@ function DWE.UpdateVisualsInner()
             local row = optionRows[i]
             if row then
                 DWE.ChoiceFont(row.text)
-                row.text:SetText(DWE.ChoiceLabel(opt, i))
+                row.text:SetText(DWE.ChoiceMeasureLabel(opt))
                 local tw = MeasureTextWidth(row.text)
                 if not tw then pillWidth = full break end
                 pillWidth = math.max(pillWidth, (opt.icon and PILL_PAD.iconLeft or PILL_PAD.left) + tw + PILL_PAD.right + 4)
@@ -8268,10 +8284,10 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_NumberVisible = self:GetChecked() and true or nil
         if choiceBox:IsShown() then DWE.UpdateVisuals() end
     end)
-    -- Sous-option : numeros de la couleur du texte, sans attenuation (meilleure lisibilite).
-    local numBrightCheck
-    numBrightCheck = AddCheck(L.NUMBER_BRIGHT or "Easy-to-read numbers", 320, keysY - 108, function() return DialogueWheelE_NumberBright == true end, function(self)
-        DialogueWheelE_NumberBright = self:GetChecked() and true or nil
+    -- Intensite des numeros : plus sombres ou plus clairs, au gout (et a la vue) de chacun.
+    local numBrightCheck = AddSlider("DWESliderNumbers", L.NUMBER_INTENSITY or "Number intensity", 330, keysY - 122, 20, 100, 5, function() return DWE.NumberIntensity() end, "%d %%", function(v)
+        DialogueWheelE_NumberIntensity = v
+        DialogueWheelE_NumberBright = nil
         if choiceBox:IsShown() then DWE.UpdateVisuals() end
     end)
     DWE.numBrightCheck = numBrightCheck
@@ -8281,12 +8297,12 @@ function DWE.InitOptionsPanel()
     end
     -- (qui cherche une touche regarde ici : la touche Bulle / Spoken est dans la page Spoken)
     if L.KEY_SPOKEN_HINT then
-        local hint = AddText(L.KEY_SPOKEN_HINT, 300, keysY - 138, "GameFontDisableSmall")
+        local hint = AddText(L.KEY_SPOKEN_HINT, 300, keysY - 168, "GameFontDisableSmall")
         if hint and hint.SetWidth then hint:SetWidth(300); hint:SetJustifyH("LEFT") end
     end
 
     ---------------------------------------------------------------- Manette
-    y = keysY - 156
+    y = keysY - 186
     AddSection(L.SEC_PAD, y)
     AddCheck(L.PAD_USE, 16, y - 32, function() return DialogueWheelE_GamePad ~= false end, function(self)
         DialogueWheelE_GamePad = self:GetChecked() and true or false
@@ -8713,7 +8729,7 @@ function DWE.InitOptionsPanel()
         { "BookStyle", "BookLook", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookTurnFX",
             "BookVoiceTurn", "BookStopOnClose", "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos" },
         { "AttachNPC", "Locked", "WheelSide", "QuestAuto", "QuestWidth", "NPCOffset", "Pos", "TextPos", "WheelWidth", "TextW", "TextH", "BubbleWidth" },
-        { "UseBlizzKey", "InteractKey", "ToggleKey", "EscClose", "WheelScroll", "NumberKeys", "NumberVisible", "NumberBright", "GamePad", "PadTips", "PadFreeLook" },
+        { "UseBlizzKey", "InteractKey", "ToggleKey", "EscClose", "WheelScroll", "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "GamePad", "PadTips", "PadFreeLook" },
         { "SpokenTheme", "SpokenSkin", "BookSkin", "PlateSkin", "PlaceSkin", "SpokenButton", "ShowText", "SpokenSmart", "BubbleHighlight",
             "ZoneArt", "ZoneArtPaper" },
     }
