@@ -10,6 +10,9 @@
 ### Changed
 - Immersion: when it is enabled together with Storytale, a line in the chat explains that both addons show the dialogues and that one of the two should be disabled.
 
+### Fixed
+- Dialogue wheel: the choices are now spaced by a whole number of screen pixels, so their thin edges no longer shimmer while the wheel follows the NPC (zooming, scrolling).
+
 ---
 
 **Français**
@@ -19,6 +22,9 @@
 
 ### Changements
 - Immersion : s'il est activé en même temps que Storytale, une ligne dans le chat explique que les deux addons affichent les dialogues et qu'il faut désactiver l'un des deux.
+
+### Corrections
+- Roue de dialogue : les choix sont maintenant espacés d'un nombre entier de pixels de l'écran, leurs bords fins ne scintillent plus quand la roue suit le PNJ (zoom, défilement).
 
 ## 1.11.3
 
