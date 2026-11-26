@@ -3595,6 +3595,20 @@ if not DWE.IS_CJK then -- Police et taille changees dialogue ouvert (police impo
     DWE.ApplyFont()
 end
 
+do -- Touches 1 a 9 : numeros affiches, puis retires en direct quand l'option est decochee
+    local oldNK = DialogueWheelE_NumberKeys
+    DialogueWheelE_NumberKeys = nil
+    M.FireEvent("GOSSIP_SHOW")
+    local r = DWE.GetRow(1)
+    local t1 = r and r.text:GetText() or ""
+    check(t1:find("1%.") ~= nil, "number keys: first choice numbered: " .. t1)
+    DialogueWheelE_NumberKeys = false
+    DWE.UpdateVisuals()
+    local t2 = r and r.text:GetText() or ""
+    check(not t2:find("|r ", 1, true), "number keys off live: no number: " .. t2)
+    DialogueWheelE_NumberKeys = oldNK
+end
+
 do -- /storytale perf now : chaque fonction chronometree pendant la mesure, puis remise telle quelle
     local hadClock = rawget(_G, "debugprofilestop")
     _G.debugprofilestop = hadClock or function() return os.clock() * 1000 end
