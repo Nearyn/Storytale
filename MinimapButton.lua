@@ -87,8 +87,11 @@ local function Build()
     -- C'est le bouton de Storytale : si un autre addon de mini-carte le deplace (rangement en
     -- colonne...), il revient aussitot a la place choisie par le joueur.
     if hooksecurefunc then
-        hooksecurefunc(btn, "SetPoint", function(self)
+        hooksecurefunc(btn, "SetPoint", function(self, _, rel)
             if self.dwePlacing or self.dweFixQueued then return end
+            -- Range par un addon de mini-carte qui a son propre cadre (OpenMap - MiniMap et sa
+            -- couronne de boutons, un sac a boutons...) : on le laisse faire, les deux s'entendent.
+            if rel ~= nil and rel ~= Minimap and rel ~= "Minimap" then return end
             -- (un addon qui le replace lui aussi en boucle : on cesse au bout de 20 fois par
             -- seconde, plutot que de faire trembler le bouton)
             local now = GetTime and GetTime() or 0
@@ -109,7 +112,18 @@ function DWE.MinimapButtonRefresh()
         return
     end
     Build()
-    if btn then PlaceButton(btn); btn:Show() end
+    if btn then
+        PlaceButton(btn); btn:Show()
+        -- Un addon de mini-carte qui range les boutons (OpenMap - MiniMap) le fait quand
+        -- LibDBIcon montre ou cache un bouton : on lui fait signe, il remet le notre dans sa
+        -- couronne, a la place qu'il lui avait donnee. (Sans effet si personne n'ecoute.)
+        local stub = LibStub
+        local ok, lib = false, nil
+        if stub then ok, lib = pcall(stub, "LibDBIcon-1.0", true) end
+        if ok and type(lib) == "table" and type(lib.Show) == "function" and not (lib.objects and lib.objects.Storytale) then
+            pcall(lib.Show, lib, "Storytale")
+        end
+    end
 end
 
 local ev = CreateFrame("Frame")

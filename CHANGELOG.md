@@ -12,7 +12,7 @@
 - Font and text size now apply live with a conversation open: the bubble, its text and the choices change at once.
 - "Hide UI while talking or reading" and the Cinematic theme now apply live too, with a conversation open.
 - Bubble tails: the inside of the tail now matches the bubble's background (no lighter patch under the bubble on Custom, Folio, Gilded Vellum and Old Parchment).
-- The minimap button stays where you put it: Defaults, profile changes and other minimap addons no longer move it.
+- The minimap button stays where you put it: Defaults and profile changes no longer move it, and it fits in with minimap addons that arrange buttons (such as OpenMap - MiniMap).
 
 ---
 
@@ -26,7 +26,7 @@
 - La police et la taille du texte s'appliquent en direct pendant une conversation : la bulle, son texte et les choix changent aussitôt.
 - « Cacher l'interface en dialogue et en lecture » et le thème Cinématique s'appliquent aussi en direct pendant une conversation.
 - Pointes des bulles : l'intérieur de la pointe a maintenant la couleur du fond de la bulle (plus de tache plus claire sous la bulle avec Personnalisé, Folio, Vélin doré et Parchemin ancien).
-- Le bouton de la mini-carte reste là où vous l'avez mis : ni « Par défaut », ni un changement de profil, ni un autre addon de mini-carte ne le déplacent plus.
+- Le bouton de la mini-carte reste là où vous l'avez mis : ni « Par défaut » ni un changement de profil ne le déplacent plus, et il s'accorde avec les addons de mini-carte qui rangent les boutons (comme OpenMap - MiniMap).
 
 ## 1.10.1
 
