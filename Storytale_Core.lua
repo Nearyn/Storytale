@@ -1373,6 +1373,11 @@ end
 -- infobulles) et sans portrait flottant ; remontree : tout revient.
 function DWE.HideExtras(frame, hidden)
     if DWE.IsDUIFrame(frame) then DWE.CutMouse(frame, hidden) return end
+    -- Portrait 3D qu'un addon pose sur la fenetre de dialogue du jeu (GW2 UI) : il ne prend pas
+    -- la transparence de la fenetre et restait a l'ecran au-dessus de la roue.
+    if frame == rawget(_G, "GossipFrame") or frame == rawget(_G, "QuestFrame") then
+        DWE.HideModels(frame, hidden)
+    end
     -- Fenetre de livre du jeu, invisible sous le livre de Storytale : les boutons que Spoken
     -- Readables y pose (Lire / Arreter, Compendium) restaient actifs, invisibles. La navigation
     -- manette du jeu (et la souris) s'y posait, et leur infobulle ("Stop reading this")
@@ -1520,8 +1525,29 @@ local function ScanAddonFrames()
 end
 DWE.ScanAddonFrames = ScanAddonFrames
 
+-- GW2 UI : sa vue de quete plein ecran (« Immersive Questing ») s'ouvrait par-dessus Storytale.
+-- Tant que la roue de Storytale est la, elle est refermee aussitot (sans son animation) ; le
+-- reste de l'interface de GW2 UI n'est pas touche.
+function DWE.HookGW2()
+    local q = rawget(_G, "GwImmersiveQuestFrame")
+    if type(q) ~= "table" or not q.HookScript then return end
+    local function Close()
+        if not (choiceBox:IsShown() and q:IsShown()) then return end
+        local hideNow = q.HideNow or q.Hide
+        pcall(hideNow, q)
+    end
+    if not q.dweHooked then
+        q.dweHooked = true
+        q:HookScript("OnShow", function()
+            if C_Timer and C_Timer.After then C_Timer.After(0, Close) else Close() end
+        end)
+    end
+    Close()
+end
+
 local function RefreshHiddenFrames()
     DWE.HookSpoken()
+    if DWE.HookGW2 then pcall(DWE.HookGW2) end
     for _, name in ipairs(BLIZZ_FRAMES) do
         local frm = _G[name]
         if IsSafeFrame(frm) then
