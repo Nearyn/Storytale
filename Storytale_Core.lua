@@ -1373,6 +1373,27 @@ end
 -- infobulles) et sans portrait flottant ; remontree : tout revient.
 function DWE.HideExtras(frame, hidden)
     if DWE.IsDUIFrame(frame) then DWE.CutMouse(frame, hidden) return end
+    -- Portrait 3D qu'un addon pose sur la fenetre de dialogue du jeu (GW2 UI) : il ne prend pas
+    -- la transparence de la fenetre et restait a l'ecran au-dessus de la roue.
+    if frame == rawget(_G, "GossipFrame") or frame == rawget(_G, "QuestFrame") then
+        DWE.HideModels(frame, hidden)
+        -- (le portrait de GW2 UI : la transparence ne suffit pas a un modele 3D, il est cache
+        -- pour de bon, et recache si GW2 UI le remontre pendant la conversation)
+        local gw = frame == rawget(_G, "GossipFrame") and rawget(_G, "GwGossipModelFrame")
+        if type(gw) == "table" and gw.Hide then
+            DWE.gwPortraitHidden = hidden or nil
+            if not gw.dweHooked and gw.HookScript then
+                gw.dweHooked = true
+                gw:HookScript("OnShow", function(self) if DWE.gwPortraitHidden then self:Hide() end end)
+            end
+            if hidden then
+                if gw:IsShown() then gw.dweWasShown = true; gw:Hide() end
+            elseif gw.dweWasShown then
+                gw.dweWasShown = nil
+                gw:Show()
+            end
+        end
+    end
     -- Fenetre de livre du jeu, invisible sous le livre de Storytale : les boutons que Spoken
     -- Readables y pose (Lire / Arreter, Compendium) restaient actifs, invisibles. La navigation
     -- manette du jeu (et la souris) s'y posait, et leur infobulle ("Stop reading this")
@@ -1520,8 +1541,38 @@ local function ScanAddonFrames()
 end
 DWE.ScanAddonFrames = ScanAddonFrames
 
+-- GW2 UI : sa vue de quete plein ecran (« Immersive Questing ») s'ouvrait par-dessus Storytale.
+-- Tant que la roue de Storytale est la, elle est refermee aussitot (sans son animation) ; le
+-- reste de l'interface de GW2 UI n'est pas touche.
+function DWE.HookGW2()
+    local q = rawget(_G, "GwImmersiveQuestFrame")
+    if type(q) ~= "table" or not q.HookScript then return end
+    local function Close()
+        if not (choiceBox:IsShown() and q:IsShown()) then return end
+        local hideNow = q.HideNow or q.Hide
+        pcall(hideNow, q)
+    end
+    if not q.dweHooked then
+        q.dweHooked = true
+        -- Sa vue s'ouvre parfois avant la roue (meme evenement) : elle restait visible une image
+        -- (cadre noir). Transparente des l'ouverture ; a l'image suivante, fermee si la roue est
+        -- la, sinon rendue visible (sans Storytale, la vue s'affiche avec une image de retard).
+        q:HookScript("OnShow", function(self)
+            if choiceBox:IsShown() then Close() return end
+            self:SetAlpha(0)
+            local function Later()
+                Close()
+                if self.fadingOut ~= true then self:SetAlpha(1) end
+            end
+            if C_Timer and C_Timer.After then C_Timer.After(0, Later) else Later() end
+        end)
+    end
+    Close()
+end
+
 local function RefreshHiddenFrames()
     DWE.HookSpoken()
+    if DWE.HookGW2 then pcall(DWE.HookGW2) end
     for _, name in ipairs(BLIZZ_FRAMES) do
         local frm = _G[name]
         if IsSafeFrame(frm) then
