@@ -1348,9 +1348,20 @@ local function FinishTyping()
     if hasGradient then text:SetAlphaGradient(len + FADE_LETTERS + 1, 1) end
 end
 
+-- Avance manuelle : la partie s'affiche comme en "Tout d'un coup" (texte entier mis en page par
+-- le jeu). FinishTyping passait par les lignes de l'ecriture progressive, coupees pour une autre
+-- largeur : en jeu, le texte de la 2e partie depassait du bas de la bulle (vu le 27/11).
+function DWE.BubbleManualShow()
+    Reveal()
+    state.phase, state.readT = "reading", 0
+    state.typed = state.lens[state.index] or Utf8Len(state.segs[state.index] or "")
+end
+
 local function Advance()
     state.manual = true -- le joueur prend la main : on ne suit plus la voix
-    if state.phase == "typing" then
+    if state.phase == "typing" and ManualMode() and not state.dots then
+        DWE.BubbleManualShow()
+    elseif state.phase == "typing" then
         FinishTyping()
     elseif state.phase == "reading" and state.index < #state.segs then
         StartSegment(state.index + 1)
@@ -1918,7 +1929,7 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
     if state.phase == "idle" then return end
     -- Page a la main : la page s'affiche entiere tout de suite et n'avance jamais seule.
     if ManualMode() and not state.dots then
-        if state.phase == "typing" then FinishTyping() end
+        if state.phase == "typing" then DWE.BubbleManualShow() end
         return
     end
 
