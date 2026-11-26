@@ -8204,14 +8204,19 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_WheelScroll = self:GetChecked() and true or false
         DWE.RefreshBindings()
     end)
+    -- Touches 1 a 9 : choisir directement un choix de la roue (comme DialogueUI).
+    AddCheck(L.NUMBER_KEYS or "Keys 1-9 pick a choice", 300, keysY - 56, function() return DialogueWheelE_NumberKeys ~= false end, function(self)
+        DialogueWheelE_NumberKeys = (not self:GetChecked()) and false or nil
+        DWE.RefreshBindings()
+    end)
     -- (qui cherche une touche regarde ici : la touche Bulle / Spoken est dans la page Spoken)
     if L.KEY_SPOKEN_HINT then
-        local hint = AddText(L.KEY_SPOKEN_HINT, 300, keysY - 58, "GameFontDisableSmall")
+        local hint = AddText(L.KEY_SPOKEN_HINT, 300, keysY - 86, "GameFontDisableSmall")
         if hint and hint.SetWidth then hint:SetWidth(300); hint:SetJustifyH("LEFT") end
     end
 
     ---------------------------------------------------------------- Manette
-    y = keysY - 76
+    y = keysY - 104
     AddSection(L.SEC_PAD, y)
     AddCheck(L.PAD_USE, 16, y - 32, function() return DialogueWheelE_GamePad ~= false end, function(self)
         DialogueWheelE_GamePad = self:GetChecked() and true or false
@@ -8638,7 +8643,7 @@ function DWE.InitOptionsPanel()
         { "BookStyle", "BookLook", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookTurnFX",
             "BookVoiceTurn", "BookStopOnClose", "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos" },
         { "AttachNPC", "Locked", "WheelSide", "QuestAuto", "QuestWidth", "NPCOffset", "Pos", "TextPos", "WheelWidth", "TextW", "TextH", "BubbleWidth" },
-        { "UseBlizzKey", "InteractKey", "ToggleKey", "EscClose", "WheelScroll", "GamePad", "PadTips", "PadFreeLook" },
+        { "UseBlizzKey", "InteractKey", "ToggleKey", "EscClose", "WheelScroll", "NumberKeys", "GamePad", "PadTips", "PadFreeLook" },
         { "SpokenTheme", "SpokenSkin", "BookSkin", "PlateSkin", "PlaceSkin", "SpokenButton", "ShowText", "SpokenSmart", "BubbleHighlight",
             "ZoneArt", "ZoneArtPaper" },
     }

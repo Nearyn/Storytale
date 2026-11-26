@@ -1720,6 +1720,19 @@ btnSelect:SetScript("OnClick", function()
 end)
 btnToggleText:SetScript("OnClick", function() DWE.ToggleDialogueText() end)
 
+-- Touches 1 a 9 (et pave numerique) : choisissent directement le choix de ce rang dans la roue,
+-- comme dans DialogueUI. Seulement pendant une conversation (pas dans un livre), jamais en combat.
+for i = 1, 9 do
+    local b = CreateFrame("Button", "DWE_NumBtn" .. i, UIParent)
+    b:SetScript("OnClick", function()
+        local opt = DWE.currentOptions and DWE.currentOptions[i]
+        if not opt or opt.disabled or not opt.action then return end
+        DWE.selectedIndex = i
+        if DWE.LagMark then DWE.LagMark(opt.rawLabel or opt.label) end
+        opt.action()
+    end)
+end
+
 -- Bouton de bascule bulle / lecteur Spoken : toujours au meme endroit, le coin haut droit de la
 -- roue (elle reste a l'ecran dans les deux cas). Discret au repos, net au survol.
 do
@@ -3057,6 +3070,12 @@ local function EnableKeys()
     if DialogueWheelE_WheelScroll ~= false then
         SetOverrideBindingClick(f, true, "MOUSEWHEELUP", "DWE_WheelUpBtn")
         SetOverrideBindingClick(f, true, "MOUSEWHEELDOWN", "DWE_WheelDownBtn")
+    end
+    if DialogueWheelE_NumberKeys ~= false and not DWE.bookMode then
+        for i = 1, 9 do
+            SetOverrideBindingClick(f, true, tostring(i), "DWE_NumBtn" .. i)
+            SetOverrideBindingClick(f, true, "NUMPAD" .. i, "DWE_NumBtn" .. i)
+        end
     end
     local toggle = DWE.GetToggleKey()
     if toggle then SetOverrideBindingClick(f, true, toggle, "DWE_ToggleTextKeyBtn") end
