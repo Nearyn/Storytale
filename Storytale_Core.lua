@@ -6978,13 +6978,17 @@ function DWE.UpdateVisualsInner()
     DWE.SizeQuestInfo()
 
     local pill = DWE.WheelPillStyle()
-    local gap = pill and 6 or 5
+    local gap = DWE.PixelRound(choiceBox, pill and 6 or 5)
     local tops, heights = {}, {}
     local yy = 0
     for i, opt in ipairs(DWE.currentOptions) do
         local row = DWE.GetRow(i)
         PaintRow(row, opt, i == DWE.selectedIndex, pillWidth, i)
         local h = pill and math.max(36, TextHeight(row.text, 16) + 20) or math.max(24, TextHeight(row.text, 16) + 6)
+        -- Hauteur et ecart en pixels entiers : un point vaut rarement un pixel tout rond (ex. 1,005),
+        -- les choix etaient espaces de 42 ou 43 pixels selon leur place, et les bords d'un choix
+        -- recouvraient plus ou moins le filet du precedent (il scintillait, toujours aux memes places).
+        h = DWE.PixelRound(choiceBox, h)
         row:SetHeight(h)
         tops[i], heights[i] = yy, h
         yy = yy + h + gap
