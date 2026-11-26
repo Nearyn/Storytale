@@ -440,15 +440,22 @@ end
 -- Pose le fond a l'interieur de `rel` (marges gauche, haut, droite, bas ; `inset` : plus la place
 -- des bords). Les bords sont a l'echelle des bulles de GW2 UI.
 function DWE.Gw2Place(d, rel, l, t, r, b, inset)
+    -- Taille du fond fixee en pixels : a refaire quand `rel` change de taille (largeur du choix
+    -- donnee apres l'habillage, bulle ajustee au texte).
+    d.last = { rel, l, t, r, b, inset }
+    if not d.sizeHooked and rel.HookScript then
+        d.sizeHooked = true
+        rel:HookScript("OnSizeChanged", function()
+            local a = d.last
+            if a and a[1] == rel and d.bg:IsShown() then DWE.Gw2Place(d, a[1], a[2], a[3], a[4], a[5], a[6]) end
+        end)
+    end
     local k = DWE.Gw2Scale(rel)
     if inset then
         local g = DWE.GW2_INSET
         -- (marges a la taille d'origine : le fond garde sa place, les bords agrandis debordent un peu)
         l, t, r, b = (l or 0) + g[1], (t or 0) + g[2], (r or 0) + g[3], (b or 0) + g[4]
     end
-    d.bg:ClearAllPoints()
-    d.bg:SetPoint("TOPLEFT", rel, "TOPLEFT", l, -t)
-    d.bg:SetPoint("BOTTOMRIGHT", rel, "BOTTOMRIGHT", -r, b)
     -- Bords en pixels entiers (et accroches aux pixels, comme le jeu le fait par defaut) : une
     -- epaisseur fractionnaire changeait d'un pixel a l'autre quand la roue suivait le PNJ, et
     -- les filets clairs scintillaient.
@@ -459,6 +466,18 @@ function DWE.Gw2Place(d, rel, l, t, r, b, inset)
         px = 768 / ph / es -- taille d'un pixel de l'ecran, en points de `rel`
     end
     local function Snap(v) return math.max(1, math.floor(v / px + 0.5)) * px end
+    -- Fond a une taille fixe en pixels entiers (sinon, en suivant le PNJ au zoom, il gagnait ou
+    -- perdait un pixel d'une image a l'autre et les filets colles a lui scintillaient).
+    d.bg:ClearAllPoints()
+    local okW, w = pcall(rel.GetWidth, rel)
+    local okH, h = pcall(rel.GetHeight, rel)
+    if okW and okH and type(w) == "number" and type(h) == "number" and w > l + r and h > t + b then
+        d.bg:SetPoint("TOPLEFT", rel, "TOPLEFT", Snap(l), -Snap(t))
+        d.bg:SetSize(Snap(w - l - r), Snap(h - t - b))
+    else
+        d.bg:SetPoint("TOPLEFT", rel, "TOPLEFT", l, -t)
+        d.bg:SetPoint("BOTTOMRIGHT", rel, "BOTTOMRIGHT", -r, b)
+    end
     for _, x in ipairs(d.list) do
         if x.dweW then x:SetWidth(Snap(x.dweW * k)) end
         if x.dweH then x:SetHeight(Snap(x.dweH * k)) end
