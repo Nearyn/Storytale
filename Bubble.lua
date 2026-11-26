@@ -1917,7 +1917,8 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
             local clip = state.clip
             local present = type(clip) == "table" and type(clip.present) == "table" and clip.present or {}
             local who = type(clip) == "table" and DWE.SpokenFocus and DWE.SpokenFocus.SpeakerOf and DWE.SpokenFocus.SpeakerOf(clip)
-            local tw, _, _, wi = type(clip) == "table" and SpokenWords(clip)
+            local tw, wi
+            if type(clip) == "table" then local w, _, _, i = SpokenWords(clip) tw, wi = w, i end
             local cap = type(clip) == "table" and SpokenCaption(clip)
             wi = tw and tw[wi] and (wi .. ":" .. tostring(tw[wi].text)) or "-"
             print(("|cff33ff99Storytale|r sync: api=%s minutage=%s genere=%s motSpoken=%s"):format(
