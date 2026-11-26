@@ -5,14 +5,14 @@
 **English**
 
 ### Changed
-- Quest preview: rewards your character cannot use (armour type, weapon, class, level) now have a red icon, like in the game's quest window, and a dimmed name, so you can tell at a glance what is useless to you. Thanks ToxinPix for the idea!
+- Quest preview: rewards your character cannot use (armour type, weapon, class, level) now have a red icon, like in the game's quest window, and a dimmed name, so you can tell at a glance what is useless to you. Thanks to the player who reported it!
 
 ---
 
 **Français**
 
 ### Changements
-- Aperçu des quêtes : les récompenses que votre personnage ne peut pas utiliser (type d'armure, arme, classe, niveau) ont maintenant l'icône en rouge, comme dans la fenêtre de quête du jeu, et le nom pâli : on voit d'un coup d'œil ce qui ne sert à rien. Merci à ToxinPix pour l'idée !
+- Aperçu des quêtes : les récompenses que votre personnage ne peut pas utiliser (type d'armure, arme, classe, niveau) ont maintenant l'icône en rouge, comme dans la fenêtre de quête du jeu, et le nom pâli : on voit d'un coup d'œil ce qui ne sert à rien. Merci au joueur qui l'a signalé !
 
 ## 1.11.4
 
@@ -525,14 +525,14 @@
 **English**
 
 ### New
-- New option: hide the game interface while you talk to an NPC or read a book. Off by default, and nothing is hidden in combat. Thanks to jamesdiato23 for the idea!
+- New option: hide the game interface while you talk to an NPC or read a book. Off by default, and nothing is hidden in combat. Thanks to the player who suggested it!
 
 ---
 
 **Français**
 
 ### Nouveautés
-- Nouvelle option : cacher l'interface du jeu pendant les dialogues et les livres. Désactivée par défaut, et rien n'est caché en combat. Merci à jamesdiato23 pour l'idée !
+- Nouvelle option : cacher l'interface du jeu pendant les dialogues et les livres. Désactivée par défaut, et rien n'est caché en combat. Merci au joueur qui l'a proposée !
 
 ## 1.6.1
 
