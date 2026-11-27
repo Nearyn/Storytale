@@ -828,6 +828,9 @@ end
 -- Parchemins : sur les etageres, ceux d'Uldaman (feuillet plie, debout ; paire de rouleaux,
 -- couchee) ; sur le pupitre, le vrai modele s'il est connu, sinon un parchemin ouvert du jeu.
 -- Le meme parchemin garde toujours le meme (choisi par son titre).
+-- Parchemin couche vu par le bout (paire de rouleaux d'Uldaman) : largeur et hauteur visibles,
+-- en part de la hauteur du rayon (mesurees en jeu a cette distance).
+Lib.SCROLL_PILE = { dist = 0.75, w = 0.41, dia = 0.205 }
 Lib.SHELF_BOOK_OK = { [200900] = true, [200901] = true, [200902] = true, [200903] = true, [200904] = true, [200905] = true }
 Lib.SCROLL_SHELF = { 203430 } -- (le feuillet plie, 203429, rendait mal sur les rayons)
 Lib.SCROLL_OPEN = { 198451, 198452, 198454, 198455, 201113 }
@@ -1001,22 +1004,13 @@ function Lib.ShelfPose(row, i)
     if h % every == 0 and not row.noLean then p.lean = 12 + (h % 9) end
     -- Parchemins : couches, empiles. Quelques livres couches aussi, par deux ou trois.
     if row.kind == "letter" then
-        -- (debout comme les livres, parfois penches : rouleaux d'Uldaman et feuillet plie)
-        if Lib.ModelFor(row, "shelf") == 203430 and (h % 5 < 2) then
-            -- (couches, vus par le bout : on voit les rouleaux de face, en pile de deux ou trois,
-            -- jamais leur longueur)
-            p.lean = nil
-            p.yaw, p.pitch, p.roll, p.vfrac, p.flat = 0, 0, 0, 0.22, true
-            p.dist, p.fov, p.across, p.fill = 1.41, math.rad(8), 0.42, 1.77
-        elseif Lib.ModelFor(row, "shelf") == 203430 then
-            -- (debout, un peu plus petits que les livres : ils ne touchent plus la planche)
-            -- (ce modele occupe plus que sa boite ne le dit : part visible mesuree en jeu, 1,77)
-            p.yaw, p.pitch, p.roll, p.vfrac, p.fill = 90, 90, 0, 1, 1.77
-            p.dist = 1.89 / size
-        else
-            p.yaw, p.pitch, p.roll, p.vfrac = 20 + (h % 30), 0, 0, 1
-            p.dist = 1.1
-        end
+        -- Couches, vus par le bout (on voit les rouleaux de face, jamais leur longueur), ranges
+        -- par trois en pyramide : deux cote a cote, le troisieme pose entre les deux (Refresh).
+        p.lean = nil
+        p.yaw, p.pitch, p.roll, p.flat, p.scroll = 0, 0, 0, true, true
+        local sc = Lib.SCROLL_PILE
+        p.dist, p.fov, p.fill = sc.dist, math.rad(8), 1.77
+        p.vfrac = nil
     elseif row.kind == "book" and not row.noFlat and (row.forceFlat or (not p.lean and h % 6 == 1)) then
         p.lean = nil
         local fp = Lib.SHELF_POSES.flat
@@ -1557,47 +1551,18 @@ function Lib.ApplyLayout()
     local free = Lib.Free()
     -- Disposition par defaut (celle choisie par Nearyn) ; avec fond, toujours elle ; sans fond,
     -- chaque element garde la place ou le joueur l'a mis.
-    local def = Lib.DEFAULT_LAYOUT[Lib.Style()] or {}
+    local modeKey = Lib.Style() .. (DialogueWheelE_LibraryUnlock == true and "_all" or "")
+    local def = Lib.DEFAULT_LAYOUT[modeKey] or Lib.DEFAULT_LAYOUT[Lib.Style()] or {}
     -- Bibliotheques par defaut : sous l'en-tete, aussi grandes que la place le permet (plus de
     -- rangees = plus petites), la seconde collee a droite de la premiere.
     local areas0 = Areas()
+    -- (seconde bibliotheque sans place par defaut : collee a droite de la premiere, meme taille)
     local dyn = {}
-    if Lib.Style() == "room" and def.case1 and def.header and def.lectern then
-        -- Groupe serre, quel que soit le nombre de rangees : bibliotheques posees au niveau du
-        -- pied du pupitre, aussi hautes que 1,45 fois le pupitre au plus (pleines : plus
-        -- petites) ; l'en-tete juste au-dessus du plus haut des deux.
-        local la, ld = areas0.lectern, def.lectern
-        local ls = ld.s or 1
-        local lcx, lcy = la[1] + la[3] / 2, la[2] + la[4] / 2
-        local lecBottom = (ld.y or 0) + lcy * (1 - ls) + la[2] * ls
-        local lecTop = lecBottom + la[4] * ls
-        local maxH = (lecTop - lecBottom) * 1.45
-        local top = lecTop
-        local function Fit(c)
-            local a = areas0["case" .. c]
-            if not a then return nil end
-            return math.min(def.case1.s or 1, maxH / a[4]), a
-        end
-        local s1, a1 = Fit(1)
-        if s1 then
-            local cx1 = a1[1] + a1[3] / 2
-            local sd = def.case1.s or 1
-            local left = def.case1.x + cx1 * (1 - sd) + a1[1] * sd
-            local function XFor(sc) return left - cx1 * (1 - sc) - a1[1] * sc end
-            local s2, a2 = Fit(2)
-            local sc = s2 and math.min(s1, s2) or s1
-            -- (pied de la bibliotheque = pied du pupitre ; elle grandit depuis son pied)
-            dyn.case1 = { x = XFor(sc), y = lecBottom - a1[2] * sc, s = sc }
-            top = math.max(top, lecBottom + a1[4] * sc)
-            if s2 then
-                local cx2 = a2[1] + a2[3] / 2
-                dyn.case2 = { x = left + a1[3] * sc + 6 - cx2 * (1 - sc) - a2[1] * sc, y = lecBottom - a2[2] * sc, s = sc }
-            end
-        end
-        local ha, hd = areas0.header, def.header
-        local hs = hd.s or 1
-        local hcy = ha[2] + ha[4] / 2
-        dyn.header = { x = hd.x, s = hs, y = (top + 6) - hcy * (1 - hs) - ha[2] * hs }
+    if def.case1 and not def.case2 and areas0.case1 and areas0.case2 then
+        local a1, a2, c1 = areas0.case1, areas0.case2, def.case1
+        local sc = c1.s or 1
+        local right1 = (c1.x or 0) + (a1[1] + a1[3] / 2) * (1 - sc) + (a1[1] + a1[3]) * sc
+        dyn.case2 = { x = right1 + 6 - (a2[1] + a2[3] / 2) * (1 - sc) - a2[1] * sc, y = c1.y, s = sc }
     end
     local function Of(id)
         if free and type(lay[id]) == "table" and (lay[id].x or lay[id].y or lay[id].s) then return lay[id] end
@@ -1675,6 +1640,9 @@ function Lib.ApplyLayout()
             local cx = x1 and ((x1 + x2) / 2 - room:GetWidth() / 2) or 0
             local cy = y1 and ((y1 + y2) / 2 - room:GetHeight() / 2) or 0
             pos = { "CENTER", -cx, -cy }
+            -- (calculee une fois puis gardee : bouger un element ne recentre plus les autres,
+            -- ce qui les faisait bouger en miroir)
+            lay.pos = pos
         end
     end
     room:ClearAllPoints()
@@ -1684,11 +1652,25 @@ end
 -- bibliotheque a droite (la seconde a cote quand elle se remplit).
 Lib.DEFAULT_POS = { "CENTER", 638, 70 }
 Lib.DEFAULT_LAYOUT = {
+    -- (dispositions choisies par Nearyn, pour chaque facon d'afficher)
     room = {
-        header = { x = 3, y = -48, s = 0.923 },
-        lectern = { x = -158, y = 18, s = 0.741 },
-        case1 = { x = 724, y = 64, s = 1.2516 },
-        case2 = { x = 805, y = 64, s = 1.2516 },
+        header = { x = -1, y = -14 },
+        lectern = { x = -169, y = 32, s = 0.8333 },
+        case1 = { x = 722, y = 54, s = 1.4499 },
+    },
+    room_all = {
+        header = { x = 16, y = 146 },
+        lectern = { x = -386, y = -105 },
+        case1 = { x = 508, y = -121, s = 1.366 },
+        case2 = { x = 570, y = -121, s = 1.366 },
+    },
+    simple = {
+        header = { x = 3, y = 0 },
+        cases = { x = 0, y = 0, s = 0.9691 },
+    },
+    simple_all = {
+        header = { x = 6, y = 14 },
+        cases = { x = 0, y = 0 },
     },
 }
 -- Poignees de deplacement des blocs, et redimensionnement des blocs et de la fenetre.
@@ -2111,6 +2093,7 @@ function Refresh()
     local function Width(row, sl)
         if not use3d then local _, w = Lib.Spine(row); return w end
         local p = Lib.ShelfPose(row)
+        if p.scroll then return math.floor(Lib.SCROLL_PILE.w * sl.h) end
         if p.flat then return math.floor((p.fill or Lib.BBOX_FILL) * sl.h / (1.1 * p.dist) * (p.across or (row.kind == "book" and Lib.SHELF_POSES.flat.across) or 1)) end
         return math.floor(sl.w / Lib.PER_ROW_3D * (p.lean and 1.45 or 1)) - 1
     end
@@ -2140,13 +2123,23 @@ function Refresh()
     for idx, row in ipairs(rows) do
         local p = use3d and Lib.ShelfPose(row) or {}
         local w = Width(row, slots[cur.slot])
-        if p.flat and stack and stack.kind == row.kind and stack.slot == cur.slot and stack.view == #views and stack.n < 3 then
+        if p.scroll and stack and stack.scroll and stack.slot == cur.slot and stack.view == #views and stack.n < 3 then
+            -- (pyramide : le deuxieme a cote du premier, le troisieme pose entre les deux)
+            stack.n = stack.n + 1
+            local dia = Lib.SCROLL_PILE.dia * slots[cur.slot].h
+            if stack.n == 2 then
+                placed[idx] = { view = #views, slot = cur.slot, x = stack.x + stack.w, w = stack.w, level = 0 }
+            else
+                placed[idx] = { view = #views, slot = cur.slot, x = stack.x + stack.w / 2, w = stack.w, level = 0, lift = dia * 0.85 }
+            end
+        elseif p.flat and not p.scroll and stack and stack.kind == row.kind and stack.slot == cur.slot and stack.view == #views and stack.n < 3 then
             -- (sur la pile d'a cote)
             stack.n = stack.n + 1
             placed[idx] = { view = #views, slot = cur.slot, x = stack.x, w = stack.w, level = stack.n - 1 }
         else
             if p.gap and cur.x > 0 then cur.x = cur.x + 5 end
-            if cur.x + w > slots[cur.slot].w - 2 then
+            local need = p.scroll and 2 * w or w
+            if cur.x + need > slots[cur.slot].w - 2 then
                 cur.slot, cur.x, cur.n = cur.slot + 1, 0, 0
                 if cur.slot > #slots then
                     views[#views + 1] = idx
@@ -2155,8 +2148,8 @@ function Refresh()
                 w = Width(row, slots[cur.slot])
             end
             placed[idx] = { view = #views, slot = cur.slot, x = cur.x, w = w, level = 0 }
-            stack = p.flat and { slot = cur.slot, view = #views, x = cur.x, w = w, n = 1, kind = row.kind } or nil
-            cur.x = cur.x + w + 2
+            stack = p.flat and { slot = cur.slot, view = #views, x = cur.x, w = w, n = 1, kind = row.kind, scroll = p.scroll } or nil
+            cur.x = cur.x + (p.scroll and 2 * w or w) + 2
             cur.n = cur.n + 1
         end
     end
@@ -2237,7 +2230,13 @@ function Refresh()
                 -- 1 / (1,1 x dist) en hauteur (fois vfrac, couche) ; on descend le cadre d'autant.
                 local F = sl.h
                 local hm = (b.pose.fill or Lib.BBOX_FILL) * F / (1.1 * b.pose.dist) * (b.pose.vfrac or 1)
+                if b.pose.scroll then hm = Lib.SCROLL_PILE.dia * F end
                 b.mF, b.mY = F, -(F - hm) / 2 - 2
+                if pl.lift then
+                    b.y = b.y + pl.lift
+                    b:ClearAllPoints()
+                    b:SetPoint("BOTTOMLEFT", b:GetParent(), "BOTTOMLEFT", b.x, b.y)
+                end
                 if b.pose.flat then
                     -- Couche : le bouton n'est que sa tranche de pile (sinon les livres empiles se
                     -- recouvraient et la souris passait de l'un a l'autre sans fin).
