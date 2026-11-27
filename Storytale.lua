@@ -12,7 +12,7 @@ do
     local EXTRA = { "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose",
         "BookVoiceOff", "RibbonSeen", "GamePad", "PadTipSeen", "PadTips", "DUIPos", "SpokenStyleChosen",
         "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "HideKeep", "NameCVars", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen", "Profiles", "PlateRestore", "BubbleHighlight", "BubbleMode",
-        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "NarratorPos", "LibraryShared", "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryLayout", "LibraryOff", "LibraryScroll", "LibraryLectern", "RubbingsPos", "RubbingsScale", "RubbingMark", "ExhibitPick" }
+        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "NarratorPos", "LibraryShared", "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryLayout", "LibraryOff", "LibraryScroll", "LibraryLectern" }
     DWE.EXTRA_VARS = EXTRA
     local me = ...
 
@@ -1041,7 +1041,6 @@ end
 local bookState = {}
 local function ResetBook(active, title)
     bookState = { active = active, title = title or "", pages = {}, currentPage = 1, maxPage = 0 }
-    DWE.plateTranslated = nil -- (chaque stele a runes s'ouvre sur ses runes)
 end
 ResetBook(false)
 
@@ -1637,21 +1636,6 @@ function BuildOptions(event, keepSelection)
         BuildBookOptions()
     end
 
-    -- Stele gravee de runes : "Traduire" montre le texte, "Original" revient aux runes.
-    if isBook and DWE.PlateHasRunes and DWE.PlateHasRunes() and (DWE.PlateRunesShown() or DWE.plateTranslated) then
-        local shown = DWE.PlateRunesShown()
-        AddOption({
-            icon = "Interface\\Icons\\INV_Misc_Book_11",
-            rawLabel = shown and (L.RUNE_TRANSLATE or "Translate") or (L.RUNE_ORIGINAL or "Original"),
-            action = function()
-                DWE.plateTranslated = DWE.PlateRunesShown() or nil
-                local o = DWE.currentOptions[DWE.selectedIndex]
-                if o then o.rawLabel = DWE.plateTranslated and (L.RUNE_ORIGINAL or "Original") or (L.RUNE_TRANSLATE or "Translate") end
-                if DWE.UpdateTextPanelVisuals then DWE.UpdateTextPanelVisuals() end
-                if DWE.UpdateVisuals then DWE.UpdateVisuals() end
-            end,
-        })
-    end
     AddOption({
         isGoodbye = true,
         icon = ICON_GOODBYE,
@@ -3287,7 +3271,7 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         local which, d, fa, pi, ro = msg:match("^%s*libpose%s+(%a+)%s*([%d%.%-]*)%s*([%d%.%-]*)%s*([%d%.%-]*)%s*([%d%.%-]*)")
         local Lib = DWE.Library
         local pose = Lib and (which == "lectern" and Lib.LECTERN_BOOK_POSE or which == "lecternscroll" and Lib.LECTERN_POSE or which == "shelf" and Lib.SHELF_POSE
-            or which == "letter" and Lib.SHELF_POSES and Lib.SHELF_POSES.letter or which == "plate" and Lib.SHELF_POSES and Lib.SHELF_POSES.plate or which == "sheet" and Lib.SHEET_POSE)
+            or which == "letter" and Lib.SHELF_POSES and Lib.SHELF_POSES.letter or which == "plate" and Lib.SHELF_POSES and Lib.SHELF_POSES.plate)
         if pose then
             pose.dist = tonumber(d) or pose.dist
             pose.yaw = tonumber(fa) or pose.yaw
@@ -3297,8 +3281,7 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
             Out(string.format("%s : %.2f %d %d %d", which, pose.dist, pose.yaw, pose.pitch, pose.roll))
         end
     elseif msg:match("^%s*librar") or msg:match("^%s*biblio") then
-        if DWE.Library and msg:match("rub") then DWE.Library.ToggleRubbings()
-        elseif DWE.Library and msg:match("reset") then DWE.Library.ResetLayout()
+        if DWE.Library and msg:match("reset") then DWE.Library.ResetLayout()
         elseif DWE.Library and msg:match("scroll") then DWE.Library.ScrollPicker()
         elseif DWE.Library then DWE.Library.Toggle() end
     elseif msg:match("forget") then
@@ -3883,7 +3866,7 @@ end)
 -- Ecrit relu depuis la bibliotheque : le livre habituel de Storytale (theme, marque-page, pages,
 -- voix, deplacement...), rempli avec les pages gardees au lieu de celles du jeu. Fermer le livre
 -- rouvre la bibliotheque.
-function DWE.OpenLibraryBook(title, pages, material, centered)
+function DWE.OpenLibraryBook(title, pages, material)
     if InCombatLockdown and InCombatLockdown() then return false end
     if type(pages) ~= "table" or #pages == 0 then return false end
     if DWE.bookMode and bookState.active and not DWE.libraryBook and CloseItemText then pcall(CloseItemText) end
@@ -3894,8 +3877,6 @@ function DWE.OpenLibraryBook(title, pages, material, centered)
     DWE.SetBookMode(true)
     ResetBook(true, title or "")
     for i, t in ipairs(pages) do bookState.pages[i] = DWE.PlainItemText(t or "") end
-    -- (gravure mise en page comme un estampage : centree, une phrase par ligne)
-    DWE.bookCentered = centered and true or nil
     bookState.maxPage = #bookState.pages
     bookState.reachedEnd = true
     local marks, key = rawget(_G, "DialogueWheelE_Bookmarks"), DWE.BookKey(bookState.title)
@@ -3918,36 +3899,27 @@ function DWE.OpenLibraryBook(title, pages, material, centered)
 end
 -- Fondu d'apparition (sans toucher a ce que Storytale regle ensuite : on ne fait que monter
 -- l'alpha jusqu'a sa valeur d'arrivee).
--- Chaque cadre a son propre fondu : un nouveau fondu ne fait plus oublier ceux en cours (un
--- cadre restait alors invisible pour de bon : la bibliotheque ne se rouvrait plus).
-local fades = {}
 function DWE.FadeInFrames(list, dur, holdFrames)
     local fr = DWE.fadeInFrame or CreateFrame("Frame")
     DWE.fadeInFrame = fr
+    local targets = {}
     for _, f in ipairs(list) do
         -- (meme cache pour l'instant : il peut s'afficher juste apres, il est deja invisible)
         if f and f.SetAlpha then
-            local cur = fades[f]
-            local a = cur and cur.a or (f:GetAlpha() or 1)
-            fades[f] = { a = (a > 0) and a or 1, t = 0, dur = dur, hold = holdFrames or 0 }
+            local a = f:GetAlpha() or 1
+            targets[#targets + 1] = { f = f, a = (a > 0) and a or 1 }
             f:SetAlpha(0)
         end
     end
+    fr.t = 0
+    fr.hold = holdFrames or 0
     fr:SetScript("OnUpdate", function(self, el)
-        local any = false
-        for f, st in pairs(fades) do
-            -- (quelques images invisibles d'abord : le temps que tout soit a sa place)
-            if st.hold > 0 then
-                st.hold = st.hold - 1
-                any = true
-            else
-                st.t = st.t + (el or 0)
-                local k = math.min(1, st.t / st.dur)
-                f:SetAlpha(st.a * k)
-                if k >= 1 then fades[f] = nil else any = true end
-            end
-        end
-        if not any then self:SetScript("OnUpdate", nil) end
+        -- (quelques images invisibles d'abord : le temps que tout soit a sa place)
+        if self.hold > 0 then self.hold = self.hold - 1 return end
+        self.t = self.t + (el or 0)
+        local k = math.min(1, self.t / dur)
+        for _, tg in ipairs(targets) do tg.f:SetAlpha(tg.a * k) end
+        if k >= 1 then self:SetScript("OnUpdate", nil) end
     end)
 end
 function DWE.CloseLibraryBook()

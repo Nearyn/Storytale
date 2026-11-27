@@ -1,43 +1,5 @@
 # Changelog / Journal des versions
 
-## 1.14.0
-
-**English**
-
-### Added
-- Rubbings: a notebook of its own for every plaque, monument, tombstone and engraved tablet you read. Each one has its real 3D model (turn it with the mouse), its charcoal rubbing, and where and when you found it. Open it with the "Rubbings" button of the library. Its pages turn like Storytale's book, with a bookmark ribbon.
-- With "Show every book", the rubbings show every engraving too, found or not.
-- The magnifying glass of a rubbing opens the engraving in Storytale, laid out like the stone.
-- Ancient Inscription (Darkshore) now has its own elven stone, with its runes. "Translate" shows the text, "Original" brings the runes back.
-
-### Changed
-- Storytale's book: the turning page now carries its text and casts a shadow, and the page it uncovers appears once it has passed.
-- Plaques fit their text, with no empty space above it.
-- Library: scrolls on the shelves use new models.
-- Carried tablets and runes (troll legends, class tablets and runes) are kept in the rubbings instead of the shelves.
-
-### Fixed
-- Resize grips could show while the windows were locked.
-
----
-
-**Français**
-
-### Ajouts
-- Estampages : un carnet à part pour chaque plaque, monument, pierre tombale et tablette gravée que vous lisez. Chacun a son vrai modèle 3D (tournez-le à la souris), son estampage au fusain, et le lieu et la date où vous l'avez trouvé. Ouvrez-le avec le bouton « Estampages » de la bibliothèque. Ses pages se tournent comme celles du livre de Storytale, avec un marque-page.
-- Avec « Tous les livres », le carnet montre aussi toutes les gravures, trouvées ou non.
-- La loupe d'un estampage ouvre la gravure dans Storytale, mise en page comme sur la pierre.
-- L'Ancient Inscription (Sombrivage) a maintenant sa propre stèle elfique, avec ses runes. « Traduire » affiche le texte, « Original » remet les runes.
-
-### Changements
-- Livre de Storytale : la page qui tourne emporte son texte et projette une ombre, et la page qu'elle découvre apparaît une fois qu'elle est passée.
-- Les plaques s'adaptent à leur texte, sans espace vide au-dessus.
-- Bibliothèque : les parchemins des étagères utilisent de nouveaux modèles.
-- Les tablettes et runes que l'on porte (légendes trolles, tablettes et runes de classe) sont rangées dans les estampages plutôt que sur les étagères.
-
-### Corrections
-- Les poignées de redimensionnement pouvaient apparaître alors que les fenêtres étaient verrouillées.
-
 ## 1.13.1
 
 **English**
