@@ -2387,6 +2387,8 @@ do
         for _, b in ipairs(ui.spines) do if b:IsShown() and b.row and b.row.title == title then return b end end
     end
     check(not onShelf(ui.featured:GetText()), "library: the book on the lectern left its shelf")
+    check(ui.cover.model and ui.cover.model.fileID and ui.cover.model:IsShown() and not ui.cover.open:IsShown(), "library: the lectern shows the closed 3D model")
+    check(Lib.ModelFor({ kind = "letter", title = "x" }) == Lib.MODELS.letter and Lib.ModelFor({ kind = "plate", title = "x" }) == Lib.MODELS.plate, "library: letters and plates get their own model")
     -- un clic sur un autre livre de l'etagere le pose sur le pupitre (l'ancien reprend sa place)
     local before = ui.featured:GetText()
     local other
@@ -2411,6 +2413,7 @@ do
     DialogueWheelE_LibraryStyle = "simple"
     Lib.Refresh()
     check(Lib.frame:GetWidth() < 1000 and not ui.lectern:IsShown() and ui.strips[1]:IsShown(), "library: simple style shows the shelves only")
+    check(Lib.bgAlpha == 0, "library: simple style has no background")
     local any
     for _, b in ipairs(ui.spines) do if b:IsShown() and b.row and not b.row.locked then any = b break end end
     any:Click()

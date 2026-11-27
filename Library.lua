@@ -384,25 +384,27 @@ end
 
 -- Emplacements des etageres pour le style choisi : { x, y (plancher), largeur, hauteur },
 -- dans l'ordre ou elles se remplissent. "room" : les deux bibliotheques entieres ; "simple" :
--- les rangees seules, decoupees dans la bibliotheque, en deux colonnes.
-local SIMPLE = { cols = 2, rows = 5, scale = 0.78, gap = 6, top = 96 }
+-- une seule grande etagere, faite des rangees decoupees dans la bibliotheque et elargies
+-- (le bord gauche et le bord droit gardes tels quels, le milieu etire en largeur), sans fond.
+local SIMPLE = { rows = { 2, 3, 4, 5, 6, 7 }, scale = 0.7, wide = 2.2, gap = 0, top = 92, left = 14 }
 function Lib.Style() return DialogueWheelE_LibraryStyle == "simple" and "simple" or "room" end
+local function SimpleRow(i, y)
+    local k = SIMPLE.scale
+    local edgeL = (CASE.left - CASE.contentL) * k
+    local mid = (CASE.right - CASE.left) * k * SIMPLE.wide
+    local edgeR = (CASE.contentR - CASE.right) * k
+    local h = (CASE.floors[i] - CASE.tops[i] + 18) * k
+    return { x = SIMPLE.left, top = y, edgeL = edgeL, mid = mid, edgeR = edgeR, h = h, i = i,
+        w = edgeL + mid + edgeR, floor = y + (CASE.floors[i] - CASE.tops[i]) * k, inner = (CASE.floors[i] - CASE.tops[i]) * k }
+end
 local function SlotsOf(style)
     local slots = {}
     if style == "simple" then
-        local k = SIMPLE.scale
-        local stripW = (CASE.contentR - CASE.contentL) * k
-        for c = 1, SIMPLE.cols do
-            local y = SIMPLE.top
-            for i = 1, SIMPLE.rows do
-                local idx = i
-                local h = (CASE.floors[idx] - CASE.tops[idx] + 18) * k
-                local x = 18 + (c - 1) * (stripW + SIMPLE.gap)
-                slots[#slots + 1] = { x = x + (CASE.left - CASE.contentL) * k, fromTop = y + (CASE.floors[idx] - CASE.tops[idx]) * k,
-                    w = (CASE.right - CASE.left) * k, h = (CASE.floors[idx] - CASE.tops[idx]) * k,
-                    strip = { x = x, top = y, w = stripW, h = h, i = idx } }
-                y = y + h + SIMPLE.gap
-            end
+        local y = SIMPLE.top
+        for _, i in ipairs(SIMPLE.rows) do
+            local r = SimpleRow(i, y)
+            slots[#slots + 1] = { x = r.x + r.edgeL, fromTop = r.floor, w = r.mid, h = r.inner, strip = r }
+            y = y + r.h + SIMPLE.gap
         end
         return slots
     end
@@ -418,11 +420,53 @@ local function SlotsOf(style)
 end
 Lib.SlotsOf = SlotsOf
 local function SimpleSize()
-    local k = SIMPLE.scale
-    local stripW = (CASE.contentR - CASE.contentL) * k
-    local h = SIMPLE.top
-    for i = 1, SIMPLE.rows do h = h + (CASE.floors[i] - CASE.tops[i] + 18) * k + SIMPLE.gap end
-    return math.floor(36 + SIMPLE.cols * stripW + (SIMPLE.cols - 1) * SIMPLE.gap), math.floor(h + 26)
+    local y = SIMPLE.top
+    local w = 0
+    for _, i in ipairs(SIMPLE.rows) do
+        local r = SimpleRow(i, y)
+        y = y + r.h + SIMPLE.gap
+        w = r.w
+    end
+    return math.floor(w + 2 * SIMPLE.left), math.floor(y + 24)
+end
+
+-- Modeles 3D du jeu (fichiers .m2 du client) pour chaque sorte d'ecrit. Les livres prennent la
+-- couleur la plus proche de leur dos ; les lettres un parchemin ; les plaques une tablette.
+local MODELS = {
+    book = { { 200903, .45, .28, .16 }, { 200905, .55, .12, .10 }, { 200902, .14, .22, .45 },
+             { 200904, .14, .36, .18 }, { 200901, .12, .12, .12 } },
+    letter = 201113, -- world/goober/g_scroll01.m2
+    plate = 201080,  -- world/goober/g_netablet.m2
+}
+Lib.MODELS = MODELS
+function Lib.ModelFor(row)
+    if row.kind == "letter" then return MODELS.letter end
+    if row.kind == "plate" then return MODELS.plate end
+    local c = Lib.Spine(row)
+    local best, bd = MODELS.book[1][1], math.huge
+    for _, b in ipairs(MODELS.book) do
+        local d = (b[2] - c[1]) ^ 2 + (b[3] - c[2]) ^ 2 + (b[4] - c[3]) ^ 2
+        if d < bd then best, bd = b[1], d end
+    end
+    return best
+end
+function Lib.ShowModel(cover, row)
+    local m = cover.model
+    local id = Lib.ModelFor(row)
+    local shown = false
+    if m and m.SetModel then
+        shown = pcall(function()
+            m:ClearModel()
+            m:SetModel(id)
+            -- (pose a plat, vu un peu de face, comme sur le pupitre incline)
+            m:SetCamDistanceScale(1.6)
+            m:SetPosition(0, 0, 0)
+            m:SetFacing(math.rad(90))
+            if m.SetPitch then m:SetPitch(math.rad(-35)) end
+        end)
+    end
+    if m then m.fileID = shown and id or nil; m:SetShown(shown) end
+    cover.open:SetShown(not shown)
 end
 
 local function Build()
@@ -445,6 +489,7 @@ local function Build()
     function Lib.ApplyBg()
         if not room then return end
         local a = math.max(0, math.min(1, tonumber(DialogueWheelE_LibraryBg) or 1))
+        if Lib.Style() == "simple" then a = 0 end -- (etagere seule : jamais de fond)
         Lib.bgAlpha = a
         room:SetBackdropColor(0.07, 0.045, 0.03, 0.97 * a)
         room:SetBackdropBorderColor(0.55, 0.38, 0.2, a)
@@ -469,17 +514,26 @@ local function Build()
         t:SetPoint("BOTTOMLEFT", room, "BOTTOMLEFT", x - CASE.contentL * CS, 20)
         ui.cases[c] = t
     end
-    -- Style simple : les rangees seules, decoupees dans la bibliotheque.
+    -- Style simple : une grande etagere. Chaque rangee en trois morceaux de la bibliotheque :
+    -- bord gauche, milieu etire, bord droit.
     ui.strips = {}
     for _, sl in ipairs(SlotsOf("simple")) do
-        local st = sl.strip
-        local t = room:CreateTexture(nil, "ARTWORK")
-        t:SetTexture(ADDON .. "LibraryBookcase.png")
-        t:SetTexCoord(CASE.contentL / 512, CASE.contentR / 512, CASE.tops[st.i] / 1024, (CASE.floors[st.i] + 18) / 1024)
-        t:SetSize(st.w, st.h)
-        t:SetPoint("TOPLEFT", room, "TOPLEFT", st.x, -st.top)
-        t:Hide()
-        ui.strips[#ui.strips + 1] = t
+        local r = sl.strip
+        local v0, v1 = CASE.tops[r.i] / 1024, (CASE.floors[r.i] + 18) / 1024
+        local parts = {
+            { CASE.contentL, CASE.left, r.x, r.edgeL },
+            { CASE.left, CASE.right, r.x + r.edgeL, r.mid },
+            { CASE.right, CASE.contentR, r.x + r.edgeL + r.mid, r.edgeR },
+        }
+        for _, pt in ipairs(parts) do
+            local t = room:CreateTexture(nil, "ARTWORK")
+            t:SetTexture(ADDON .. "LibraryBookcase.png")
+            t:SetTexCoord(pt[1] / 512, pt[2] / 512, v0, v1)
+            t:SetSize(pt[4], r.h)
+            t:SetPoint("TOPLEFT", room, "TOPLEFT", pt[3], -r.top)
+            t:Hide()
+            ui.strips[#ui.strips + 1] = t
+        end
     end
     -- Dos des livres (boutons), pris dans une reserve.
     ui.spines = {}
@@ -623,12 +677,20 @@ local function Build()
     icon:SetSize(22, 22)
     icon:SetPoint("BOTTOMRIGHT", cover, "BOTTOMRIGHT", 4, -2)
     cover.icon = icon
-    -- (le livre presente est ouvert : la double page du grand livre, en petit)
+    -- Le livre presente est le vrai modele 3D du jeu, ferme, pose sur le pupitre. Un clic l'ouvre
+    -- dans le grand livre peint. Si le modele ne peut pas etre charge, la double page peinte reste.
     local open = cover:CreateTexture(nil, "OVERLAY", nil, 1)
     open:SetPoint("TOPLEFT", -10, 8); open:SetPoint("BOTTOMRIGHT", 10, -6)
     open:SetTexture(ADDON .. "BookSpread.png")
     open:SetTexCoord(0, 1, 0, 576 / 1024)
+    open:Hide()
     cover.open = open
+    local ok, m = pcall(CreateFrame, "Model", nil, cover)
+    if ok and m then
+        m:SetPoint("TOPLEFT", -40, 50); m:SetPoint("BOTTOMRIGHT", 40, -30)
+        m:EnableMouse(false)
+        cover.model = m
+    end
     local ag = cover.CreateAnimationGroup and cover:CreateAnimationGroup()
     if ag then
         local fade = ag:CreateAnimation("Alpha")
@@ -748,13 +810,14 @@ local function ApplyStyle()
         w, h = SimpleSize()
     end
     room:SetSize(w, h)
+    Lib.ApplyBg()
     local left = full and ui.right or 22
     ui.title:ClearAllPoints()
     ui.title:SetPoint("TOPLEFT", room, "TOPLEFT", left, -22)
     ui.search:ClearAllPoints()
     ui.search:SetPoint("TOPLEFT", room, "TOPLEFT", left + 6, -56)
-    ui.search:SetWidth(full and (W - ui.right - 40) or 200)
-    local x = full and left or (left + 220)
+    ui.search:SetWidth(full and (W - ui.right - 40) or 180)
+    local x = full and left or (left + 200)
     for _, b in ipairs(ui.filters) do
         b:ClearAllPoints()
         b:SetPoint("TOPLEFT", room, "TOPLEFT", x, full and -84 or -58)
@@ -894,6 +957,7 @@ function Refresh()
         local icon = cur2.entry and cur2.entry.i and GetItemIcon and GetItemIcon(cur2.entry.i)
         ui.cover.icon:SetTexture(icon)
         ui.cover.icon:SetShown(icon ~= nil)
+        Lib.ShowModel(ui.cover, cur2)
         ui.cover:Show()
         ui.featured:SetText(cur2.title)
         local e = cur2.entry
