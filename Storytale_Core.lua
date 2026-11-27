@@ -9646,6 +9646,17 @@ function DWE.InitOptionsPanel()
             local okM, h = pcall(ContentHeight, pg)
             if okM and h and h > 20 then pg.child:SetHeight(h) end
         end
+        -- (le jeu recalcule la plage : le curseur de la barre arrive tout en bas a la derniere
+        -- option, au lieu de s'arreter en chemin)
+        if sc.UpdateScrollChildRect then pcall(sc.UpdateScrollChildRect, sc) end
+        do
+            local okC2, ch = pcall(pg.child.GetHeight, pg.child)
+            local okV2, vh = pcall(sc.GetHeight, sc)
+            local bar2 = sc.ScrollBar or (sc.GetName and sc:GetName() and _G[sc:GetName() .. "ScrollBar"])
+            if okC2 and okV2 and ch and vh and type(bar2) == "table" and bar2.SetMinMaxValues then
+                pcall(bar2.SetMinMaxValues, bar2, 0, math.max(0, ch - vh))
+            end
+        end
         local okH, viewH = pcall(sc.GetHeight, sc)
         local okC, childH = pcall(pg.child.GetHeight, pg.child)
         if not (okH and okC and viewH and childH) then return end
@@ -9676,6 +9687,11 @@ function DWE.InitOptionsPanel()
             if okC and okH and childH and viewH then
                 local maxV = math.max(0, childH - viewH)
                 if (self:GetVerticalScroll() or 0) > maxV + 0.5 then self:SetVerticalScroll(maxV) end
+                local bar3 = self.ScrollBar or (self.GetName and self:GetName() and _G[self:GetName() .. "ScrollBar"])
+                if type(bar3) == "table" and bar3.SetMinMaxValues and bar3.GetMinMaxValues then
+                    local _, mx = bar3:GetMinMaxValues()
+                    if mx and math.abs(mx - maxV) > 0.5 then pcall(bar3.SetMinMaxValues, bar3, 0, maxV) end
+                end
             end
         end)
     end

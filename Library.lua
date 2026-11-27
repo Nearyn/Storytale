@@ -831,7 +831,9 @@ end
 -- Parchemin couche vu par le bout (paire de rouleaux d'Uldaman) : largeur et hauteur visibles,
 -- en part de la hauteur du rayon (mesurees en jeu a cette distance).
 Lib.BOOK_THICK = 0.23 -- (epaisseur d'un livre debout, en part de sa hauteur)
-Lib.SCROLL_PILE = { dist = 1.25, w = 0.246, dia = 0.123 } -- (plus petits : les pyramides etaient enormes)
+-- (le modele est un parchemin a deux rouleaux : vu par le bout, deux cercles ; on n'en montre
+-- qu'un, le cadre etant juste assez large et la camera decalee sur lui : un cercle = un ecrit)
+Lib.SCROLL_PILE = { dist = 1.1, w = 0.14, dia = 0.14 }
 Lib.SHELF_BOOK_OK = { [200900] = true, [200901] = true, [200902] = true, [200903] = true, [200904] = true, [200905] = true }
 Lib.SCROLL_SHELF = { 203430 } -- (le feuillet plie, 203429, rendait mal sur les rayons)
 Lib.SCROLL_OPEN = { 198451, 198452, 198454, 198455, 201113 }
@@ -900,7 +902,7 @@ local function Frame(sc, pose)
     if sc.SetCameraFieldOfView then pcall(sc.SetCameraFieldOfView, sc, fov) end
     if sc.SetCameraNearClip then pcall(sc.SetCameraNearClip, sc, 0.01) end
     if sc.SetCameraFarClip then pcall(sc.SetCameraFarClip, sc, 100) end
-    if sc.SetCameraPosition then pcall(sc.SetCameraPosition, sc, d, 0, 0) end
+    if sc.SetCameraPosition then pcall(sc.SetCameraPosition, sc, d, pose.camY or 0, 0) end
     if sc.SetCameraOrientationByYawPitchRoll then pcall(sc.SetCameraOrientationByYawPitchRoll, sc, math.pi, 0, math.rad(pose.lean or 0)) end
 end
 -- Rotation et cadrage (repris une fois le modele charge : sa boite n'est connue qu'alors).
@@ -916,7 +918,7 @@ local function LoadModel(sc, id, pose)
     local a = sc and sc.actor
     if not (a and a.SetModelByFileID) then Lib.modelErr = "no model scene"; return false end
     -- (meme modele, meme pose : rien a recharger ; tourner les pages ne recharge que ce qui change)
-    local key = id .. ":" .. (pose.dist or 1) .. ":" .. (pose.yaw or 0) .. ":" .. (pose.pitch or 0) .. ":" .. (pose.roll or 0) .. ":" .. (pose.lean or 0)
+    local key = id .. ":" .. (pose.dist or 1) .. ":" .. (pose.yaw or 0) .. ":" .. (pose.pitch or 0) .. ":" .. (pose.roll or 0) .. ":" .. (pose.lean or 0) .. ":" .. (pose.camY or 0)
     if sc.loadedKey == key and sc.loaded then return true end
     sc.loadedKey = key
     sc.loaded = false
@@ -1008,10 +1010,18 @@ function Lib.ShelfPose(row, i)
         -- Couches, vus par le bout (on voit les rouleaux de face, jamais leur longueur), ranges
         -- par trois en pyramide : deux cote a cote, le troisieme pose entre les deux (Refresh).
         p.lean = nil
-        p.yaw, p.pitch, p.roll, p.flat, p.scroll = 0, 0, 0, true, true
-        local sc = Lib.SCROLL_PILE
-        p.dist, p.fov, p.fill = sc.dist, math.rad(8), 1.77
-        p.vfrac = nil
+        if row.standScroll then
+            -- (debout, cale contre le livre d'a cote)
+            p.yaw, p.pitch, p.roll, p.vfrac, p.fill = 90, 90, 0, 1, 1.77
+            p.dist = 2.1 / size
+        else
+            p.yaw, p.pitch, p.roll, p.flat, p.scroll = 0, 0, 0, true, true
+            local sc = Lib.SCROLL_PILE
+            p.dist, p.fov, p.fill = sc.dist, math.rad(8), 1.77
+            p.vfrac = nil
+            p.camY = 0.55 * sc.dia * 1.1 * sc.dist -- (un rouleau au centre)
+            p.wfrac = sc.dia * 1.15
+        end
     elseif row.kind == "book" and not row.noFlat and (row.forceFlat or (not p.lean and h % 6 == 1)) then
         p.lean = nil
         local fp = Lib.SHELF_POSES.flat
@@ -1049,7 +1059,7 @@ function Lib.PlaceModel(b, grow)
     if not (b.model and b.mF) then return end
     local k = grow or 1
     b.model:ClearAllPoints()
-    b.model:SetSize(b.mF * k, b.mF * k)
+    b.model:SetSize(b.mF * k * (b.pose and b.pose.wfrac or 1), b.mF * k)
     b.model:SetPoint("BOTTOM", b, "BOTTOM", 0, b.mY * k)
     b.model:SetFrameLevel((b:GetFrameLevel() or 1) + (grow and 4 or 1))
 end
@@ -1059,7 +1069,7 @@ function Lib.ShowShelfModel(b, row)
     local pose = Lib.ShelfPose(row)
     b.pose = pose
     if m and not m.actor then b.tex:Show(); b.shade:Show(); return false end
-    local key = id .. ":" .. (pose.dist or 1) .. ":" .. (pose.yaw or 0) .. ":" .. (pose.pitch or 0) .. ":" .. (pose.roll or 0) .. ":" .. (pose.lean or 0)
+    local key = id .. ":" .. (pose.dist or 1) .. ":" .. (pose.yaw or 0) .. ":" .. (pose.pitch or 0) .. ":" .. (pose.roll or 0) .. ":" .. (pose.lean or 0) .. ":" .. (pose.camY or 0)
     if m and m.loadedKey == key and m.loaded then
         b.job = nil
         m:Show(); b.tex:Hide(); b.shade:Hide()
@@ -2115,8 +2125,8 @@ function Refresh()
         if p.flat then return math.floor((p.fill or Lib.BBOX_FILL) * sl.h / (1.1 * p.dist) * (p.across or (row.kind == "book" and Lib.SHELF_POSES.flat.across) or 1)) end
         -- Debout : l'epaisseur reelle du livre (les livres se touchent) ; penche, en plus, ce que
         -- son haut avance sur le voisin.
-        local hm = Lib.BBOX_FILL * sl.h / (1.1 * p.dist)
-        local w = hm * Lib.BOOK_THICK
+        local hm = (p.fill or Lib.BBOX_FILL) * sl.h / (1.1 * p.dist)
+        local w = hm * (p.fill and 0.14 or Lib.BOOK_THICK)
         if p.lean then w = w + hm * math.sin(math.rad(p.lean)) end
         return math.max(4, math.floor(w + 0.5))
     end
@@ -2144,30 +2154,60 @@ function Refresh()
     end
     local stack
     local last -- (dernier element pose sur le rayon en cours : un livre penche s'y appuie)
+    local books -- (derniere pile de livres couches du rayon : des parchemins peuvent s'y poser)
+    local function Here(t) return t and t.slot == cur.slot and t.view == #views end
     for idx, row in ipairs(rows) do
-        row.noLean = nil
+        row.noLean, row.standScroll = nil, nil
         local p = use3d and Lib.ShelfPose(row) or {}
+        local sl = slots[cur.slot]
+        -- Parchemins, pour varier : debout contre un livre, deux poses sur une pile de livres,
+        -- une paire, ou une pyramide de trois (choisi par le titre du premier du groupe).
+        local join = use3d and p.scroll and stack and stack.scroll and Here(stack) and stack.n < stack.max
+        local group
+        if use3d and p.scroll and not join then
+            local t = TitleHash(row.title) % 6
+            if t == 0 and last and Here(last) and last.upright and last.book then
+                row.standScroll = true
+                p = Lib.ShelfPose(row)
+            elseif t <= 2 and Here(books) and not books.topped then
+                group = "onbooks"
+            elseif t == 3 then
+                group = "pair"
+            else
+                group = "pyramid"
+            end
+        end
         if use3d and p.lean then
-            local fits = cur.x + Width(row, slots[cur.slot]) <= slots[cur.slot].w - 2
-            if not (fits and last and last.slot == cur.slot and last.view == #views and last.upright) then
+            local fits = cur.x + Width(row, sl) <= sl.w - 2
+            if not (fits and last and Here(last) and last.upright) then
                 row.noLean = true
                 p = Lib.ShelfPose(row)
             end
         end
         local w = Width(row, slots[cur.slot])
-        if p.scroll and stack and stack.scroll and stack.slot == cur.slot and stack.view == #views and stack.n < 3 then
-            -- (pyramide : le deuxieme a cote du premier, le troisieme pose entre les deux)
+        if join then
             stack.n = stack.n + 1
-            local dia = Lib.SCROLL_PILE.dia * slots[cur.slot].h
-            if stack.n == 2 then
+            local dia = Lib.SCROLL_PILE.dia * sl.h
+            if stack.onbooks then
+                placed[idx] = { view = #views, slot = cur.slot, x = stack.x + stack.w, w = stack.w, level = 0, lift = stack.lift }
+            elseif stack.n == 2 then
                 placed[idx] = { view = #views, slot = cur.slot, x = stack.x + stack.w, w = stack.w, level = 0 }
             else
-                placed[idx] = { view = #views, slot = cur.slot, x = stack.x + stack.w / 2, w = stack.w, level = 0, lift = dia * 0.85 }
+                placed[idx] = { view = #views, slot = cur.slot, x = stack.x + stack.w / 2, w = stack.w, level = 0, lift = dia * 0.87 }
             end
-        elseif p.flat and not p.scroll and stack and stack.kind == row.kind and stack.slot == cur.slot and stack.view == #views and stack.n < 3 then
+        elseif group == "onbooks" then
+            -- (pose sur la pile de livres couches, au milieu)
+            books.topped = true
+            local x = books.x + math.max(0, (books.w - 2 * w) / 2)
+            placed[idx] = { view = #views, slot = cur.slot, x = x, w = w, level = 0, lift = books.lift }
+            stack = { slot = cur.slot, view = #views, x = x, w = w, n = 1, scroll = true, max = 2, onbooks = true, lift = books.lift }
+        elseif p.flat and not p.scroll and stack and stack.kind == row.kind and Here(stack) and stack.n < 3 then
             -- (sur la pile d'a cote)
             stack.n = stack.n + 1
             placed[idx] = { view = #views, slot = cur.slot, x = stack.x, w = stack.w, level = stack.n - 1 }
+            if books == stack then
+                books.lift = books.lift + Lib.BBOX_FILL * sl.h / (1.1 * p.dist) * (p.vfrac or 1)
+            end
         else
             if p.gap and cur.x > 0 then cur.x = cur.x + 5 end
             local need = p.scroll and 2 * w or w
@@ -2180,9 +2220,13 @@ function Refresh()
                 w = Width(row, slots[cur.slot])
             end
             placed[idx] = { view = #views, slot = cur.slot, x = cur.x, w = w, level = 0 }
-            stack = p.flat and { slot = cur.slot, view = #views, x = cur.x, w = w, n = 1, kind = row.kind, scroll = p.scroll } or nil
-            last = { slot = cur.slot, view = #views, upright = not p.flat and not p.lean }
-            -- (un petit jour entre deux livres ; plus large apres un penche, ou il ne touche pas)
+            stack = p.flat and { slot = cur.slot, view = #views, x = cur.x, w = w, n = 1, kind = row.kind, scroll = p.scroll,
+                max = (group == "pair") and 2 or 3 } or nil
+            if p.flat and not p.scroll then
+                books = stack
+                books.lift = Lib.BBOX_FILL * slots[cur.slot].h / (1.1 * p.dist) * (p.vfrac or 1)
+            end
+            last = { slot = cur.slot, view = #views, upright = not p.flat and not p.lean, book = row.kind == "book" }
             cur.x = cur.x + (p.scroll and 2 * w or w) + 2
             cur.n = cur.n + 1
         end
