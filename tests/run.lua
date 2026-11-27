@@ -459,6 +459,63 @@ do -- l'interface s'efface pendant la cinematique et revient ensuite
     DialogueWheelE_Theme = "cinema"; DWE.OnThemeChanged()
     bar:Hide()
 end
+-- "Cacher l'interface" : exceptions choisies, opacite changee par un autre addon, cadre conteneur
+do
+    DialogueWheelE_Theme = "whisper"; DWE.OnThemeChanged()
+    local function run() for _ = 1, 40 do if DWE.cineBars:IsShown() then DWE.cineBars._scripts.OnUpdate(DWE.cineBars, 0.05) end end end
+    run()
+    local chat = CreateFrame("Frame", "ChatFrame1", UIParent); chat:Show(); chat:SetAlpha(1)
+    local other = CreateFrame("Frame", "SomeAddonFrame", UIParent); other:Show(); other:SetAlpha(1)
+    local holder = CreateFrame("Frame", "SomeUIParentTest", UIParent); holder:Show(); holder:SetAlpha(1)
+    local elvMap = CreateFrame("Frame", "MMHolder", holder); elvMap:Show(); elvMap:SetAlpha(1)
+    local elvBar = CreateFrame("Frame", "ElvUI_Bar1", holder); elvBar:Show(); elvBar:SetAlpha(1)
+    DialogueWheelE_HideUI = true
+    DWE.UpdateTextPanelVisuals(); DWE.UpdateCinemaBars(); run()
+    check(chat:GetAlpha() < 0.01 and other:GetAlpha() < 0.01 and holder:GetAlpha() < 0.01, "hide UI: everything hidden by default")
+    -- un autre addon cache un cadre pendant la conversation : il reste cache a la fin
+    other:SetAlpha(0)
+    DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
+    check(other:GetAlpha() < 0.01, "hide UI: a frame another addon hid meanwhile is not shown again")
+    check(math.abs(chat:GetAlpha() - 1) < 0.001 and math.abs(holder:GetAlpha() - 1) < 0.001, "hide UI: the rest comes back")
+    other:SetAlpha(1)
+    -- noms au-dessus des personnages : caches pendant la conversation, rendus a la fin
+    M.cvars.UnitNameNPC, M.cvars.UnitNameFriendlyPlayerName, M.cvars.UnitNameOwn = "1", "1", "0"
+    DialogueWheelE_HideUI = true; DWE.UpdateCinemaBars(); run()
+    check(M.cvars.UnitNameNPC == "0" and M.cvars.UnitNameFriendlyPlayerName == "0", "hide UI: names above characters hidden")
+    check(type(DialogueWheelE_NameCVars) == "table" and DialogueWheelE_NameCVars.UnitNameNPC == "1", "hide UI: name settings kept in the saved variables")
+    DWE.RestoreNames() -- (ce que fait l'entree en combat)
+    check(M.cvars.UnitNameNPC == "1" and DialogueWheelE_NameCVars == nil, "hide UI: names back at once (combat)")
+    DWE.UpdateCinemaBars(); run()
+    check(M.cvars.UnitNameNPC == "0", "hide UI: names hidden again after combat")
+    DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
+    check(M.cvars.UnitNameNPC == "1" and M.cvars.UnitNameOwn == "0" and DialogueWheelE_NameCVars == nil, "hide UI: names restored as they were")
+    DialogueWheelE_NameCVars = { UnitNameNPC = "1" }; M.cvars.UnitNameNPC = "0"
+    DWE.RestoreNames() -- (ce que fait PLAYER_LOGIN)
+    check(M.cvars.UnitNameNPC == "1" and DialogueWheelE_NameCVars == nil, "hide UI: names restored at the next login after a crash")
+    DialogueWheelE_HideKeep = { names = true }
+    DialogueWheelE_HideUI = true; DWE.UpdateCinemaBars(); run()
+    check(M.cvars.UnitNameNPC == "1", "hide UI: names kept when ticked")
+    DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
+    DialogueWheelE_HideKeep = nil
+    -- exceptions : discussion et mini-carte gardees (ElvUI : seul son enfant mini-carte reste)
+    DialogueWheelE_HideKeep = { chat = true, minimap = true }
+    DialogueWheelE_HideUI = true; DWE.UpdateCinemaBars(); run()
+    check(math.abs(chat:GetAlpha() - 1) < 0.001, "hide UI: kept chat stays visible")
+    check(other:GetAlpha() < 0.01, "hide UI: the rest still hidden with exceptions")
+    check(math.abs(holder:GetAlpha() - 1) < 0.001 and math.abs(elvMap:GetAlpha() - 1) < 0.001 and elvBar:GetAlpha() < 0.01,
+        "hide UI: inside a container frame only the kept child stays")
+    -- exception retiree pendant la conversation : la discussion s'efface tout de suite
+    DialogueWheelE_HideKeep = { minimap = true }
+    DWE.RefreshHideUI(); run()
+    check(chat:GetAlpha() < 0.01, "hide UI: unticking an exception hides it right away")
+    DialogueWheelE_HideUI = nil; DialogueWheelE_HideKeep = nil
+    DWE.UpdateCinemaBars(); run()
+    check(math.abs(chat:GetAlpha() - 1) < 0.001 and math.abs(elvBar:GetAlpha() - 1) < 0.001 and math.abs(other:GetAlpha() - 1) < 0.001,
+        "hide UI: everything restored at the end")
+    for _, f in ipairs({ chat, other, holder }) do f:Hide() end
+    _G.ChatFrame1, _G.SomeAddonFrame, _G.SomeUIParentTest, _G.MMHolder, _G.ElvUI_Bar1 = nil, nil, nil, nil, nil
+    DialogueWheelE_Theme = "cinema"; DWE.OnThemeChanged()
+end
 DialogueWheelE_Font = "lora"; DWE.ApplyFont()
 if not (DWE.IS_CJK or DWE.IS_CYRILLIC) then check((DWE.textBody:GetFont() or ""):find("Lora") ~= nil, "cinema: user font kept when chosen") end
 DialogueWheelE_Font = nil
@@ -2199,6 +2256,12 @@ do
     playing = { text = "A completely different book page about the history of Stormwind.", length = 5, spokenAt = t2 - 30 }
     DWE.ManualVoiceCheck()
     check(skips == 0, "manual advance: another voice (book, other NPC) is left alone")
+    -- au demarrage de la voix (rappel CLIP_STARTED de Spoken) : coupee dans la meme image
+    skips = 0
+    check(DWE.ManualVoiceStarted({ text = "Anything at all", length = 3 }) == true and skips == 1, "manual advance: the NPC voice is stopped as soon as it starts")
+    DialogueWheelE_BubbleMode = nil
+    skips = 0
+    check(DWE.ManualVoiceStarted({ text = "Anything at all", length = 3 }) == false and skips == 0, "typewriter: a starting voice is left alone")
     DWE.SetDialogueText("NPC", "")
     DialogueWheelE_BubbleMode, Spoken, GetTime, DialogueWheelE_ManualVoice = savedMode, savedSpoken, savedGT, savedMV
 end

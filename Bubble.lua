@@ -2425,9 +2425,36 @@ function DWE.ManualVoiceCheck()
     pcall(api.Skip, api)
     return true
 end
+-- Le plus tot possible : des que Spoken lance la voix du PNJ a qui l'on parle (meme image), avant
+-- qu'on l'entende ; avec seulement le controle ci-dessus, on entendait un bout de la voix.
+local function TalkingTo()
+    if not (UnitExists and UnitExists("npc")) then return false end
+    return true
+end
+function DWE.ManualVoiceStarted(clip)
+    if not ManualMode() or type(clip) ~= "table" or clip.textOnly then return false end
+    local f = DWE.SpokenFocus
+    if f and f.IsBook and f.IsBook(clip) then return false end
+    if not TalkingTo() or not DWE.BubbleVoiceIsNPC(clip) then return false end
+    local api = DWE.SpokenAPI and DWE.SpokenAPI()
+    if not (api and type(api.Skip) == "function") then return false end
+    mutedClip = clip
+    pcall(api.Skip, api)
+    return true
+end
+-- (rappel pose une fois, au premier passage ou l'API de Spoken repond)
+local voiceHooked = false
+local function HookVoice()
+    if voiceHooked then return end
+    local api = DWE.SpokenAPI and DWE.SpokenAPI()
+    if not (api and type(api.RegisterCallback) == "function") then return end
+    voiceHooked = true
+    pcall(api.RegisterCallback, api, "CLIP_STARTED", function(clip) DWE.ManualVoiceStarted(clip) end)
+end
 muteFrame:SetScript("OnUpdate", function(_, elapsed)
     muteAcc = muteAcc + elapsed
     if muteAcc < 0.05 then return end
     muteAcc = 0
+    HookVoice()
     DWE.ManualVoiceCheck()
 end)

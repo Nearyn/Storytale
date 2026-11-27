@@ -723,6 +723,28 @@ for loc, text in pairs(HIDE_UI) do
     local dest = (loc == "enUS") and enUS or T[loc]
     if dest then dest.HIDE_UI = text end
 end
+-- Ce que "Cacher l'interface" garde visible (rien par defaut) : titre, puis discussion,
+-- mini-carte, portraits, barres d'action, effets (ameliorations), suivi des quetes.
+local HIDE_KEEP = {
+    enUS = { "Keep visible:", "Chat", "Minimap", "Unit frames", "Action bars", "Buffs", "Quest tracker", "Names" },
+    frFR = { "Garder visibles :", "Discussion", "Mini-carte", "Portraits", "Barres d'action", "Effets", "Suivi des quêtes", "Noms" },
+    deDE = { "Sichtbar lassen:", "Chat", "Minimap", "Einheitenfenster", "Aktionsleisten", "Buffs", "Questverfolgung", "Namen" },
+    esES = { "Mantener visibles:", "Chat", "Minimapa", "Marcos de unidad", "Barras de acción", "Beneficios", "Seguimiento", "Nombres" },
+    esMX = { "Mantener visibles:", "Chat", "Minimapa", "Marcos de unidad", "Barras de acción", "Beneficios", "Seguimiento", "Nombres" },
+    itIT = { "Lascia visibili:", "Chat", "Minimappa", "Riquadri unità", "Barre azione", "Benefici", "Missioni", "Nomi" },
+    ptBR = { "Manter visíveis:", "Bate-papo", "Minimapa", "Quadros de unidade", "Barras de ação", "Bônus", "Missões", "Nomes" },
+    ruRU = { "Оставить видимыми:", "Чат", "Миникарта", "Рамки юнитов", "Панели команд", "Эффекты", "Задания", "Имена" },
+    koKR = { "계속 표시:", "대화창", "미니맵", "유닛 프레임", "행동 단축바", "강화 효과", "퀘스트 추적", "이름" },
+    zhCN = { "保持显示：", "聊天", "小地图", "单位框体", "动作条", "增益效果", "任务追踪", "名字" },
+    zhTW = { "保持顯示：", "聊天", "小地圖", "單位框架", "快捷列", "增益效果", "任務追蹤", "名字" },
+}
+for loc, v in pairs(HIDE_KEEP) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then
+        dest.HIDE_KEEP, dest.HIDE_KEEP_CHAT, dest.HIDE_KEEP_MINIMAP, dest.HIDE_KEEP_UNITS = v[1], v[2], v[3], v[4]
+        dest.HIDE_KEEP_BARS, dest.HIDE_KEEP_AURAS, dest.HIDE_KEEP_TRACKER, dest.HIDE_KEEP_NAMES = v[5], v[6], v[7], v[8]
+    end
+end
 
 -- Option : illustration du lieu au-dessus de la petite fenetre de Spoken.
 local ZONE_ART = {

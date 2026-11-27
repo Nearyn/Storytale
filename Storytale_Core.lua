@@ -3087,14 +3087,107 @@ local function KeepFrame(fr)
     return KEEP_UI[name] or name:find("^DialogueWheelE") or name:find("^Storytale") or name:find("^DWE") or name:find("^DUI")
         or name:find("^Spoken") or name:find("^StaticPopup")
 end
+-- "Cacher l'interface" : tout s'efface, sauf ce que le joueur choisit de garder (rien par defaut).
+-- Noms des cadres du jeu et des addons d'interface les plus courants (ElvUI, GW2 UI, Bartender,
+-- Dominos, Chattynator, Prat, SexyMap, Shadowed Unit Frames, Grid2, VuhDo, Cell...).
+local KEEP_GROUPS = {
+    { id = "chat", "^ChatFrame%d", "^GeneralDockManager", "^ChatFrameMenuButton", "^ChatFrameChannelButton",
+        "^ChatFrameToggleVoice", "^QuickJoinToastButton", "^ChatAlertFrame", "^Chattynator", "^LeftChat", "^RightChat",
+        "^ElvUI_Chat", "^Prat", "^GwChat", "^GW2_Chat", "^Glass" },
+    { id = "minimap", "^MinimapCluster", "^Minimap", "^MMHolder", "^ElvUI_Minimap", "^SexyMap", "^GwMinimap", "^GW2_Minimap" },
+    { id = "units", "^PlayerFrame", "^TargetFrame", "^FocusFrame", "^PetFrame", "^PartyFrame", "^PartyMemberFrame",
+        "^CompactRaidFrame", "^CompactPartyFrame", "^ElvUF_", "^oUF", "^SUFUnit", "^SUFHeader", "^Gw.*Unit", "^GW2_.*Unit",
+        "^Grid2", "^Vd%d", "^VuhDo", "^CellMain", "^CellParent", "^ZPerl" },
+    { id = "bars", "^MainMenuBar", "^MainActionBar", "^MultiBar", "^StanceBar", "^PetActionBar", "^PossessActionBar",
+        "^MicroMenu", "^MicroButtonAndBagsBar", "^BagsBar", "^StatusTrackingBarManager", "^Bartender4", "^BT4",
+        "^ElvUI_Bar", "^ElvUI_StanceBar", "^ElvUI_MicroBar", "^Dominos", "^GwActionBar", "^GwMultiBar", "^GW2_.*Bar" },
+    { id = "auras", "^BuffFrame", "^DebuffFrame", "^TemporaryEnchantFrame", "^ElvUIPlayerBuffs", "^ElvUIPlayerDebuffs",
+        "^GwPlayerAuras", "^GW2_.*Aura" },
+    { id = "names" }, -- noms des personnages au-dessus des tetes (reglages du jeu, voir HideNames)
+    { id = "tracker", "^ObjectiveTracker", "^QuestWatchFrame", "^WatchFrame", "^KT_", "^!KalielsTracker", "^GwQuestTracker", "^GW2_.*Tracker" },
+}
+DWE.HIDEUI_KEEP_GROUPS = KEEP_GROUPS
+local function KeptByPlayer(fr)
+    local keep = DialogueWheelE_HideKeep
+    if type(keep) ~= "table" or not next(keep) then return false end
+    local ok, name = pcall(fr.GetName, fr)
+    if not ok or type(name) ~= "string" then return false end
+    for _, g in ipairs(KEEP_GROUPS) do
+        if keep[g.id] then
+            for _, pat in ipairs(g) do if name:find(pat) then return true end end
+        end
+    end
+    return false
+end
+-- Cadre qui en contient un a garder (ElvUIParent : toute l'interface d'ElvUI est dedans) : on
+-- efface alors ses enfants un par un, sauf celui-la, au lieu du cadre entier.
+local function HoldsKept(fr, depth)
+    local okC, kids = pcall(function() return { fr:GetChildren() } end)
+    if not okC then return false end
+    for _, k in ipairs(kids) do
+        if KeptByPlayer(k) or (depth > 1 and HoldsKept(k, depth - 1)) then return true end
+    end
+    return false
+end
+-- Un autre addon change l'opacite d'un cadre efface (Auto Hide UI, fondu d'un chat...) : c'est sa
+-- nouvelle opacite qu'on rendra a la fin, et jamais celle d'avant (on ne remontre pas ce qu'il cache).
+local fading = false
+local hookedAlpha = {}
+local function FadeOne(fr, a)
+    fading = true
+    pcall(fr.SetAlpha, fr, a)
+    fading = false
+end
+local function WatchAlpha(fr)
+    if hookedAlpha[fr] then return end
+    hookedAlpha[fr] = true
+    pcall(hooksecurefunc, fr, "SetAlpha", function(self, a)
+        if fading or not hiddenUI[self] or type(a) ~= "number" then return end
+        if issecretvalue and issecretvalue(a) then return end
+        hiddenUI[self] = a
+        FadeOne(self, a * (1 - (DWE.cineBars and DWE.cineBars.alpha or 0)))
+    end)
+end
+-- Noms au-dessus des personnages (joueurs, PNJ, familiers...) : des reglages du jeu (CVars), pas
+-- des cadres. Leurs valeurs sont gardees dans les sauvegardes pendant la conversation, pour etre
+-- rendues meme apres un plantage ou une deconnexion (au chargement suivant).
+local NAME_CVARS = { "UnitNameOwn", "UnitNameNPC", "UnitNamePlayerGuild", "UnitNamePlayerPVPTitle",
+    "UnitNameFriendlyPlayerName", "UnitNameEnemyPlayerName", "UnitNameFriendlyPetName", "UnitNameEnemyPetName",
+    "UnitNameFriendlyGuardianName", "UnitNameEnemyGuardianName", "UnitNameFriendlyTotemName", "UnitNameEnemyTotemName",
+    "UnitNameGuildTitle", "UnitNameNonCombatCreatureName", "UnitNameFriendlySpecialNPCName", "UnitNameHostleNPC",
+    "UnitNameInteractiveNPC" }
+local function RestoreNames()
+    local saved = DialogueWheelE_NameCVars
+    if type(saved) ~= "table" then DialogueWheelE_NameCVars = nil return end
+    for k, v in pairs(saved) do pcall(SetCVar, k, v) end
+    DialogueWheelE_NameCVars = nil
+end
+DWE.RestoreNames = RestoreNames
+local function HideNames()
+    if type(DialogueWheelE_NameCVars) == "table" then return end
+    if not (GetCVar and SetCVar) or (InCombatLockdown and InCombatLockdown()) then return end
+    if type(DialogueWheelE_HideKeep) == "table" and DialogueWheelE_HideKeep.names then return end
+    local saved = {}
+    for _, k in ipairs(NAME_CVARS) do
+        local ok, v = pcall(GetCVar, k)
+        if ok and v ~= nil and v ~= "0" then saved[k] = v end
+    end
+    DialogueWheelE_NameCVars = saved
+    for k in pairs(saved) do pcall(SetCVar, k, "0") end
+end
 local function CollectUI()
     if InCombatLockdown and InCombatLockdown() then return end
+    HideNames()
     if not UIParent.GetChildren then return end
     local list = { UIParent:GetChildren() }
     -- (chaque cadre dans un pcall : un cadre interdit aux addons ne doit rien casser)
-    local function One(fr)
+    local function One(fr, depth)
         if fr.IsForbidden and fr:IsForbidden() then return end
-        if KeepFrame(fr) then return end
+        if KeepFrame(fr) or KeptByPlayer(fr) then return end
+        if (depth or 0) < 2 and HoldsKept(fr, 2 - (depth or 0)) then
+            for _, k in ipairs({ fr:GetChildren() }) do pcall(One, k, (depth or 0) + 1) end
+            return
+        end
         -- Fenetres qui ignorent l'opacite de leur parent (fenetres de chat de Chattynator) : elles
         -- la suivent de nouveau le temps de la conversation, pour s'effacer avec le reste.
         for _, k in ipairs({ fr:GetChildren() }) do
@@ -3111,15 +3204,19 @@ local function CollectUI()
         end
         if fr:IsShown() and not hiddenUI[fr] then
             local a = fr:GetAlpha()
-            if type(a) == "number" and a > 0 then hiddenUI[fr] = a end
+            if type(a) == "number" and not (issecretvalue and issecretvalue(a)) and a > 0 then
+                hiddenUI[fr] = a
+                WatchAlpha(fr)
+            end
         end
     end
-    for _, fr in ipairs(list) do pcall(One, fr) end
+    for _, fr in ipairs(list) do pcall(One, fr, 0) end
 end
 local function FadeUI(f)
-    for fr, a in pairs(hiddenUI) do pcall(fr.SetAlpha, fr, a * (1 - f)) end
+    for fr, a in pairs(hiddenUI) do FadeOne(fr, a * (1 - f)) end
 end
 local function RestoreUI()
+    RestoreNames()
     FadeUI(0)
     wipe(hiddenUI)
     -- (jamais de cadre protege ici : rendu meme en combat)
@@ -3127,6 +3224,15 @@ local function RestoreUI()
     wipe(ignoredUI)
 end
 DWE.HiddenUI = hiddenUI
+-- Choix de ce qu'on garde change pendant une conversation : on rend tout et on recommence.
+function DWE.RefreshHideUI()
+    if not DWE.cineBars or not DWE.cineBars:IsShown() then return end
+    RestoreUI()
+    if DWE.cineBars.want then
+        CollectUI()
+        FadeUI(DWE.cineBars.alpha or 0)
+    end
+end
 
 cineBars:SetScript("OnUpdate", function(self, dt)
     local target = self.want and 1 or 0
@@ -3191,10 +3297,17 @@ do
     local combat = CreateFrame("Frame")
     combat:RegisterEvent("PLAYER_REGEN_DISABLED")
     combat:RegisterEvent("PLAYER_REGEN_ENABLED")
+    combat:RegisterEvent("PLAYER_LOGIN")
+    combat:RegisterEvent("PLAYER_LOGOUT")
     combat:SetScript("OnEvent", function(_, event)
-        if event == "PLAYER_REGEN_DISABLED" then
+        if event == "PLAYER_LOGIN" or event == "PLAYER_LOGOUT" then
+            -- Noms caches lors d'un plantage ou d'une deconnexion en pleine conversation : rendus.
+            pcall(RestoreNames)
+        elseif event == "PLAYER_REGEN_DISABLED" then
             -- Entree en combat : l'interface revient tout de suite.
             if DWE.HideUIOn() and not DWE.IsCinema() then cineBars.want = false end
+            -- (les noms reviennent tout de suite : on peut en avoir besoin pour se battre)
+            if DWE.RestoreNames then pcall(DWE.RestoreNames) end
         else
             DWE.UpdateCinemaBars()
         end
@@ -7577,7 +7690,7 @@ DWE.THEME_LIST = THEME_LIST
 -- deja entendus avec Spoken (ce n'est pas un reglage).
 -- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
 DWE.OPTION_VARS = {}
-for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
+for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI HideKeep ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
@@ -7910,7 +8023,7 @@ function DWE.InitOptionsPanel()
     -- Precisions des options (infobulle au survol) : texte court a l'ecran, details ici.
     local TIP_OF = {}
     for _, k in ipairs({ "LOCK", "READ_MARKS", "BOOK_TIP_CURSOR", "BOOK_AUTOSCROLL", "QUEST_AUTO_W",
-        "THEME_BUBBLES", "SPOKEN_BUTTON", "ZONE_ART", "BUBBLE_HIGHLIGHT", "BUBBLE_MODE_TYPE", "BUBBLE_MODE_PAGE" }) do
+        "THEME_BUBBLES", "SPOKEN_BUTTON", "ZONE_ART", "BUBBLE_HIGHLIGHT", "BUBBLE_MODE_TYPE", "BUBBLE_MODE_PAGE", "BUBBLE_MODE_MANUAL" }) do
         if L[k] and L[k .. "_TIP"] then TIP_OF[L[k]] = L[k .. "_TIP"] end
     end
     -- Chaque reglage sait relire sa valeur (profil change, page remise a zero) : il se remet a
@@ -8365,7 +8478,30 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_HideUI = self:GetChecked() and true or false
         -- (en direct pendant une conversation : l'interface s'efface ou revient tout de suite)
         DWE.UpdateCinemaBars()
+        if DWE.RefreshHideKeepBoxes then DWE.RefreshHideKeepBoxes() end
     end)
+    -- Ce que le joueur garde visible (rien de coche par defaut : tout s'efface).
+    AddText(L.HIDE_KEEP or "Keep visible:", 330, y - 36, "GameFontHighlightSmall")
+    local keepBoxes = {}
+    for i, g in ipairs(DWE.HIDEUI_KEEP_GROUPS) do
+        local col, row = (i - 1) % 2, math.floor((i - 1) / 2)
+        keepBoxes[i] = AddCheck(L["HIDE_KEEP_" .. g.id:upper()] or g.id, 330 + col * 135, y - 50 - row * 26, function()
+            return type(DialogueWheelE_HideKeep) == "table" and DialogueWheelE_HideKeep[g.id] == true
+        end, function(self)
+            if type(DialogueWheelE_HideKeep) ~= "table" then DialogueWheelE_HideKeep = {} end
+            DialogueWheelE_HideKeep[g.id] = self:GetChecked() and true or nil
+            if not next(DialogueWheelE_HideKeep) then DialogueWheelE_HideKeep = nil end
+            DWE.RefreshHideUI()
+        end)
+    end
+    function DWE.RefreshHideKeepBoxes()
+        local on = DialogueWheelE_HideUI == true
+        for _, cb in ipairs(keepBoxes) do
+            if on then cb:Enable() else cb:Disable() end
+            if cb.Text then cb.Text:SetTextColor(on and 1 or 0.5, on and 1 or 0.5, on and 1 or 0.5) end
+        end
+    end
+    DWE.RefreshHideKeepBoxes()
     -- Bouton de la mini-carte (ouvre ces options).
     AddCheck(L.MINIMAP_BTN, 16, y - 62, function() return DialogueWheelE_MinimapHide ~= true end, function(self)
         DialogueWheelE_MinimapHide = (not self:GetChecked()) and true or nil
@@ -8373,7 +8509,7 @@ function DWE.InitOptionsPanel()
     end)
 
     ---------------------------------------------------------------- Livres et lettres
-    y = y - 100
+    y = y - 165
     NewPage(L.SEC_BOOKS, y)
     AddSection(L.SEC_BOOKS, y)
     -- Livres et lettres : qui les affiche, puis leur style (seulement pour Storytale).
