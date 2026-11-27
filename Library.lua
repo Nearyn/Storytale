@@ -847,7 +847,20 @@ local function LoadModel(sc, id, pose)
         pcall(a.SetScript, a, "OnModelLoaded", function() if sc.pose then Frame(sc, sc.pose) end end)
     end
     sc.pose = pose
+    Lib.Glow(sc, sc.glow)
     return true
+end
+-- Surbrillance au survol, comme les objets du monde sous la souris : lumiere plus vive.
+function Lib.Glow(sc, on)
+    if not (sc and sc.SetLightAmbientColor) then return end
+    sc.glow = on and true or nil
+    if on then
+        pcall(sc.SetLightAmbientColor, sc, 1.0, 0.95, 0.8)
+        if sc.SetLightDiffuseColor then pcall(sc.SetLightDiffuseColor, sc, 1.6, 1.5, 1.3) end
+    else
+        pcall(sc.SetLightAmbientColor, sc, 0.7, 0.7, 0.7)
+        if sc.SetLightDiffuseColor then pcall(sc.SetLightDiffuseColor, sc, 0.8, 0.8, 0.8) end
+    end
 end
 -- Poses : livre fermé pose a plat et incline vers nous (pupitre), debout tranche face a nous
 -- (etageres). Reglables en jeu : /storytale libpose shelf|lectern distance lacet tangage roulis.
@@ -995,6 +1008,7 @@ local function Build()
         b:SetScript("OnEnter", function(self)
             local r = self.row
             if not r then return end
+            Lib.Glow(self.model, true)
             self:SetPoint("BOTTOMLEFT", cases, "BOTTOMLEFT", self.x, self.y + 4)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(r.title, 1, 0.86, 0.55, 1, true)
@@ -1006,6 +1020,7 @@ local function Build()
             GameTooltip:Show()
         end)
         b:SetScript("OnLeave", function(self)
+            Lib.Glow(self.model, false)
             self:SetPoint("BOTTOMLEFT", cases, "BOTTOMLEFT", self.x, self.y)
             if GameTooltip then GameTooltip:Hide() end
         end)
@@ -1125,11 +1140,12 @@ local function Build()
     end
     cover:SetScript("OnClick", function() if state.key then Lib.Read(state.key) end end)
     cover:SetScript("OnEnter", function(self)
+        Lib.Glow(self.model, true)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:SetText(L.LIB_READ or "Read", 1, 1, 1)
         GameTooltip:Show()
     end)
-    cover:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    cover:SetScript("OnLeave", function(self) Lib.Glow(self.model, false); if GameTooltip then GameTooltip:Hide() end end)
     ui.cover = cover
     local ft = lect:CreateFontString(nil, "OVERLAY")
     ft:SetPoint("BOTTOM", lect, "BOTTOMLEFT", lx + LECTERN.size / 2, 12 + LECTERN.size + 34)
