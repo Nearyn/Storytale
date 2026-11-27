@@ -12,7 +12,7 @@ do
     local EXTRA = { "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose",
         "BookVoiceOff", "RibbonSeen", "GamePad", "PadTipSeen", "PadTips", "DUIPos", "SpokenStyleChosen",
         "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "HideKeep", "NameCVars", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen", "Profiles", "PlateRestore", "BubbleHighlight", "BubbleMode",
-        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "NarratorPos", "LibraryShared", "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryLayout", "LibraryOff" }
+        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "NarratorPos", "LibraryShared", "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryLayout", "LibraryOff", "LibraryScroll" }
     DWE.EXTRA_VARS = EXTRA
     local me = ...
 
@@ -3282,6 +3282,7 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         end
     elseif msg:match("^%s*librar") or msg:match("^%s*biblio") then
         if DWE.Library and msg:match("reset") then DWE.Library.ResetLayout()
+        elseif DWE.Library and msg:match("scroll") then DWE.Library.ScrollPicker()
         elseif DWE.Library then DWE.Library.Toggle() end
     elseif msg:match("forget") then
         local n = DWE.SpokenFocus and DWE.SpokenFocus.ForgetOpenBook and DWE.SpokenFocus.ForgetOpenBook() or 0

@@ -819,7 +819,7 @@ end
 -- `where` : "shelf" (etageres : lettres et parchemins enroules) ou "lectern" (pupitre : ouverts).
 function Lib.ModelFor(row, where)
     local o = (row.entry and row.entry.o) or TITLE_OBJ[row.title or ""]
-    if row.kind == "letter" and where == "shelf" then return MODELS.rolled end
+    if row.kind == "letter" and where == "shelf" then return tonumber(DialogueWheelE_LibraryScroll) or MODELS.rolled end
     if o and OBJ_MODEL[o] then return OBJ_MODEL[o] end
     if row.kind == "letter" then return MODELS.letter end
     if row.kind == "plate" then return MODELS.plate end
@@ -939,7 +939,8 @@ Lib.BBOX_FILL = 0.68
 Lib.SHELF_POSES = {
     book = { dist = 0.66, yaw = 90, pitch = 90, roll = 0, vfrac = 1 },
     letter = { dist = 1.15, yaw = 90, pitch = 0, roll = 0, vfrac = 0.3 },
-    flat = { yaw = 90, pitch = 0, roll = 0, vfrac = 0.22 },
+    -- (couche, le bloc de pages vers nous : moins large que de profil)
+    flat = { yaw = 0, pitch = 0, roll = 0, vfrac = 0.22, across = 0.75 },
     plate = { dist = 1.0, yaw = 90, pitch = 0, roll = 0, vfrac = 1 },
 }
 Lib.SHELF_POSE = Lib.SHELF_POSES.book
@@ -973,7 +974,8 @@ function Lib.ShelfPose(row, i)
     if row.kind == "letter" then
         p.lean = nil
         p.yaw, p.pitch, p.roll, p.vfrac, p.flat = 90, 0, 0, 0.3, true
-    elseif row.kind == "book" and not p.lean and h % 6 == 1 then
+    elseif row.kind == "book" and not row.noFlat and (row.forceFlat or (not p.lean and h % 6 == 1)) then
+        p.lean = nil
         local fp = Lib.SHELF_POSES.flat
         p.yaw, p.pitch, p.roll, p.vfrac, p.flat = fp.yaw, fp.pitch, fp.roll, fp.vfrac, true
     end
@@ -1062,7 +1064,7 @@ local function Build()
     Lib.bgFrame = bgf
     function Lib.ApplyBg()
         if not room then return end
-        local a = math.max(0, math.min(1, tonumber(DialogueWheelE_LibraryBg) or 1))
+        local a = math.max(0, math.min(1, tonumber(DialogueWheelE_LibraryBg) or 0))
         if Lib.Style() == "simple" then a = 0 end -- (etagere seule : jamais de fond)
         Lib.bgAlpha = a
         bgf:SetBackdropColor(0.07, 0.045, 0.03, 0.97 * a)
@@ -1255,7 +1257,7 @@ local function Build()
         tick = tick + (el or 0)
         if tick < 0.25 then return end
         tick = 0
-        pcall(Lib.Avoid)
+        pcall(Lib.PushAll)
     end)
 
     -- Le pupitre, et le livre presente dessus.
@@ -1445,6 +1447,12 @@ end
 local function Layout()
     if type(DialogueWheelE_LibraryLayout) ~= "table" then DialogueWheelE_LibraryLayout = {} end
     local t = DialogueWheelE_LibraryLayout
+    -- (v2 : les bibliotheques grandissent depuis leur pied ; l'ancienne disposition, faite avant,
+    -- est devenue celle par defaut : on repart d'elle)
+    if t.v ~= 2 then
+        for k in pairs(t) do t[k] = nil end
+        t.v = 2
+    end
     local st = Lib.Style()
     t[st] = type(t[st]) == "table" and t[st] or {}
     return t, t[st]
@@ -1707,6 +1715,58 @@ local function Escape(r, obs)
     return 0, 0 -- (nulle part ou aller : il reste)
 end
 Lib.Escape = Escape
+-- La bibliotheque ne bouge pas : ce sont le livre de Storytale et le narrateur de Spoken qui
+-- s'ouvrent a cote d'elle, aussitot (pas de glissement a l'ecran). Repris a chaque fois qu'ils
+-- sont replaces, tant que la bibliotheque est ouverte.
+local function LibraryRects()
+    local list = {}
+    if not (room and room:IsShown()) then return list end
+    if Lib.Free() then
+        for _, hd in pairs(ui.handles or {}) do
+            local r = hd:IsShown() and Rect(hd)
+            if r then list[#list + 1] = r end
+        end
+    else
+        local r = Rect(Lib.bgFrame)
+        if r then list[#list + 1] = r end
+    end
+    return list
+end
+local pushing = false
+function Lib.Push(f)
+    if pushing or not (f and f.IsShown and f:IsShown()) then return end
+    if f.dweMoving then return end -- (deplace a la main : il va ou on le pose)
+    if f == DWE.textBox and not DWE.bookMode then return end
+    local libs = LibraryRects()
+    if #libs == 0 then return end
+    local r = Rect(f)
+    if not r then return end
+    local dx, dy = Escape(r, libs)
+    if dx == 0 and dy == 0 then return end
+    local sc = f:GetEffectiveScale() or 1
+    pushing = true
+    if f.AdjustPointsOffset then
+        pcall(f.AdjustPointsOffset, f, dx / sc, dy / sc)
+    else
+        local n = f:GetNumPoints() or 0
+        local pts = {}
+        for i = 1, n do pts[i] = { f:GetPoint(i) } end
+        f:ClearAllPoints()
+        for _, p in ipairs(pts) do f:SetPoint(p[1], p[2], p[3], (p[4] or 0) + dx / sc, (p[5] or 0) + dy / sc) end
+    end
+    pushing = false
+end
+local hooked = {}
+function Lib.PushAll()
+    for _, f in ipairs({ DWE.textBox, rawget(_G, "StorytaleNarratorFrame") }) do
+        if f and not hooked[f] and hooksecurefunc then
+            hooked[f] = true
+            hooksecurefunc(f, "SetPoint", function(self) if not pushing then Lib.Push(self) end end)
+            if f.HookScript then f:HookScript("OnShow", function(self) Lib.Push(self) end) end
+        end
+        if f then Lib.Push(f) end
+    end
+end
 function Lib.Avoid()
     if not (room and room:IsShown()) then return end
     local obs = Obstacles()
@@ -1740,6 +1800,67 @@ function Lib.Avoid()
         Check("room", Lib.bgFrame, all.roomPinned)
     end
     if changed then Lib.ApplyLayout() end
+end
+
+-- Choix du parchemin des etageres : les parchemins du jeu, cote a cote, qui tournent sur
+-- eux-memes ; un clic choisit celui des etageres (/storytale libscrolls).
+Lib.SCROLLS = {
+    { 198451, "Scroll A2" }, { 198452, "Scroll A3" }, { 198453, "Scroll B1" }, { 198454, "Scroll B2" },
+    { 198455, "Scroll B3" }, { 198457, "Map scroll" }, { 203429, "Uldaman scroll 1" },
+    { 203430, "Uldaman scroll 2" }, { 203431, "Uldaman scroll 3" }, { 201113, "Open scroll" },
+}
+function Lib.ScrollPicker()
+    local f = Lib.picker
+    if f then f:SetShown(not f:IsShown()) return end
+    f = CreateFrame("Frame", "StorytaleScrollPicker", UIParent, "BackdropTemplate")
+    Lib.picker = f
+    f:SetFrameStrata("FULLSCREEN_DIALOG")
+    f:SetSize(5 * 150 + 30, 2 * 170 + 60)
+    f:SetPoint("CENTER")
+    f:SetMovable(true); f:EnableMouse(true); f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 16, insets = { left = 4, right = 4, top = 4, bottom = 4 } })
+    f:SetBackdropColor(0.07, 0.045, 0.03, 0.95)
+    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", -2, -2)
+    local t = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    t:SetPoint("TOP", 0, -14)
+    t:SetText("Storytale : click the scroll for the shelves")
+    f.cells = {}
+    local pose = { dist = 1.0, yaw = 0, pitch = 0, roll = 0 }
+    for i, c in ipairs(Lib.SCROLLS) do
+        local cell = CreateFrame("Button", nil, f, "BackdropTemplate")
+        cell:SetSize(140, 160)
+        cell:SetPoint("TOPLEFT", 15 + ((i - 1) % 5) * 150, -44 - math.floor((i - 1) / 5) * 170)
+        cell:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12 })
+        local sc = NewScene(cell)
+        if sc then
+            sc:SetPoint("TOPLEFT", 6, -6); sc:SetPoint("BOTTOMRIGHT", -6, 24)
+            LoadModel(sc, c[1], pose)
+        end
+        local lab = cell:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        lab:SetPoint("BOTTOM", 0, 8)
+        lab:SetText(i .. ". " .. c[2])
+        cell:SetScript("OnClick", function()
+            DialogueWheelE_LibraryScroll = c[1]
+            for _, o in ipairs(f.cells) do o:SetBackdropBorderColor(1, 1, 1, 0.4) end
+            cell:SetBackdropBorderColor(1, 0.82, 0, 1)
+            if Refresh then Refresh() end
+        end)
+        cell:SetBackdropBorderColor(DialogueWheelE_LibraryScroll == c[1] and 1 or 1, DialogueWheelE_LibraryScroll == c[1] and 0.82 or 1, DialogueWheelE_LibraryScroll == c[1] and 0 or 1, DialogueWheelE_LibraryScroll == c[1] and 1 or 0.4)
+        cell.sc = sc
+        f.cells[i] = cell
+    end
+    -- (ils tournent lentement, pour voir leur forme)
+    local yaw = 0
+    f:SetScript("OnUpdate", function(_, el)
+        yaw = yaw + (el or 0) * 0.8
+        for _, cell in ipairs(f.cells) do
+            local a = cell.sc and cell.sc.actor
+            if a and a.SetYaw then pcall(a.SetYaw, a, yaw) end
+        end
+    end)
 end
 
 -- Revenir a la disposition d'origine (style en cours).
@@ -1866,8 +1987,30 @@ function Refresh()
     local function Width(row, sl)
         if not use3d then local _, w = Lib.Spine(row); return w end
         local p = Lib.ShelfPose(row)
-        if p.flat then return math.floor(Lib.BBOX_FILL * sl.h / (1.1 * p.dist)) end
+        if p.flat then return math.floor(Lib.BBOX_FILL * sl.h / (1.1 * p.dist) * (row.kind == "book" and Lib.SHELF_POSES.flat.across or 1)) end
         return math.floor(sl.w / Lib.PER_ROW_3D * (p.lean and 1.7 or 1)) - 1
+    end
+    -- Livres couches par deux au moins : un livre couche seul prend le suivant sur lui, ou se
+    -- releve s'il n'y en a pas.
+    if use3d then
+        local i = 1
+        while i <= #rows do
+            local r = rows[i]
+            r.forceFlat, r.noFlat = nil, nil
+            if r.kind == "book" and Lib.ShelfPose(r).flat then
+                local nxt = rows[i + 1]
+                if nxt and nxt.kind == "book" then
+                    nxt.noFlat = nil
+                    nxt.forceFlat = true
+                    i = i + 2
+                else
+                    r.noFlat = true
+                    i = i + 1
+                end
+            else
+                i = i + 1
+            end
+        end
     end
     local stack
     for idx, row in ipairs(rows) do
@@ -2027,6 +2170,7 @@ function Lib.Open()
     Build()
     room:Show()
     room:Raise()
+    pcall(Lib.PushAll)
     Refresh()
 end
 function Lib.Toggle()

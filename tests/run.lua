@@ -2421,8 +2421,9 @@ do
     check(not DWE.libraryBook and not DWE.bookMode and Lib.frame:IsShown(), "library: closing the book goes back to the room")
     -- Disposition libre : chaque bloc a sa poignee et sa taille
     check(ui.handles and ui.handles.case1 and ui.handles.case2 and ui.handles.lectern and ui.handles.header and ui.handles.lectern.dweGrip ~= nil, "library: each block can be moved and resized")
-    DialogueWheelE_LibraryLayout = { room = { lectern = { x = 30, y = 0, s = 1.5 } } }
-    Lib.ApplyLayout()
+    DialogueWheelE_LibraryLayout = { v = 2, room = { lectern = { x = 30, y = 0, s = 1.5 } } }
+    DialogueWheelE_LibraryBg = 1
+    Lib.ApplyBg()
     check(math.abs(ui.boxes.lectern:GetScale() - Lib.DEFAULT_LAYOUT.room.lectern.s) < 1e-6, "library: with a background, blocks keep the default layout")
     DialogueWheelE_LibraryBg = 0
     Lib.ApplyBg()

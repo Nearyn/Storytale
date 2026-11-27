@@ -8872,8 +8872,8 @@ function DWE.InitOptionsPanel()
     end)
     -- Fond de la piece : de plein a rien du tout (0 : ni fond ni bordure, les meubles seuls).
     local bgSlider = AddSlider("DWESliderLibBg", L.LIB_BG or "Library background", 22, y - 532, 0, 1, 0.05,
-        function() return tonumber(DialogueWheelE_LibraryBg) or 1 end, "%.2f", function(v)
-        DialogueWheelE_LibraryBg = (v < 1) and v or nil
+        function() return tonumber(DialogueWheelE_LibraryBg) or 0 end, "%.2f", function(v)
+        DialogueWheelE_LibraryBg = (v > 0) and v or nil
         if DWE.Library and DWE.Library.ApplyBg then DWE.Library.ApplyBg() end
     end)
     -- Bibliotheque activee (par defaut) ; decochee, plus rien ne l'ouvre, et ses reglages sont
