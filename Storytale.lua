@@ -3900,27 +3900,36 @@ function DWE.OpenLibraryBook(title, pages, material)
 end
 -- Fondu d'apparition (sans toucher a ce que Storytale regle ensuite : on ne fait que monter
 -- l'alpha jusqu'a sa valeur d'arrivee).
+-- Chaque cadre a son propre fondu : un nouveau fondu ne fait plus oublier ceux en cours (un
+-- cadre restait alors invisible pour de bon : la bibliotheque ne se rouvrait plus).
+local fades = {}
 function DWE.FadeInFrames(list, dur, holdFrames)
     local fr = DWE.fadeInFrame or CreateFrame("Frame")
     DWE.fadeInFrame = fr
-    local targets = {}
     for _, f in ipairs(list) do
         -- (meme cache pour l'instant : il peut s'afficher juste apres, il est deja invisible)
         if f and f.SetAlpha then
-            local a = f:GetAlpha() or 1
-            targets[#targets + 1] = { f = f, a = (a > 0) and a or 1 }
+            local cur = fades[f]
+            local a = cur and cur.a or (f:GetAlpha() or 1)
+            fades[f] = { a = (a > 0) and a or 1, t = 0, dur = dur, hold = holdFrames or 0 }
             f:SetAlpha(0)
         end
     end
-    fr.t = 0
-    fr.hold = holdFrames or 0
     fr:SetScript("OnUpdate", function(self, el)
-        -- (quelques images invisibles d'abord : le temps que tout soit a sa place)
-        if self.hold > 0 then self.hold = self.hold - 1 return end
-        self.t = self.t + (el or 0)
-        local k = math.min(1, self.t / dur)
-        for _, tg in ipairs(targets) do tg.f:SetAlpha(tg.a * k) end
-        if k >= 1 then self:SetScript("OnUpdate", nil) end
+        local any = false
+        for f, st in pairs(fades) do
+            -- (quelques images invisibles d'abord : le temps que tout soit a sa place)
+            if st.hold > 0 then
+                st.hold = st.hold - 1
+                any = true
+            else
+                st.t = st.t + (el or 0)
+                local k = math.min(1, st.t / st.dur)
+                f:SetAlpha(st.a * k)
+                if k >= 1 then fades[f] = nil else any = true end
+            end
+        end
+        if not any then self:SetScript("OnUpdate", nil) end
     end)
 end
 function DWE.CloseLibraryBook()

@@ -2471,6 +2471,7 @@ end
 function Lib.Open()
     if not Lib.Enabled() then return end
     Build()
+    room:SetAlpha(1) -- (jamais rouverte invisible)
     room:Show()
     room:Raise()
     pcall(Lib.PushAll)
@@ -2551,6 +2552,7 @@ local function RubRefresh()
     rui.meta:SetText(table.concat(meta, " - "))
     local pages = Lib.Pages(row)
     local text = DWE.PlainItemText and DWE.PlainItemText(table.concat(pages, "\n\n")) or table.concat(pages, "\n\n")
+    text = Lib.Inscription(row.title, text)
     FitText(rui.text, text, rui.textW, rui.textH)
     -- Fusain a la taille du texte : un texte court, un petit frottis (on ne frotte que la ou
     -- c'est grave), dans la limite de la page.
@@ -2583,6 +2585,26 @@ local function RubRefresh()
     end
 end
 Lib.RubRefresh = RubRefresh
+-- Mise en page d'une inscription (le jeu a perdu ses retours a la ligne) : le nom en titre, une
+-- phrase par ligne, et la signature (" - Antonidas - ") seule en bas, avec ce qui la suit.
+function Lib.Inscription(title, text)
+    if type(text) ~= "string" or text:find("\n") then return text end
+    local t = text:gsub("%s+", " "):gsub("^ ", ""):gsub(" $", "")
+    local head = ""
+    if type(title) == "string" and title ~= "" and t:sub(1, #title) == title and #t > #title + 1 then
+        head = title .. "\n\n"
+        t = t:sub(#title + 1):gsub("^[%s:,%.%-]+", "")
+    end
+    local sig = ""
+    local before, name, after = t:match("^(.-)%s+%-%s+([^%-]+)%s+%-%s*(.*)$")
+    if before and name and #name < 40 then
+        t = before
+        sig = "\n\n\226\128\148 " .. name .. " \226\128\148" .. ((after ~= "" and ("\n" .. after)) or "")
+    end
+    -- (fin de phrase suivie d'une majuscule : nouvelle ligne)
+    t = t:gsub("([%.!%?])%s+(%u)", "%1\n%2")
+    return head .. t .. sig
+end
 -- Marque-page : bien visible sur la page marquee, pale ailleurs.
 function Lib.RubRibbon()
     if not (rui and rui.ribbon) then return end
@@ -2590,6 +2612,11 @@ function Lib.RubRibbon()
     local on = row and DialogueWheelE_RubbingMark == row.key
     rui.ribbon.tex:SetAlpha(on and 1 or 0.35)
     rui.ribbon:SetShown(row ~= nil)
+end
+-- Contenu des pages (modele 3D, nom, estampage...) : a part, pour le cacher pendant que la page
+-- tourne (sinon la feuille passait derriere le modele 3D).
+function Lib.RubContentAlpha(a)
+    for _, f in ipairs(rui.fadeList or {}) do f:SetAlpha(a) end
 end
 function Lib.RubTurn(dir)
     local n = #RubRows()
@@ -2601,10 +2628,11 @@ function Lib.RubTurn(dir)
     if DialogueWheelE_BookTurnFX ~= false and rui.flipper then
         if PlaySound then pcall(PlaySound, SOUNDKIT and (SOUNDKIT.IG_ABILITY_PAGE_TURN or SOUNDKIT.IG_SPELLBOOK_PAGE_TURN) or 836) end
         rui.flipper.t, rui.flipper.dir = 0, dir
+        Lib.RubContentAlpha(0)
         rui.flipper:Show()
     end
 end
-Lib.RUB_POSE = { dist = 1.15, yaw = 0, pitch = 8, roll = 0 }
+Lib.RUB_POSE = { dist = 1.47, yaw = 0, pitch = 8, roll = 0 }
 
 local function RubBuild()
     if rub then return end
@@ -2636,14 +2664,22 @@ local function RubBuild()
     local function P(x, y) return x * s, -y * s end
     local bg = rub:CreateTexture(nil, "BACKGROUND")
     bg:SetTexture(ADDON .. "RubbingBook.png")
+    -- (tout ce qui est ecrit ou pose sur les pages : dans un cadre a part, qu'on peut estomper)
+    local content = CreateFrame("Frame", nil, rub)
+    content:SetAllPoints()
+    content:SetFrameLevel(rub:GetFrameLevel() + 1)
+    rui.content = content
+    rui.fadeList = { content }
     bg:SetTexCoord(0, 1, 0, RB.h / 1024)
     bg:SetAllPoints()
     -- Page de gauche : modele 3D, nom, lieu et date.
     local L1 = RB.left
-    local m = NewScene(rub)
+    local m = NewScene(content)
     if m then
-        m:SetSize(250 * s, 250 * s)
-        m:SetPoint("TOP", rub, "TOPLEFT", (L1[1] + L1[3]) / 2 * s, -(L1[2] + 40) * s)
+        -- (cadre large et camera reculee d'autant : meme taille a l'ecran, mais de la marge pour
+        -- les modeles qui depassent de leur boite, ou tournes a la souris)
+        m:SetSize(320 * s, 320 * s)
+        m:SetPoint("TOP", rub, "TOPLEFT", (L1[1] + L1[3]) / 2 * s, -(L1[2] + 5) * s)
         rui.model = m
         -- (de face ; on le tourne en le tirant a la souris, il ne tourne pas seul : de dos, une
         -- plaque ne montre rien)
@@ -2661,13 +2697,13 @@ local function RubBuild()
             if a and a.SetYaw then pcall(a.SetYaw, a, self.yaw) end
         end)
     end
-    local name = rub:CreateFontString(nil, "OVERLAY")
+    local name = content:CreateFontString(nil, "OVERLAY")
     name:SetPoint("TOP", rub, "TOPLEFT", (L1[1] + L1[3]) / 2 * s, -(L1[2] + 320) * s)
     name:SetWidth((L1[3] - L1[1] - 50) * s)
     Font(name, 18, { 0.24, 0.17, 0.11 })
     name:SetJustifyH("CENTER")
     rui.name = name
-    local meta = rub:CreateFontString(nil, "OVERLAY")
+    local meta = content:CreateFontString(nil, "OVERLAY")
     meta:SetPoint("TOP", name, "BOTTOM", 0, -6)
     meta:SetWidth((L1[3] - L1[1] - 50) * s)
     Font(meta, 12, { 0.40, 0.32, 0.24 })
@@ -2675,7 +2711,7 @@ local function RubBuild()
     rui.meta = meta
     -- Page de droite : l'estampage.
     local R1 = RB.right
-    local ch = rub:CreateTexture(nil, "ARTWORK")
+    local ch = content:CreateTexture(nil, "ARTWORK")
     ch:SetTexture(ADDON .. "RubbingCharcoal.png")
     ch:SetPoint("TOPLEFT", rub, "TOPLEFT", (R1[1] + 16) * s, -(R1[2] + 26) * s)
     ch:SetPoint("BOTTOMRIGHT", rub, "TOPLEFT", (R1[3] - 14) * s, -(R1[4] - 30) * s)
@@ -2683,7 +2719,7 @@ local function RubBuild()
     rui.chMaxW, rui.chMaxH = (R1[3] - R1[1] - 30) * s, (R1[4] - R1[2] - 56) * s
     rui.chMinW, rui.chMinH = 150 * s, 120 * s
     rui.chCX, rui.chCY = (R1[1] + R1[3]) / 2 * s, -((R1[2] + R1[4]) / 2 - 2) * s
-    local text = rub:CreateFontString(nil, "OVERLAY")
+    local text = content:CreateFontString(nil, "OVERLAY")
     text:SetPoint("CENTER", ch, "CENTER", 0, 0)
     text:SetJustifyH("CENTER")
     text:SetJustifyV("MIDDLE")
@@ -2731,7 +2767,7 @@ local function RubBuild()
     end
     rui.prev, rui.next, rui.count = prev, nextb, count
     -- Apercu : la plaque telle que Storytale l'affiche, avec son vrai texte.
-    local pv = TextButton(rub, L.RUB_PREVIEW or "Preview", function() Lib.PreviewRubbing() end, { 0.30, 0.22, 0.15 })
+    local pv = TextButton(content, L.RUB_PREVIEW or "Preview", function() Lib.PreviewRubbing() end, { 0.30, 0.22, 0.15 })
     pv:SetPoint("TOP", meta, "BOTTOM", 0, -14)
     pv:SetScript("OnLeave", function(self) local c = self.color; self.text:SetTextColor(c[1], c[2], c[3]) end)
     rui.preview = pv
@@ -2767,7 +2803,11 @@ local function RubBuild()
         local shade = 0.62 + 0.38 * f
         flip:SetVertexColor(shade, shade * 0.97, shade * 0.93)
         flip:Show()
-        if k >= 1 then self:Hide(); flip:Hide() end
+        -- (le contenu des pages, cache pendant que la feuille tourne, revient en fondu)
+        if k >= 1 then
+            self:Hide(); flip:Hide()
+            if DWE.FadeInFrames then DWE.FadeInFrames(rui.fadeList, 0.25) else Lib.RubContentAlpha(1) end
+        end
     end)
     -- Marque-page (vert, celui du livre est rouge) : marque le monument affiche ; le carnet se
     -- rouvre a cette page.
@@ -2833,6 +2873,8 @@ function Lib.OpenRubbings()
     if not Lib.Enabled() then return end
     local fresh = not rub
     RubBuild()
+    rub:SetAlpha(1)
+    Lib.RubContentAlpha(1)
     rub:Show()
     rub:Raise()
     -- (ouvert la premiere fois a la page marquee)
