@@ -2310,6 +2310,8 @@ function DWE.Bubble.PopupText(s)
     -- "Tout d'un coup" et "Avance manuelle" : le cadre de texte (themes sans bulle) n'a qu'une
     -- partie, montree entiere, sans suivre la voix.
     local whole = DialogueWheelE_BubbleMode == "page" or DialogueWheelE_BubbleMode == "manual"
+    -- (texte retenu meme affiche d'un coup : l'avance manuelle s'en sert pour couper la voix)
+    pop.norm = (type(s) == "string" and not IsSecret(s)) and Normalize(s) or nil
     if whole or not popupHasGradient or not SpokenInstalled() or IsSecret(s) or pop.len == 0 then
         PopupShowAll()
         return
@@ -2393,3 +2395,39 @@ function DWE.BubbleVoiceIsNPC(clip)
     if (issecretvalue and (issecretvalue(who) or issecretvalue(npc))) then return true end
     return who == npc
 end
+
+--------------------------------------------------------------------------------
+-- Avance manuelle sans voix (par defaut) : on lit a son rythme, Spoken ne lit pas le dialogue.
+-- La voix de ce texte est arretee des qu'elle commence (Skip de l'API publique de Spoken) ;
+-- "Voix en avance manuelle" coche, elle lit toute la replique.
+--------------------------------------------------------------------------------
+local muteFrame = CreateFrame("Frame")
+local muteAcc, mutedClip = 0, nil
+local function VoiceOf(st, clip)
+    if not (st and st.norm and st.setAt) then return false end
+    local present = type(clip.present) == "table" and clip.present or {}
+    if SameText(st, present.transcript or clip.text) then return true end
+    local started = ClipStart(clip)
+    return started ~= nil and DWE.BubbleVoiceIsNPC(clip) and started >= st.setAt - 1 and started <= st.setAt + 6
+end
+function DWE.ManualVoiceCheck()
+    if not ManualMode() or DialogueWheelE_ManualVoice == true then return false end
+    if not (bubble:IsShown() or (textBox and textBox:IsShown())) then return false end
+    local api = DWE.SpokenAPI and DWE.SpokenAPI()
+    if not (api and type(api.GetNowPlaying) == "function" and type(api.Skip) == "function") then return false end
+    local ok, clip = pcall(api.GetNowPlaying, api)
+    if not ok or type(clip) ~= "table" or clip.textOnly or rawequal(clip, mutedClip) then return false end
+    -- le texte ouvert le plus recemment (bulle ou cadre de texte)
+    local st = state
+    if pop.setAt and (not st.setAt or pop.setAt > st.setAt) then st = pop end
+    if not VoiceOf(st, clip) then return false end
+    mutedClip = clip
+    pcall(api.Skip, api)
+    return true
+end
+muteFrame:SetScript("OnUpdate", function(_, elapsed)
+    muteAcc = muteAcc + elapsed
+    if muteAcc < 0.05 then return end
+    muteAcc = 0
+    DWE.ManualVoiceCheck()
+end)

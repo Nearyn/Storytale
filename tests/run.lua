@@ -2169,6 +2169,40 @@ do
     DWE.SetDialogueText("NPC", "")
     DialogueWheelE_BubbleMode, Spoken, GetTime = savedMode, savedSpoken, savedGT
 end
+-- Avance manuelle : la voix du dialogue est coupee (Skip) sauf si "Voix en avance manuelle" est coche
+do
+    local savedMode, savedSpoken, savedGT, savedMV = DialogueWheelE_BubbleMode, Spoken, GetTime, DialogueWheelE_ManualVoice
+    local t2 = 9500
+    GetTime = function() return t2 end
+    local line = "The road to the north is long and the wolves are hungry this winter."
+    local skips, playing = 0, nil
+    Spoken = { IsCompatible = function() return true end, GetNowPlaying = function() return playing end,
+        IsPaused = function() return false end, Skip = function() skips = skips + 1; playing = nil; return true end }
+    local function run(mode, mv)
+        DialogueWheelE_BubbleMode, DialogueWheelE_ManualVoice = mode, mv
+        DWE.SetDialogueText("NPC", "")
+        DWE.SetDialogueText("NPC", line)
+        DWE.bubble:Show()
+        skips = 0
+        playing = { text = line, length = 5, spokenAt = t2 + 5 }
+        DWE.ManualVoiceCheck()
+        DWE.ManualVoiceCheck()
+        return skips
+    end
+    check(run("manual", nil) == 1, "manual advance: the voice of this text is stopped once")
+    check(run("manual", true) == 0, "manual advance with voice checked: the voice reads")
+    check(run(nil, nil) == 0, "typewriter: the voice is never stopped")
+    check(run("page", nil) == 0, "all at once: the voice is never stopped")
+    DialogueWheelE_BubbleMode, DialogueWheelE_ManualVoice = "manual", nil
+    DWE.SetDialogueText("NPC", "")
+    DWE.SetDialogueText("NPC", line)
+    skips = 0
+    playing = { text = "A completely different book page about the history of Stormwind.", length = 5, spokenAt = t2 - 30 }
+    DWE.ManualVoiceCheck()
+    check(skips == 0, "manual advance: another voice (book, other NPC) is left alone")
+    DWE.SetDialogueText("NPC", "")
+    DialogueWheelE_BubbleMode, Spoken, GetTime, DialogueWheelE_ManualVoice = savedMode, savedSpoken, savedGT, savedMV
+end
 -- Themes sans bulle : "Tout d'un coup" et "Avance manuelle" montrent tout le texte du cadre
 -- d'un coup, meme quand une voix de Spoken lit.
 do
