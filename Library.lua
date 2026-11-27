@@ -952,8 +952,8 @@ function Lib.Glow(sc, on)
 end
 -- Poses : livre fermé pose a plat et incline vers nous (pupitre), debout tranche face a nous
 -- (etageres). Reglables en jeu : /storytale libpose shelf|lectern distance lacet tangage roulis.
-Lib.LECTERN_POSE = { dist = 1.0, yaw = 0, pitch = 30, roll = 0 }
-Lib.LECTERN_BOOK_POSE = { dist = 0.62, yaw = 0, pitch = 30, roll = 0 }
+Lib.LECTERN_POSE = { dist = 1.52, yaw = 0, pitch = 30, roll = 0 }
+Lib.LECTERN_BOOK_POSE = { dist = 0.94, yaw = 0, pitch = 30, roll = 0 }
 -- (la boite donnee par le jeu est plus grande que le modele visible : part reellement occupee)
 Lib.BBOX_FILL = 0.68
 Lib.SHELF_POSES = {
@@ -994,8 +994,9 @@ function Lib.ShelfPose(row, i)
     if row.kind == "letter" then
         -- (debout comme les livres, parfois penches : rouleaux d'Uldaman et feuillet plie)
         if Lib.ModelFor(row, "shelf") == 203430 then
+            -- (un peu plus petits que les livres : ils ne touchent plus la planche du dessus)
             p.yaw, p.pitch, p.roll, p.vfrac = 90, 90, 0, 1
-            p.dist = 1.0
+            p.dist = 1.3 / size
         else
             p.yaw, p.pitch, p.roll, p.vfrac = 20 + (h % 30), 0, 0, 1
             p.dist = 1.1
@@ -1347,7 +1348,7 @@ local function Build()
     if m then
         -- (cadre carre centre sur le plateau : le livre couche, vu de biais comme le plateau)
         m:SetPoint("CENTER", cover, "CENTER", 0, 4)
-        m:SetSize(132, 132)
+        m:SetSize(200, 200) -- (grand cadre : un parchemin incline n'est plus coupe ; la distance compense)
         cover.model = m
     end
     local ag = cover.CreateAnimationGroup and cover:CreateAnimationGroup()
