@@ -2081,7 +2081,13 @@ function Refresh()
     local all = Lib.List("all", "", "az")
     local cur2
     for _, r in ipairs(all) do if r.key == state.key and not r.locked then cur2 = r end end
+    -- (le livre pose sur le pupitre est garde : changer de vue ou recharger ne le remplace plus)
+    if not state.key then state.key = DialogueWheelE_LibraryLectern end
+    if not cur2 and state.key then
+        for _, r in ipairs(all) do if r.key == state.key and not r.locked then cur2 = r end end
+    end
     if not cur2 then cur2 = Latest(all); state.key = cur2 and cur2.key or nil end
+    DialogueWheelE_LibraryLectern = state.key
     local style = Lib.Style()
     local slots = SlotsOf(style)
     local winH = room:GetHeight()
@@ -2215,7 +2221,15 @@ function Refresh()
         local pl = placed[idx]
         -- (style complet : le livre pose sur le pupitre a quitte sa place, qui reste vide)
         local onLectern = style == "room" and row.key == state.key
-        if pl.view == state.shelf and not onLectern then
+        -- (le livre du pupitre garde son emplacement, vide : les autres ne changent pas de
+        -- bouton, donc ne rechargent pas leur modele quand on choisit un livre)
+        if pl.view == state.shelf and onLectern then
+            used = used + 1
+            local b = ui.Spine(used)
+            b:Hide()
+            if b.model then b.model:Hide() end
+            b.row = nil
+        elseif pl.view == state.shelf then
             used = used + 1
             local b = ui.Spine(used)
             local color, w, hf = Lib.Spine(row)
