@@ -857,6 +857,40 @@ for loc, v in pairs(LIBRARY) do
         dest.LIB_SHARED, dest.LIB_UNLOCK, dest.LIB_UNLOCK_TIP, dest.LIB_OPEN = v[11], v[12], v[13], v[14]
     end
 end
+local LIB_SIMPLE = {
+    enUS = "Simple library (shelves only)",
+    frFR = "Bibliothèque simple (étagères seules)",
+    deDE = "Einfache Bibliothek (nur Regale)",
+    esES = "Biblioteca simple (solo estantes)",
+    esMX = "Biblioteca simple (solo estantes)",
+    itIT = "Biblioteca semplice (solo scaffali)",
+    ptBR = "Biblioteca simples (só prateleiras)",
+    ruRU = "Простая библиотека (только полки)",
+    koKR = "간단한 서재 (선반만)",
+    zhCN = "简易藏书馆（仅书架）",
+    zhTW = "簡易藏書館（僅書架）",
+}
+for loc, text in pairs(LIB_SIMPLE) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.LIB_SIMPLE = text end
+end
+local LIB_READ = {
+    enUS = "Read",
+    frFR = "Lire",
+    deDE = "Lesen",
+    esES = "Leer",
+    esMX = "Leer",
+    itIT = "Leggi",
+    ptBR = "Ler",
+    ruRU = "Читать",
+    koKR = "읽기",
+    zhCN = "阅读",
+    zhTW = "閱讀",
+}
+for loc, text in pairs(LIB_READ) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.LIB_READ = text end
+end
 local LIB_NO_TEXT = {
     enUS = "Read before the library existed: open it again in game to keep its text.",
     frFR = "Lu avant la bibliothèque : rouvrez-le en jeu pour garder son texte.",

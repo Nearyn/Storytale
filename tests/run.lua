@@ -2377,18 +2377,41 @@ do
     DialogueWheelE_ReadBooks, DialogueWheelE_LibraryAll = savedRead, true
     -- Toute ligne de texte de la fenetre a sa police des la creation (le jeu refuse SetText sans)
     Lib.Open()
-    for _, fs in ipairs({ Lib.ui.body, Lib.ui.bookTitle, Lib.ui.meta, Lib.ui.num, Lib.ui.empty, Lib.ui.count }) do
+    for _, fs in ipairs({ Lib.ui.body, Lib.ui.body2, Lib.ui.bookTitle, Lib.ui.meta, Lib.ui.num, Lib.ui.empty, Lib.ui.count, Lib.ui.featured }) do
         check(fs:GetFont() ~= nil, "library: text has a font before any book is shown")
     end
-    Lib.frame:Hide()
-    -- Fenetre : ouvrir un livre, tourner ses pages
-    Lib.Show("Exile of the High Elves")
+    -- Piece complete : le dernier livre lu est sur le pupitre, absent de son etagere
     local ui = Lib.ui
-    check(Lib.frame:IsShown() and ui.bookTitle:GetText() == "Exile of the High Elves" and ui.body:GetText() == "Long ago the elves.", "library: window shows the book")
-    ui.next:Click()
-    check(ui.body:GetText() == "They sailed east." and ui.num:GetText() == "2 / 2", "library: next page")
-    ui.prev:Click()
-    check(ui.body:GetText() == "Long ago the elves.", "library: previous page")
+    check(ui.featured:GetText() ~= nil and ui.featured:GetText() ~= "", "library: last book read shown on the lectern")
+    local function onShelf(title)
+        for _, b in ipairs(ui.spines) do if b:IsShown() and b.row and b.row.title == title then return b end end
+    end
+    check(not onShelf(ui.featured:GetText()), "library: the book on the lectern left its shelf")
+    -- un clic sur un autre livre de l'etagere le pose sur le pupitre (l'ancien reprend sa place)
+    local before = ui.featured:GetText()
+    local other
+    for _, b in ipairs(ui.spines) do if b:IsShown() and b.row and not b.row.locked then other = b break end end
+    local picked = other.row.title
+    other:Click()
+    check(ui.featured:GetText() == picked and onShelf(before) ~= nil and not onShelf(picked), "library: clicked book goes to the lectern, the other back on its shelf")
+    -- Fenetre de lecture : ouvrir un livre, deux pages a la fois
+    Lib.Show("Exile of the High Elves")
+    check(Lib.reader:IsShown() and ui.bookTitle:GetText() == "Exile of the High Elves" and ui.body:GetText() == "Long ago the elves."
+        and ui.body2:GetText() == "They sailed east.", "library: reader shows two pages")
+    check(not ui.next:IsShown(), "library: no next page on a two-page book")
+    ui.back:Click()
+    check(not Lib.reader:IsShown() and Lib.frame:IsShown(), "library: closing the book goes back to the room")
+    -- Style simple : rangees seules, plus petite fenetre ; un clic ouvre directement le livre
+    DialogueWheelE_LibraryStyle = "simple"
+    Lib.Refresh()
+    check(Lib.frame:GetWidth() < 1000 and not ui.lectern:IsShown() and ui.strips[1]:IsShown(), "library: simple style shows the shelves only")
+    local any
+    for _, b in ipairs(ui.spines) do if b:IsShown() and b.row and not b.row.locked then any = b break end end
+    any:Click()
+    check(Lib.reader:IsShown(), "library: simple style opens the book at once")
+    ui.back:Click()
+    DialogueWheelE_LibraryStyle = nil
+    Lib.Refresh()
     Lib.Toggle()
     check(not Lib.frame:IsShown(), "library: toggled closed")
     SlashCmdList.DIALOGUEWHEELE("library")
