@@ -3270,7 +3270,8 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         -- Reglage de la vue des modeles 3D : /storytale libpose shelf|lectern distance lacet tangage roulis
         local which, d, fa, pi, ro = msg:match("^%s*libpose%s+(%a+)%s*([%d%.%-]*)%s*([%d%.%-]*)%s*([%d%.%-]*)%s*([%d%.%-]*)")
         local Lib = DWE.Library
-        local pose = Lib and (which == "lectern" and Lib.LECTERN_POSE or which == "shelf" and Lib.SHELF_POSE)
+        local pose = Lib and (which == "lectern" and Lib.LECTERN_BOOK_POSE or which == "lecternscroll" and Lib.LECTERN_POSE or which == "shelf" and Lib.SHELF_POSE
+            or which == "letter" and Lib.SHELF_POSES and Lib.SHELF_POSES.letter or which == "plate" and Lib.SHELF_POSES and Lib.SHELF_POSES.plate)
         if pose then
             pose.dist = tonumber(d) or pose.dist
             pose.yaw = tonumber(fa) or pose.yaw

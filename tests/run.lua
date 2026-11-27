@@ -2354,6 +2354,13 @@ do
     local locked
     for _, r in ipairs(rows) do if r.title == "William's Shipment" then locked = r end end
     check(not locked, "library: book not found yet only counted, not shelved")
+    do
+        local st = DialogueWheelE_Library
+        st["old french title"] = { t = "Old french title", p = {}, d = 0 }
+        st["\0cleaned"] = nil
+        Lib.CleanEmpty()
+        check(st["old french title"] == nil, "library: imported titles with no text are cleaned up")
+    end
     rows = Lib.List("book", "exile", "az")
     check(#rows == 1 and rows[1].title == "Exile of the High Elves", "library: filter and search")
     DialogueWheelE_LibraryUnlock = true
@@ -2369,11 +2376,11 @@ do
     local savedRead = DialogueWheelE_ReadBooks
     DialogueWheelE_Library, DialogueWheelE_LibraryAll = {}, nil
     DialogueWheelE_ReadBooks = { ["william's shipment"] = 2, ["an old diary"] = 1 }
-    check(Lib.ImportRead() == 2, "library: books read before are imported")
+    check(Lib.ImportRead() == 1, "library: books read before are imported")
     local w = Lib.Get("William's Shipment", false)
     check(w and w.t == "William's Shipment" and w.p[1] == "Hello Morgan." and w.done, "library: imported with its title and text from Spoken")
     local o = Lib.Get("an old diary", false)
-    check(o and o.t == "An old diary" and next(o.p) == nil, "library: unknown to Spoken, imported with its title only")
+    check(o == nil, "library: unknown to Spoken (no text to read again), not imported")
     check(Lib.ImportRead() == 0, "library: import done once per character")
     DialogueWheelE_ReadBooks, DialogueWheelE_LibraryAll = savedRead, true
     -- Toute ligne de texte de la fenetre a sa police des la creation (le jeu refuse SetText sans)
@@ -2394,6 +2401,10 @@ do
     check(Lib.ModelFor({ kind = "book", title = "Aftermath of the Second War" }) == 200902, "library: an older book finds its object by title")
     check(Lib.ModelFor({ kind = "letter", title = "x" }, "shelf") == Lib.MODELS.rolled, "library: letters stand rolled on the shelves")
     check(Lib.Kind({ t = "Eliza's Tombstone", p = { "x" } }) == "plate", "library: a tombstone counts as a plaque")
+    Lib.RunQueue()
+    local loadedOne
+    for _, sp in ipairs(ui.spines) do if sp:IsShown() and sp.model and sp.model.fileID then loadedOne = true end end
+    check(loadedOne, "library: shelf models load a few per frame")
     -- un clic sur un autre livre de l'etagere le pose sur le pupitre (l'ancien reprend sa place)
     local before = ui.featured:GetText()
     local other

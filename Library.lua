@@ -45,6 +45,22 @@ local function SpokenData()
     return nil
 end
 Lib.SpokenData = SpokenData
+-- Titres connus de Spoken (cle -> livre), calcules une seule fois : la liste est relue a chaque
+-- rafraichissement de la bibliotheque.
+local spokenTitles
+local function SpokenTitles()
+    local d = SpokenData()
+    if not d then return nil end
+    if spokenTitles and spokenTitles.d == d then return spokenTitles.map end
+    local map = {}
+    for _, b in pairs(d.books) do
+        local k = type(b) == "table" and DWE.BookKey(b.title)
+        if k and not map[k] then map[k] = b end
+    end
+    spokenTitles = { d = d, map = map }
+    return map
+end
+Lib.SpokenTitles = SpokenTitles
 
 -- Le livre `title` dans les donnees de Spoken : la liste de ses pages. Plusieurs editions sous le
 -- meme titre : celle dont la premiere page ressemble a `first` (le texte vu en jeu).
@@ -126,6 +142,25 @@ end
 -- DialogueWheelE_ReadBooks, en minuscules). Ils entrent dans la bibliotheque une fois par
 -- personnage : le titre tel qu'ecrit et le texte entier quand Spoken connait le livre, sinon le
 -- titre seul (le texte se garde a la prochaine ouverture en jeu).
+-- Nettoyage (une fois) : les titres importes sans aucun texte (lus avant la bibliotheque, dans
+-- une autre langue que celle de Spoken) sont retires ; relus en jeu, ils reviennent entiers.
+function Lib.CleanEmpty()
+    local n = 0
+    for _, shared in ipairs({ false, true }) do
+        local lib = Store(shared)
+        if not lib["\0cleaned"] then
+            lib["\0cleaned"] = true
+            for key, e in pairs(lib) do
+                if type(e) == "table" and e.d == 0 then
+                    local any = false
+                    for _, t in pairs(e.p or {}) do if type(t) == "string" and t ~= "" then any = true end end
+                    if not any then lib[key] = nil; n = n + 1 end
+                end
+            end
+        end
+    end
+    return n
+end
 function Lib.ImportRead()
     local lib = Store(false)
     if lib["\0imported"] then return 0 end
@@ -141,8 +176,10 @@ function Lib.ImportRead()
         end
     end
     local n = 0
+    -- Seulement les ecrits dont on a le texte (Spoken) : un titre sans texte ne se relit pas,
+    -- et un livre lu jadis dans une autre langue n'a que son titre dans cette langue.
     for key, state in pairs(read) do
-        if type(key) == "string" and not lib[key] then
+        if type(key) == "string" and not lib[key] and titles[key] then
             local title = titles[key] or (key:gsub("^%l", string.upper))
             local pages = titles[key] and Lib.SpokenPages(title) or nil
             Lib.AddBook(title, pages)
@@ -188,7 +225,7 @@ ev:RegisterEvent("ITEM_TEXT_BEGIN")
 ev:RegisterEvent("ITEM_TEXT_READY")
 ev:RegisterEvent("ITEM_TEXT_CLOSED")
 ev:SetScript("OnEvent", function(_, event)
-    if event == "PLAYER_LOGIN" then pcall(Lib.ImportRead) return end
+    if event == "PLAYER_LOGIN" then pcall(Lib.CleanEmpty); pcall(Lib.ImportRead) return end
     if event == "ITEM_TEXT_CLOSED" then open = nil return end
     local title = ItemTextGetItem and Clean(ItemTextGetItem())
     if not title or title == "" then return end
@@ -254,13 +291,8 @@ function Lib.List(filter, search, sort)
     end
     local found = #rows
     local total = found
-    local d = SpokenData()
-    if d then
-        local titles = {}
-        for _, b in pairs(d.books) do
-            local k = type(b) == "table" and DWE.BookKey(b.title)
-            if k and not titles[k] then titles[k] = b end
-        end
+    local titles = SpokenTitles()
+    if titles then
         total = 0
         for k, b in pairs(titles) do
             total = total + 1
@@ -278,7 +310,8 @@ function Lib.List(filter, search, sort)
     local q = type(search) == "string" and search:lower() or ""
     local out = {}
     for _, r in ipairs(rows) do
-        local okKind = not filter or filter == "all" or filter == r.kind
+        -- (plaques, steles, monuments, tombes : pas sur les etageres, ils auront leur propre vue)
+        local okKind = (not filter or filter == "all") and r.kind ~= "plate" or filter == r.kind
         local okSearch = q == "" or r.title:lower():find(q, 1, true)
         if okKind and okSearch then out[#out + 1] = r end
     end
@@ -809,20 +842,25 @@ local function NewScene(parent)
     return sc
 end
 Lib.NewScene = NewScene
+-- Taille connue des modeles (plus grande dimension), si le jeu ne donne pas leur boite.
+Lib.KNOWN_SIZE = {}
 local FOV = math.rad(30)
 local function Frame(sc, pose)
     local a = sc.actor
-    local size = 1
-    if a.GetMaxBoundingBox then
+    -- Taille mesuree une seule fois par modele, a l'echelle 1 (la boite mesuree ensuite est
+    -- deja mise a l'echelle : la remesurer annulait le cadrage, livres trop petits).
+    local size = sc.size
+    if not size and a.GetMaxBoundingBox then
         local ok, x1, y1, z1, x2, y2, z2 = pcall(a.GetMaxBoundingBox, a)
         if ok and type(x1) == "table" then
             x1, y1, z1, x2, y2, z2 = x1.x, x1.y, x1.z, y1.x, y1.y, y1.z
         end
         if ok and type(x1) == "number" and type(z2) == "number" then
-            size = math.max(x2 - x1, y2 - y1, z2 - z1)
+            local m = math.max(x2 - x1, y2 - y1, z2 - z1)
+            if m > 0.001 then size = m; sc.size = m end
         end
     end
-    if not size or size <= 0 then size = 1 end
+    if not size or size <= 0 then size = Lib.KNOWN_SIZE[sc.fileID or 0] or 1 end
     if a.SetScale then pcall(a.SetScale, a, 1 / size) end
     local d = (0.55 / math.tan(FOV / 2)) * (pose.dist or 1)
     if sc.SetCameraFieldOfView then pcall(sc.SetCameraFieldOfView, sc, FOV) end
@@ -843,7 +881,15 @@ end
 local function LoadModel(sc, id, pose)
     local a = sc and sc.actor
     if not (a and a.SetModelByFileID) then Lib.modelErr = "no model scene"; return false end
+    -- (meme modele, meme pose : rien a recharger ; tourner les pages ne recharge que ce qui change)
+    local key = id .. ":" .. (pose.dist or 1) .. ":" .. (pose.yaw or 0) .. ":" .. (pose.pitch or 0) .. ":" .. (pose.roll or 0)
+    if sc.loadedKey == key and sc.loaded then return true end
+    sc.loadedKey = key
+    sc.loaded = false
     if a.ClearModel then pcall(a.ClearModel, a) end
+    if sc.fileID ~= id then sc.size = nil end
+    sc.fileID = id
+    if a.SetScale then pcall(a.SetScale, a, 1) end
     local ok, res = pcall(a.SetModelByFileID, a, id)
     if not ok or res == false then Lib.modelErr = ok and ("no model " .. tostring(id)) or tostring(res); return false end
     if a.SetUseCenterForOrigin then pcall(a.SetUseCenterForOrigin, a, true, true, true) end
@@ -866,6 +912,7 @@ local function LoadModel(sc, id, pose)
         end
     end
     sc.pose = pose
+    sc.loaded = true
     Lib.Glow(sc, sc.glow)
     return true
 end
@@ -884,11 +931,19 @@ end
 -- Poses : livre fermé pose a plat et incline vers nous (pupitre), debout tranche face a nous
 -- (etageres). Reglables en jeu : /storytale libpose shelf|lectern distance lacet tangage roulis.
 Lib.LECTERN_POSE = { dist = 1.0, yaw = 0, pitch = 30, roll = 0 }
-Lib.SHELF_POSE = { dist = 0.92, yaw = 90, pitch = 90, roll = 0 }
+Lib.LECTERN_BOOK_POSE = { dist = 0.62, yaw = 0, pitch = 30, roll = 0 }
+Lib.SHELF_POSES = {
+    book = { dist = 0.92, yaw = 90, pitch = 90, roll = 0, vfrac = 1 },
+    letter = { dist = 1.9, yaw = 90, pitch = 0, roll = 0, vfrac = 0.3 },
+    plate = { dist = 1.0, yaw = 90, pitch = 0, roll = 0, vfrac = 1 },
+}
+Lib.SHELF_POSE = Lib.SHELF_POSES.book
 function Lib.ShowModel(cover, row)
     local m = cover.model
     local id = Lib.ModelFor(row, "lectern")
-    local shown = LoadModel(m, id, Lib.LECTERN_POSE)
+    -- (livre plus grand sur le pupitre ; parchemins et plaques gardent leur taille)
+    local pose = row.kind == "book" and Lib.LECTERN_BOOK_POSE or Lib.LECTERN_POSE
+    local shown = LoadModel(m, id, pose)
     if m then m.fileID = shown and id or nil; m:SetShown(shown) end
     cover.open:SetShown(not shown)
 end
@@ -896,13 +951,60 @@ end
 -- Etageres en 3D : peu de livres par rangee (chaque modele coute), le reste va sur les pages
 -- suivantes. Pose : le livre debout, le dos face a nous.
 Lib.PER_ROW_3D = 11
+-- Rangement naturel : chaque livre (selon son titre, toujours pareil) a sa taille, et certains
+-- penchent, appuyes sur leur voisin. Lettres : parchemins enroules couches sur le rayon.
+function Lib.ShelfPose(row, i)
+    local base = Lib.SHELF_POSES[row.kind] or Lib.SHELF_POSES.book
+    local h = 0
+    for k = 1, #(row.title or "") do h = (h * 31 + (row.title or ""):byte(k)) % 100003 end
+    local p = { yaw = base.yaw, pitch = base.pitch, roll = base.roll, vfrac = base.vfrac }
+    local size = (row.kind == "book") and (0.84 + (h % 17) / 100) or 1
+    p.size = size
+    p.dist = base.dist / size
+    if row.kind == "book" and (h % 7 == 0) then p.roll = (p.roll or 0) + ((h % 2 == 0) and 14 or -14); p.lean = true end
+    return p
+end
+-- Chargement etale : quelques modeles par image (ouvrir la bibliotheque ou tourner une page
+-- pleine ne fige pas le jeu). Le livre apparait des que son modele est charge.
+Lib.LOADS_PER_FRAME = 8
+local loadQueue, loader = {}, nil
+local function RunQueue()
+    local n = 0
+    while loadQueue[1] and n < Lib.LOADS_PER_FRAME do
+        local job = table.remove(loadQueue, 1)
+        local b = job.b
+        if b.job == job and b:IsShown() then
+            local ok = LoadModel(b.model, job.id, job.pose)
+            if b.model then b.model:SetShown(ok); b.model.fileID = ok and job.id or nil end
+            b.tex:SetShown(not ok); b.shade:SetShown(not ok)
+            b.job = nil
+            n = n + 1
+        end
+    end
+    if not loadQueue[1] and loader then loader:SetScript("OnUpdate", nil) end
+end
+Lib.RunQueue = RunQueue
 function Lib.ShowShelfModel(b, row)
     local m = b.model
     local id = Lib.ModelFor(row, "shelf")
-    local shown = LoadModel(m, id, Lib.SHELF_POSE)
-    if m then m.fileID = shown and id or nil; m:SetShown(shown) end
-    b.tex:SetShown(not shown); b.shade:SetShown(not shown)
-    return shown
+    local pose = Lib.ShelfPose(row)
+    b.pose = pose
+    if not (m and m.actor) then b.tex:Show(); b.shade:Show(); return false end
+    local key = id .. ":" .. (pose.dist or 1) .. ":" .. (pose.yaw or 0) .. ":" .. (pose.pitch or 0) .. ":" .. (pose.roll or 0)
+    if m.loadedKey == key and m.loaded then
+        b.job = nil
+        m:Show(); b.tex:Hide(); b.shade:Hide()
+        return true
+    end
+    -- (en attente : ni dos peint ni ancien modele)
+    m:Hide(); b.tex:Hide(); b.shade:Hide()
+    local job = { b = b, id = id, pose = pose }
+    b.job = job
+    loadQueue[#loadQueue + 1] = job
+    if not loader then loader = CreateFrame("Frame") end
+    loader:SetScript("OnUpdate", RunQueue)
+    if Lib.syncLoads then RunQueue() end
+    return true
 end
 function Lib.Use3D() return DialogueWheelE_Library3D ~= false end
 
@@ -1090,7 +1192,7 @@ local function Build()
     local x = right
     ui.filters = {}
     for _, f in ipairs({ { "all", L.LIB_ALL or "All" }, { "book", L.LIB_BOOKS or "Books" },
-        { "letter", L.LIB_LETTERS or "Letters" }, { "plate", L.LIB_PLATES or "Plaques" } }) do
+        { "letter", L.LIB_LETTERS or "Letters" } }) do
         local b = TextButton(head, f[2], function() state.filter = f[1]; state.shelf = 1; Refresh() end)
         b:SetPoint("TOPLEFT", head, "TOPLEFT", x, -84)
         b.id = f[1]
@@ -1342,7 +1444,7 @@ function Lib.ApplyLayout()
         ui.close:ClearAllPoints()
         if free then
             ui.close:SetParent(ui.boxes.header)
-            ui.close:SetPoint("BOTTOMRIGHT", ui.search, "TOPRIGHT", 6, 2)
+            ui.close:SetPoint("BOTTOMRIGHT", ui.search, "TOPRIGHT", 2, 8)
         else
             ui.close:SetParent(room)
             ui.close:SetPoint("TOPRIGHT", room, "TOPRIGHT", -2, -2)
@@ -1629,7 +1731,7 @@ function Refresh()
             local b = ui.Spine(used)
             local color, w, hf = Lib.Spine(row)
             local sl = slots[pl.slot]
-            if use3d then w, hf = pl.w, 0.95 end
+            if use3d then w, hf = pl.w, 1 end
             local h = math.floor(sl.h * hf)
             b.x = math.floor(sl.x + pl.x)
             b.y = math.floor(sl.y or (winH - sl.fromTop))
@@ -1639,13 +1741,16 @@ function Refresh()
             if b:GetParent() ~= box then b:SetParent(box); b:SetFrameLevel(room:GetFrameLevel() + 6) end
             b:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", b.x, b.y)
             b.tex:SetVertexColor(color[1], color[2], color[3], 1)
-            if b.model then
-                -- (pose sur le plancher de l'etagere, a la hauteur du rayon)
-                b.model:ClearAllPoints()
-                b.model:SetPoint("BOTTOM", b, "BOTTOM", 0, -h * 0.02)
-                b.model:SetSize(h * 0.98, h * 0.98)
-            end
             local is3d = use3d and Lib.ShowShelfModel(b, row)
+            if b.model and b.pose then
+                -- Pose sur le plancher du rayon : le modele, centre dans son cadre, en occupe
+                -- 1 / (1,1 x dist) en hauteur (fois vfrac, couche) ; on descend le cadre d'autant.
+                local F = sl.h
+                local hm = F / (1.1 * b.pose.dist) * (b.pose.vfrac or 1)
+                b.model:ClearAllPoints()
+                b.model:SetSize(F, F)
+                b.model:SetPoint("BOTTOM", b, "BOTTOM", 0, -(F - hm) / 2 - 2)
+            end
             if not use3d and b.model then b.model:Hide(); b.tex:Show(); b.shade:Show() end
             b.band:SetShown(row.kind == "book" and not is3d)
             b.band2:SetShown(row.kind == "book" and not is3d)

@@ -4728,7 +4728,8 @@ do
 
     local function Items()
         local focus = DWE.SpokenFocus
-        local spoken = focus and focus.Available()
+        -- (ecrit relu depuis la bibliotheque : la voix ne le lit pas, pas de reglages de voix)
+        local spoken = focus and focus.Available() and not DWE.libraryBook
         local muted = focus and focus.bookMuted
         local list = {}
         if spoken then
@@ -8857,11 +8858,11 @@ function DWE.InitOptionsPanel()
     libBtn:SetPoint("TOPLEFT", 16, y - 432)
     libBtn:SetText(L.LIB_OPEN or "Open the library")
     libBtn:SetScript("OnClick", function() if DWE.Library then DWE.Library.Open() end end)
-    AddCheck(L.LIB_SHARED or "Library shared by all my characters", 16, y - 460, function() return DialogueWheelE_LibraryAll == true end, function(self)
+    local sharedCheck = AddCheck(L.LIB_SHARED or "Library shared by all my characters", 16, y - 460, function() return DialogueWheelE_LibraryAll == true end, function(self)
         DialogueWheelE_LibraryAll = self:GetChecked() and true or nil
         if DWE.Library then DWE.Library.Refresh() end
     end)
-    AddCheck(L.LIB_SIMPLE or "Simple library (shelves only)", 300, y - 460, function() return DialogueWheelE_LibraryStyle == "simple" end, function(self)
+    local simpleCheck = AddCheck(L.LIB_SIMPLE or "Simple library (shelves only)", 300, y - 460, function() return DialogueWheelE_LibraryStyle == "simple" end, function(self)
         DialogueWheelE_LibraryStyle = self:GetChecked() and "simple" or nil
         if DWE.Library then DWE.Library.Refresh() end
     end)
@@ -8870,24 +8871,42 @@ function DWE.InitOptionsPanel()
         if DWE.Library then DWE.Library.Refresh() end
     end)
     -- Fond de la piece : de plein a rien du tout (0 : ni fond ni bordure, les meubles seuls).
-    AddSlider("DWESliderLibBg", L.LIB_BG or "Library background", 22, y - 532, 0, 1, 0.05,
+    local bgSlider = AddSlider("DWESliderLibBg", L.LIB_BG or "Library background", 22, y - 532, 0, 1, 0.05,
         function() return tonumber(DialogueWheelE_LibraryBg) or 1 end, "%.2f", function(v)
         DialogueWheelE_LibraryBg = (v < 1) and v or nil
         if DWE.Library and DWE.Library.ApplyBg then DWE.Library.ApplyBg() end
     end)
-    -- Bibliotheque activee (par defaut) ; decochee, plus rien ne l'ouvre.
+    -- Bibliotheque activee (par defaut) ; decochee, plus rien ne l'ouvre, et ses reglages sont
+    -- grises.
+    local hasSpoken = DWE.Library and DWE.Library.SpokenData() and true or false
+    local function Grey(w, on)
+        if not w then return end
+        if on then w:Enable() else w:Disable() end
+        local t = w.Text or w.text or (w.GetName and w:GetName() and _G[w:GetName() .. "Text"])
+        if type(t) == "table" and t.SetTextColor then
+            if on then t:SetTextColor(1, 0.82, 0) else t:SetTextColor(0.5, 0.5, 0.5) end
+        end
+    end
+    local function LibOptionsShown()
+        local on = DialogueWheelE_LibraryOff ~= true
+        Grey(libBtn, on)
+        Grey(sharedCheck, on)
+        Grey(simpleCheck, on)
+        Grey(unlockCheck, on and hasSpoken)
+        if bgSlider then
+            Grey(bgSlider, on)
+            local txt = _G["DWESliderLibBgText"]
+            if txt and txt.SetTextColor then if on then txt:SetTextColor(1, 1, 1) else txt:SetTextColor(0.5, 0.5, 0.5) end end
+            for _, b in ipairs({ bgSlider.dweMinus, bgSlider.dwePlus }) do if b then if on then b:Enable() else b:Disable() end end end
+        end
+    end
     AddCheck(L.LIB_ENABLE or "Enable the library", 300, y - 432, function() return DialogueWheelE_LibraryOff ~= true end, function(self)
         DialogueWheelE_LibraryOff = (not self:GetChecked()) and true or nil
-        local on = DialogueWheelE_LibraryOff ~= true
-        if on then libBtn:Enable() else libBtn:Disable() end
-        if not on and DWE.Library and DWE.Library.frame then DWE.Library.frame:Hide() end
+        LibOptionsShown()
+        if DialogueWheelE_LibraryOff and DWE.Library and DWE.Library.frame then DWE.Library.frame:Hide() end
     end)
-    if DialogueWheelE_LibraryOff == true then libBtn:Disable() end
-    if unlockCheck and not (DWE.Library and DWE.Library.SpokenData()) then
-        unlockCheck:Disable()
-        local t = unlockCheck.Text or unlockCheck.text
-        if t and t.SetTextColor then t:SetTextColor(0.5, 0.5, 0.5) end
-    end
+    LibOptionsShown()
+    refreshers[#refreshers + 1] = LibOptionsShown
 
     ---------------------------------------------------------------- Placement
     y = y - 580
