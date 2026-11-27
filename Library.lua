@@ -122,11 +122,50 @@ local function Zone()
     local z = GetZoneText and Clean(GetZoneText()) or nil
     return z ~= "" and z or nil
 end
+-- Livres lus avant la bibliotheque : Storytale retenait deja leur titre (marque "deja lu",
+-- DialogueWheelE_ReadBooks, en minuscules). Ils entrent dans la bibliotheque une fois par
+-- personnage : le titre tel qu'ecrit et le texte entier quand Spoken connait le livre, sinon le
+-- titre seul (le texte se garde a la prochaine ouverture en jeu).
+function Lib.ImportRead()
+    local lib = Store(false)
+    if lib["\0imported"] then return 0 end
+    lib["\0imported"] = true
+    local read = rawget(_G, "DialogueWheelE_ReadBooks")
+    if type(read) ~= "table" then return 0 end
+    local titles = {}
+    local d = SpokenData()
+    if d then
+        for _, b in pairs(d.books) do
+            local k = type(b) == "table" and DWE.BookKey(b.title)
+            if k and not titles[k] then titles[k] = b.title end
+        end
+    end
+    local n = 0
+    for key, state in pairs(read) do
+        if type(key) == "string" and not lib[key] then
+            local title = titles[key] or (key:gsub("^%l", string.upper))
+            local pages = titles[key] and Lib.SpokenPages(title) or nil
+            Lib.AddBook(title, pages)
+            for _, shared in ipairs({ false, true }) do
+                local e = Store(shared)[key]
+                if e then
+                    e.d = 0 -- (date de lecture inconnue)
+                    if state == 2 then e.done = true end
+                end
+            end
+            n = n + 1
+        end
+    end
+    return n
+end
+
 local ev = CreateFrame("Frame")
+ev:RegisterEvent("PLAYER_LOGIN")
 ev:RegisterEvent("ITEM_TEXT_BEGIN")
 ev:RegisterEvent("ITEM_TEXT_READY")
 ev:RegisterEvent("ITEM_TEXT_CLOSED")
 ev:SetScript("OnEvent", function(_, event)
+    if event == "PLAYER_LOGIN" then pcall(Lib.ImportRead) return end
     if event == "ITEM_TEXT_CLOSED" then open = nil return end
     local title = ItemTextGetItem and Clean(ItemTextGetItem())
     if not title or title == "" then return end
@@ -358,6 +397,7 @@ local function Build()
         fs:SetPoint("RIGHT", r, "RIGHT", -4, 0)
         fs:SetJustifyH("LEFT")
         fs:SetWordWrap(false)
+        Font(fs, 13, INK)
         r.text = fs
         r:SetScript("OnClick", function(self)
             if self.row and not self.row.locked then
@@ -419,6 +459,7 @@ local function Build()
     body:SetJustifyH("LEFT")
     body:SetJustifyV("TOP")
     body:SetSpacing(3)
+    Font(body, 14, INK) -- (police posee des la creation : sans livre choisi, SetText("") la reclamait)
     ui.scroll, ui.child, ui.body = scroll, child, body
     local prev = TextButton(frame, "<", function() state.page = math.max(1, state.page - 1); ui.scroll:SetVerticalScroll(0); Refresh() end)
     local nextB = TextButton(frame, ">", function() state.page = state.page + 1; ui.scroll:SetVerticalScroll(0); Refresh() end)
@@ -481,7 +522,9 @@ function Refresh()
         if not complete then meta[#meta + 1] = L.LIB_PARTIAL or "unfinished: open it in game to keep the next pages" end
         ui.meta:SetText(table.concat(meta, " - "))
         Font(ui.body, tonumber(DialogueWheelE_FontSize) or 14, INK)
-        ui.body:SetText(pages[state.page] or "")
+        local text = pages[state.page] or ""
+        if #pages == 0 then text = L.LIB_NO_TEXT or "Read before the library existed: open it again in game to keep its text." end
+        ui.body:SetText(text)
         ui.child:SetHeight(math.max(10, (ui.body:GetStringHeight() or 10) + 6))
         ui.num:SetText((#pages > 1 or not complete) and (state.page .. " / " .. #pages .. (complete and "" or "+")) or "")
         ui.prev:SetShown(state.page > 1)

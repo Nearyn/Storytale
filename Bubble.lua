@@ -449,6 +449,7 @@ end
 local function ApplyStyle(name)
     if styleName == name then return end
     styleName = name
+    DWE.bubbleTipDX = 0
     local st = STYLES[name]
     local native = DWE.Gw2Native and DWE.Gw2Native(name)
     ShowGw2(native)
@@ -469,6 +470,10 @@ local function ApplyStyle(name)
             fantasy:SetTextureSliceMargins(st.slice, st.slice, st.slice, st.slice)
         end
         fantasyTail:SetTexture(ADDON_PATH .. st.art .. "Tail.png")
+        -- La pointe dessinee penche : son bout est a 3-4 pixels a gauche du milieu de l'image
+        -- (colonne 12,5 sur 32 ; 11,5 pour la bulle d'Azeroth). La bulle se decale d'autant vers
+        -- la droite pour que le bout tombe sur le PNJ (vu en jeu le 27/11 : pointe a gauche).
+        DWE.bubbleTipDX = (st.art == "BubbleFantasy") and 4 or 3
         fantasyTail:ClearAllPoints()
         if st.split then
             -- pointe sans ses premieres lignes (fond deja donne par l'ouverture), posee sur le contour
@@ -2265,7 +2270,8 @@ end
 function DWE.Bubble.Pin(plate, x, y)
     bubble:ClearAllPoints()
     if plate then
-        bubble:SetPoint("BOTTOM", plate, "CENTER", x or 0, y or 0)
+        local dx = DWE.bubbleTipDX or 0
+        bubble:SetPoint("BOTTOM", plate, "CENTER", (x or 0) + dx, y or 0)
         bubble.pinned = true
         DWE.SetGripCorner(bubble, "BOTTOM")
     else

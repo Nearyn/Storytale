@@ -2355,6 +2355,23 @@ do
     check(select(2, Lib.List("all", "", "az")) == 0, "library: per character by default (new character: empty)")
     DialogueWheelE_LibraryAll = true
     check(select(2, Lib.List("all", "", "az")) == 2, "library: shared option shows every character's books")
+    -- Livres lus avant la bibliotheque : importes une fois (texte entier si Spoken le connait)
+    local savedRead = DialogueWheelE_ReadBooks
+    DialogueWheelE_Library, DialogueWheelE_LibraryAll = {}, nil
+    DialogueWheelE_ReadBooks = { ["william's shipment"] = 2, ["an old diary"] = 1 }
+    check(Lib.ImportRead() == 2, "library: books read before are imported")
+    local w = Lib.Get("William's Shipment", false)
+    check(w and w.t == "William's Shipment" and w.p[1] == "Hello Morgan." and w.done, "library: imported with its title and text from Spoken")
+    local o = Lib.Get("an old diary", false)
+    check(o and o.t == "An old diary" and next(o.p) == nil, "library: unknown to Spoken, imported with its title only")
+    check(Lib.ImportRead() == 0, "library: import done once per character")
+    DialogueWheelE_ReadBooks, DialogueWheelE_LibraryAll = savedRead, true
+    -- Toute ligne de texte de la fenetre a sa police des la creation (le jeu refuse SetText sans)
+    Lib.Open()
+    for _, fs in ipairs({ Lib.ui.body, Lib.ui.bookTitle, Lib.ui.meta, Lib.ui.num, Lib.ui.empty, Lib.ui.count }) do
+        check(fs:GetFont() ~= nil, "library: text has a font before any book is shown")
+    end
+    Lib.frame:Hide()
     -- Fenetre : ouvrir un livre, tourner ses pages
     Lib.Show("Exile of the High Elves")
     local ui = Lib.ui

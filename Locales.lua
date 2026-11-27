@@ -857,6 +857,23 @@ for loc, v in pairs(LIBRARY) do
         dest.LIB_SHARED, dest.LIB_UNLOCK, dest.LIB_UNLOCK_TIP, dest.LIB_OPEN = v[11], v[12], v[13], v[14]
     end
 end
+local LIB_NO_TEXT = {
+    enUS = "Read before the library existed: open it again in game to keep its text.",
+    frFR = "Lu avant la bibliothèque : rouvrez-le en jeu pour garder son texte.",
+    deDE = "Vor der Bibliothek gelesen: öffne es im Spiel erneut, um seinen Text zu behalten.",
+    esES = "Leído antes de la biblioteca: vuelve a abrirlo en el juego para guardar su texto.",
+    esMX = "Leído antes de la biblioteca: vuelve a abrirlo en el juego para guardar su texto.",
+    itIT = "Letto prima della biblioteca: riaprilo in gioco per conservarne il testo.",
+    ptBR = "Lido antes da biblioteca: abra-o de novo no jogo para guardar o texto.",
+    ruRU = "Прочитано до появления библиотеки: откройте снова в игре, чтобы сохранить текст.",
+    koKR = "서재가 생기기 전에 읽음: 게임에서 다시 열면 내용이 보관됩니다.",
+    zhCN = "在藏书馆出现前读过：在游戏中再次打开即可保存其内容。",
+    zhTW = "在藏書館出現前讀過：在遊戲中再次打開即可保存其內容。",
+}
+for loc, text in pairs(LIB_NO_TEXT) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.LIB_NO_TEXT = text end
+end
 local LIB_PARTIAL = {
     enUS = "unfinished: read it further in game to keep the next pages",
     frFR = "inachevé : lisez la suite en jeu pour garder les pages suivantes",
