@@ -12,7 +12,7 @@ do
     local EXTRA = { "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose",
         "BookVoiceOff", "RibbonSeen", "GamePad", "PadTipSeen", "PadTips", "DUIPos", "SpokenStyleChosen",
         "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "HideKeep", "NameCVars", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen", "Profiles", "PlateRestore", "BubbleHighlight", "BubbleMode",
-        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity" }
+        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "NarratorPos", "LibraryShared", "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryLayout", "LibraryOff", "LibraryScroll", "LibraryLectern" }
     DWE.EXTRA_VARS = EXTRA
     local me = ...
 
@@ -3266,6 +3266,24 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         DiagnoseNPC()
     elseif msg:match("^errors") then
         DWE.ErrorsReport(msg:match("^errors%s+(%S+)"))
+    elseif msg:match("^%s*libpose") then
+        -- Reglage de la vue des modeles 3D : /storytale libpose shelf|lectern distance lacet tangage roulis
+        local which, d, fa, pi, ro = msg:match("^%s*libpose%s+(%a+)%s*([%d%.%-]*)%s*([%d%.%-]*)%s*([%d%.%-]*)%s*([%d%.%-]*)")
+        local Lib = DWE.Library
+        local pose = Lib and (which == "lectern" and Lib.LECTERN_BOOK_POSE or which == "lecternscroll" and Lib.LECTERN_POSE or which == "shelf" and Lib.SHELF_POSE
+            or which == "letter" and Lib.SHELF_POSES and Lib.SHELF_POSES.letter or which == "plate" and Lib.SHELF_POSES and Lib.SHELF_POSES.plate)
+        if pose then
+            pose.dist = tonumber(d) or pose.dist
+            pose.yaw = tonumber(fa) or pose.yaw
+            pose.pitch = tonumber(pi) or pose.pitch
+            pose.roll = tonumber(ro) or pose.roll
+            if Lib.Refresh then Lib.Refresh() end
+            Out(string.format("%s : %.2f %d %d %d", which, pose.dist, pose.yaw, pose.pitch, pose.roll))
+        end
+    elseif msg:match("^%s*librar") or msg:match("^%s*biblio") then
+        if DWE.Library and msg:match("reset") then DWE.Library.ResetLayout()
+        elseif DWE.Library and msg:match("scroll") then DWE.Library.ScrollPicker()
+        elseif DWE.Library then DWE.Library.Toggle() end
     elseif msg:match("forget") then
         local n = DWE.SpokenFocus and DWE.SpokenFocus.ForgetOpenBook and DWE.SpokenFocus.ForgetOpenBook() or 0
         Out("livre ouvert considere comme jamais ecoute (" .. n .. " ligne(s) oubliee(s)).")
@@ -3844,6 +3862,76 @@ f:SetScript("OnEvent", function(_, event)
         DisableKeys()
     end
 end)
+
+-- Ecrit relu depuis la bibliotheque : le livre habituel de Storytale (theme, marque-page, pages,
+-- voix, deplacement...), rempli avec les pages gardees au lieu de celles du jeu. Fermer le livre
+-- rouvre la bibliotheque.
+function DWE.OpenLibraryBook(title, pages, material)
+    if InCombatLockdown and InCombatLockdown() then return false end
+    if type(pages) ~= "table" or #pages == 0 then return false end
+    if DWE.bookMode and bookState.active and not DWE.libraryBook and CloseItemText then pcall(CloseItemText) end
+    DWE.libraryBook = { title = title or "", material = material }
+    DWE.bookSpokenView = false
+    DWE.bookInfo = nil
+    DWE.bookLookHold = nil
+    DWE.SetBookMode(true)
+    ResetBook(true, title or "")
+    for i, t in ipairs(pages) do bookState.pages[i] = DWE.PlainItemText(t or "") end
+    bookState.maxPage = #bookState.pages
+    bookState.reachedEnd = true
+    local marks, key = rawget(_G, "DialogueWheelE_Bookmarks"), DWE.BookKey(bookState.title)
+    local page = key and type(marks) == "table" and tonumber(marks[key])
+    DWE.bookResumeHold = nil
+    if page and page > 1 and page <= #bookState.pages then bookState.currentPage = page end
+    DWE.bookInfo = { page = bookState.currentPage, total = #bookState.pages, hasNext = bookState.currentPage < #bookState.pages or nil }
+    ShowBookPage(bookState.currentPage)
+    BuildOptions("ITEM_TEXT_CACHED")
+    EnableKeys()
+    ArmEscape()
+    -- Ouverture : un bruit de papier (celui du grimoire), le livre place tout de suite, puis en fondu (il apparaissait une image ailleurs).
+    if PlaySound then
+        pcall(PlaySound, SOUNDKIT and SOUNDKIT.IG_SPELLBOOK_OPEN or 829)
+    end
+    if DWE.UpdateVisuals then pcall(DWE.UpdateVisuals) end
+    -- (la barre sous le livre aussi : elle apparaissait une image a cote de sa place)
+    DWE.FadeInFrames({ DWE.textBox, DWE.choiceBox, DWE.bookBar }, 0.3, 2)
+    return true
+end
+-- Fondu d'apparition (sans toucher a ce que Storytale regle ensuite : on ne fait que monter
+-- l'alpha jusqu'a sa valeur d'arrivee).
+function DWE.FadeInFrames(list, dur, holdFrames)
+    local fr = DWE.fadeInFrame or CreateFrame("Frame")
+    DWE.fadeInFrame = fr
+    local targets = {}
+    for _, f in ipairs(list) do
+        -- (meme cache pour l'instant : il peut s'afficher juste apres, il est deja invisible)
+        if f and f.SetAlpha then
+            local a = f:GetAlpha() or 1
+            targets[#targets + 1] = { f = f, a = (a > 0) and a or 1 }
+            f:SetAlpha(0)
+        end
+    end
+    fr.t = 0
+    fr.hold = holdFrames or 0
+    fr:SetScript("OnUpdate", function(self, el)
+        -- (quelques images invisibles d'abord : le temps que tout soit a sa place)
+        if self.hold > 0 then self.hold = self.hold - 1 return end
+        self.t = self.t + (el or 0)
+        local k = math.min(1, self.t / dur)
+        for _, tg in ipairs(targets) do tg.f:SetAlpha(tg.a * k) end
+        if k >= 1 then self:SetScript("OnUpdate", nil) end
+    end)
+end
+function DWE.CloseLibraryBook()
+    if not DWE.libraryBook then return end
+    DWE.closedBook = { title = bookState.title, look = DWE.lastLook, t = GetTime and GetTime() or 0 }
+    DWE.libraryBook = nil
+    DWE.bookResumeHold = nil
+    DisableKeys()
+    DWE.SetBookMode(false)
+    if PlaySound then pcall(PlaySound, SOUNDKIT and SOUNDKIT.IG_SPELLBOOK_CLOSE or 830) end
+    if DWE.Library and DWE.Library.OnBookClosed then DWE.Library.OnBookClosed() end
+end
 
 -- Diagnostic de latence (/storytale lag) : pour chaque choix clique, le temps jusqu'a la
 -- reponse du jeu (evenement suivant), le temps passe dans Storytale, et la duree de l'image

@@ -1044,6 +1044,7 @@ local function CreateThemeParts(owner, level)
     return parts
 end
 
+DWE.CreateThemeParts = CreateThemeParts
 -- Dessine le theme `id` autour de `content`. `divAnchor` : region sous laquelle placer le
 -- trait de titre. Renvoie la config du theme (nil pour Transparent).
 local PaintThemeParts
@@ -1063,6 +1064,7 @@ end
 
 -- Efface un fond de theme. Oublie aussi le theme : sinon un changement de taille du cadre
 -- (WatchSize) redessinerait l'ancien theme, et deux themes se retrouveraient melanges.
+function DWE.PaintThemeParts(...) return PaintThemeParts(...) end
 local function ClearThemeParts(parts)
     parts.lastId, parts.lastDiv = nil, nil
     for _, r in ipairs(parts.list) do r:Hide() end
@@ -1808,6 +1810,8 @@ local spokenSkinRef
 -- La ligne que montre Spoken, quel que soit son style : sous-titres, petite fenetre ou lecteur
 -- facon DialogueUI (celui-ci n'existe qu'avec DialogueUI installe).
 local function SpokenCurClip()
+    -- Style de narrateur "Storytale" : la ligne que Spoken nous a donnee a montrer.
+    if DWE.narratorClip then return DWE.narratorClip end
     local env = rawget(_G, "SpokenEnv")
     local addon = type(env) == "table" and rawget(env, "Addon")
     if type(addon) == "table" and type(addon.DisplayStyle) == "function" and addon.db then
@@ -2055,6 +2059,7 @@ local function SpokenStyle()
     return ThemeSpokenStyle(DWE.SpokenBaseTheme())
 end
 
+DWE.SpokenStyleId = SpokenStyle
 local function SpokenTextShadow()
     local cfg = THEME_STYLES[SpokenStyle()]
     return (not cfg) or cfg.shadow == 1
@@ -3712,11 +3717,20 @@ function DWE.OpenTrollTabletRaw()
     return false
 end
 function DWE.OpenTitle()
+    if DWE.libraryBook then return DWE.libraryBook.title end
     local ok, t = pcall(ItemTextGetItem or function() end)
     if not ok or type(t) ~= "string" or (issecretvalue and issecretvalue(t)) then return nil end
     return t
 end
 function DWE.RawPlate()
+    -- Ecrit relu depuis la bibliotheque : sa matiere gardee a la lecture (le jeu n'en dit rien).
+    local lb = DWE.libraryBook
+    if lb then
+        local m = lb.material
+        local pick = DialogueWheelE_PlateLook
+        if m and DWE.PLATES[m] and pick and DWE.PLATES[pick] then m = pick end
+        return (m and DWE.PLATES[m]) and m or nil
+    end
     if DWE.testPlate and (DWE.bookMode or (ItemTextGetMaterial and ItemTextGetMaterial())) then
         DWE.lastPlate = DWE.testPlate
         return DWE.testPlate
@@ -3749,6 +3763,7 @@ end
 -- Qui affiche le texte en cours : "addon", "dui" ou "blizzard". Les plaques ont leur propre
 -- reglage (DialogueUI seulement s'il est installe).
 function DWE.BookStyleNow()
+    if DWE.libraryBook then return "addon" end -- (la bibliotheque rouvre toujours dans Storytale)
     if DWE.RawPlate() then
         local ps = DialogueWheelE_PlateStyle or "addon"
         if ps == "dui" then
@@ -4713,7 +4728,8 @@ do
 
     local function Items()
         local focus = DWE.SpokenFocus
-        local spoken = focus and focus.Available()
+        -- (ecrit relu depuis la bibliotheque : la voix ne le lit pas, pas de reglages de voix)
+        local spoken = focus and focus.Available() and not DWE.libraryBook
         local muted = focus and focus.bookMuted
         local list = {}
         if spoken then
@@ -6551,6 +6567,7 @@ function DWE.FollowerRunning() return follower:IsShown() end
 --------------------------------------------------------------------------------
 
 function DWE.CloseAllDialogue()
+    if DWE.libraryBook and DWE.CloseLibraryBook then DWE.CloseLibraryBook() return end
     if C_GossipInfo and C_GossipInfo.CloseGossip then
         C_GossipInfo.CloseGossip()
     elseif CloseGossip then
@@ -6857,7 +6874,9 @@ local function PaintRow(row, opt, selected, pillWidth, index)
     -- zoomait (vu en video le 26/11 : les choix "tremblaient").
     local P = function(v) return DWE.PixelRound(row, v) end
     local src = pill and PILL_PAD or ROW_PAD
-    local pad = { left = P(src.left), iconLeft = P(src.iconLeft), top = P(src.top), right = P(src.right), iconTop = P(src.iconTop) }
+    local shift = pill and (DWE.pillShift or 0) or 0
+    local pad = { left = P(src.left + shift), iconLeft = P(src.iconLeft + shift), top = P(src.top), right = P(src.right), iconTop = P(src.iconTop) }
+    row.dwePad = pad
     if opt.icon then
         DWE.SetOptionIcon(row.icon, opt)
         local ic = opt.iconColor
@@ -7251,7 +7270,13 @@ function DWE.UpdateVisualsInner()
                 pillWidth = math.max(pillWidth, (opt.icon and PILL_PAD.iconLeft or PILL_PAD.left) + tw + PILL_PAD.right + 4)
             end
         end
+        local need = pillWidth
         pillWidth = math.min(full, math.max(120, pillWidth))
+        -- Bulle plus large que son texte (largeur minimale) : le texte est decale pour etre au
+        -- milieu (vu en jeu le 27/11 : "1. Goodbye" colle a gauche d'une bulle trop large). Les
+        -- choix restent alignes entre eux : le meme decalage pour tous. La marge de mesure (+4)
+        -- est partagee entre les deux cotes.
+        DWE.pillShift = (not tonumber(DialogueWheelE_WheelWidth)) and math.floor(math.max(0, pillWidth - need) / 2 + 2) or 2
         -- Largeur choisie avec la poignee : les bulles la prennent (sinon elles suivent le texte).
         -- ... sans depasser le texte le plus long de plus de DWE.WHEEL_SLACK.
         if tonumber(DialogueWheelE_WheelWidth) then
@@ -7292,6 +7317,22 @@ function DWE.UpdateVisualsInner()
         -- recouvraient plus ou moins le filet du precedent (il scintillait, toujours aux memes places).
         h = DWE.PixelRound(choiceBox, h)
         row:SetHeight(h)
+        -- Bulle : texte au milieu de la hauteur (la marge du haut seule le placait un peu trop
+        -- haut), l'icone au milieu de la premiere ligne.
+        if pill and row.dwePad then
+            local pd = row.dwePad
+            local th = TextHeight(row.text, 16)
+            local top = DWE.PixelRound(choiceBox, math.max(4, (h - th) / 2))
+            local okF, _, size = pcall(row.text.GetFont, row.text)
+            local lineH = (okF and tonumber(size)) or 14
+            row.text:ClearAllPoints()
+            row.text:SetPoint("TOPLEFT", row, "TOPLEFT", opt.icon and pd.iconLeft or pd.left, -top)
+            row.text:SetPoint("TOPRIGHT", row.pill or row, "TOPRIGHT", -pd.right, -top)
+            if opt.icon then
+                row.icon:ClearAllPoints()
+                row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", pd.left, -DWE.PixelRound(choiceBox, top + (lineH - row.icon:GetHeight()) / 2))
+            end
+        end
         tops[i], heights[i] = yy, h
         yy = yy + h + gap
     end
@@ -7859,7 +7900,7 @@ DWE.THEME_LIST = THEME_LIST
 -- deja entendus avec Spoken (ce n'est pas un reglage).
 -- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
 DWE.OPTION_VARS = {}
-for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI HideKeep ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
+for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI HideKeep LibraryAll LibraryUnlock LibraryStyle LibraryBg LibraryOff ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
@@ -8192,7 +8233,7 @@ function DWE.InitOptionsPanel()
     -- Precisions des options (infobulle au survol) : texte court a l'ecran, details ici.
     local TIP_OF = {}
     for _, k in ipairs({ "LOCK", "READ_MARKS", "BOOK_TIP_CURSOR", "BOOK_AUTOSCROLL", "QUEST_AUTO_W",
-        "THEME_BUBBLES", "SPOKEN_BUTTON", "ZONE_ART", "BUBBLE_HIGHLIGHT", "BUBBLE_MODE_TYPE", "BUBBLE_MODE_PAGE", "BUBBLE_MODE_MANUAL" }) do
+        "THEME_BUBBLES", "SPOKEN_BUTTON", "ZONE_ART", "BUBBLE_HIGHLIGHT", "BUBBLE_MODE_TYPE", "BUBBLE_MODE_PAGE", "BUBBLE_MODE_MANUAL", "LIB_UNLOCK" }) do
         if L[k] and L[k .. "_TIP"] then TIP_OF[L[k]] = L[k .. "_TIP"] end
     end
     -- Chaque reglage sait relire sa valeur (profil change, page remise a zero) : il se remet a
@@ -8811,8 +8852,64 @@ function DWE.InitOptionsPanel()
     end
     RefreshBookExtras()
 
+    -- Bibliotheque : l'ouvrir, la partager entre personnages, montrer tous les livres.
+    local libBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    libBtn:SetSize(210, 22)
+    libBtn:SetPoint("TOPLEFT", 16, y - 432)
+    libBtn:SetText(L.LIB_OPEN or "Open the library")
+    libBtn:SetScript("OnClick", function() if DWE.Library then DWE.Library.Open() end end)
+    local sharedCheck = AddCheck(L.LIB_SHARED or "Library shared by all my characters", 16, y - 460, function() return DialogueWheelE_LibraryAll == true end, function(self)
+        DialogueWheelE_LibraryAll = self:GetChecked() and true or nil
+        if DWE.Library then DWE.Library.Refresh() end
+    end)
+    local simpleCheck = AddCheck(L.LIB_SIMPLE or "Simple library (shelves only)", 300, y - 460, function() return DialogueWheelE_LibraryStyle == "simple" end, function(self)
+        DialogueWheelE_LibraryStyle = self:GetChecked() and "simple" or nil
+        if DWE.Library then DWE.Library.Refresh() end
+    end)
+    local unlockCheck = AddCheck(L.LIB_UNLOCK or "Show every book (Spoken Readables)", 16, y - 486, function() return DialogueWheelE_LibraryUnlock == true end, function(self)
+        DialogueWheelE_LibraryUnlock = self:GetChecked() and true or nil
+        if DWE.Library then DWE.Library.Refresh() end
+    end)
+    -- Fond de la piece : de plein a rien du tout (0 : ni fond ni bordure, les meubles seuls).
+    local bgSlider = AddSlider("DWESliderLibBg", L.LIB_BG or "Library background", 22, y - 532, 0, 1, 0.05,
+        function() return tonumber(DialogueWheelE_LibraryBg) or 0 end, "%.2f", function(v)
+        DialogueWheelE_LibraryBg = (v > 0) and v or nil
+        if DWE.Library and DWE.Library.ApplyBg then DWE.Library.ApplyBg() end
+    end)
+    -- Bibliotheque activee (par defaut) ; decochee, plus rien ne l'ouvre, et ses reglages sont
+    -- grises.
+    local hasSpoken = DWE.Library and DWE.Library.SpokenData() and true or false
+    local function Grey(w, on)
+        if not w then return end
+        if on then w:Enable() else w:Disable() end
+        local t = w.Text or w.text or (w.GetName and w:GetName() and _G[w:GetName() .. "Text"])
+        if type(t) == "table" and t.SetTextColor then
+            if on then t:SetTextColor(1, 0.82, 0) else t:SetTextColor(0.5, 0.5, 0.5) end
+        end
+    end
+    local function LibOptionsShown()
+        local on = DialogueWheelE_LibraryOff ~= true
+        Grey(libBtn, on)
+        Grey(sharedCheck, on)
+        Grey(simpleCheck, on)
+        Grey(unlockCheck, on and hasSpoken)
+        if bgSlider then
+            Grey(bgSlider, on)
+            local txt = _G["DWESliderLibBgText"]
+            if txt and txt.SetTextColor then if on then txt:SetTextColor(1, 1, 1) else txt:SetTextColor(0.5, 0.5, 0.5) end end
+            for _, b in ipairs({ bgSlider.dweMinus, bgSlider.dwePlus }) do if b then if on then b:Enable() else b:Disable() end end end
+        end
+    end
+    AddCheck(L.LIB_ENABLE or "Enable the library", 300, y - 432, function() return DialogueWheelE_LibraryOff ~= true end, function(self)
+        DialogueWheelE_LibraryOff = (not self:GetChecked()) and true or nil
+        LibOptionsShown()
+        if DialogueWheelE_LibraryOff and DWE.Library and DWE.Library.frame then DWE.Library.frame:Hide() end
+    end)
+    LibOptionsShown()
+    refreshers[#refreshers + 1] = LibOptionsShown
+
     ---------------------------------------------------------------- Placement
-    y = y - 442
+    y = y - 580
     NewPage(L.SEC_PLACE, y)
     AddSection(L.SEC_PLACE, y)
     AddCheck(L.ATTACH_NPC, 16, y - 32, function() return DialogueWheelE_AttachNPC ~= false end, function(self)
@@ -9328,7 +9425,8 @@ function DWE.InitOptionsPanel()
     local PAGE_VARS = {
         { "Theme", "Font", "FontSize", "Opacity", "ThemeFrames", "WheelTheme", "HideUI", "HideKeep", "ChoiceSize", "MinimapHide", "BubbleMode" }, -- (position du bouton gardee : "MinimapAngle" n'est jamais remis par defaut)
         { "BookStyle", "BookLook", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookTurnFX",
-            "BookVoiceTurn", "BookStopOnClose", "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos" },
+            "BookVoiceTurn", "BookStopOnClose", "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos",
+            "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryOff" },
         { "AttachNPC", "Locked", "WheelSide", "QuestAuto", "QuestWidth", "NPCOffset", "Pos", "TextPos", "WheelWidth", "TextW", "TextH", "BubbleWidth" },
         { "UseBlizzKey", "InteractKey", "ToggleKey", "EscClose", "WheelScroll", "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "GamePad", "PadTips", "PadFreeLook" },
         { "SpokenTheme", "SpokenSkin", "BookSkin", "PlateSkin", "PlaceSkin", "SpokenButton", "ShowText", "SpokenSmart", "BubbleHighlight",
@@ -9520,8 +9618,45 @@ function DWE.InitOptionsPanel()
     end
     -- Page qui tient entiere dans la fenetre : pas de barre de defilement, et jamais decalee
     -- (sinon la molette ou la manette la faisaient sortir de la vue, page vide).
+    -- Hauteur reelle d'une page : du haut de sa zone au bas de son dernier element affiche
+    -- (et pas l'ecart prevu jusqu'a la section suivante).
+    local function ContentHeight(pg)
+        local top = pg.child:GetTop()
+        if not top then return nil end
+        local low
+        local function Scan(fr)
+            for _, r in ipairs({ fr:GetRegions() }) do
+                local ok, vis = pcall(r.IsShown, r)
+                local b = ok and vis and r:GetBottom()
+                if b and (not low or b < low) then low = b end
+            end
+            for _, c in ipairs({ fr:GetChildren() }) do
+                local ok, vis = pcall(c.IsShown, c)
+                local b = ok and vis and c:GetBottom()
+                if b and (not low or b < low) then low = b end
+            end
+        end
+        Scan(pg.content or pg.child)
+        if not low then return nil end
+        return math.ceil(top - low + 16)
+    end
     local function FitScroll(pg)
         local sc = pg.scroll
+        if pg.content then
+            local okM, h = pcall(ContentHeight, pg)
+            if okM and h and h > 20 then pg.child:SetHeight(h) end
+        end
+        -- (le jeu recalcule la plage : le curseur de la barre arrive tout en bas a la derniere
+        -- option, au lieu de s'arreter en chemin)
+        if sc.UpdateScrollChildRect then pcall(sc.UpdateScrollChildRect, sc) end
+        do
+            local okC2, ch = pcall(pg.child.GetHeight, pg.child)
+            local okV2, vh = pcall(sc.GetHeight, sc)
+            local bar2 = sc.ScrollBar or (sc.GetName and sc:GetName() and _G[sc:GetName() .. "ScrollBar"])
+            if okC2 and okV2 and ch and vh and type(bar2) == "table" and bar2.SetMinMaxValues then
+                pcall(bar2.SetMinMaxValues, bar2, 0, math.max(0, ch - vh))
+            end
+        end
         local okH, viewH = pcall(sc.GetHeight, sc)
         local okC, childH = pcall(pg.child.GetHeight, pg.child)
         if not (okH and okC and viewH and childH) then return end
@@ -9535,6 +9670,10 @@ function DWE.InitOptionsPanel()
             sc:EnableMouseWheel(true)
         end
     end
+    DWE.FitOptionPage = function(pg)
+        FitScroll(pg)
+        if C_Timer and C_Timer.After then C_Timer.After(0, function() FitScroll(pg) end) end
+    end
     for _, pg in ipairs(pages) do
         pg.panel:HookScript("OnShow", Nudge)
         pg.panel:HookScript("OnShow", function()
@@ -9544,8 +9683,15 @@ function DWE.InitOptionsPanel()
         pg.scroll:HookScript("OnVerticalScroll", function(self)
             local okC, childH = pcall(pg.child.GetHeight, pg.child)
             local okH, viewH = pcall(self.GetHeight, self)
-            if okC and okH and childH and viewH and childH <= viewH + 1 and (self:GetVerticalScroll() or 0) ~= 0 then
-                self:SetVerticalScroll(0)
+            -- (jamais au-dela du bas du contenu, meme si le jeu compte une plage plus grande)
+            if okC and okH and childH and viewH then
+                local maxV = math.max(0, childH - viewH)
+                if (self:GetVerticalScroll() or 0) > maxV + 0.5 then self:SetVerticalScroll(maxV) end
+                local bar3 = self.ScrollBar or (self.GetName and self:GetName() and _G[self:GetName() .. "ScrollBar"])
+                if type(bar3) == "table" and bar3.SetMinMaxValues and bar3.GetMinMaxValues then
+                    local _, mx = bar3:GetMinMaxValues()
+                    if mx and math.abs(mx - maxV) > 0.5 then pcall(bar3.SetMinMaxValues, bar3, 0, maxV) end
+                end
             end
         end)
     end

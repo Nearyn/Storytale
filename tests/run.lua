@@ -14,6 +14,7 @@ do
             fr.CreateActor = function()
                 return {
                     SetModelByUnit = function() end,
+                    SetModelByFileID = function() return true end,
                     GetMaxBoundingBox = function() return -0.5, -0.5, 0, 0.5, 0.5, M.npcHeight end,
                 }
             end
@@ -107,7 +108,7 @@ SlashCmdList = {}
 local chat = {}
 DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) table.insert(chat, m) end }
 -- Load the addon ------------------------------------------------------------
-for _, file in ipairs({ "Locales.lua", "Storytale_Core.lua", "GeneratedTimings.lua", "Bubble.lua", "SpokenFocus.lua", "SpokenQueueUI.lua", "Storytale.lua", "Options_Native.lua", "MinimapButton.lua" }) do
+for _, file in ipairs({ "Locales.lua", "Storytale_Core.lua", "GeneratedTimings.lua", "Bubble.lua", "SpokenFocus.lua", "SpokenQueueUI.lua", "Storytale.lua", "SpokenNarrator.lua", "Library.lua", "Options_Native.lua", "MinimapButton.lua" }) do
     local chunk, err = loadfile(dir .. "/" .. file)
     check(chunk ~= nil, "compile " .. file .. ": " .. tostring(err))
     local ok, rerr = pcall(chunk, "Storytale", {})
@@ -2303,6 +2304,223 @@ do
     check(DWE.ManualVoiceStarted({ text = "Anything at all", length = 3 }) == false and skips == 0, "typewriter: a starting voice is left alone")
     DWE.SetDialogueText("NPC", "")
     DialogueWheelE_BubbleMode, Spoken, GetTime, DialogueWheelE_ManualVoice = savedMode, savedSpoken, savedGT, savedMV
+end
+-- Bibliotheque : chaque ecrit ouvert y est range ; livre entier depuis Spoken ; options
+do
+    local Lib = DWE.Library
+    local savedBook, savedPage, savedLib, savedShared = M.book, M.bookPage, DialogueWheelE_Library, DialogueWheelE_LibraryShared
+    local savedData, savedAll, savedUnlock = rawget(_G, "SpokenReadablesData"), DialogueWheelE_LibraryAll, DialogueWheelE_LibraryUnlock
+    local savedLocale = GetLocale
+    GetLocale = function() return "enUS" end -- (donnees de Spoken : jeu en anglais seulement)
+    DialogueWheelE_Library, DialogueWheelE_LibraryShared, DialogueWheelE_LibraryAll, DialogueWheelE_LibraryUnlock = nil, nil, nil, nil
+    _G.SpokenReadablesData = nil
+    M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
+    -- Sans Spoken : les pages lues
+    M.book = { title = "The Founding of Quel'Thalas", pages = { "First page.", "Second page.", "Third page." } }
+    M.bookPage = 1
+    M.FireEvent("ITEM_TEXT_BEGIN"); M.FireEvent("ITEM_TEXT_READY")
+    local e = Lib.Get("The Founding of Quel'Thalas", false)
+    check(e and e.p[1] == "First page." and not e.p[2] and not e.done, "library: page read is kept, book not finished")
+    do
+        local savedGUID = UnitGUID
+        UnitGUID = function(u) if u == "npc" then return "GameObject-0-1-2-3-175730-0000ABCD" end end
+        M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
+        M.bookPage = 1
+        M.FireEvent("ITEM_TEXT_BEGIN"); M.FireEvent("ITEM_TEXT_READY")
+        check(Lib.Get("The Founding of Quel'Thalas", false).o == 175730, "library: the world object the book came from is kept")
+        UnitGUID = savedGUID
+    end
+    check(Lib.Get("The Founding of Quel'Thalas", true) ~= nil, "library: kept in the shared library too")
+    M.bookPage = 3
+    M.FireEvent("ITEM_TEXT_READY")
+    e = Lib.Get("The Founding of Quel'Thalas", false)
+    check(e.p[3] == "Third page." and e.done == true, "library: last page reached, book complete")
+    M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
+    -- Avec Spoken Readables : le livre entier des la premiere page
+    _G.SpokenReadablesData = {
+        pages = { [10] = { book = 10, number = 1, text = "Long ago the elves." }, [11] = { book = 10, number = 2, text = "They sailed east." },
+            [12] = { book = 12, number = 1, text = "Hello Morgan." } },
+        books = { [10] = { title = "Exile of the High Elves", pages = { 10, 11 } }, [12] = { title = "William's Shipment", pages = { 12 } } },
+    }
+    M.book = { title = "Exile of the High Elves", pages = { "Long ago the elves.", "They sailed east." } }
+    M.bookPage = 1
+    M.FireEvent("ITEM_TEXT_BEGIN"); M.FireEvent("ITEM_TEXT_READY")
+    e = Lib.Get("Exile of the High Elves", false)
+    check(e and e.p[2] == "They sailed east.", "library: whole book from Spoken's data on opening")
+    M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
+    -- Liste : trouves, compteur, filtre, recherche, pas encore trouves
+    local rows, found, total = Lib.List("all", "", "az")
+    check(found == 2 and total == 3, "library: 2 found out of 3 known (" .. found .. "/" .. total .. ")")
+    local locked
+    for _, r in ipairs(rows) do if r.title == "William's Shipment" then locked = r end end
+    check(not locked, "library: book not found yet only counted, not shelved")
+    do
+        local st = DialogueWheelE_Library
+        st["old french title"] = { t = "Old french title", p = {}, d = 0 }
+        st["\0cleaned"] = nil
+        Lib.CleanEmpty()
+        check(st["old french title"] == nil, "library: imported titles with no text are cleaned up")
+    end
+    rows = Lib.List("book", "exile", "az")
+    check(#rows == 1 and rows[1].title == "Exile of the High Elves", "library: filter and search")
+    DialogueWheelE_LibraryUnlock = true
+    rows = Lib.List("all", "william", "az")
+    check(#rows == 1 and not rows[1].locked and Lib.Pages(rows[1])[1] == "Hello Morgan.", "library: every book unlocked with the option")
+    DialogueWheelE_LibraryUnlock = nil
+    -- Par personnage / commune
+    DialogueWheelE_Library = {}
+    check(select(2, Lib.List("all", "", "az")) == 0, "library: per character by default (new character: empty)")
+    DialogueWheelE_LibraryAll = true
+    check(select(2, Lib.List("all", "", "az")) == 2, "library: shared option shows every character's books")
+    -- Livres lus avant la bibliotheque : importes une fois (texte entier si Spoken le connait)
+    local savedRead = DialogueWheelE_ReadBooks
+    DialogueWheelE_Library, DialogueWheelE_LibraryAll = {}, nil
+    DialogueWheelE_ReadBooks = { ["william's shipment"] = 2, ["an old diary"] = 1 }
+    check(Lib.ImportRead() == 1, "library: books read before are imported")
+    local w = Lib.Get("William's Shipment", false)
+    check(w and w.t == "William's Shipment" and w.p[1] == "Hello Morgan." and w.done, "library: imported with its title and text from Spoken")
+    local o = Lib.Get("an old diary", false)
+    check(o == nil, "library: unknown to Spoken (no text to read again), not imported")
+    check(Lib.ImportRead() == 0, "library: import done once per character")
+    DialogueWheelE_ReadBooks, DialogueWheelE_LibraryAll = savedRead, true
+    -- Toute ligne de texte de la fenetre a sa police des la creation (le jeu refuse SetText sans)
+    Lib.Open()
+    for _, fs in ipairs({ Lib.ui.body, Lib.ui.body2, Lib.ui.bookTitle, Lib.ui.meta, Lib.ui.num, Lib.ui.empty, Lib.ui.count, Lib.ui.featured }) do
+        check(fs:GetFont() ~= nil, "library: text has a font before any book is shown")
+    end
+    -- Piece complete : le dernier livre lu est sur le pupitre, absent de son etagere
+    local ui = Lib.ui
+    check(ui.featured:GetText() ~= nil and ui.featured:GetText() ~= "", "library: last book read shown on the lectern")
+    local function onShelf(title)
+        for _, b in ipairs(ui.spines) do if b:IsShown() and b.row and b.row.title == title then return b end end
+    end
+    check(not onShelf(ui.featured:GetText()), "library: the book on the lectern left its shelf")
+    check(ui.cover.model and ui.cover.model.fileID and ui.cover.model:IsShown() and not ui.cover.open:IsShown(), "library: the lectern shows the closed 3D model")
+    check(Lib.ModelFor({ kind = "letter", title = "x" }) == Lib.SCROLL_OPEN[1 + (120 % #Lib.SCROLL_OPEN)] and Lib.ModelFor({ kind = "plate", title = "x" }) == Lib.MODELS.plate, "library: letters and plates get their own model")
+    check(Lib.ModelFor({ kind = "book", title = "x", entry = { o = 21581 } }) == 200902, "library: a book from the world gets its own binding, closed")
+    check(Lib.ModelFor({ kind = "book", title = "Aftermath of the Second War" }) == 200902, "library: an older book finds its object by title")
+    check(Lib.ModelFor({ kind = "letter", title = "x" }, "shelf") == Lib.SCROLL_SHELF[1 + (120 % #Lib.SCROLL_SHELF)], "library: letters on the shelves use Uldaman's scrolls")
+    Lib.ui.close:Click()
+    check(not Lib.frame:IsShown(), "library: the close button closes the whole library")
+    Lib.Open()
+    check(Lib.Kind({ t = "Eliza's Tombstone", p = { "x" } }) == "plate", "library: a tombstone counts as a plaque")
+    Lib.RunQueue()
+    local loadedOne
+    for _, sp in ipairs(ui.spines) do if sp:IsShown() and sp.model and sp.model.fileID then loadedOne = true end end
+    check(loadedOne, "library: shelf models load a few per frame")
+    -- un clic sur un autre livre de l'etagere le pose sur le pupitre (l'ancien reprend sa place)
+    local before = ui.featured:GetText()
+    local other
+    for _, b in ipairs(ui.spines) do if b:IsShown() and b.row and not b.row.locked then other = b break end end
+    local picked = other.row.title
+    other:Click()
+    check(ui.featured:GetText() == picked and onShelf(before) ~= nil and not onShelf(picked), "library: clicked book goes to the lectern, the other back on its shelf")
+    -- Lire : le livre habituel de Storytale, avec les pages gardees ; la bibliotheque revient a
+    -- la fermeture.
+    Lib.Show("Exile of the High Elves")
+    check(DWE.libraryBook and DWE.bookMode and DWE.textBox:IsShown() and not Lib.frame:IsShown(), "library: the book opens in Storytale's own book")
+    check(DWE.bookInfo and DWE.bookInfo.total == 2, "library: Storytale's book has every kept page")
+    DWE.CloseAllDialogue()
+    check(not DWE.libraryBook and not DWE.bookMode and Lib.frame:IsShown(), "library: closing the book goes back to the room")
+    -- Disposition libre : chaque bloc a sa poignee et sa taille
+    check(ui.handles and ui.handles.case1 and ui.handles.case2 and ui.handles.lectern and ui.handles.header and ui.handles.lectern.dweGrip ~= nil, "library: each block can be moved and resized")
+    DialogueWheelE_LibraryLayout = { v = 2, room = { lectern = { x = 30, y = 0, s = 1.5 } } }
+    DialogueWheelE_LibraryBg = 1
+    Lib.ApplyBg()
+    check(math.abs(ui.boxes.lectern:GetScale() - Lib.DEFAULT_LAYOUT.room.lectern.s) < 1e-6, "library: with a background, blocks keep the default layout")
+    DialogueWheelE_LibraryBg = 0
+    Lib.ApplyBg()
+    check(ui.boxes.lectern:GetScale() == 1.5 and math.abs(ui.boxes.case1:GetScale() - Lib.DEFAULT_LAYOUT.room.case1.s) < 1e-6 and ui.handles.case1:IsShown(), "library: without background, a block keeps its own size")
+    check(ui.cases[2].n == 0 and not ui.handles.case2:IsShown() and ui.cases[1].n < 8, "library: an empty bookcase goes away, the other is cut to its rows")
+    check(ui.close:GetParent() == ui.boxes.header, "library: without background, the close button sits on the header")
+    DialogueWheelE_LibraryBg = nil
+    Lib.ApplyBg()
+    Lib.ResetLayout()
+    check(math.abs(ui.boxes.lectern:GetScale() - Lib.DEFAULT_LAYOUT.room.lectern.s) < 1e-6, "library: layout can be reset")
+    DialogueWheelE_LibraryLayout = nil
+    do
+        local dx, dy = Lib.Escape({ 300, 300, 400, 400 }, { { 350, 250, 600, 450 } })
+        check(dx < 0 and dy == 0 and 400 + dx < 350 - 10, "library: a block steps aside from an open book, shortest way")
+        dx, dy = Lib.Escape({ 300, 300, 400, 400 }, { { 500, 500, 600, 600 } })
+        check(dx == 0 and dy == 0, "library: nothing in the way, it stays")
+    end
+    -- Fond reglable : de plein a rien
+    DialogueWheelE_LibraryBg = 0
+    Lib.ApplyBg()
+    check(Lib.bgAlpha == 0, "library: background can be removed")
+    DialogueWheelE_LibraryBg = nil
+    Lib.ApplyBg()
+    -- Style simple : rangees seules, plus petite fenetre ; un clic ouvre directement le livre
+    DialogueWheelE_LibraryStyle = "simple"
+    Lib.Refresh()
+    check(Lib.frame:GetWidth() < 1000 and not ui.lectern:IsShown() and ui.strips[1]:IsShown(), "library: simple style shows the shelves only")
+    check(Lib.bgAlpha == 0, "library: simple style has no background")
+    local any
+    for _, b in ipairs(ui.spines) do if b:IsShown() and b.row and not b.row.locked then any = b break end end
+    any:Click()
+    check(DWE.libraryBook ~= nil or Lib.reader:IsShown(), "library: simple style opens the book at once")
+    if DWE.libraryBook then DWE.CloseAllDialogue() else ui.back:Click() end
+    DialogueWheelE_LibraryStyle = nil
+    Lib.Refresh()
+    Lib.Toggle()
+    check(not Lib.frame:IsShown(), "library: toggled closed")
+    SlashCmdList.DIALOGUEWHEELE("library")
+    check(Lib.frame:IsShown(), "library: /storytale library opens it")
+    Lib.frame:Hide()
+    DialogueWheelE_LibraryOff = true
+    SlashCmdList.DIALOGUEWHEELE("library")
+    Lib.Toggle()
+    check(not Lib.frame:IsShown(), "library: turned off, nothing opens it")
+    DialogueWheelE_LibraryOff = nil
+    Lib.frame:Hide()
+    M.book, M.bookPage, DialogueWheelE_Library, DialogueWheelE_LibraryShared = savedBook, savedPage, savedLib, savedShared
+    _G.SpokenReadablesData, DialogueWheelE_LibraryAll, DialogueWheelE_LibraryUnlock = savedData, savedAll, savedUnlock
+    GetLocale = savedLocale
+end
+-- Style de narrateur "Storytale" (API publique de Spoken : RegisterNarrator)
+do
+    local savedSpoken, savedTheme = Spoken, DialogueWheelE_Theme
+    local reg, made = nil, {}
+    local function Btn(parent) local b = CreateFrame("Button", nil, parent); b:SetSize(24, 24); b:Show(); return b end
+    Spoken = {
+        IsCompatible = function() return true end,
+        RegisterNarrator = function(_, id, info) reg = { id = id, info = info } end,
+        CreatePortrait = function(_, parent, size)
+            local p = CreateFrame("Frame", nil, parent); p:SetSize(size, size)
+            function p:SetClip(c) self.clip = c end
+            made.portrait = p
+            return p
+        end,
+        CreateControl = function(_, parent, kind) made[kind] = true; return Btn(parent) end,
+        CreateActions = function(_, parent)
+            local r = CreateFrame("Frame", nil, parent)
+            function r:SetClip(c) self.clip = c end
+            made.actions = r
+            return r
+        end,
+        ShowCaptions = function(_, parent, width) made.capW = width; return 40 end,
+    }
+    local N = DWE.Narrator
+    N.registered = nil
+    check(N.Register() == true and reg and reg.id == "storytale" and reg.info.addon == "Storytale", "narrator: Storytale style registered with Spoken")
+    check(type(reg.info.title) == "string" and type(reg.info.description) == "string" and type(reg.info.Update) == "function",
+        "narrator: card has a title, a description and Update")
+    M.FireEvent("GOSSIP_CLOSED"); M.RunTimers(); M.RunTimers()
+    DialogueWheelE_Theme = "parchment"
+    local clip = { text = "The road north is long.", present = { header = "Marshal Dughan", label = "A Threat Within" } }
+    reg.info.Update(clip)
+    local f = N.frame
+    check(f:IsShown(), "narrator: shown for a line")
+    check(N.header:GetText() == "Marshal Dughan" and N.label:GetText() == "A Threat Within", "narrator: speaker and title shown")
+    check(made.portrait and made.portrait.clip == clip and made.actions and made.actions.clip == clip, "narrator: Spoken's portrait and line buttons get the line")
+    check(made.previous and made.pause and made.stop and made.skip, "narrator: Spoken's controls built")
+    check(made.capW and made.capW > 100 and f:GetHeight() > 40 + 52, "narrator: captions inside, frame sized to them")
+    check(N.themeId == DWE.SpokenStyleId(), "narrator: painted in the theme's style")
+    DialogueWheelE_Theme = "bubble"
+    check(DWE.SpokenStyleId() ~= "parchment", "narrator: bubble theme gives its own Spoken look")
+    reg.info.Update(nil)
+    check(not f:IsShown() and DWE.narratorClip == nil, "narrator: hidden when Spoken has nothing to show")
+    Spoken, DialogueWheelE_Theme = savedSpoken, savedTheme
 end
 -- Themes sans bulle : "Tout d'un coup" et "Avance manuelle" montrent tout le texte du cadre
 -- d'un coup, meme quand une voix de Spoken lit.

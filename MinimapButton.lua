@@ -63,7 +63,12 @@ local function Build()
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")
     -- (un clic ouvre les options, un second clic les referme)
-    btn:SetScript("OnClick", function()
+    btn:SetScript("OnClick", function(_, button)
+        -- (clic droit : la bibliotheque)
+        if button == "RightButton" then
+            if DWE.Library and DWE.Library.Enabled() then DWE.Library.Toggle() end
+            return
+        end
         if DWE.NATIVE_OPTIONS and DWE.ToggleOptionsWindow then DWE.ToggleOptionsWindow() else OpenOptions() end
     end)
     btn:SetScript("OnDragStart", function(self)
@@ -80,7 +85,8 @@ local function Build()
     btn:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:SetText("Storytale", 1, 0.82, 0)
-        GameTooltip:AddLine(L.MINIMAP_TIP or "Click: options. Drag: move this button.", 1, 1, 1, true)
+        local libOn = DWE.Library and DWE.Library.Enabled()
+        GameTooltip:AddLine((libOn and L.MINIMAP_TIP or L.MINIMAP_TIP_NOLIB) or "Click: options. Drag: move this button.", 1, 1, 1, true)
         GameTooltip:Show()
     end)
     btn:SetScript("OnLeave", function() GameTooltip:Hide() end)

@@ -723,6 +723,24 @@ for loc, text in pairs(HIDE_UI) do
     local dest = (loc == "enUS") and enUS or T[loc]
     if dest then dest.HIDE_UI = text end
 end
+-- Style de narrateur "Storytale" dans Spoken : description de sa carte (le titre reste Storytale).
+local NARRATOR = {
+    enUS = "Spoken's lines in a Storytale frame, in your theme (bubble or frame), with Spoken's portrait, captions and buttons.",
+    frFR = "Les répliques de Spoken dans un cadre Storytale, à votre thème (bulle ou cadre), avec le portrait, les sous-titres et les boutons de Spoken.",
+    deDE = "Spokens Zeilen in einem Storytale-Rahmen, in deinem Thema (Sprechblase oder Rahmen), mit Spokens Porträt, Untertiteln und Knöpfen.",
+    esES = "Las frases de Spoken en un marco de Storytale, con tu tema (bocadillo o marco), con el retrato, los subtítulos y los botones de Spoken.",
+    esMX = "Las frases de Spoken en un marco de Storytale, con tu tema (bocadillo o marco), con el retrato, los subtítulos y los botones de Spoken.",
+    itIT = "Le battute di Spoken in una cornice di Storytale, con il tuo tema (fumetto o cornice), con ritratto, sottotitoli e pulsanti di Spoken.",
+    ptBR = "As falas do Spoken em um quadro do Storytale, no seu tema (balão ou quadro), com o retrato, as legendas e os botões do Spoken.",
+    ruRU = "Реплики Spoken в рамке Storytale, в вашей теме (облачко или рамка), с портретом, субтитрами и кнопками Spoken.",
+    koKR = "Spoken의 대사를 Storytale 창에, 선택한 테마(말풍선 또는 창)로 표시합니다. Spoken의 초상화, 자막, 버튼 포함.",
+    zhCN = "以你的主题（气泡或边框）在 Storytale 框中显示 Spoken 的台词，附带 Spoken 的头像、字幕和按钮。",
+    zhTW = "以你的主題（氣泡或邊框）在 Storytale 框中顯示 Spoken 的台詞，附帶 Spoken 的頭像、字幕和按鈕。",
+}
+for loc, text in pairs(NARRATOR) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.NARRATOR_TITLE, dest.NARRATOR_DESC = "Storytale", text end
+end
 -- Ce que "Cacher l'interface" garde visible (rien par defaut) : titre, puis discussion,
 -- mini-carte, portraits, barres d'action, effets (ameliorations), suivi des quetes.
 local HIDE_KEEP = {
@@ -782,19 +800,183 @@ for loc, text in pairs(ZONE_ART) do
     if dest then dest.ZONE_ART = text end
 end
 
+-- Bibliotheque : titre, filtres, tri, ecrits pas encore trouves, messages, options.
+-- { titre, tous, livres, lettres, plaques, A-Z, recents, pas encore trouve, vide, choisir,
+--   option commune, option tous les livres, son aide, bouton d'ouverture }
+local LIBRARY = {
+    enUS = { "Library", "All", "Books", "Letters", "Plaques", "A-Z", "Recent", "not found yet",
+        "Every book, letter or plaque you open is kept here, whole, to read again.", "Pick a book on the left.",
+        "Library shared by all my characters", "Show every book (Spoken Readables)",
+        "Also lists the books not found yet, to read them now. Needs Spoken Readables, which knows them all.", "Open the library" },
+    frFR = { "Bibliothèque", "Tout", "Livres", "Lettres", "Plaques", "A-Z", "Récents", "pas encore trouvé",
+        "Chaque livre, lettre ou plaque que vous ouvrez est rangé ici, en entier, pour être relu.", "Choisissez un livre à gauche.",
+        "Bibliothèque commune à tous mes personnages", "Tous les livres (Spoken Readables)",
+        "Montre aussi les livres pas encore trouvés, pour les lire tout de suite. Demande Spoken Readables, qui les connaît tous.", "Ouvrir la bibliothèque" },
+    deDE = { "Bibliothek", "Alle", "Bücher", "Briefe", "Tafeln", "A-Z", "Neueste", "noch nicht gefunden",
+        "Jedes Buch, jeder Brief und jede Tafel, die du öffnest, wird hier vollständig aufbewahrt, zum erneuten Lesen.", "Wähle links ein Buch.",
+        "Bibliothek für alle meine Charaktere", "Alle Bücher zeigen (Spoken Readables)",
+        "Zeigt auch noch nicht gefundene Bücher, um sie gleich zu lesen. Braucht Spoken Readables, das sie alle kennt.", "Bibliothek öffnen" },
+    esES = { "Biblioteca", "Todo", "Libros", "Cartas", "Placas", "A-Z", "Recientes", "aún no encontrado",
+        "Cada libro, carta o placa que abres se guarda aquí, completo, para volver a leerlo.", "Elige un libro a la izquierda.",
+        "Biblioteca común a todos mis personajes", "Todos los libros (Spoken Readables)",
+        "Muestra también los libros aún no encontrados, para leerlos ya. Requiere Spoken Readables, que los conoce todos.", "Abrir la biblioteca" },
+    esMX = { "Biblioteca", "Todo", "Libros", "Cartas", "Placas", "A-Z", "Recientes", "aún no encontrado",
+        "Cada libro, carta o placa que abres se guarda aquí, completo, para volver a leerlo.", "Elige un libro a la izquierda.",
+        "Biblioteca común a todos mis personajes", "Todos los libros (Spoken Readables)",
+        "Muestra también los libros aún no encontrados, para leerlos ya. Requiere Spoken Readables, que los conoce todos.", "Abrir la biblioteca" },
+    itIT = { "Biblioteca", "Tutto", "Libri", "Lettere", "Targhe", "A-Z", "Recenti", "non ancora trovato",
+        "Ogni libro, lettera o targa che apri viene conservato qui, intero, per rileggerlo.", "Scegli un libro a sinistra.",
+        "Biblioteca comune a tutti i miei personaggi", "Tutti i libri (Spoken Readables)",
+        "Mostra anche i libri non ancora trovati, per leggerli subito. Richiede Spoken Readables, che li conosce tutti.", "Apri la biblioteca" },
+    ptBR = { "Biblioteca", "Tudo", "Livros", "Cartas", "Placas", "A-Z", "Recentes", "ainda não encontrado",
+        "Cada livro, carta ou placa que você abre fica guardado aqui, inteiro, para reler.", "Escolha um livro à esquerda.",
+        "Biblioteca comum a todos os meus personagens", "Todos os livros (Spoken Readables)",
+        "Mostra também os livros ainda não encontrados, para lê-los já. Requer o Spoken Readables, que conhece todos.", "Abrir a biblioteca" },
+    ruRU = { "Библиотека", "Все", "Книги", "Письма", "Таблички", "А-Я", "Недавние", "ещё не найдено",
+        "Каждая открытая книга, письмо или табличка хранится здесь целиком, чтобы перечитать.", "Выберите книгу слева.",
+        "Общая библиотека для всех моих персонажей", "Все книги (Spoken Readables)",
+        "Показывает и ещё не найденные книги, чтобы прочитать их сразу. Нужен Spoken Readables, который знает их все.", "Открыть библиотеку" },
+    koKR = { "서재", "전체", "책", "편지", "명판", "가나다", "최근", "아직 찾지 못함",
+        "열어 본 모든 책, 편지, 명판이 통째로 여기에 보관되어 다시 읽을 수 있습니다.", "왼쪽에서 책을 고르세요.",
+        "모든 캐릭터가 함께 쓰는 서재", "모든 책 표시 (Spoken Readables)",
+        "아직 찾지 못한 책도 보여 주어 바로 읽을 수 있습니다. 모든 책을 아는 Spoken Readables가 필요합니다.", "서재 열기" },
+    zhCN = { "藏书馆", "全部", "书籍", "信件", "铭牌", "A-Z", "最近", "尚未找到",
+        "你打开的每本书、每封信、每块铭牌都会完整保存在这里，可随时重读。", "在左侧选择一本书。",
+        "所有角色共用藏书馆", "显示所有书籍（Spoken Readables）",
+        "也列出尚未找到的书，可立即阅读。需要知晓所有书籍的 Spoken Readables。", "打开藏书馆" },
+    zhTW = { "藏書館", "全部", "書籍", "信件", "銘牌", "A-Z", "最近", "尚未找到",
+        "你打開的每本書、每封信、每塊銘牌都會完整保存在這裡，可隨時重讀。", "在左側選擇一本書。",
+        "所有角色共用藏書館", "顯示所有書籍（Spoken Readables）",
+        "也列出尚未找到的書，可立即閱讀。需要知曉所有書籍的 Spoken Readables。", "打開藏書館" },
+}
+for loc, v in pairs(LIBRARY) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then
+        dest.LIBRARY, dest.LIB_ALL, dest.LIB_BOOKS, dest.LIB_LETTERS, dest.LIB_PLATES = v[1], v[2], v[3], v[4], v[5]
+        dest.LIB_SORT_AZ, dest.LIB_SORT_RECENT, dest.LIB_NOT_FOUND, dest.LIB_EMPTY, dest.LIB_PICK = v[6], v[7], v[8], v[9], v[10]
+        dest.LIB_SHARED, dest.LIB_UNLOCK, dest.LIB_UNLOCK_TIP, dest.LIB_OPEN = v[11], v[12], v[13], v[14]
+    end
+end
+local LIB_BG = {
+    enUS = "Library background",
+    frFR = "Fond de la bibliothèque",
+    deDE = "Bibliothekshintergrund",
+    esES = "Fondo de la biblioteca",
+    esMX = "Fondo de la biblioteca",
+    itIT = "Sfondo della biblioteca",
+    ptBR = "Fundo da biblioteca",
+    ruRU = "Фон библиотеки",
+    koKR = "서재 배경",
+    zhCN = "藏书馆背景",
+    zhTW = "藏書館背景",
+}
+for loc, text in pairs(LIB_BG) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.LIB_BG = text end
+end
+local LIB_SIMPLE = {
+    enUS = "Simple library (shelves only)",
+    frFR = "Bibliothèque simple (étagères seules)",
+    deDE = "Einfache Bibliothek (nur Regale)",
+    esES = "Biblioteca simple (solo estantes)",
+    esMX = "Biblioteca simple (solo estantes)",
+    itIT = "Biblioteca semplice (solo scaffali)",
+    ptBR = "Biblioteca simples (só prateleiras)",
+    ruRU = "Простая библиотека (только полки)",
+    koKR = "간단한 서재 (선반만)",
+    zhCN = "简易藏书馆（仅书架）",
+    zhTW = "簡易藏書館（僅書架）",
+}
+for loc, text in pairs(LIB_SIMPLE) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.LIB_SIMPLE = text end
+end
+local LIB_READ = {
+    enUS = "Read",
+    frFR = "Lire",
+    deDE = "Lesen",
+    esES = "Leer",
+    esMX = "Leer",
+    itIT = "Leggi",
+    ptBR = "Ler",
+    ruRU = "Читать",
+    koKR = "읽기",
+    zhCN = "阅读",
+    zhTW = "閱讀",
+}
+for loc, text in pairs(LIB_READ) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.LIB_READ = text end
+end
+local LIB_NO_TEXT = {
+    enUS = "Read before the library existed: open it again in game to keep its text.",
+    frFR = "Lu avant la bibliothèque : rouvrez-le en jeu pour garder son texte.",
+    deDE = "Vor der Bibliothek gelesen: öffne es im Spiel erneut, um seinen Text zu behalten.",
+    esES = "Leído antes de la biblioteca: vuelve a abrirlo en el juego para guardar su texto.",
+    esMX = "Leído antes de la biblioteca: vuelve a abrirlo en el juego para guardar su texto.",
+    itIT = "Letto prima della biblioteca: riaprilo in gioco per conservarne il testo.",
+    ptBR = "Lido antes da biblioteca: abra-o de novo no jogo para guardar o texto.",
+    ruRU = "Прочитано до появления библиотеки: откройте снова в игре, чтобы сохранить текст.",
+    koKR = "서재가 생기기 전에 읽음: 게임에서 다시 열면 내용이 보관됩니다.",
+    zhCN = "在藏书馆出现前读过：在游戏中再次打开即可保存其内容。",
+    zhTW = "在藏書館出現前讀過：在遊戲中再次打開即可保存其內容。",
+}
+for loc, text in pairs(LIB_NO_TEXT) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.LIB_NO_TEXT = text end
+end
+local LIB_PARTIAL = {
+    enUS = "unfinished: read it further in game to keep the next pages",
+    frFR = "inachevé : lisez la suite en jeu pour garder les pages suivantes",
+    deDE = "unvollständig: lies im Spiel weiter, um die nächsten Seiten zu behalten",
+    esES = "incompleto: sigue leyéndolo en el juego para guardar las páginas siguientes",
+    esMX = "incompleto: sigue leyéndolo en el juego para guardar las páginas siguientes",
+    itIT = "incompleto: continua a leggerlo in gioco per conservare le pagine successive",
+    ptBR = "incompleto: continue lendo no jogo para guardar as próximas páginas",
+    ruRU = "не дочитано: читайте дальше в игре, чтобы сохранить следующие страницы",
+    koKR = "미완: 게임에서 이어 읽으면 다음 페이지가 보관됩니다",
+    zhCN = "未读完：在游戏中继续阅读即可保存后续页面",
+    zhTW = "未讀完：在遊戲中繼續閱讀即可保存後續頁面",
+}
+for loc, text in pairs(LIB_PARTIAL) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then
+        dest.LIB_PARTIAL = text
+    end
+end
+
+-- Bibliotheque activee (decochee : plus rien ne l'ouvre, ni clic droit, ni raccourci).
+local LIB_ENABLE = {
+    enUS = { "Enable the library", "Click: options. Drag: move this button." },
+    frFR = { "Activer la bibliothèque", "Clic : options. Glisser : déplacer ce bouton." },
+    deDE = { "Bibliothek aktivieren", "Klick: Optionen. Ziehen: Knopf verschieben." },
+    esES = { "Activar la biblioteca", "Clic: opciones. Arrastrar: mover este botón." },
+    esMX = { "Activar la biblioteca", "Clic: opciones. Arrastrar: mover este botón." },
+    itIT = { "Attiva la biblioteca", "Clic: opzioni. Trascina: sposta questo pulsante." },
+    ptBR = { "Ativar a biblioteca", "Clique: opções. Arrastar: mover este botão." },
+    ruRU = { "Включить библиотеку", "Щелчок: настройки. Перетащить: переместить кнопку." },
+    koKR = { "서재 사용", "클릭: 설정. 드래그: 버튼 이동." },
+    zhCN = { "启用藏书馆", "点击：设置。拖动：移动此按钮。" },
+    zhTW = { "啟用藏書館", "點擊：設定。拖曳：移動此按鈕。" },
+}
+for loc, list in pairs(LIB_ENABLE) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.LIB_ENABLE, dest.MINIMAP_TIP_NOLIB = list[1], list[2] end
+end
+
 -- Bouton de la mini-carte : option, et son infobulle.
 local MINIMAP = {
-    enUS = { "Show the minimap button", "Click: options. Drag: move this button." },
-    frFR = { "Afficher le bouton de la mini-carte", "Clic : options. Glisser : déplacer ce bouton." },
-    deDE = { "Minikarten-Knopf anzeigen", "Klick: Optionen. Ziehen: Knopf verschieben." },
-    esES = { "Mostrar el botón del minimapa", "Clic: opciones. Arrastrar: mover este botón." },
-    esMX = { "Mostrar el botón del minimapa", "Clic: opciones. Arrastrar: mover este botón." },
-    itIT = { "Mostra il pulsante della minimappa", "Clic: opzioni. Trascina: sposta questo pulsante." },
-    ptBR = { "Mostrar o botão do minimapa", "Clique: opções. Arrastar: mover este botão." },
-    ruRU = { "Показывать кнопку у мини-карты", "Щелчок: настройки. Перетащить: переместить кнопку." },
-    koKR = { "미니맵 버튼 표시", "클릭: 설정. 드래그: 버튼 이동." },
-    zhCN = { "显示小地图按钮", "点击：设置。拖动：移动此按钮。" },
-    zhTW = { "顯示小地圖按鈕", "點擊：設定。拖曳：移動此按鈕。" },
+    enUS = { "Show the minimap button", "Click: options. Right-click: library. Drag: move this button." },
+    frFR = { "Afficher le bouton de la mini-carte", "Clic : options. Clic droit : bibliothèque. Glisser : déplacer ce bouton." },
+    deDE = { "Minikarten-Knopf anzeigen", "Klick: Optionen. Rechtsklick: Bibliothek. Ziehen: Knopf verschieben." },
+    esES = { "Mostrar el botón del minimapa", "Clic: opciones. Clic derecho: biblioteca. Arrastrar: mover este botón." },
+    esMX = { "Mostrar el botón del minimapa", "Clic: opciones. Clic derecho: biblioteca. Arrastrar: mover este botón." },
+    itIT = { "Mostra il pulsante della minimappa", "Clic: opzioni. Clic destro: biblioteca. Trascina: sposta questo pulsante." },
+    ptBR = { "Mostrar o botão do minimapa", "Clique: opções. Clique direito: biblioteca. Arrastar: mover este botão." },
+    ruRU = { "Показывать кнопку у мини-карты", "Щелчок: настройки. Правый щелчок: библиотека. Перетащить: переместить кнопку." },
+    koKR = { "미니맵 버튼 표시", "클릭: 설정. 오른쪽 클릭: 서재. 드래그: 버튼 이동." },
+    zhCN = { "显示小地图按钮", "点击：设置。右键：藏书馆。拖动：移动此按钮。" },
+    zhTW = { "顯示小地圖按鈕", "點擊：設定。右鍵：藏書館。拖曳：移動此按鈕。" },
 }
 for loc, list in pairs(MINIMAP) do
     local dest = (loc == "enUS") and enUS or T[loc]

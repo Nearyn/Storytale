@@ -386,6 +386,7 @@ local function MakeWindow()
         pg.panel:Show()
         f.shown = pg
         if pg.scroll then pg.scroll:SetVerticalScroll(0) end
+        if DWE.FitOptionPage then DWE.FitOptionPage(pg) end
         if onTabs and f.tabs[i] then f.Select(f.tabs[i]) end
         f.ApplyColors()
     end
@@ -501,3 +502,4 @@ BINDING_HEADER_STORYTALE = "Storytale"
 BINDING_NAME_STORYTALE_OPTIONS = (DWE.L and DWE.L.OPT_WINDOW_OPEN) or "Storytale options"
 BINDING_NAME_STORYTALE_BUBBLE_NEXT = (DWE.L and DWE.L.BUBBLE_NEXT_KEY) or "Text: next"
 BINDING_NAME_STORYTALE_BUBBLE_PREV = (DWE.L and DWE.L.BUBBLE_PREV_KEY) or "Text: previous"
+BINDING_NAME_STORYTALE_LIBRARY = (DWE.L and DWE.L.LIBRARY) or "Library"
