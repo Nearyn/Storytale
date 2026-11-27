@@ -332,7 +332,7 @@ local CASE = { left = 127, right = 384, contentL = 71, contentR = 440,
 local CASE_H = 540
 local CS = CASE_H / 1024
 -- Pupitre (texture 1024x1024) : son plateau (x gauche, x droit, haut, bas).
-local LECTERN = { size = 360, top = { 150, 790, 20, 190 } }
+local LECTERN = { size = 360, top = { 187, 861, 18, 215 } } -- (plateau mesure sur l'image)
 
 local room, reader, ui
 local state = { filter = "all", search = "", sort = "az", shelf = 1, page = 1 }
@@ -883,7 +883,7 @@ function Lib.Glow(sc, on)
 end
 -- Poses : livre fermé pose a plat et incline vers nous (pupitre), debout tranche face a nous
 -- (etageres). Reglables en jeu : /storytale libpose shelf|lectern distance lacet tangage roulis.
-Lib.LECTERN_POSE = { dist = 1.1, yaw = 0, pitch = 55, roll = 0 }
+Lib.LECTERN_POSE = { dist = 1.0, yaw = 0, pitch = 30, roll = 0 }
 Lib.SHELF_POSE = { dist = 0.92, yaw = 90, pitch = 90, roll = 0 }
 function Lib.ShowModel(cover, row)
     local m = cover.model
@@ -961,13 +961,10 @@ local function Build()
     -- Deux bibliotheques, cote a cote.
     ui.cases = {}
     local caseW = (CASE.contentR - CASE.contentL) * CS
+    -- Chaque bibliotheque se dessine en morceaux (couronne, rangees, planches, socle) : on n'y
+    -- met que les rangees utiles, elle est coupee a la bonne hauteur.
     for c = 1, 2 do
-        local x = 24 + (c - 1) * (caseW + 6)
-        local t = caseBox[c]:CreateTexture(nil, "ARTWORK")
-        t:SetTexture(ADDON .. "LibraryBookcase.png")
-        t:SetSize(512 * CS, CASE_H)
-        t:SetPoint("BOTTOMLEFT", caseBox[c], "BOTTOMLEFT", x - CASE.contentL * CS, 20)
-        ui.cases[c] = t
+        ui.cases[c] = { pieces = {}, x = 24 + (c - 1) * (caseW + 6) - CASE.contentL * CS }
     end
     -- Style simple : une grande etagere. Chaque rangee en trois morceaux de la bibliotheque :
     -- bord gauche, milieu etire, bord droit.
@@ -1151,7 +1148,9 @@ local function Build()
     cover.open = open
     local m = NewScene(cover)
     if m then
-        m:SetPoint("TOPLEFT", -40, 50); m:SetPoint("BOTTOMRIGHT", 40, -30)
+        -- (cadre carre centre sur le plateau : le livre couche, vu de biais comme le plateau)
+        m:SetPoint("CENTER", cover, "CENTER", 0, 4)
+        m:SetSize(132, 132)
         cover.model = m
     end
     local ag = cover.CreateAnimationGroup and cover:CreateAnimationGroup()
@@ -1258,6 +1257,46 @@ local function Build()
     ui.back = back
 end
 
+-- Bibliotheque coupee a `n` rangees (1 = celle du haut). Renvoie, pour chaque rangee, la hauteur
+-- de son plancher au-dessus du pied du meuble, et la hauteur totale du meuble.
+function Lib.CutCase(n)
+    local floors, cur = {}, (1024 - CASE.floors[#CASE.floors]) * CS
+    for i = n, 1, -1 do
+        floors[i] = cur
+        cur = cur + (CASE.floors[i] - CASE.tops[i]) * CS
+        if i > 1 then cur = cur + (CASE.tops[i] - CASE.floors[i - 1]) * CS end
+    end
+    return floors, cur + CASE.tops[1] * CS
+end
+local function Piece(cs, k, box, v0, v1, y)
+    local t = cs.pieces[k]
+    if not t then
+        t = box:CreateTexture(nil, "ARTWORK")
+        t:SetTexture(ADDON .. "LibraryBookcase.png")
+        cs.pieces[k] = t
+    end
+    t:SetTexCoord(0, 1, v0 / 1024, v1 / 1024)
+    t:SetSize(512 * CS, (v1 - v0) * CS)
+    t:ClearAllPoints()
+    t:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", cs.x, 20 + y)
+    t:Show()
+end
+function Lib.DrawCase(c, n)
+    local cs, box = ui.cases[c], ui.boxes["case" .. c]
+    cs.n = n
+    for _, t in pairs(cs.pieces) do t:Hide() end
+    if n <= 0 then return end
+    local floors, total = Lib.CutCase(n)
+    local last = #CASE.floors
+    Piece(cs, "base", box, CASE.floors[last], 1024, 0)
+    for i = 1, n do
+        Piece(cs, "row" .. i, box, CASE.tops[i], CASE.floors[i], floors[i])
+        if i > 1 then Piece(cs, "plank" .. i, box, CASE.floors[i - 1], CASE.tops[i], floors[i] + (CASE.floors[i] - CASE.tops[i]) * CS) end
+    end
+    Piece(cs, "top", box, 0, CASE.tops[1], total - CASE.tops[1] * CS)
+    cs.height = total
+end
+
 -- Disposition libre (Verrouiller les fenetres decoche) : la fenetre se deplace en tirant son
 -- fond et grandit par sa poignee ; chaque bloc (bibliotheques, pupitre, en-tete) se deplace en
 -- le tirant et grandit par sa propre poignee. Garde par style dans DialogueWheelE_LibraryLayout.
@@ -1278,8 +1317,8 @@ local function Areas()
     local lx = ui.right + (W - ui.right - 30 - k) / 2
     local caseW = (CASE.contentR - CASE.contentL) * CS
     return {
-        case1 = { 12, 0, caseW + 24, H - 28 },
-        case2 = { 12 + caseW + 6, 0, caseW + 24, H - 28 },
+        case1 = (ui.cases[1].n or 8) > 0 and { 12, 0, caseW + 24, 20 + (ui.cases[1].height or CASE_H) } or nil,
+        case2 = (ui.cases[2].n or 8) > 0 and { 12 + caseW + 6, 0, caseW + 24, 20 + (ui.cases[2].height or CASE_H) } or nil,
         lectern = { lx - 10, 8, k + 20, k + 70 },
         header = { ui.right - 12, H - 112, W - ui.right - 24, 100 },
     }
@@ -1303,7 +1342,7 @@ function Lib.ApplyLayout()
         ui.close:ClearAllPoints()
         if free then
             ui.close:SetParent(ui.boxes.header)
-            ui.close:SetPoint("LEFT", ui.count, "RIGHT", 10, 0)
+            ui.close:SetPoint("BOTTOMRIGHT", ui.search, "TOPRIGHT", 6, 2)
         else
             ui.close:SetParent(room)
             ui.close:SetPoint("TOPRIGHT", room, "TOPRIGHT", -2, -2)
@@ -1435,7 +1474,7 @@ local function ApplyStyle()
     if ui.style == style then return end
     ui.style = style
     local full = style == "room"
-    for _, t in ipairs(ui.cases) do t:SetShown(full) end
+    for _, cs in ipairs(ui.cases) do if not full then for _, t in pairs(cs.pieces) do t:Hide() end end end
     for _, t in ipairs(ui.strips) do t:SetShown(not full) end
     for _, f in ipairs({ ui.lectern, ui.cover, ui.featured, ui.featuredMeta }) do f:SetShown(full) end
     local w, h
@@ -1555,6 +1594,31 @@ function Refresh()
         cur.n = cur.n + 1
     end
     state.shelf = math.max(1, math.min(state.shelf, #views))
+    -- Rangees utiles dans la vue : on coupe la bibliotheque juste en dessous (une rangee vide
+    -- de plus au plus) ; une bibliotheque vide disparait. Aucun ecrit : un petit meuble.
+    local maxSlot = 0
+    for idx in ipairs(rows) do
+        if placed[idx].view == state.shelf and placed[idx].slot > maxSlot then maxSlot = placed[idx].slot end
+    end
+    if style == "room" then
+        local per = #CASE.tops
+        local n1 = (maxSlot == 0) and 2 or math.min(per, maxSlot + 1)
+        local n2 = (maxSlot <= per) and 0 or math.min(per, maxSlot - per + 1)
+        Lib.DrawCase(1, n1)
+        Lib.DrawCase(2, n2)
+        for c, n in ipairs({ n1, n2 }) do
+            local floors = Lib.CutCase(math.max(1, n))
+            for i = 1, per do
+                local sl = slots[(c - 1) * per + i]
+                if floors[i] then sl.y = 20 + floors[i] end
+            end
+        end
+        Lib.ApplyLayout()
+    else
+        -- (grande etagere : les rangees utiles, une vide de plus, deux au moins)
+        local n = math.max(2, math.min(#slots, maxSlot + 1))
+        for k, t in ipairs(ui.strips) do t:SetShown(math.ceil(k / 3) <= n) end
+    end
     local used = 0
     for idx, row in ipairs(rows) do
         local pl = placed[idx]

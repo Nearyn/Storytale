@@ -2415,7 +2415,8 @@ do
     check(ui.boxes.lectern:GetScale() == 1, "library: with a background, blocks stay in the window")
     DialogueWheelE_LibraryBg = 0
     Lib.ApplyBg()
-    check(ui.boxes.lectern:GetScale() == 1.5 and ui.boxes.case1:GetScale() == 1 and ui.handles.case2:IsShown(), "library: without background, a block keeps its own size")
+    check(ui.boxes.lectern:GetScale() == 1.5 and ui.boxes.case1:GetScale() == 1 and ui.handles.case1:IsShown(), "library: without background, a block keeps its own size")
+    check(ui.cases[2].n == 0 and not ui.handles.case2:IsShown() and ui.cases[1].n < 8, "library: an empty bookcase goes away, the other is cut to its rows")
     check(ui.close:GetParent() == ui.boxes.header, "library: without background, the close button sits on the header")
     DialogueWheelE_LibraryBg = nil
     Lib.ApplyBg()
