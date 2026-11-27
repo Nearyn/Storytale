@@ -9579,8 +9579,34 @@ function DWE.InitOptionsPanel()
     end
     -- Page qui tient entiere dans la fenetre : pas de barre de defilement, et jamais decalee
     -- (sinon la molette ou la manette la faisaient sortir de la vue, page vide).
+    -- Hauteur reelle d'une page : du haut de sa zone au bas de son dernier element affiche
+    -- (et pas l'ecart prevu jusqu'a la section suivante).
+    local function ContentHeight(pg)
+        local top = pg.child:GetTop()
+        if not top then return nil end
+        local low
+        local function Scan(fr)
+            for _, r in ipairs({ fr:GetRegions() }) do
+                local ok, vis = pcall(r.IsShown, r)
+                local b = ok and vis and r:GetBottom()
+                if b and (not low or b < low) then low = b end
+            end
+            for _, c in ipairs({ fr:GetChildren() }) do
+                local ok, vis = pcall(c.IsShown, c)
+                local b = ok and vis and c:GetBottom()
+                if b and (not low or b < low) then low = b end
+            end
+        end
+        Scan(pg.content or pg.child)
+        if not low then return nil end
+        return math.ceil(top - low + 16)
+    end
     local function FitScroll(pg)
         local sc = pg.scroll
+        if pg.content then
+            local okM, h = pcall(ContentHeight, pg)
+            if okM and h and h > 20 then pg.child:SetHeight(h) end
+        end
         local okH, viewH = pcall(sc.GetHeight, sc)
         local okC, childH = pcall(pg.child.GetHeight, pg.child)
         if not (okH and okC and viewH and childH) then return end
@@ -9594,6 +9620,10 @@ function DWE.InitOptionsPanel()
             sc:EnableMouseWheel(true)
         end
     end
+    DWE.FitOptionPage = function(pg)
+        FitScroll(pg)
+        if C_Timer and C_Timer.After then C_Timer.After(0, function() FitScroll(pg) end) end
+    end
     for _, pg in ipairs(pages) do
         pg.panel:HookScript("OnShow", Nudge)
         pg.panel:HookScript("OnShow", function()
@@ -9603,8 +9633,10 @@ function DWE.InitOptionsPanel()
         pg.scroll:HookScript("OnVerticalScroll", function(self)
             local okC, childH = pcall(pg.child.GetHeight, pg.child)
             local okH, viewH = pcall(self.GetHeight, self)
-            if okC and okH and childH and viewH and childH <= viewH + 1 and (self:GetVerticalScroll() or 0) ~= 0 then
-                self:SetVerticalScroll(0)
+            -- (jamais au-dela du bas du contenu, meme si le jeu compte une plage plus grande)
+            if okC and okH and childH and viewH then
+                local maxV = math.max(0, childH - viewH)
+                if (self:GetVerticalScroll() or 0) > maxV + 0.5 then self:SetVerticalScroll(maxV) end
             end
         end)
     end

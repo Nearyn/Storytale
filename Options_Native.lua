@@ -386,6 +386,7 @@ local function MakeWindow()
         pg.panel:Show()
         f.shown = pg
         if pg.scroll then pg.scroll:SetVerticalScroll(0) end
+        if DWE.FitOptionPage then DWE.FitOptionPage(pg) end
         if onTabs and f.tabs[i] then f.Select(f.tabs[i]) end
         f.ApplyColors()
     end
