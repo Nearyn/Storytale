@@ -264,7 +264,9 @@ function Lib.List(filter, search, sort)
         total = 0
         for k, b in pairs(titles) do
             total = total + 1
-            if not seen[k] then
+            -- (pas encore trouves : seulement comptes, pas ranges ; l'option "Tous les livres"
+            -- les met sur les etageres, lisibles)
+            if not seen[k] and DialogueWheelE_LibraryUnlock == true then
                 local kind = OBJ_KIND_OF(nil, b.title) or (#b.pages > 1 and "book" or "letter")
                 rows[#rows + 1] = { key = k, title = b.title, kind = kind, locked = DialogueWheelE_LibraryUnlock ~= true }
                 if DialogueWheelE_LibraryUnlock == true then rows[#rows].spoken = b end
@@ -417,7 +419,7 @@ local function SlotsOf(style)
         local caseX = 24 + (c - 1) * (caseW + 6)
         for i = 1, #CASE.tops do
             slots[#slots + 1] = { x = caseX + (CASE.left - CASE.contentL) * CS, y = 20 + (1024 - CASE.floors[i]) * CS,
-                w = (CASE.right - CASE.left) * CS, h = (CASE.floors[i] - CASE.tops[i]) * CS }
+                w = (CASE.right - CASE.left) * CS, h = (CASE.floors[i] - CASE.tops[i]) * CS, box = "case" .. c }
         end
     end
     return slots
@@ -829,6 +831,15 @@ local function Frame(sc, pose)
     if sc.SetCameraPosition then pcall(sc.SetCameraPosition, sc, d, 0, 0) end
     if sc.SetCameraOrientationByYawPitchRoll then pcall(sc.SetCameraOrientationByYawPitchRoll, sc, math.pi, 0, 0) end
 end
+-- Rotation et cadrage (repris une fois le modele charge : sa boite n'est connue qu'alors).
+function Lib.Pose(sc)
+    local a, pose = sc.actor, sc.pose
+    if not (a and pose) then return end
+    if a.SetYaw then pcall(a.SetYaw, a, math.rad(pose.yaw or 0)) end
+    if a.SetPitch then pcall(a.SetPitch, a, math.rad(pose.pitch or 0)) end
+    if a.SetRoll then pcall(a.SetRoll, a, math.rad(pose.roll or 0)) end
+    Frame(sc, pose)
+end
 local function LoadModel(sc, id, pose)
     local a = sc and sc.actor
     if not (a and a.SetModelByFileID) then Lib.modelErr = "no model scene"; return false end
@@ -844,7 +855,15 @@ local function LoadModel(sc, id, pose)
     -- (la boite du modele n'est connue qu'une fois charge)
     if a.SetScript and not sc.hooked then
         sc.hooked = true
-        pcall(a.SetScript, a, "OnModelLoaded", function() if sc.pose then Frame(sc, sc.pose) end end)
+        pcall(a.SetScript, a, "OnModelLoaded", function() if sc.pose then Lib.Pose(sc) end end)
+    end
+    -- (et au cas ou le jeu ne previent pas : on recadre un peu plus tard)
+    if C_Timer and C_Timer.After then
+        sc.token = (sc.token or 0) + 1
+        local tk = sc.token
+        for _, t in ipairs({ 0.05, 0.3, 1 }) do
+            C_Timer.After(t, function() if sc.token == tk and sc.pose then Lib.Pose(sc) end end)
+        end
     end
     sc.pose = pose
     Lib.Glow(sc, sc.glow)
@@ -865,7 +884,7 @@ end
 -- Poses : livre fermé pose a plat et incline vers nous (pupitre), debout tranche face a nous
 -- (etageres). Reglables en jeu : /storytale libpose shelf|lectern distance lacet tangage roulis.
 Lib.LECTERN_POSE = { dist = 1.1, yaw = 0, pitch = 55, roll = 0 }
-Lib.SHELF_POSE = { dist = 1.0, yaw = 90, pitch = 90, roll = 0 }
+Lib.SHELF_POSE = { dist = 0.92, yaw = 90, pitch = 90, roll = 0 }
 function Lib.ShowModel(cover, row)
     local m = cover.model
     local id = Lib.ModelFor(row, "lectern")
@@ -876,7 +895,7 @@ end
 
 -- Etageres en 3D : peu de livres par rangee (chaque modele coute), le reste va sur les pages
 -- suivantes. Pose : le livre debout, le dos face a nous.
-Lib.PER_ROW_3D = 6
+Lib.PER_ROW_3D = 11
 function Lib.ShowShelfModel(b, row)
     local m = b.model
     local id = Lib.ModelFor(row, "shelf")
@@ -895,7 +914,7 @@ local function Build()
     room:SetPoint("CENTER")
     -- (au-dessus de la fenetre d'options, en FULLSCREEN : le bouton "Ouvrir la bibliotheque"
     -- l'ouvrait dessous, vu en jeu le 27/11)
-    room:SetFrameStrata("FULLSCREEN_DIALOG")
+    room:SetFrameStrata("FULLSCREEN")
     room:SetToplevel(true)
     room:SetMovable(true)
     room:SetClampedToScreen(true)
@@ -912,6 +931,7 @@ local function Build()
         Lib.bgAlpha = a
         room:SetBackdropColor(0.07, 0.045, 0.03, 0.97 * a)
         room:SetBackdropBorderColor(0.55, 0.38, 0.2, a)
+        if ui and ui.boxes and Lib.ApplyLayout then Lib.ApplyLayout() end
     end
     Lib.ApplyBg()
     room:Hide()
@@ -932,7 +952,9 @@ local function Build()
         ui.boxes[id] = b
         return b
     end
+    -- (piece entiere : une bibliotheque = un bloc ; style simple : la grande etagere)
     local cases, lect, head = Box("cases"), Box("lectern"), Box("header")
+    local caseBox = { Box("case1"), Box("case2") }
     local close = CreateFrame("Button", nil, room, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", room, "TOPRIGHT", -2, -2)
 
@@ -941,10 +963,10 @@ local function Build()
     local caseW = (CASE.contentR - CASE.contentL) * CS
     for c = 1, 2 do
         local x = 24 + (c - 1) * (caseW + 6)
-        local t = cases:CreateTexture(nil, "ARTWORK")
+        local t = caseBox[c]:CreateTexture(nil, "ARTWORK")
         t:SetTexture(ADDON .. "LibraryBookcase.png")
         t:SetSize(512 * CS, CASE_H)
-        t:SetPoint("BOTTOMLEFT", cases, "BOTTOMLEFT", x - CASE.contentL * CS, 20)
+        t:SetPoint("BOTTOMLEFT", caseBox[c], "BOTTOMLEFT", x - CASE.contentL * CS, 20)
         ui.cases[c] = t
     end
     -- Style simple : une grande etagere. Chaque rangee en trois morceaux de la bibliotheque :
@@ -1009,7 +1031,7 @@ local function Build()
             local r = self.row
             if not r then return end
             Lib.Glow(self.model, true)
-            self:SetPoint("BOTTOMLEFT", cases, "BOTTOMLEFT", self.x, self.y + 4)
+            self:SetPoint("BOTTOMLEFT", self:GetParent(), "BOTTOMLEFT", self.x, self.y + 4)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(r.title, 1, 0.86, 0.55, 1, true)
             if r.locked then
@@ -1021,7 +1043,7 @@ local function Build()
         end)
         b:SetScript("OnLeave", function(self)
             Lib.Glow(self.model, false)
-            self:SetPoint("BOTTOMLEFT", cases, "BOTTOMLEFT", self.x, self.y)
+            self:SetPoint("BOTTOMLEFT", self:GetParent(), "BOTTOMLEFT", self.x, self.y)
             if GameTooltip then GameTooltip:Hide() end
         end)
         b:SetScript("OnClick", function(self)
@@ -1086,10 +1108,10 @@ local function Build()
     sort:SetPoint("TOPRIGHT", head, "TOPRIGHT", -30, -84)
     ui.sort = sort
     -- Etageres suivantes / precedentes (sous les bibliotheques).
-    local up = TextButton(cases, "<", function() state.shelf = state.shelf - 1; Refresh() end)
-    local down = TextButton(cases, ">", function() state.shelf = state.shelf + 1; Refresh() end)
-    local shelfNum = cases:CreateFontString(nil, "OVERLAY")
-    shelfNum:SetPoint("BOTTOM", cases, "BOTTOMLEFT", 24 + caseW + 3, 6)
+    local up = TextButton(head, "<", function() state.shelf = state.shelf - 1; Refresh() end)
+    local down = TextButton(head, ">", function() state.shelf = state.shelf + 1; Refresh() end)
+    local shelfNum = head:CreateFontString(nil, "OVERLAY")
+    shelfNum:SetPoint("RIGHT", sort, "LEFT", -40, 0)
     Font(shelfNum, 12, PALE)
     up:SetPoint("RIGHT", shelfNum, "LEFT", -6, 0)
     down:SetPoint("LEFT", shelfNum, "RIGHT", 6, 0)
@@ -1254,16 +1276,40 @@ local function Areas()
     end
     local k = LECTERN.size
     local lx = ui.right + (W - ui.right - 30 - k) / 2
+    local caseW = (CASE.contentR - CASE.contentL) * CS
     return {
-        cases = { 14, 0, ui.right - 40, H - 28 },
+        case1 = { 12, 0, caseW + 24, H - 28 },
+        case2 = { 12 + caseW + 6, 0, caseW + 24, H - 28 },
         lectern = { lx - 10, 8, k + 20, k + 70 },
         header = { ui.right - 12, H - 112, W - ui.right - 24, 100 },
     }
 end
 Lib.Areas = Areas
+-- Deux facons : avec un fond (opacite > 0), la fenetre se deplace et s'agrandit d'un bloc ;
+-- sans fond (opacite 0, ou style simple), plus de fenetre : chaque element se deplace seul.
+function Lib.Free() return (Lib.bgAlpha or 1) <= 0 end
 function Lib.ApplyLayout()
     if not room then return end
     local all, lay = Layout()
+    local free = Lib.Free()
+    if not free then lay = {} end
+    -- (sans fond, le vide entre les elements laisse passer la souris vers le jeu)
+    room:EnableMouse(not free)
+    room:EnableMouseWheel(not free)
+    room.dweNoGrip = free or nil
+    if DWE.SetGripCorner and room.dweGrip then DWE.SetGripCorner(room, "CENTER") end
+    -- La croix : coin de la fenetre, ou sans fond, sur l'en-tete "Bibliotheque".
+    if ui.close then
+        ui.close:ClearAllPoints()
+        if free then
+            ui.close:SetParent(ui.boxes.header)
+            ui.close:SetPoint("LEFT", ui.count, "RIGHT", 10, 0)
+        else
+            ui.close:SetParent(room)
+            ui.close:SetPoint("TOPRIGHT", room, "TOPRIGHT", -2, -2)
+        end
+        ui.close:SetFrameLevel(room:GetFrameLevel() + 8)
+    end
     local s0 = tonumber(all.scale) or 1
     room:SetScale(math.max(0.5, math.min(2, s0)))
     if type(all.pos) == "table" and all.pos[1] then
@@ -1290,7 +1336,7 @@ function Lib.ApplyLayout()
                 hd:ClearAllPoints()
                 hd:SetPoint("BOTTOMLEFT", room, "BOTTOMLEFT", ox + a[1] * sc, oy + a[2] * sc)
                 hd:SetSize(a[3] * sc, a[4] * sc)
-                hd:Show()
+                hd:SetShown(free)
                 if DWE.SetGripCorner then DWE.SetGripCorner(hd, "CENTER") end
             end
         end
@@ -1305,7 +1351,7 @@ function MakeHandles()
         local es = room:GetEffectiveScale()
         return x / es, y / es
     end
-    for _, id in ipairs({ "cases", "lectern", "header" }) do
+    for _, id in ipairs({ "cases", "case1", "case2", "lectern", "header" }) do
         local hd = CreateFrame("Frame", nil, room)
         hd:SetFrameLevel(room:GetFrameLevel() + 1)
         hd:EnableMouse(true)
@@ -1416,12 +1462,7 @@ local function ApplyStyle()
     ui.sort:ClearAllPoints()
     ui.sort:SetPoint("TOPRIGHT", ui.boxes.header, "TOPRIGHT", -30, full and -84 or -58)
     ui.shelfNum:ClearAllPoints()
-    if full then
-        local caseW = (CASE.contentR - CASE.contentL) * CS
-        ui.shelfNum:SetPoint("BOTTOM", ui.boxes.cases, "BOTTOMLEFT", 24 + caseW + 3, 6)
-    else
-        ui.shelfNum:SetPoint("BOTTOM", ui.boxes.cases, "BOTTOM", 0, 8)
-    end
+    ui.shelfNum:SetPoint("RIGHT", ui.sort, "LEFT", -40, 0)
     ui.empty:ClearAllPoints()
     if full then
         ui.empty:SetPoint("CENTER", ui.lectern, "TOP", 0, 40)
@@ -1530,13 +1571,15 @@ function Refresh()
             b.y = math.floor(sl.y or (winH - sl.fromTop))
             b:ClearAllPoints()
             b:SetSize(w, h)
-            b:SetPoint("BOTTOMLEFT", ui.boxes.cases, "BOTTOMLEFT", b.x, b.y)
+            local box = ui.boxes[sl.box or "cases"]
+            if b:GetParent() ~= box then b:SetParent(box); b:SetFrameLevel(room:GetFrameLevel() + 6) end
+            b:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", b.x, b.y)
             b.tex:SetVertexColor(color[1], color[2], color[3], 1)
             if b.model then
                 -- (pose sur le plancher de l'etagere, a la hauteur du rayon)
                 b.model:ClearAllPoints()
-                b.model:SetPoint("BOTTOM", b, "BOTTOM", 0, -h * 0.03)
-                b.model:SetSize(h * 1.05, h * 1.05)
+                b.model:SetPoint("BOTTOM", b, "BOTTOM", 0, -h * 0.02)
+                b.model:SetSize(h * 0.98, h * 0.98)
             end
             local is3d = use3d and Lib.ShowShelfModel(b, row)
             if not use3d and b.model then b.model:Hide(); b.tex:Show(); b.shade:Show() end
@@ -1613,6 +1656,7 @@ end
 function Lib.Open()
     Build()
     room:Show()
+    room:Raise()
     Refresh()
 end
 function Lib.Toggle()

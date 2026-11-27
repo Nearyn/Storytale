@@ -2353,7 +2353,7 @@ do
     check(found == 2 and total == 3, "library: 2 found out of 3 known (" .. found .. "/" .. total .. ")")
     local locked
     for _, r in ipairs(rows) do if r.title == "William's Shipment" then locked = r end end
-    check(locked and locked.locked, "library: book not found yet listed, locked")
+    check(not locked, "library: book not found yet only counted, not shelved")
     rows = Lib.List("book", "exile", "az")
     check(#rows == 1 and rows[1].title == "Exile of the High Elves", "library: filter and search")
     DialogueWheelE_LibraryUnlock = true
@@ -2409,10 +2409,16 @@ do
     DWE.CloseAllDialogue()
     check(not DWE.libraryBook and not DWE.bookMode and Lib.frame:IsShown(), "library: closing the book goes back to the room")
     -- Disposition libre : chaque bloc a sa poignee et sa taille
-    check(ui.handles and ui.handles.cases and ui.handles.lectern and ui.handles.header and ui.handles.lectern.dweGrip ~= nil, "library: each block can be moved and resized")
+    check(ui.handles and ui.handles.case1 and ui.handles.case2 and ui.handles.lectern and ui.handles.header and ui.handles.lectern.dweGrip ~= nil, "library: each block can be moved and resized")
     DialogueWheelE_LibraryLayout = { room = { lectern = { x = 30, y = 0, s = 1.5 } } }
     Lib.ApplyLayout()
-    check(ui.boxes.lectern:GetScale() == 1.5 and ui.boxes.cases:GetScale() == 1, "library: a block keeps its own size")
+    check(ui.boxes.lectern:GetScale() == 1, "library: with a background, blocks stay in the window")
+    DialogueWheelE_LibraryBg = 0
+    Lib.ApplyBg()
+    check(ui.boxes.lectern:GetScale() == 1.5 and ui.boxes.case1:GetScale() == 1 and ui.handles.case2:IsShown(), "library: without background, a block keeps its own size")
+    check(ui.close:GetParent() == ui.boxes.header, "library: without background, the close button sits on the header")
+    DialogueWheelE_LibraryBg = nil
+    Lib.ApplyBg()
     Lib.ResetLayout()
     check(ui.boxes.lectern:GetScale() == 1, "library: layout can be reset")
     DialogueWheelE_LibraryLayout = nil
