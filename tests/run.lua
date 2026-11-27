@@ -2396,10 +2396,13 @@ do
     end
     check(not onShelf(ui.featured:GetText()), "library: the book on the lectern left its shelf")
     check(ui.cover.model and ui.cover.model.fileID and ui.cover.model:IsShown() and not ui.cover.open:IsShown(), "library: the lectern shows the closed 3D model")
-    check(Lib.ModelFor({ kind = "letter", title = "x" }) == Lib.MODELS.letter and Lib.ModelFor({ kind = "plate", title = "x" }) == Lib.MODELS.plate, "library: letters and plates get their own model")
+    check(Lib.ModelFor({ kind = "letter", title = "x" }) == Lib.SCROLL_OPEN[1 + (120 % #Lib.SCROLL_OPEN)] and Lib.ModelFor({ kind = "plate", title = "x" }) == Lib.MODELS.plate, "library: letters and plates get their own model")
     check(Lib.ModelFor({ kind = "book", title = "x", entry = { o = 21581 } }) == 200902, "library: a book from the world gets its own binding, closed")
     check(Lib.ModelFor({ kind = "book", title = "Aftermath of the Second War" }) == 200902, "library: an older book finds its object by title")
-    check(Lib.ModelFor({ kind = "letter", title = "x" }, "shelf") == Lib.MODELS.rolled, "library: letters stand rolled on the shelves")
+    check(Lib.ModelFor({ kind = "letter", title = "x" }, "shelf") == Lib.SCROLL_SHELF[1 + (120 % #Lib.SCROLL_SHELF)], "library: letters on the shelves use Uldaman's scrolls")
+    Lib.ui.close:Click()
+    check(not Lib.frame:IsShown(), "library: the close button closes the whole library")
+    Lib.Open()
     check(Lib.Kind({ t = "Eliza's Tombstone", p = { "x" } }) == "plate", "library: a tombstone counts as a plaque")
     Lib.RunQueue()
     local loadedOne

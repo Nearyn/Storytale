@@ -823,11 +823,23 @@ function OBJ_KIND_OF(o, title)
     return o and OBJ_KIND[o] or nil
 end
 -- `where` : "shelf" (etageres : lettres et parchemins enroules) ou "lectern" (pupitre : ouverts).
+-- Parchemins : sur les etageres, ceux d'Uldaman (feuillet plie, debout ; paire de rouleaux,
+-- couchee) ; sur le pupitre, le vrai modele s'il est connu, sinon un parchemin ouvert du jeu.
+-- Le meme parchemin garde toujours le meme (choisi par son titre).
+Lib.SCROLL_SHELF = { 203429, 203430 }
+Lib.SCROLL_OPEN = { 198451, 198452, 198454, 198455, 201113 }
+local function TitleHash(t)
+    local h = 0
+    for k = 1, #(t or "") do h = (h * 31 + t:byte(k)) % 100003 end
+    return h
+end
 function Lib.ModelFor(row, where)
     local o = (row.entry and row.entry.o) or TITLE_OBJ[row.title or ""]
-    if row.kind == "letter" and where == "shelf" then return tonumber(DialogueWheelE_LibraryScroll) or MODELS.rolled end
+    if row.kind == "letter" and where == "shelf" then
+        return tonumber(DialogueWheelE_LibraryScroll) or Lib.SCROLL_SHELF[TitleHash(row.title) % #Lib.SCROLL_SHELF + 1]
+    end
     if o and OBJ_MODEL[o] then return OBJ_MODEL[o] end
-    if row.kind == "letter" then return MODELS.letter end
+    if row.kind == "letter" then return Lib.SCROLL_OPEN[TitleHash(row.title) % #Lib.SCROLL_OPEN + 1] end
     if row.kind == "plate" then return MODELS.plate end
     local c = Lib.Spine(row)
     local best, bd = MODELS.book[1][1], math.huge
@@ -978,15 +990,23 @@ function Lib.ShelfPose(row, i)
     if h % every == 0 then p.lean = 12 + (h % 9) end
     -- Parchemins : couches, empiles. Quelques livres couches aussi, par deux ou trois.
     if row.kind == "letter" then
-        p.lean = nil
-        p.yaw, p.pitch, p.roll, p.vfrac, p.flat = 90, 0, 0, 0.3, true
+        if Lib.ModelFor(row, "shelf") == 203430 then
+            -- (paire de rouleaux : couchee, empilable)
+            p.lean = nil
+            p.yaw, p.pitch, p.roll, p.vfrac, p.flat = 90, 0, 0, 0.35, true
+            p.dist = 1.3
+        else
+            -- (feuillet plie : debout, un peu tourne, parfois penche)
+            p.yaw, p.pitch, p.roll, p.vfrac = 35 + (h % 20), 0, 0, 1
+            p.dist = 1.05
+        end
     elseif row.kind == "book" and not row.noFlat and (row.forceFlat or (not p.lean and h % 6 == 1)) then
         p.lean = nil
         local fp = Lib.SHELF_POSES.flat
         p.yaw, p.pitch, p.roll, p.vfrac, p.flat = fp.yaw, fp.pitch, fp.roll, fp.vfrac, true
     end
     -- Petit espace de temps en temps entre deux groupes de livres.
-    p.gap = (h % 9 == 0) and true or nil
+    p.gap = (h % 5 == 0) and true or nil
     return p
 end
 -- Chargement etale : quelques modeles par image (ouvrir la bibliotheque ou tourner une page
@@ -1101,6 +1121,8 @@ local function Build()
     local cases, lect, head = Box("cases"), Box("lectern"), Box("header")
     local caseBox = { Box("case1"), Box("case2") }
     local close = CreateFrame("Button", nil, room, "UIPanelCloseButton")
+    -- (ferme toute la bibliotheque, meme posee sur l'en-tete sans fond)
+    close:SetScript("OnClick", function() room:Hide() end)
     close:SetPoint("TOPRIGHT", room, "TOPRIGHT", -2, -2)
 
     -- Deux bibliotheques, cote a cote.
@@ -2034,7 +2056,7 @@ function Refresh()
             stack.n = stack.n + 1
             placed[idx] = { view = #views, slot = cur.slot, x = stack.x, w = stack.w, level = stack.n - 1 }
         else
-            if p.gap and cur.x > 0 then cur.x = cur.x + 6 end
+            if p.gap and cur.x > 0 then cur.x = cur.x + 5 end
             if cur.x + w > slots[cur.slot].w - 2 then
                 cur.slot, cur.x, cur.n = cur.slot + 1, 0, 0
                 if cur.slot > #slots then
@@ -2045,7 +2067,7 @@ function Refresh()
             end
             placed[idx] = { view = #views, slot = cur.slot, x = cur.x, w = w, level = 0 }
             stack = p.flat and { slot = cur.slot, view = #views, x = cur.x, w = w, n = 1, kind = row.kind } or nil
-            cur.x = cur.x + w + 1
+            cur.x = cur.x + w + 2
             cur.n = cur.n + 1
         end
     end
