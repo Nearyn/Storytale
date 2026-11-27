@@ -4473,10 +4473,43 @@ do
         tex:SetSize(math.max(0.5, w * f), h)
         local shade = 0.62 + 0.38 * f
         tex:SetVertexColor(shade, shade * 0.97, shade * 0.93)
-        if k >= 1 then self:Hide() end
+        -- (la feuille posee : la page qu'elle recouvre montre enfin son nouveau texte)
+        if k >= 1 then
+            self:Hide()
+            local hold = DWE.bookTurnHold
+            DWE.bookTurnHold = nil
+            if hold then
+                for _, h in ipairs(hold) do
+                    if h.fs:GetText() == h.old then h.fs:SetText(h.new) end
+                end
+            end
+        end
     end)
     function DWE.BookTurnFX(dir)
         if DialogueWheelE_BookTurnFX == false then return end
+        -- Realisme : la page que la feuille va recouvrir garde son ancien texte jusqu'a ce que la
+        -- feuille s'y pose (en avant : la page de gauche ; en arriere : celle de droite). L'autre
+        -- page, decouverte quand la feuille se souleve, montre tout de suite la suivante.
+        do
+            local last = DWE.bookShownLast
+            local hold
+            if last then
+                local list = dir > 0 and { { textHeader, last.h }, { textBody, last.l } } or { { textBody2, last.r } }
+                hold = {}
+                for _, it in ipairs(list) do
+                    local fs, old = it[1], it[2]
+                    local new = fs:GetText()
+                    if old and new ~= old then
+                        hold[#hold + 1] = { fs = fs, old = old, new = new }
+                        fs:SetText(old)
+                    end
+                end
+            end
+            -- (une page encore retenue par une feuille precedente : on la libere d'abord)
+            local prev = DWE.bookTurnHold
+            if prev then for _, h in ipairs(prev) do if h.fs:GetText() == h.old then h.fs:SetText(h.new) end end end
+            DWE.bookTurnHold = hold
+        end
         if PlaySound then
             local id = SOUNDKIT and (SOUNDKIT.IG_ABILITY_PAGE_TURN or SOUNDKIT.IG_SPELLBOOK_PAGE_TURN) or 836
             pcall(PlaySound, id)
@@ -4587,6 +4620,11 @@ local function LayoutBook()
             DWE.BookTurnFX(order > DWE.bookTurnLast.order and 1 or -1)
         end
         DWE.bookTurnLast = { id = id, order = order }
+        -- (ce qui est maintenant ecrit sur chaque page : la prochaine feuille tournee le garde
+        -- sous elle le temps de se poser)
+        local held = DWE.bookTurnHold
+        local function Now(fs) if held then for _, hh in ipairs(held) do if hh.fs == fs then return hh.new end end end return fs:GetText() end
+        DWE.bookShownLast = { h = Now(textHeader), l = Now(textBody), r = Now(textBody2) }
     end
     if noteScroll then noteScroll:Hide() end
     textBody:Show()

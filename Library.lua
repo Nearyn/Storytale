@@ -2504,8 +2504,12 @@ local rub, rui
 local rstate = { index = 1, search = "" }
 Lib.rubState = rstate
 
+-- (pas les hommages a de vraies personnes disparues : on va les lire sur leur tombe)
 local function RubRows()
-    local rows = Lib.List("plate", rstate.search, "az")
+    local rows = {}
+    for _, r in ipairs(Lib.List("plate", rstate.search, "az")) do
+        if not (DWE.MEMORIALS and DWE.MEMORIALS[r.title or ""]) then rows[#rows + 1] = r end
+    end
     return rows
 end
 Lib.RubRows = RubRows
@@ -2578,8 +2582,14 @@ local function RubRefresh()
     rui.charcoal:SetAlpha(a); rui.text:SetAlpha(a)
     if rui.model then
         local id = Lib.ModelFor(row, "lectern")
-        rui.model.yaw = 0
+        -- (chaque page : le monument de face, quelle que soit la facon dont on l'avait tourne)
+        rui.model.yaw, rui.model.pitch, rui.model.dragX = 0, nil, nil
         local ok = LoadModel(rui.model, id, Lib.RUB_POSE)
+        local a = rui.model.actor
+        if ok and a then
+            if a.SetYaw then pcall(a.SetYaw, a, 0) end
+            if a.SetPitch then pcall(a.SetPitch, a, math.rad(Lib.RUB_POSE.pitch)) end
+        end
         rui.model:SetShown(ok)
         rui.model:SetAlpha(a)
     end
@@ -2610,7 +2620,8 @@ function Lib.RubRibbon()
     if not (rui and rui.ribbon) then return end
     local row = RubRows()[rstate.index]
     local on = row and DialogueWheelE_RubbingMark == row.key
-    rui.ribbon.tex:SetAlpha(on and 1 or 0.35)
+    rui.ribbon.tex:SetAlpha(1)
+    rui.ribbon.Glow(on and 0.35 or 0)
     rui.ribbon:SetShown(row ~= nil)
 end
 -- Contenu des pages (modele 3D, nom, estampage...) : a part, pour le cacher pendant que la page
@@ -2665,10 +2676,15 @@ local function RubBuild()
     local bg = rub:CreateTexture(nil, "BACKGROUND")
     bg:SetTexture(ADDON .. "RubbingBook.png")
     -- (tout ce qui est ecrit ou pose sur les pages : dans un cadre a part, qu'on peut estomper)
+    -- Page de gauche (modele, nom, lieu, apercu) : estompee pendant que la feuille tourne, comme
+    -- dans le livre de Storytale ; la page de droite (l'estampage) apparait tout de suite.
     local content = CreateFrame("Frame", nil, rub)
     content:SetAllPoints()
     content:SetFrameLevel(rub:GetFrameLevel() + 1)
-    rui.content = content
+    local right = CreateFrame("Frame", nil, rub)
+    right:SetAllPoints()
+    right:SetFrameLevel(rub:GetFrameLevel() + 1)
+    rui.content, rui.right = content, right
     rui.fadeList = { content }
     bg:SetTexCoord(0, 1, 0, RB.h / 1024)
     bg:SetAllPoints()
@@ -2684,17 +2700,20 @@ local function RubBuild()
         -- (de face ; on le tourne en le tirant a la souris, il ne tourne pas seul : de dos, une
         -- plaque ne montre rien)
         m:EnableMouse(true)
+        -- (dans tous les sens : gauche-droite le fait pivoter, haut-bas le bascule)
         m:SetScript("OnMouseDown", function(self)
-            self.dragX = GetCursorPosition()
-            self.yaw0 = self.yaw or 0
+            self.dragX, self.dragY = GetCursorPosition()
+            self.yaw0, self.pitch0 = self.yaw or 0, self.pitch or math.rad(Lib.RUB_POSE.pitch)
         end)
         m:SetScript("OnMouseUp", function(self) self.dragX = nil end)
         m:SetScript("OnUpdate", function(self)
             if not self.dragX then return end
-            local x = GetCursorPosition()
+            local x, y = GetCursorPosition()
             self.yaw = self.yaw0 + (x - self.dragX) * 0.012
+            self.pitch = self.pitch0 - (y - self.dragY) * 0.012
             local a = self.actor
             if a and a.SetYaw then pcall(a.SetYaw, a, self.yaw) end
+            if a and a.SetPitch then pcall(a.SetPitch, a, self.pitch) end
         end)
     end
     local name = content:CreateFontString(nil, "OVERLAY")
@@ -2711,7 +2730,7 @@ local function RubBuild()
     rui.meta = meta
     -- Page de droite : l'estampage.
     local R1 = RB.right
-    local ch = content:CreateTexture(nil, "ARTWORK")
+    local ch = right:CreateTexture(nil, "ARTWORK")
     ch:SetTexture(ADDON .. "RubbingCharcoal.png")
     ch:SetPoint("TOPLEFT", rub, "TOPLEFT", (R1[1] + 16) * s, -(R1[2] + 26) * s)
     ch:SetPoint("BOTTOMRIGHT", rub, "TOPLEFT", (R1[3] - 14) * s, -(R1[4] - 30) * s)
@@ -2719,7 +2738,7 @@ local function RubBuild()
     rui.chMaxW, rui.chMaxH = (R1[3] - R1[1] - 30) * s, (R1[4] - R1[2] - 56) * s
     rui.chMinW, rui.chMinH = 150 * s, 120 * s
     rui.chCX, rui.chCY = (R1[1] + R1[3]) / 2 * s, -((R1[2] + R1[4]) / 2 - 2) * s
-    local text = content:CreateFontString(nil, "OVERLAY")
+    local text = right:CreateFontString(nil, "OVERLAY")
     text:SetPoint("CENTER", ch, "CENTER", 0, 0)
     text:SetJustifyH("CENTER")
     text:SetJustifyV("MIDDLE")
@@ -2775,7 +2794,11 @@ local function RubBuild()
     rub:SetScript("OnMouseWheel", function(_, delta) Lib.RubTurn(-delta) end)
     -- Page qui tourne (option "Animation et son des pages", comme le livre de Storytale) : une
     -- feuille part du bord de la page et se replie vers la reliure, puis se deplie de l'autre cote.
-    local flip = rub:CreateTexture(nil, "OVERLAY", nil, 6)
+    -- (la feuille passe au-dessus de tout ce qui est sur les pages)
+    local flipLayer = CreateFrame("Frame", nil, rub)
+    flipLayer:SetAllPoints()
+    flipLayer:SetFrameLevel(rub:GetFrameLevel() + 6)
+    local flip = flipLayer:CreateTexture(nil, "OVERLAY", nil, 6)
     flip:SetTexture(ADDON .. "RubbingBook.png")
     flip:Hide()
     rui.flip = flip
@@ -2816,10 +2839,28 @@ local function RubBuild()
     rib:SetSize(55 * s, 96 * s)
     rib:SetPoint("TOPLEFT", rub, "TOPLEFT", ((RB.left[3] + RB.right[1]) / 2 - 27) * s, -(RB.left[2] + 20) * s)
     rib:SetFrameLevel(rub:GetFrameLevel() + 8)
+    -- Lueur doree comme celle du livre : douce quand la page est marquee, plus forte au survol.
+    local glow = rib:CreateTexture(nil, "BACKGROUND")
+    glow:SetTexture(ADDON .. "RibbonGlow.png")
+    glow:SetBlendMode("ADD")
+    glow:SetPoint("CENTER")
+    glow:SetSize(55 * s * 1.9, 96 * s * 1.5)
+    glow:SetAlpha(0)
+    rib.glow = glow
     local rt = rib:CreateTexture(nil, "ARTWORK")
     rt:SetAllPoints()
     rt:SetTexture(ADDON .. "RibbonGreen.png")
     rib.tex = rt
+    function rib.Glow(target)
+        rib.glowTarget = target
+        rib:SetScript("OnUpdate", function(self, el)
+            local a = self.glow:GetAlpha() or 0
+            local t = self.glowTarget or 0
+            a = a + (t - a) * math.min(1, (el or 0) * 10)
+            if math.abs(t - a) < 0.02 then a = t; self:SetScript("OnUpdate", nil) end
+            self.glow:SetAlpha(a)
+        end)
+    end
     rib:SetScript("OnClick", function()
         local row = RubRows()[rstate.index]
         if not row then return end
@@ -2830,7 +2871,7 @@ local function RubBuild()
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(L.MENU_MARK or "Bookmark this page", 1, 0.82, 0)
         GameTooltip:Show()
-        self.tex:SetAlpha(1)
+        self.Glow(0.55)
     end)
     rib:SetScript("OnLeave", function() GameTooltip:Hide(); Lib.RubRibbon() end)
     rui.ribbon = rib
