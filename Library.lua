@@ -1555,17 +1555,21 @@ function Lib.ApplyLayout()
     -- rangees = plus petites), la seconde collee a droite de la premiere.
     local areas0 = Areas()
     local dyn = {}
-    if Lib.Style() == "room" and def.case1 and def.header then
-        local ha, hd = areas0.header, def.header
-        local hs = hd.s or 1
-        local hcy = ha[2] + ha[4] / 2
-        local headerBottom = (hd.y or 0) + hcy * (1 - hs) + ha[2] * hs
-        local bottom = def.case1.y or 0
-        local avail = headerBottom - 8 - bottom
+    if Lib.Style() == "room" and def.case1 and def.header and def.lectern then
+        -- Groupe serre, quel que soit le nombre de rangees : bibliotheques posees au niveau du
+        -- pied du pupitre, aussi hautes que 1,45 fois le pupitre au plus (pleines : plus
+        -- petites) ; l'en-tete juste au-dessus du plus haut des deux.
+        local la, ld = areas0.lectern, def.lectern
+        local ls = ld.s or 1
+        local lcx, lcy = la[1] + la[3] / 2, la[2] + la[4] / 2
+        local lecBottom = (ld.y or 0) + lcy * (1 - ls) + la[2] * ls
+        local lecTop = lecBottom + la[4] * ls
+        local maxH = (lecTop - lecBottom) * 1.45
+        local top = lecTop
         local function Fit(c)
             local a = areas0["case" .. c]
             if not a then return nil end
-            return math.min(def.case1.s or 1, avail / a[4]), a
+            return math.min(def.case1.s or 1, maxH / a[4]), a
         end
         local s1, a1 = Fit(1)
         if s1 then
@@ -1573,18 +1577,20 @@ function Lib.ApplyLayout()
             local sd = def.case1.s or 1
             local left = def.case1.x + cx1 * (1 - sd) + a1[1] * sd
             local function XFor(sc) return left - cx1 * (1 - sc) - a1[1] * sc end
-            dyn.case1 = { x = XFor(s1), y = bottom, s = s1 }
-            local right1 = left + a1[3] * s1
             local s2, a2 = Fit(2)
+            local sc = s2 and math.min(s1, s2) or s1
+            -- (pied de la bibliotheque = pied du pupitre ; elle grandit depuis son pied)
+            dyn.case1 = { x = XFor(sc), y = lecBottom - a1[2] * sc, s = sc }
+            top = math.max(top, lecBottom + a1[4] * sc)
             if s2 then
-                local s = math.min(s1, s2)
-                dyn.case1.s, dyn.case1.x = s, XFor(s)
-                right1 = left + a1[3] * s
                 local cx2 = a2[1] + a2[3] / 2
-                -- (gauche de la seconde = droite de la premiere + 6)
-                dyn.case2 = { x = right1 + 6 - cx2 * (1 - s) - a2[1] * s, y = bottom, s = s }
+                dyn.case2 = { x = left + a1[3] * sc + 6 - cx2 * (1 - sc) - a2[1] * sc, y = lecBottom - a2[2] * sc, s = sc }
             end
         end
+        local ha, hd = areas0.header, def.header
+        local hs = hd.s or 1
+        local hcy = ha[2] + ha[4] / 2
+        dyn.header = { x = hd.x, s = hs, y = (top + 6) - hcy * (1 - hs) - ha[2] * hs }
     end
     local function Of(id)
         if free and type(lay[id]) == "table" and (lay[id].x or lay[id].y or lay[id].s) then return lay[id] end
