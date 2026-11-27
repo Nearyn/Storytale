@@ -830,7 +830,8 @@ end
 -- Le meme parchemin garde toujours le meme (choisi par son titre).
 -- Parchemin couche vu par le bout (paire de rouleaux d'Uldaman) : largeur et hauteur visibles,
 -- en part de la hauteur du rayon (mesurees en jeu a cette distance).
-Lib.SCROLL_PILE = { dist = 0.75, w = 0.41, dia = 0.205 }
+Lib.BOOK_THICK = 0.2 -- (epaisseur d'un livre debout, en part de sa hauteur)
+Lib.SCROLL_PILE = { dist = 1.25, w = 0.246, dia = 0.123 } -- (plus petits : les pyramides etaient enormes)
 Lib.SHELF_BOOK_OK = { [200900] = true, [200901] = true, [200902] = true, [200903] = true, [200904] = true, [200905] = true }
 Lib.SCROLL_SHELF = { 203430 } -- (le feuillet plie, 203429, rendait mal sur les rayons)
 Lib.SCROLL_OPEN = { 198451, 198452, 198454, 198455, 201113 }
@@ -1017,7 +1018,7 @@ function Lib.ShelfPose(row, i)
         p.yaw, p.pitch, p.roll, p.vfrac, p.flat = fp.yaw, fp.pitch, fp.roll, fp.vfrac, true
     end
     -- Petit espace de temps en temps entre deux groupes de livres.
-    p.gap = (h % 5 == 0) and true or nil
+    p.gap = nil -- (plus d'espaces : les livres se touchent)
     return p
 end
 -- Chargement etale : quelques modeles par image (ouvrir la bibliotheque ou tourner une page
@@ -2095,7 +2096,12 @@ function Refresh()
         local p = Lib.ShelfPose(row)
         if p.scroll then return math.floor(Lib.SCROLL_PILE.w * sl.h) end
         if p.flat then return math.floor((p.fill or Lib.BBOX_FILL) * sl.h / (1.1 * p.dist) * (p.across or (row.kind == "book" and Lib.SHELF_POSES.flat.across) or 1)) end
-        return math.floor(sl.w / Lib.PER_ROW_3D * (p.lean and 1.45 or 1)) - 1
+        -- Debout : l'epaisseur reelle du livre (les livres se touchent) ; penche, en plus, ce que
+        -- son haut avance sur le voisin.
+        local hm = Lib.BBOX_FILL * sl.h / (1.1 * p.dist)
+        local w = hm * Lib.BOOK_THICK
+        if p.lean then w = w + hm * math.sin(math.rad(p.lean)) end
+        return math.max(4, math.floor(w + 0.5))
     end
     -- Livres couches par deux au moins : un livre couche seul prend le suivant sur lui, ou se
     -- releve s'il n'y en a pas.
@@ -2149,7 +2155,7 @@ function Refresh()
             end
             placed[idx] = { view = #views, slot = cur.slot, x = cur.x, w = w, level = 0 }
             stack = p.flat and { slot = cur.slot, view = #views, x = cur.x, w = w, n = 1, kind = row.kind, scroll = p.scroll } or nil
-            cur.x = cur.x + (p.scroll and 2 * w or w) + 2
+            cur.x = cur.x + (p.scroll and 2 * w or w) + 1
             cur.n = cur.n + 1
         end
     end
