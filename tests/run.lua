@@ -2423,17 +2423,23 @@ do
     check(ui.handles and ui.handles.case1 and ui.handles.case2 and ui.handles.lectern and ui.handles.header and ui.handles.lectern.dweGrip ~= nil, "library: each block can be moved and resized")
     DialogueWheelE_LibraryLayout = { room = { lectern = { x = 30, y = 0, s = 1.5 } } }
     Lib.ApplyLayout()
-    check(ui.boxes.lectern:GetScale() == 1, "library: with a background, blocks stay in the window")
+    check(math.abs(ui.boxes.lectern:GetScale() - Lib.DEFAULT_LAYOUT.room.lectern.s) < 1e-6, "library: with a background, blocks keep the default layout")
     DialogueWheelE_LibraryBg = 0
     Lib.ApplyBg()
-    check(ui.boxes.lectern:GetScale() == 1.5 and ui.boxes.case1:GetScale() == 1 and ui.handles.case1:IsShown(), "library: without background, a block keeps its own size")
+    check(ui.boxes.lectern:GetScale() == 1.5 and math.abs(ui.boxes.case1:GetScale() - Lib.DEFAULT_LAYOUT.room.case1.s) < 1e-6 and ui.handles.case1:IsShown(), "library: without background, a block keeps its own size")
     check(ui.cases[2].n == 0 and not ui.handles.case2:IsShown() and ui.cases[1].n < 8, "library: an empty bookcase goes away, the other is cut to its rows")
     check(ui.close:GetParent() == ui.boxes.header, "library: without background, the close button sits on the header")
     DialogueWheelE_LibraryBg = nil
     Lib.ApplyBg()
     Lib.ResetLayout()
-    check(ui.boxes.lectern:GetScale() == 1, "library: layout can be reset")
+    check(math.abs(ui.boxes.lectern:GetScale() - Lib.DEFAULT_LAYOUT.room.lectern.s) < 1e-6, "library: layout can be reset")
     DialogueWheelE_LibraryLayout = nil
+    do
+        local dx, dy = Lib.Escape({ 300, 300, 400, 400 }, { { 350, 250, 600, 450 } })
+        check(dx < 0 and dy == 0 and 400 + dx < 350 - 10, "library: a block steps aside from an open book, shortest way")
+        dx, dy = Lib.Escape({ 300, 300, 400, 400 }, { { 500, 500, 600, 600 } })
+        check(dx == 0 and dy == 0, "library: nothing in the way, it stays")
+    end
     -- Fond reglable : de plein a rien
     DialogueWheelE_LibraryBg = 0
     Lib.ApplyBg()

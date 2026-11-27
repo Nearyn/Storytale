@@ -99,6 +99,8 @@ local function Entry(title)
             e = { t = title, p = {}, d = now }
             s[key] = e
         end
+        -- (repris d'avant la bibliotheque, sans date : relu en jeu, il prend celle-ci)
+        if (e.d or 0) == 0 then e.d = now end
         e.t = title
     end
     return key
@@ -936,7 +938,7 @@ Lib.LECTERN_BOOK_POSE = { dist = 0.62, yaw = 0, pitch = 30, roll = 0 }
 Lib.BBOX_FILL = 0.68
 Lib.SHELF_POSES = {
     book = { dist = 0.66, yaw = 90, pitch = 90, roll = 0, vfrac = 1 },
-    letter = { dist = 0.9, yaw = 90, pitch = 90, roll = 0, vfrac = 1 },
+    letter = { dist = 1.15, yaw = 90, pitch = 0, roll = 0, vfrac = 0.3 },
     flat = { yaw = 90, pitch = 0, roll = 0, vfrac = 0.22 },
     plate = { dist = 1.0, yaw = 90, pitch = 0, roll = 0, vfrac = 1 },
 }
@@ -967,8 +969,11 @@ function Lib.ShelfPose(row, i)
     -- Penche (vu de face, la camera tourne) : appuye sur son voisin de gauche.
     local every = row.kind == "letter" and 3 or 5
     if h % every == 0 then p.lean = 12 + (h % 9) end
-    -- Quelques livres couches, empiles par deux ou trois, tranche vers nous.
-    if row.kind == "book" and not p.lean and h % 6 == 1 then
+    -- Parchemins : couches, empiles. Quelques livres couches aussi, par deux ou trois.
+    if row.kind == "letter" then
+        p.lean = nil
+        p.yaw, p.pitch, p.roll, p.vfrac, p.flat = 90, 0, 0, 0.3, true
+    elseif row.kind == "book" and not p.lean and h % 6 == 1 then
         local fp = Lib.SHELF_POSES.flat
         p.yaw, p.pitch, p.roll, p.vfrac, p.flat = fp.yaw, fp.pitch, fp.roll, fp.vfrac, true
     end
@@ -978,13 +983,17 @@ function Lib.ShelfPose(row, i)
 end
 -- Chargement etale : quelques modeles par image (ouvrir la bibliotheque ou tourner une page
 -- pleine ne fige pas le jeu). Le livre apparait des que son modele est charge.
-Lib.LOADS_PER_FRAME = 8
+Lib.LOADS_PER_FRAME = 4
 local loadQueue, loader = {}, nil
 local function RunQueue()
     local n = 0
     while loadQueue[1] and n < Lib.LOADS_PER_FRAME do
         local job = table.remove(loadQueue, 1)
         local b = job.b
+        if b.job == job and b:IsShown() and not b.model then
+            b.model = NewScene(b)
+            if Lib.PlaceModel then Lib.PlaceModel(b) end
+        end
         if b.job == job and b:IsShown() then
             local ok = LoadModel(b.model, job.id, job.pose)
             if b.model then b.model:SetShown(ok); b.model.fileID = ok and job.id or nil end
@@ -996,20 +1005,27 @@ local function RunQueue()
     if not loadQueue[1] and loader then loader:SetScript("OnUpdate", nil) end
 end
 Lib.RunQueue = RunQueue
+function Lib.PlaceModel(b)
+    if not (b.model and b.mF) then return end
+    b.model:ClearAllPoints()
+    b.model:SetSize(b.mF, b.mF)
+    b.model:SetPoint("BOTTOM", b, "BOTTOM", 0, b.mY)
+end
 function Lib.ShowShelfModel(b, row)
     local m = b.model
     local id = Lib.ModelFor(row, "shelf")
     local pose = Lib.ShelfPose(row)
     b.pose = pose
-    if not (m and m.actor) then b.tex:Show(); b.shade:Show(); return false end
+    if m and not m.actor then b.tex:Show(); b.shade:Show(); return false end
     local key = id .. ":" .. (pose.dist or 1) .. ":" .. (pose.yaw or 0) .. ":" .. (pose.pitch or 0) .. ":" .. (pose.roll or 0) .. ":" .. (pose.lean or 0)
-    if m.loadedKey == key and m.loaded then
+    if m and m.loadedKey == key and m.loaded then
         b.job = nil
         m:Show(); b.tex:Hide(); b.shade:Hide()
         return true
     end
     -- (en attente : ni dos peint ni ancien modele)
-    m:Hide(); b.tex:Hide(); b.shade:Hide()
+    if m then m:Hide() end
+    b.tex:Hide(); b.shade:Hide()
     local job = { b = b, id = id, pose = pose }
     b.job = job
     loadQueue[#loadQueue + 1] = job
@@ -1032,19 +1048,26 @@ local function Build()
     room:SetToplevel(true)
     room:SetMovable(true)
     room:SetClampedToScreen(true)
-    room:EnableMouse(true)
-    room:RegisterForDrag("LeftButton")
-    room:SetScript("OnDragStart", function(self) if not DialogueWheelE_Locked then self:StartMoving() end end)
-    room:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
-    room:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    -- (la fenetre elle-meme est invisible et laisse passer la souris : le fond est un cadre a
+    -- part, ajuste autour des elements, qu'on tire pour tout deplacer)
+    room:EnableMouse(false)
+    local bgf = CreateFrame("Frame", nil, room, "BackdropTemplate")
+    bgf:SetFrameLevel(room:GetFrameLevel())
+    bgf:EnableMouse(true)
+    bgf:RegisterForDrag("LeftButton")
+    bgf:SetScript("OnDragStart", function() if not DialogueWheelE_Locked then room:StartMoving() end end)
+    bgf:SetScript("OnDragStop", function() if Lib.RoomMoved then Lib.RoomMoved() end end)
+    bgf:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
         edgeSize = 16, insets = { left = 4, right = 4, top = 4, bottom = 4 } })
+    Lib.bgFrame = bgf
     function Lib.ApplyBg()
         if not room then return end
         local a = math.max(0, math.min(1, tonumber(DialogueWheelE_LibraryBg) or 1))
         if Lib.Style() == "simple" then a = 0 end -- (etagere seule : jamais de fond)
         Lib.bgAlpha = a
-        room:SetBackdropColor(0.07, 0.045, 0.03, 0.97 * a)
-        room:SetBackdropBorderColor(0.55, 0.38, 0.2, a)
+        bgf:SetBackdropColor(0.07, 0.045, 0.03, 0.97 * a)
+        bgf:SetBackdropBorderColor(0.55, 0.38, 0.2, a)
+        bgf:SetShown(a > 0)
         if ui and ui.boxes and Lib.ApplyLayout then Lib.ApplyLayout() end
     end
     Lib.ApplyBg()
@@ -1133,11 +1156,8 @@ local function Build()
         shade:SetVertexColor(0, 0, 0, 0.35)
         b.shade = shade
         -- (le vrai modele 3D du livre, debout sur l'etagere ; le dos peint reste si le modele manque)
-        local m = NewScene(b)
-        if m then
-            m:SetPoint("BOTTOM")
-            b.model = m
-        end
+        -- (sa scene 3D est creee plus tard, au moment de charger son modele : ouvrir la
+        -- bibliotheque ne cree pas cent scenes d'un coup)
         b:SetScript("OnEnter", function(self)
             local r = self.row
             if not r then return end
@@ -1172,8 +1192,8 @@ local function Build()
         ui.spines[i] = b
         return b
     end
-    room:EnableMouseWheel(true)
-    room:SetScript("OnMouseWheel", function(_, delta)
+    bgf:EnableMouseWheel(true)
+    bgf:SetScript("OnMouseWheel", function(_, delta)
         state.shelf = state.shelf - delta
         Refresh()
     end)
@@ -1229,6 +1249,14 @@ local function Build()
     ui.up, ui.down, ui.shelfNum = up, down, shelfNum
     ui.close = close
     MakeHandles()
+    -- (evitement verifie quelques fois par seconde tant que la bibliotheque est ouverte)
+    local tick = 0
+    room:HookScript("OnUpdate", function(_, el)
+        tick = tick + (el or 0)
+        if tick < 0.25 then return end
+        tick = 0
+        pcall(Lib.Avoid)
+    end)
 
     -- Le pupitre, et le livre presente dessus.
     local lec = lect:CreateTexture(nil, "ARTWORK")
@@ -1445,12 +1473,16 @@ function Lib.ApplyLayout()
     if not room then return end
     local all, lay = Layout()
     local free = Lib.Free()
-    if not free then lay = {} end
-    -- (sans fond, le vide entre les elements laisse passer la souris vers le jeu)
-    room:EnableMouse(not free)
-    room:EnableMouseWheel(not free)
-    room.dweNoGrip = free or nil
-    if DWE.SetGripCorner and room.dweGrip then DWE.SetGripCorner(room, "CENTER") end
+    -- Disposition par defaut (celle choisie par Nearyn) ; avec fond, toujours elle ; sans fond,
+    -- chaque element garde la place ou le joueur l'a mis.
+    local def = Lib.DEFAULT_LAYOUT[Lib.Style()] or {}
+    local function Of(id)
+        if free and type(lay[id]) == "table" and (lay[id].x or lay[id].y or lay[id].s) then return lay[id] end
+        return def[id] or {}
+    end
+    local bgf = Lib.bgFrame
+    bgf.dweNoGrip = free or nil
+    if DWE.SetGripCorner and bgf.dweGrip then DWE.SetGripCorner(bgf, "CENTER") end
     -- La croix : coin de la fenetre, ou sans fond, sur l'en-tete "Bibliotheque".
     if ui.close then
         ui.close:ClearAllPoints()
@@ -1459,28 +1491,31 @@ function Lib.ApplyLayout()
             ui.close:SetPoint("BOTTOMRIGHT", ui.search, "TOPRIGHT", 2, 8)
         else
             ui.close:SetParent(room)
-            ui.close:SetPoint("TOPRIGHT", room, "TOPRIGHT", -2, -2)
+            ui.close:SetPoint("TOPRIGHT", bgf, "TOPRIGHT", -2, -2)
         end
         ui.close:SetFrameLevel(room:GetFrameLevel() + 8)
     end
     local s0 = tonumber(all.scale) or 1
     room:SetScale(math.max(0.5, math.min(2, s0)))
-    if type(all.pos) == "table" and all.pos[1] then
-        room:ClearAllPoints()
-        room:SetPoint(all.pos[1], UIParent, all.pos[1], all.pos[2] or 0, all.pos[3] or 0)
-    end
+    local av = Lib.avoid
+    local ra = (not free) and av.room or nil
     local areas = Areas()
+    local x1, y1, x2, y2
     for id, box in pairs(ui.boxes) do
         local a = areas[id]
-        local L2 = type(lay[id]) == "table" and lay[id] or {}
+        local L2 = Of(id)
         local sc = math.max(0.4, math.min(2.5, tonumber(L2.s) or 1))
         local dx, dy = tonumber(L2.x) or 0, tonumber(L2.y) or 0
+        local ba = free and av[id]
+        if ba then dx, dy = dx + ba[1], dy + ba[2] end
         box:SetSize(room:GetWidth(), room:GetHeight())
         box:SetScale(sc)
         box:SetShown(a ~= nil)
         if a then
-            -- (grandit autour de son centre)
+            -- (grandit autour de son centre ; les bibliotheques, autour de leur pied : couper ou
+            -- ajouter des rangees ne les deplace pas)
             local cx, cy = a[1] + a[3] / 2, a[2] + a[4] / 2
+            if id == "case1" or id == "case2" or id == "cases" then cy = a[2] end
             local ox, oy = dx + cx * (1 - sc), dy + cy * (1 - sc)
             box:ClearAllPoints()
             box:SetPoint("BOTTOMLEFT", room, "BOTTOMLEFT", ox / sc, oy / sc)
@@ -1490,12 +1525,43 @@ function Lib.ApplyLayout()
                 hd:SetPoint("BOTTOMLEFT", room, "BOTTOMLEFT", ox + a[1] * sc, oy + a[2] * sc)
                 hd:SetSize(a[3] * sc, a[4] * sc)
                 hd:SetShown(free)
+            end
+            do
+                local l, b = ox + a[1] * sc, oy + a[2] * sc
+                local r, t = l + a[3] * sc, b + a[4] * sc
+                x1, y1 = math.min(x1 or l, l), math.min(y1 or b, b)
+                x2, y2 = math.max(x2 or r, r), math.max(y2 or t, t)
                 if DWE.SetGripCorner then DWE.SetGripCorner(hd, "CENTER") end
             end
         end
     end
     for id, hd in pairs(ui.handles or {}) do if not areas[id] then hd:Hide() end end
+    -- Le fond entoure les elements ; la fenetre est centree sur eux tant qu'on ne l'a pas bougee.
+    local pad = 14
+    if x1 then
+        bgf:ClearAllPoints()
+        bgf:SetPoint("BOTTOMLEFT", room, "BOTTOMLEFT", x1 - pad, y1 - pad)
+        bgf:SetSize(x2 - x1 + 2 * pad, y2 - y1 + 2 * pad)
+    end
+    local pos = (type(all.pos) == "table" and all.pos[1]) and all.pos
+    if not pos then
+        local cx = x1 and ((x1 + x2) / 2 - room:GetWidth() / 2) or 0
+        local cy = y1 and ((y1 + y2) / 2 - room:GetHeight() / 2) or 0
+        pos = { "CENTER", -cx, -cy }
+    end
+    room:ClearAllPoints()
+    room:SetPoint(pos[1], UIParent, pos[1], (pos[2] or 0) + (ra and ra[1] or 0), (pos[3] or 0) + (ra and ra[2] or 0))
 end
+-- Disposition par defaut de la piece entiere : l'en-tete en haut, le pupitre a gauche, la
+-- bibliotheque a droite (la seconde a cote quand elle se remplit).
+Lib.DEFAULT_LAYOUT = {
+    room = {
+        header = { x = 3, y = -48, s = 0.923 },
+        lectern = { x = -158, y = 18, s = 0.741 },
+        case1 = { x = 724, y = 64, s = 1.2516 },
+        case2 = { x = 805, y = 64, s = 1.2516 },
+    },
+}
 -- Poignees de deplacement des blocs, et redimensionnement des blocs et de la fenetre.
 function MakeHandles()
     ui.handles = {}
@@ -1513,6 +1579,12 @@ function MakeHandles()
             if DWE.IsLocked and DWE.IsLocked() then return end
             local _, lay = Layout()
             lay[id] = type(lay[id]) == "table" and lay[id] or {}
+            -- (l'ecart d'evitement devient la position choisie)
+            local a = Lib.avoid[id]
+            if a then
+                lay[id].x, lay[id].y = (tonumber(lay[id].x) or 0) + a[1], (tonumber(lay[id].y) or 0) + a[2]
+                Lib.avoid[id] = nil
+            end
             local cx, cy = Cursor()
             self.drag = { x = cx, y = cy, dx = tonumber(lay[id].x) or 0, dy = tonumber(lay[id].y) or 0 }
             self:SetScript("OnUpdate", function(me)
@@ -1526,6 +1598,9 @@ function MakeHandles()
         hd:SetScript("OnDragStop", function(self)
             self.drag = nil
             self:SetScript("OnUpdate", nil)
+            -- Pose a la main par-dessus un livre ou le narrateur : il y reste (plus d'evitement).
+            local _, lay = Layout()
+            if lay[id] then lay[id].pinned = Lib.Overlaps(self) or nil end
         end)
         -- (la molette tourne les etageres, comme sur le fond)
         hd:EnableMouseWheel(true)
@@ -1551,19 +1626,23 @@ function MakeHandles()
         end
     end
     -- La fenetre entiere : tirer le fond la deplace, sa poignee l'agrandit.
-    room:SetScript("OnDragStop", function(self)
+    function Lib.RoomMoved()
+        local self = room
         self:StopMovingOrSizing()
         local all = Layout()
+        Lib.avoid.room = nil
+        all.roomPinned = Lib.Overlaps(Lib.bgFrame) or nil
         local x, y = self:GetCenter()
         local ux, uy = UIParent:GetCenter()
         if x and ux then
             local sc = self:GetScale()
             all.pos = { "CENTER", math.floor(x * sc - ux + 0.5) / sc, math.floor(y * sc - uy + 0.5) / sc }
         end
-    end)
+    end
     if DWE.MakeResizeGrip then
-        room.dweGripX, room.dweGripY = 14, 14
-        DWE.MakeResizeGrip(room, {
+        local bgf = Lib.bgFrame
+        bgf.dweGripX, bgf.dweGripY = 14, 14
+        DWE.MakeResizeGrip(bgf, {
             get = function() return room:GetWidth() * room:GetScale(), 0 end,
             set = function(w)
                 local all = Layout()
@@ -1573,6 +1652,96 @@ function MakeHandles()
         })
     end
 end
+-- Evitement : un livre de Storytale, la roue ou le narrateur de Spoken s'ouvre la ou se trouve
+-- un element de la bibliotheque : l'element s'ecarte (le plus court chemin qui reste a l'ecran),
+-- puis revient a sa place quand l'autre se ferme. Un element pose a la main par-dessus reste.
+Lib.avoid = {}
+local MARGIN = 10
+local function Rect(f)
+    if not (f and f.IsShown and f:IsShown()) then return nil end
+    local ok, l, b, w, h = pcall(f.GetRect, f)
+    if not (ok and l and w and w > 0 and h > 0) then return nil end
+    local sc = f:GetEffectiveScale() or 1
+    return { l * sc, b * sc, (l + w) * sc, (b + h) * sc }
+end
+local function Obstacles()
+    local list = {}
+    for _, f in ipairs({ DWE.textBox, DWE.choiceBox, rawget(_G, "StorytaleNarratorFrame") }) do
+        local r = Rect(f)
+        if r then list[#list + 1] = r end
+    end
+    return list
+end
+local function Hit(a, b)
+    return a[1] < b[3] + MARGIN and a[3] > b[1] - MARGIN and a[2] < b[4] + MARGIN and a[4] > b[2] - MARGIN
+end
+function Lib.Overlaps(f)
+    local r = Rect(f)
+    if not r then return false end
+    for _, o in ipairs(Obstacles()) do if Hit(r, o) then return true end end
+    return false
+end
+-- Plus petit deplacement (en pixels d'ecran) qui sort `r` de tous les obstacles.
+local function Escape(r, obs)
+    local any = false
+    for _, o in ipairs(obs) do if Hit(r, o) then any = true end end
+    if not any then return 0, 0 end
+    local sw = (GetScreenWidth and GetScreenWidth() or 1920) * (UIParent:GetEffectiveScale() or 1)
+    local sh = (GetScreenHeight and GetScreenHeight() or 1080) * (UIParent:GetEffectiveScale() or 1)
+    local cands = {}
+    for _, o in ipairs(obs) do
+        cands[#cands + 1] = { o[1] - MARGIN - r[3] - 1, 0 }
+        cands[#cands + 1] = { o[3] + MARGIN - r[1] + 1, 0 }
+        cands[#cands + 1] = { 0, o[4] + MARGIN - r[2] + 1 }
+        cands[#cands + 1] = { 0, o[2] - MARGIN - r[4] - 1 }
+    end
+    table.sort(cands, function(a, b) return math.abs(a[1]) + math.abs(a[2]) < math.abs(b[1]) + math.abs(b[2]) end)
+    for _, c in ipairs(cands) do
+        local m = { r[1] + c[1], r[2] + c[2], r[3] + c[1], r[4] + c[2] }
+        if m[1] >= 0 and m[2] >= 0 and m[3] <= sw and m[4] <= sh then
+            local clear = true
+            for _, o in ipairs(obs) do if Hit(m, o) then clear = false break end end
+            if clear then return c[1], c[2] end
+        end
+    end
+    return 0, 0 -- (nulle part ou aller : il reste)
+end
+Lib.Escape = Escape
+function Lib.Avoid()
+    if not (room and room:IsShown()) then return end
+    local obs = Obstacles()
+    local es = room:GetEffectiveScale() or 1
+    local changed = false
+    local function Set(id, dx, dy)
+        local old = Lib.avoid[id]
+        local new = (dx ~= 0 or dy ~= 0) and { dx, dy } or nil
+        if (old and new and (math.abs(old[1] - dx) > 1 or math.abs(old[2] - dy) > 1)) or (old == nil) ~= (new == nil) then
+            Lib.avoid[id] = new
+            changed = true
+        end
+    end
+    local function Check(id, f, pinned)
+        local r = Rect(f)
+        if not r or pinned or #obs == 0 then Set(id, 0, 0) return end
+        -- (depuis sa vraie place, sans l'ecart actuel)
+        local a = Lib.avoid[id]
+        if a then r = { r[1] - a[1] * es, r[2] - a[2] * es, r[3] - a[1] * es, r[4] - a[2] * es } end
+        local dx, dy = Escape(r, obs)
+        Set(id, dx / es, dy / es)
+    end
+    if Lib.Free() then
+        local _, lay = Layout()
+        for id, hd in pairs(ui.handles or {}) do
+            if hd:IsShown() then Check(id, hd, lay[id] and lay[id].pinned) else Lib.avoid[id] = nil end
+        end
+        Lib.avoid.room = nil
+    else
+        local all = Layout()
+        Check("room", Lib.bgFrame, all.roomPinned)
+    end
+    if changed then Lib.ApplyLayout() end
+end
+
 -- Revenir a la disposition d'origine (style en cours).
 function Lib.ResetLayout()
     local all, _ = Layout()
@@ -1704,7 +1873,7 @@ function Refresh()
     for idx, row in ipairs(rows) do
         local p = use3d and Lib.ShelfPose(row) or {}
         local w = Width(row, slots[cur.slot])
-        if p.flat and stack and stack.slot == cur.slot and stack.view == #views and stack.n < 3 then
+        if p.flat and stack and stack.kind == row.kind and stack.slot == cur.slot and stack.view == #views and stack.n < 3 then
             -- (sur la pile d'a cote)
             stack.n = stack.n + 1
             placed[idx] = { view = #views, slot = cur.slot, x = stack.x, w = stack.w, level = stack.n - 1 }
@@ -1719,7 +1888,7 @@ function Refresh()
                 w = Width(row, slots[cur.slot])
             end
             placed[idx] = { view = #views, slot = cur.slot, x = cur.x, w = w, level = 0 }
-            stack = p.flat and { slot = cur.slot, view = #views, x = cur.x, w = w, n = 1 } or nil
+            stack = p.flat and { slot = cur.slot, view = #views, x = cur.x, w = w, n = 1, kind = row.kind } or nil
             cur.x = cur.x + w + 1
             cur.n = cur.n + 1
         end
@@ -1771,14 +1940,13 @@ function Refresh()
             b:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", b.x, b.y)
             b.tex:SetVertexColor(color[1], color[2], color[3], 1)
             local is3d = use3d and Lib.ShowShelfModel(b, row)
-            if b.model and b.pose then
+            if b.pose then
                 -- Pose sur le plancher du rayon : le modele, centre dans son cadre, en occupe
                 -- 1 / (1,1 x dist) en hauteur (fois vfrac, couche) ; on descend le cadre d'autant.
                 local F = sl.h
                 local hm = Lib.BBOX_FILL * F / (1.1 * b.pose.dist) * (b.pose.vfrac or 1)
-                b.model:ClearAllPoints()
-                b.model:SetSize(F, F)
-                b.model:SetPoint("BOTTOM", b, "BOTTOM", 0, -(F - hm) / 2 - 2 + (pl.level or 0) * hm)
+                b.mF, b.mY = F, -(F - hm) / 2 - 2 + (pl.level or 0) * hm
+                Lib.PlaceModel(b)
             end
             if not use3d and b.model then b.model:Hide(); b.tex:Show(); b.shade:Show() end
             b.band:SetShown(row.kind == "book" and not is3d)
