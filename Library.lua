@@ -1311,7 +1311,7 @@ local function Build()
     local x = right
     ui.filters = {}
     for _, f in ipairs({ { "all", L.LIB_ALL or "All" }, { "book", L.LIB_BOOKS or "Books" },
-        { "letter", L.LIB_LETTERS or "Letters" } }) do
+        { "letter", L.LIB_LETTERS or "Scrolls" } }) do
         local b = TextButton(head, f[2], function() state.filter = f[1]; state.shelf = 1; Refresh() end)
         b:SetPoint("TOPLEFT", head, "TOPLEFT", x, -84)
         b.id = f[1]
