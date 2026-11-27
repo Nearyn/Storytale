@@ -1009,23 +1009,140 @@ function Lib.ShelfPose(row, i)
     p.gap = (h % 5 == 0) and true or nil
     return p
 end
--- Chargement etale : quelques modeles par image (ouvrir la bibliotheque ou tourner une page
--- pleine ne fige pas le jeu). Le livre apparait des que son modele est charge.
-Lib.LOADS_PER_FRAME = 2
+-- Une scene 3D par rayon (et non par livre) : tous les livres d'un rayon y sont des acteurs.
+-- Cent scenes coutaient cher a chaque image ; une quinzaine, beaucoup moins. Camera lointaine a
+-- champ etroit (presque sans perspective) : un pixel du rayon = `u` unites du monde, l'acteur
+-- se place sous son bouton. Au survol, le livre passe dans sa propre petite scene, eclairee.
+local ROW_FOV = math.rad(10)
+local function RowScene(slot, sl, box)
+    ui.rowScenes = ui.rowScenes or {}
+    local rs = ui.rowScenes[slot]
+    if not rs then
+        local ok, sc = pcall(CreateFrame, "ModelScene", nil, box)
+        if not (ok and sc and sc.CreateActor) then return nil end
+        sc:EnableMouse(false)
+        rs = sc
+        rs.actors = {}
+        ui.rowScenes[slot] = rs
+    end
+    if rs:GetParent() ~= box then rs:SetParent(box) end
+    rs:SetFrameLevel(room:GetFrameLevel() + 5)
+    local M = 14
+    local Hs = sl.h * 1.45
+    local left, bottom = sl.x - M, (sl.y or 0) - 8
+    if rs.left ~= left or rs.bottom ~= bottom or rs.W ~= sl.w + 2 * M or rs.H ~= Hs then
+        rs.left, rs.bottom, rs.W, rs.H = left, bottom, sl.w + 2 * M, Hs
+        rs:ClearAllPoints()
+        rs:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", left, bottom)
+        rs:SetSize(rs.W, rs.H)
+        rs.u = 0.01
+        local d = (rs.H * rs.u / 2) / math.tan(ROW_FOV / 2)
+        if rs.SetCameraFieldOfView then pcall(rs.SetCameraFieldOfView, rs, ROW_FOV) end
+        if rs.SetCameraNearClip then pcall(rs.SetCameraNearClip, rs, 0.01) end
+        if rs.SetCameraFarClip then pcall(rs.SetCameraFarClip, rs, d * 4) end
+        if rs.SetCameraPosition then pcall(rs.SetCameraPosition, rs, d, 0, 0) end
+        if rs.SetCameraOrientationByYawPitchRoll then pcall(rs.SetCameraOrientationByYawPitchRoll, rs, math.pi, 0, 0) end
+        for _, a in pairs(rs.actors) do a.placed = nil end
+    end
+    rs:Show()
+    rs.used = true
+    return rs
+end
+function Lib.ActorShown(a, on)
+    if not a then return end
+    if on then
+        if a.Show then pcall(a.Show, a) end
+        if a.SetAlpha then pcall(a.SetAlpha, a, 1) end
+    else
+        if a.Hide then pcall(a.Hide, a) end
+        if a.SetAlpha then pcall(a.SetAlpha, a, 0) end
+    end
+end
+function Lib.SweepRows()
+    for _, rs in pairs(ui.rowScenes or {}) do
+        local any = false
+        for b, a in pairs(rs.actors) do
+            if b.actor == a and b:IsShown() and b.rowScene == rs then any = true else Lib.ActorShown(a, false) end
+        end
+        rs:SetShown(any)
+    end
+end
+-- Place l'acteur du livre `b` dans sa scene de rayon (taille mesuree une fois le modele charge).
+local function PlaceActor(b)
+    local a, rs, pose = b.actor, b.rowScene, b.pose
+    if not (a and rs and pose and b.hm) then return end
+    local size = a.size
+    if not size and a.GetMaxBoundingBox then
+        if a.SetScale then pcall(a.SetScale, a, 1) end
+        local ok, x1, y1, z1, x2, y2, z2 = pcall(a.GetMaxBoundingBox, a)
+        if ok and type(x1) == "table" then x1, y1, z1, x2, y2, z2 = x1.x, x1.y, x1.z, y1.x, y1.y, y1.z end
+        if ok and type(x1) == "number" and type(z2) == "number" then
+            local m = math.max(x2 - x1, y2 - y1, z2 - z1)
+            if m > 0.001 then size = m; a.size = m end
+        end
+    end
+    size = size or Lib.KNOWN_SIZE[a.fileID or 0] or 1
+    local T = b.hm / (pose.vfrac or 1) -- (plus grande dimension visible, en pixels)
+    if a.SetScale then pcall(a.SetScale, a, T * rs.u / (Lib.BBOX_FILL * size)) end
+    local w = b:GetWidth() or 0
+    local cx = (b.x + w / 2) - rs.left
+    local cy = (b.y - rs.bottom) - 2 + b.hm / 2
+    if a.SetPosition then pcall(a.SetPosition, a, 0, (cx - rs.W / 2) * rs.u * Lib.ROW_SIDE, (cy - rs.H / 2) * rs.u) end
+    local lean = pose.lean or 0
+    if a.SetYaw then pcall(a.SetYaw, a, math.rad(pose.yaw or 0)) end
+    -- (debout, le tangage tourne autour de l'axe de la camera : c'est lui qui penche le livre)
+    if a.SetPitch then pcall(a.SetPitch, a, math.rad((pose.pitch or 0) + ((pose.pitch or 0) >= 45 and lean or 0))) end
+    if a.SetRoll then pcall(a.SetRoll, a, math.rad(pose.roll or 0)) end
+end
+Lib.ROW_SIDE = 1
+Lib.PlaceActor = PlaceActor
+Lib.LOADS_PER_FRAME = 3
 local loadQueue, loader = {}, nil
 local function RunQueue()
     local n = 0
     while loadQueue[1] and n < Lib.LOADS_PER_FRAME do
         local job = table.remove(loadQueue, 1)
         local b = job.b
-        if b.job == job and b:IsShown() and not b.model then
-            b.model = NewScene(b)
-            if Lib.PlaceModel then Lib.PlaceModel(b) end
-        end
         if b.job == job and b:IsShown() then
-            local ok = LoadModel(b.model, job.id, job.pose)
-            if b.model then b.model:SetShown(ok); b.model.fileID = ok and job.id or nil end
+            local rs = b.rowScene
+            local a = rs and rs.actors[b]
+            if rs and not a then
+                local ok, na = pcall(rs.CreateActor, rs)
+                if ok and na then
+                    a = na
+                    rs.actors[b] = a
+                    if a.SetUseCenterForOrigin then pcall(a.SetUseCenterForOrigin, a, true, true, true) end
+                    if a.SetScript then
+                        pcall(a.SetScript, a, "OnModelLoaded", function(self)
+                            for bb, aa in pairs(rs.actors) do if aa == self and bb.actor == self then PlaceActor(bb) end end
+                        end)
+                    end
+                end
+            end
+            local ok = false
+            if a and a.SetModelByFileID then
+                if a.fileID ~= job.id then
+                    a.size = nil
+                    if a.SetScale then pcall(a.SetScale, a, 1) end
+                    local okL, res = pcall(a.SetModelByFileID, a, job.id)
+                    ok = okL and res ~= false
+                    a.fileID = ok and job.id or nil
+                else
+                    ok = true
+                end
+            end
+            b.actor = ok and a or nil
+            if ok then
+                Lib.ActorShown(a, true)
+                PlaceActor(b)
+                if C_Timer and C_Timer.After then
+                    for _, t in ipairs({ 0.1, 0.5 }) do
+                        C_Timer.After(t, function() if b.actor == a then a.size = a.size; PlaceActor(b) end end)
+                    end
+                end
+            end
             b.tex:SetShown(not ok); b.shade:SetShown(not ok)
+            b.loadedKey = ok and job.key or nil
             b.job = nil
             n = n + 1
         end
@@ -1039,28 +1156,55 @@ function Lib.PlaceModel(b)
     b.model:SetSize(b.mF, b.mF)
     b.model:SetPoint("BOTTOM", b, "BOTTOM", 0, b.mY)
 end
-function Lib.ShowShelfModel(b, row)
-    local m = b.model
+function Lib.ShowShelfModel(b, row, sl, slot)
     local id = Lib.ModelFor(row, "shelf")
-    local pose = Lib.ShelfPose(row)
+    local pose = b.pose or Lib.ShelfPose(row)
     b.pose = pose
-    if m and not m.actor then b.tex:Show(); b.shade:Show(); return false end
-    local key = id .. ":" .. (pose.dist or 1) .. ":" .. (pose.yaw or 0) .. ":" .. (pose.pitch or 0) .. ":" .. (pose.roll or 0) .. ":" .. (pose.lean or 0)
-    if m and m.loadedKey == key and m.loaded then
+    b.shelfModel = id
+    local box = b:GetParent()
+    local rs = sl and RowScene(slot, sl, box)
+    if not rs then b.tex:Show(); b.shade:Show(); return false end
+    local prevRs = b.rowScene
+    if prevRs and prevRs ~= rs and b.actor then Lib.ActorShown(b.actor, false); b.actor = nil end
+    b.rowScene = rs
+    local key = id .. ":" .. slot
+    local a = rs.actors[b]
+    if a and b.actor == a and a.fileID == id then
         b.job = nil
-        m:Show(); b.tex:Hide(); b.shade:Hide()
+        Lib.ActorShown(a, true)
+        PlaceActor(b)
+        b.tex:Hide(); b.shade:Hide()
         return true
     end
     -- (en attente : ni dos peint ni ancien modele)
-    if m then m:Hide() end
+    if b.actor then Lib.ActorShown(b.actor, false) end
     b.tex:Hide(); b.shade:Hide()
-    local job = { b = b, id = id, pose = pose }
+    local job = { b = b, id = id, key = key }
     b.job = job
     loadQueue[#loadQueue + 1] = job
     if not loader then loader = CreateFrame("Frame") end
     loader:SetScript("OnUpdate", RunQueue)
     if Lib.syncLoads then RunQueue() end
     return true
+end
+-- Survol : le livre quitte son rayon pour sa propre scene, eclairee comme dans le monde.
+function Lib.HoverShelf(b, on)
+    if not (b.pose and b.shelfModel) then return end
+    if on then
+        if not b.model then b.model = NewScene(b) end
+        if not b.model then return end
+        Lib.PlaceModel(b)
+        b.model:SetFrameLevel(room:GetFrameLevel() + 7)
+        local okL = LoadModel(b.model, b.shelfModel, b.pose)
+        if okL then
+            b.model:Show()
+            Lib.Glow(b.model, true)
+            if b.actor then Lib.ActorShown(b.actor, false) end
+        end
+    else
+        if b.model then b.model:Hide() end
+        if b.actor then Lib.ActorShown(b.actor, true) end
+    end
 end
 function Lib.Use3D() return DialogueWheelE_Library3D ~= false end
 
@@ -1215,7 +1359,7 @@ local function Build()
         b:SetScript("OnEnter", function(self)
             local r = self.row
             if not r then return end
-            Lib.Glow(self.model, true)
+            Lib.HoverShelf(self, true)
             -- (un livre debout se souleve un peu ; couche dans une pile, il reste en place)
             if not self.flat then self:SetPoint("BOTTOMLEFT", self:GetParent(), "BOTTOMLEFT", self.x, self.y + 4) end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -1228,7 +1372,7 @@ local function Build()
             GameTooltip:Show()
         end)
         b:SetScript("OnLeave", function(self)
-            Lib.Glow(self.model, false)
+            Lib.HoverShelf(self, false)
             self:SetPoint("BOTTOMLEFT", self:GetParent(), "BOTTOMLEFT", self.x, self.y)
             if GameTooltip then GameTooltip:Hide() end
         end)
@@ -2186,7 +2330,8 @@ function Refresh()
             if b:GetParent() ~= box then b:SetParent(box); b:SetFrameLevel(room:GetFrameLevel() + 6) end
             b:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", b.x, b.y)
             b.tex:SetVertexColor(color[1], color[2], color[3], 1)
-            local is3d = use3d and Lib.ShowShelfModel(b, row)
+            b.pose = use3d and Lib.ShelfPose(row) or nil
+            if b.model then b.model:Hide() end
             if b.pose then
                 -- Pose sur le plancher du rayon : le modele, centre dans son cadre, en occupe
                 -- 1 / (1,1 x dist) en hauteur (fois vfrac, couche) ; on descend le cadre d'autant.
@@ -2202,9 +2347,10 @@ function Refresh()
                     b:SetPoint("BOTTOMLEFT", b:GetParent(), "BOTTOMLEFT", b.x, b.y)
                 end
                 b.flat = b.pose.flat
-                Lib.PlaceModel(b)
+                b.hm = hm
             end
-            if not use3d and b.model then b.model:Hide(); b.tex:Show(); b.shade:Show() end
+            local is3d = use3d and Lib.ShowShelfModel(b, row, sl, pl.slot)
+            if not use3d then b.tex:Show(); b.shade:Show() end
             b.band:SetShown(row.kind == "book" and not is3d)
             b.band2:SetShown(row.kind == "book" and not is3d)
             b:SetAlpha(row.locked and 0.28 or 1)
@@ -2212,7 +2358,13 @@ function Refresh()
             b:Show()
         end
     end
-    for i = used + 1, #ui.spines do ui.spines[i]:Hide(); ui.spines[i].row = nil end
+    for i = used + 1, #ui.spines do
+        local b = ui.spines[i]
+        b:Hide(); b.row = nil
+        if b.job then b.job = nil end
+        if b.actor then Lib.ActorShown(b.actor, false) end
+    end
+    Lib.SweepRows()
     ui.shelfNum:SetText(#views > 1 and (state.shelf .. " / " .. #views) or "")
     ui.up:SetShown(state.shelf > 1)
     ui.down:SetShown(state.shelf < #views)
