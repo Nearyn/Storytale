@@ -2424,6 +2424,7 @@ function Lib.OnBookClosed()
     if state.reopen then
         state.reopen = nil
         Lib.Open()
+        if DWE.FadeInFrames then DWE.FadeInFrames({ room }, 0.3) end
     end
 end
 

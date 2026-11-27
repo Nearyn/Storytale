@@ -3888,7 +3888,32 @@ function DWE.OpenLibraryBook(title, pages, material)
     BuildOptions("ITEM_TEXT_CACHED")
     EnableKeys()
     ArmEscape()
+    -- Ouverture : le bruit d'un livre qu'on ouvre, et le livre qui apparait en fondu.
+    if PlaySound then
+        pcall(PlaySound, SOUNDKIT and SOUNDKIT.IG_SPELLBOOK_OPEN or 829)
+    end
+    DWE.FadeInFrames({ DWE.textBox, DWE.choiceBox }, 0.3)
     return true
+end
+-- Fondu d'apparition (sans toucher a ce que Storytale regle ensuite : on ne fait que monter
+-- l'alpha jusqu'a sa valeur d'arrivee).
+function DWE.FadeInFrames(list, dur)
+    local fr = DWE.fadeInFrame or CreateFrame("Frame")
+    DWE.fadeInFrame = fr
+    local targets = {}
+    for _, f in ipairs(list) do
+        if f and f.IsShown and f:IsShown() then
+            targets[#targets + 1] = { f = f, a = f:GetAlpha() or 1 }
+            f:SetAlpha(0)
+        end
+    end
+    fr.t = 0
+    fr:SetScript("OnUpdate", function(self, el)
+        self.t = self.t + (el or 0)
+        local k = math.min(1, self.t / dur)
+        for _, tg in ipairs(targets) do tg.f:SetAlpha(tg.a * k) end
+        if k >= 1 then self:SetScript("OnUpdate", nil) end
+    end)
 end
 function DWE.CloseLibraryBook()
     if not DWE.libraryBook then return end
@@ -3897,6 +3922,7 @@ function DWE.CloseLibraryBook()
     DWE.bookResumeHold = nil
     DisableKeys()
     DWE.SetBookMode(false)
+    if PlaySound then pcall(PlaySound, SOUNDKIT and SOUNDKIT.IG_SPELLBOOK_CLOSE or 830) end
     if DWE.Library and DWE.Library.OnBookClosed then DWE.Library.OnBookClosed() end
 end
 
