@@ -3073,6 +3073,7 @@ cineBars.alpha = 0
 -- Restent visibles : l'addon, DialogueUI/Spoken (deja geres), les infobulles et les fenetres
 -- systeme (menu Echap, options, fenetres de confirmation).
 local hiddenUI = {} -- cadre -> opacite d'origine
+local protectedUI = {} -- cadres proteges parmi eux : rendus des l'entree en combat
 local ignoredUI = {} -- cadres remis a suivre l'opacite de leur parent (a rendre a la fin)
 local KEEP_UI = {
     GameTooltip = true, ItemRefTooltip = true, ShoppingTooltip1 = true, ShoppingTooltip2 = true,
@@ -3192,13 +3193,24 @@ local function CollectUI()
         -- la suivent de nouveau le temps de la conversation, pour s'effacer avec le reste.
         for _, k in ipairs({ fr:GetChildren() }) do
             pcall(function()
-                if k:IsForbidden() or k:IsProtected() or ignoredUI[k] or KeepFrame(k) then return end
+                if k:IsForbidden() or ignoredUI[k] or hiddenUI[k] or KeepFrame(k) or KeptByPlayer(k) then return end
                 local ign = k:IsIgnoringParentAlpha()
                 -- (valeur secrete du jeu : on n'y touche pas)
                 if issecretvalue and issecretvalue(ign) then return end
                 if ign == true then
-                    k:SetIgnoreParentAlpha(false)
-                    ignoredUI[k] = true
+                    if k:IsProtected() then
+                        -- cadre protege (la carte de la mini-carte) : son opacite a lui, rendue
+                        -- avant le combat (voir RestoreProtectedUI)
+                        local a = k:GetAlpha()
+                        if type(a) == "number" and a > 0 and k:IsShown() then
+                            hiddenUI[k] = a
+                            protectedUI[k] = true
+                            WatchAlpha(k)
+                        end
+                    else
+                        k:SetIgnoreParentAlpha(false)
+                        ignoredUI[k] = true
+                    end
                 end
             end)
         end
@@ -3211,6 +3223,22 @@ local function CollectUI()
         end
     end
     for _, fr in ipairs(list) do pcall(One, fr, 0) end
+    -- La carte de la mini-carte ne suit pas toujours l'opacite de son cadre (vu en jeu le 27/11 :
+    -- cadre et fond effaces, carte et boutons encore la) : elle est effacee elle-meme.
+    local mm = rawget(_G, "Minimap")
+    if type(mm) == "table" and not hiddenUI[mm] then
+        pcall(function()
+            if (mm.IsForbidden and mm:IsForbidden()) or KeptByPlayer(mm) or not mm:IsShown() then return end
+            local keep = DialogueWheelE_HideKeep
+            if type(keep) == "table" and keep.minimap then return end
+            local a = mm:GetAlpha()
+            if type(a) == "number" and not (issecretvalue and issecretvalue(a)) and a > 0 then
+                hiddenUI[mm] = a
+                if mm.IsProtected and mm:IsProtected() then protectedUI[mm] = true end
+                WatchAlpha(mm)
+            end
+        end)
+    end
     -- Plaques de nom (hors d'UIParent) et tout ce que d'autres addons y accrochent (icones de
     -- quetes de Questie...), sauf celle du PNJ a qui l'on parle (Storytale s'en sert deja) et sauf
     -- si le joueur garde les noms.
@@ -3235,8 +3263,18 @@ DWE.CollectHiddenUI = CollectUI
 local function FadeUI(f)
     for fr, a in pairs(hiddenUI) do FadeOne(fr, a * (1 - f)) end
 end
+local function RestoreProtectedUI()
+    for fr in pairs(protectedUI) do
+        local a = hiddenUI[fr]
+        if a then FadeOne(fr, a) end
+        hiddenUI[fr] = nil
+    end
+    wipe(protectedUI)
+end
+DWE.RestoreProtectedUI = RestoreProtectedUI
 local function RestoreUI()
     RestoreNames()
+    wipe(protectedUI)
     FadeUI(0)
     wipe(hiddenUI)
     -- (jamais de cadre protege ici : rendu meme en combat)
@@ -3335,6 +3373,7 @@ do
             if DWE.HideUIOn() and not DWE.IsCinema() then cineBars.want = false end
             -- (les noms reviennent tout de suite : on peut en avoir besoin pour se battre)
             if DWE.RestoreNames then pcall(DWE.RestoreNames) end
+            pcall(RestoreProtectedUI)
         else
             DWE.UpdateCinemaBars()
         end

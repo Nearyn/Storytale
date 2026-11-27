@@ -497,6 +497,20 @@ do
     check(M.cvars.UnitNameNPC == "1", "hide UI: names kept when ticked")
     DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
     DialogueWheelE_HideKeep = nil
+    -- carte de la mini-carte : effacee elle-meme (elle ignore l'opacite de son cadre), rendue en combat
+    local cluster = CreateFrame("Frame", "MinimapClusterTest", UIParent); cluster:Show(); cluster:SetAlpha(1)
+    local mm = CreateFrame("Frame", "Minimap", cluster); mm:Show(); mm:SetAlpha(1)
+    DialogueWheelE_HideUI = true; DWE.UpdateCinemaBars(); run()
+    check(mm:GetAlpha() < 0.01, "hide UI: the minimap map itself faded")
+    DWE.RestoreProtectedUI()
+    DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
+    check(math.abs(mm:GetAlpha() - 1) < 0.001, "hide UI: minimap map back at the end")
+    DialogueWheelE_HideKeep = { minimap = true }
+    DialogueWheelE_HideUI = true; DWE.UpdateCinemaBars(); run()
+    check(math.abs(mm:GetAlpha() - 1) < 0.001, "hide UI: minimap map kept when ticked")
+    DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
+    DialogueWheelE_HideKeep = nil
+    cluster:Hide(); mm:Hide(); _G.Minimap, _G.MinimapClusterTest = nil, nil
     -- plaques de nom des autres (et leurs icones d'addons) : effacees, pas celle du PNJ
     local savedPlates = M.plates
     local pOther = CreateFrame("Frame"); pOther.namePlateUnitToken = "nameplate7"; pOther:Show(); pOther:SetAlpha(1)
