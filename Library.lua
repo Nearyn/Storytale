@@ -830,7 +830,7 @@ end
 -- Le meme parchemin garde toujours le meme (choisi par son titre).
 -- Parchemin couche vu par le bout (paire de rouleaux d'Uldaman) : largeur et hauteur visibles,
 -- en part de la hauteur du rayon (mesurees en jeu a cette distance).
-Lib.BOOK_THICK = 0.2 -- (epaisseur d'un livre debout, en part de sa hauteur)
+Lib.BOOK_THICK = 0.23 -- (epaisseur d'un livre debout, en part de sa hauteur)
 Lib.SCROLL_PILE = { dist = 1.25, w = 0.246, dia = 0.123 } -- (plus petits : les pyramides etaient enormes)
 Lib.SHELF_BOOK_OK = { [200900] = true, [200901] = true, [200902] = true, [200903] = true, [200904] = true, [200905] = true }
 Lib.SCROLL_SHELF = { 203430 } -- (le feuillet plie, 203429, rendait mal sur les rayons)
@@ -969,7 +969,7 @@ Lib.LECTERN_BOOK_POSE = { dist = 0.94, yaw = 0, pitch = 30, roll = 0 }
 -- (la boite donnee par le jeu est plus grande que le modele visible : part reellement occupee)
 Lib.BBOX_FILL = 0.68
 Lib.SHELF_POSES = {
-    book = { dist = 0.66, yaw = 90, pitch = 90, roll = 0, vfrac = 1 },
+    book = { dist = 0.74, yaw = 90, pitch = 90, roll = 0, vfrac = 1 },
     letter = { dist = 1.15, yaw = 90, pitch = 0, roll = 0, vfrac = 0.3 },
     -- (couche, le bloc de pages vers nous : moins large que de profil)
     flat = { yaw = 0, pitch = 0, roll = 0, vfrac = 0.22, across = 0.75 },
@@ -996,7 +996,7 @@ function Lib.ShelfPose(row, i)
     local h = 0
     for k = 1, #(row.title or "") do h = (h * 31 + (row.title or ""):byte(k)) % 100003 end
     local p = { yaw = base.yaw, pitch = base.pitch, roll = base.roll, vfrac = base.vfrac }
-    local size = (row.kind == "book") and (0.86 + (h % 15) / 100) or (0.9 + (h % 8) / 100)
+    local size = (row.kind == "book") and (0.84 + (h % 13) / 100) or (0.9 + (h % 8) / 100)
     p.size = size
     p.dist = base.dist / size
     -- Penche (vu de face, la camera tourne) : appuye sur son voisin de gauche.
@@ -1045,11 +1045,13 @@ local function RunQueue()
     if not loadQueue[1] and loader then loader:SetScript("OnUpdate", nil) end
 end
 Lib.RunQueue = RunQueue
-function Lib.PlaceModel(b)
+function Lib.PlaceModel(b, grow)
     if not (b.model and b.mF) then return end
+    local k = grow or 1
     b.model:ClearAllPoints()
-    b.model:SetSize(b.mF, b.mF)
-    b.model:SetPoint("BOTTOM", b, "BOTTOM", 0, b.mY)
+    b.model:SetSize(b.mF * k, b.mF * k)
+    b.model:SetPoint("BOTTOM", b, "BOTTOM", 0, b.mY * k)
+    b.model:SetFrameLevel((b:GetFrameLevel() or 1) + (grow and 4 or 1))
 end
 function Lib.ShowShelfModel(b, row)
     local m = b.model
@@ -1228,8 +1230,11 @@ local function Build()
             local r = self.row
             if not r then return end
             Lib.Glow(self.model, true)
-            -- (un livre debout se souleve un peu ; couche dans une pile, il reste en place)
+            -- (un livre debout se souleve un peu ; couche dans une pile, il reste en place ; un
+            -- parchemin grossit, pour qu'on voie lequel on va prendre)
             if not self.flat then self:SetPoint("BOTTOMLEFT", self:GetParent(), "BOTTOMLEFT", self.x, self.y + 4) end
+            if self.pose and self.pose.scroll then Lib.PlaceModel(self, 1.45) end
+            if self.found == false then self:SetAlpha(1) end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(r.title, 1, 0.86, 0.55, 1, true)
             if r.locked then
@@ -1242,6 +1247,8 @@ local function Build()
         b:SetScript("OnLeave", function(self)
             Lib.Glow(self.model, false)
             self:SetPoint("BOTTOMLEFT", self:GetParent(), "BOTTOMLEFT", self.x, self.y)
+            if self.pose and self.pose.scroll then Lib.PlaceModel(self) end
+            if self.found == false then self:SetAlpha(0.4) end
             if GameTooltip then GameTooltip:Hide() end
         end)
         b:SetScript("OnClick", function(self)
@@ -1251,6 +1258,7 @@ local function Build()
             else
                 -- le livre quitte l'etagere et vient s'ouvrir sur le pupitre
                 state.key = self.row.key
+                DialogueWheelE_LibraryLectern = self.row.key
                 if GameTooltip then GameTooltip:Hide() end
                 Refresh()
                 if ui.cover.appear then ui.cover.appear:Stop(); ui.cover.appear:Play() end
@@ -2082,12 +2090,15 @@ function Refresh()
     local cur2
     for _, r in ipairs(all) do if r.key == state.key and not r.locked then cur2 = r end end
     -- (le livre pose sur le pupitre est garde : changer de vue ou recharger ne le remplace plus)
-    if not state.key then state.key = DialogueWheelE_LibraryLectern end
-    if not cur2 and state.key then
-        for _, r in ipairs(all) do if r.key == state.key and not r.locked then cur2 = r end end
+    -- Seul un clic du joueur change ce choix : un livre absent de la vue en cours (option
+    -- changee) cede sa place un moment, puis revient.
+    local wanted = DialogueWheelE_LibraryLectern
+    if wanted then
+        cur2 = nil
+        for _, r in ipairs(all) do if r.key == wanted and not r.locked then cur2 = r end end
+        state.key = cur2 and wanted or nil
     end
     if not cur2 then cur2 = Latest(all); state.key = cur2 and cur2.key or nil end
-    DialogueWheelE_LibraryLectern = state.key
     local style = Lib.Style()
     local slots = SlotsOf(style)
     local winH = room:GetHeight()
@@ -2132,8 +2143,17 @@ function Refresh()
         end
     end
     local stack
+    local last -- (dernier element pose sur le rayon en cours : un livre penche s'y appuie)
     for idx, row in ipairs(rows) do
+        row.noLean = nil
         local p = use3d and Lib.ShelfPose(row) or {}
+        if use3d and p.lean then
+            local fits = cur.x + Width(row, slots[cur.slot]) <= slots[cur.slot].w - 2
+            if not (fits and last and last.slot == cur.slot and last.view == #views and last.upright) then
+                row.noLean = true
+                p = Lib.ShelfPose(row)
+            end
+        end
         local w = Width(row, slots[cur.slot])
         if p.scroll and stack and stack.scroll and stack.slot == cur.slot and stack.view == #views and stack.n < 3 then
             -- (pyramide : le deuxieme a cote du premier, le troisieme pose entre les deux)
@@ -2161,26 +2181,10 @@ function Refresh()
             end
             placed[idx] = { view = #views, slot = cur.slot, x = cur.x, w = w, level = 0 }
             stack = p.flat and { slot = cur.slot, view = #views, x = cur.x, w = w, n = 1, kind = row.kind, scroll = p.scroll } or nil
-            cur.x = cur.x + (p.scroll and 2 * w or w) + 1
+            last = { slot = cur.slot, view = #views, upright = not p.flat and not p.lean }
+            -- (un petit jour entre deux livres ; plus large apres un penche, ou il ne touche pas)
+            cur.x = cur.x + (p.scroll and 2 * w or w) + 2
             cur.n = cur.n + 1
-        end
-    end
-    -- Un livre penche (le haut vers la gauche) s'appuie sur son voisin de gauche : il lui faut
-    -- un voisin debout et droit juste avant lui sur le meme rayon (pas un autre penche, pas une
-    -- pile couchee, pas le bord du meuble) ; sinon il se tient droit.
-    if use3d then
-        local prevOK = false
-        for idx, row in ipairs(rows) do
-            local pl = placed[idx]
-            local pv = placed[idx - 1]
-            local sameRow = pv and pv.view == pl.view and pv.slot == pl.slot
-            if (pl.level or 0) > 0 then
-                prevOK = false
-            else
-                local p = Lib.ShelfPose(row)
-                if p.lean and not (sameRow and prevOK) then row.noLean = true; p = Lib.ShelfPose(row) end
-                prevOK = not p.lean and not p.flat
-            end
         end
     end
     state.shelf = math.max(1, math.min(state.shelf, #views))
@@ -2271,7 +2275,9 @@ function Refresh()
             if not use3d and b.model then b.model:Hide(); b.tex:Show(); b.shade:Show() end
             b.band:SetShown(row.kind == "book" and not is3d)
             b.band2:SetShown(row.kind == "book" and not is3d)
-            b:SetAlpha(row.locked and 0.28 or 1)
+            -- (pas encore trouve en jeu, montre grace a Spoken : a demi transparent)
+            b.found = not (row.spoken and not row.entry) and true or false
+            b:SetAlpha(row.locked and 0.28 or (b.found == false and 0.4) or 1)
             b.row = row
             b:Show()
         end
