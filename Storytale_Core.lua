@@ -7577,7 +7577,7 @@ DWE.THEME_LIST = THEME_LIST
 -- deja entendus avec Spoken (ce n'est pas un reglage).
 -- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
 DWE.OPTION_VARS = {}
-for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode ManualVoice CustomColors HideUI ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
+for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
@@ -7910,7 +7910,7 @@ function DWE.InitOptionsPanel()
     -- Precisions des options (infobulle au survol) : texte court a l'ecran, details ici.
     local TIP_OF = {}
     for _, k in ipairs({ "LOCK", "READ_MARKS", "BOOK_TIP_CURSOR", "BOOK_AUTOSCROLL", "QUEST_AUTO_W",
-        "THEME_BUBBLES", "SPOKEN_BUTTON", "ZONE_ART", "BUBBLE_HIGHLIGHT", "BUBBLE_MODE_TYPE", "BUBBLE_MODE_PAGE", "MANUAL_VOICE" }) do
+        "THEME_BUBBLES", "SPOKEN_BUTTON", "ZONE_ART", "BUBBLE_HIGHLIGHT", "BUBBLE_MODE_TYPE", "BUBBLE_MODE_PAGE" }) do
         if L[k] and L[k .. "_TIP"] then TIP_OF[L[k]] = L[k .. "_TIP"] end
     end
     -- Chaque reglage sait relire sa valeur (profil change, page remise a zero) : il se remet a
@@ -8357,10 +8357,6 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_BubbleMode = (id == "page" or id == "manual") and id or nil
         if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end
     end, 2, 190) -- (deux par colonne : "Ecriture progressive" est long, la fenetre fait 600)
-    -- Avance manuelle : voix coupee par defaut (on lit a son rythme), cochee elle lit tout.
-    AddCheck(L.MANUAL_VOICE or "Voice in manual advance", 16, y - 100, function() return DialogueWheelE_ManualVoice == true end, function(self)
-        DialogueWheelE_ManualVoice = self:GetChecked() and true or nil
-    end)
 
     ---------------------------------------------------------------- Interface
     y = y - 126
@@ -9025,7 +9021,7 @@ function DWE.InitOptionsPanel()
     for k, pg in ipairs(pages) do pg.search = MakeSearch(pg.panel, k == 1 and "DialogueWheelEOptionsSearch" or nil) end
     -- "Par defaut" en haut de chaque page : remet les reglages de cette page seulement.
     local PAGE_VARS = {
-        { "Theme", "Font", "FontSize", "Opacity", "ThemeFrames", "WheelTheme", "HideUI", "ChoiceSize", "MinimapHide", "BubbleMode", "ManualVoice" }, -- (position du bouton gardee : "MinimapAngle" n'est jamais remis par defaut)
+        { "Theme", "Font", "FontSize", "Opacity", "ThemeFrames", "WheelTheme", "HideUI", "ChoiceSize", "MinimapHide", "BubbleMode" }, -- (position du bouton gardee : "MinimapAngle" n'est jamais remis par defaut)
         { "BookStyle", "BookLook", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookTurnFX",
             "BookVoiceTurn", "BookStopOnClose", "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos" },
         { "AttachNPC", "Locked", "WheelSide", "QuestAuto", "QuestWidth", "NPCOffset", "Pos", "TextPos", "WheelWidth", "TextW", "TextH", "BubbleWidth" },

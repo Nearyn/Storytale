@@ -2190,7 +2190,6 @@ do
         return skips
     end
     check(run("manual", nil) == 1, "manual advance: the voice of this text is stopped once")
-    check(run("manual", true) == 0, "manual advance with voice checked: the voice reads")
     check(run(nil, nil) == 0, "typewriter: the voice is never stopped")
     check(run("page", nil) == 0, "all at once: the voice is never stopped")
     DialogueWheelE_BubbleMode, DialogueWheelE_ManualVoice = "manual", nil

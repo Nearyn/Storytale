@@ -2397,9 +2397,9 @@ function DWE.BubbleVoiceIsNPC(clip)
 end
 
 --------------------------------------------------------------------------------
--- Avance manuelle sans voix (par defaut) : on lit a son rythme, Spoken ne lit pas le dialogue.
--- La voix de ce texte est arretee des qu'elle commence (Skip de l'API publique de Spoken) ;
--- "Voix en avance manuelle" coche, elle lit toute la replique.
+-- Avance manuelle sans voix : on lit a son rythme, Spoken ne lit pas le dialogue. La voix de ce
+-- texte est arretee des qu'elle commence (Skip de l'API publique de Spoken). (Une voix qui lirait
+-- partie par partie demande a Spoken de reprendre une replique au milieu : pas encore possible.)
 --------------------------------------------------------------------------------
 local muteFrame = CreateFrame("Frame")
 local muteAcc, mutedClip = 0, nil
@@ -2411,7 +2411,7 @@ local function VoiceOf(st, clip)
     return started ~= nil and DWE.BubbleVoiceIsNPC(clip) and started >= st.setAt - 1 and started <= st.setAt + 6
 end
 function DWE.ManualVoiceCheck()
-    if not ManualMode() or DialogueWheelE_ManualVoice == true then return false end
+    if not ManualMode() then return false end
     if not (bubble:IsShown() or (textBox and textBox:IsShown())) then return false end
     local api = DWE.SpokenAPI and DWE.SpokenAPI()
     if not (api and type(api.GetNowPlaying) == "function" and type(api.Skip) == "function") then return false end
