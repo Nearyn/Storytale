@@ -12,7 +12,7 @@ do
     local EXTRA = { "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose",
         "BookVoiceOff", "RibbonSeen", "GamePad", "PadTipSeen", "PadTips", "DUIPos", "SpokenStyleChosen",
         "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "HideKeep", "NameCVars", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen", "Profiles", "PlateRestore", "BubbleHighlight", "BubbleMode",
-        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "NarratorPos", "LibraryShared", "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryLayout", "LibraryOff", "LibraryScroll", "LibraryLectern", "RubbingsPos", "RubbingsScale", "RubbingMark" }
+        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "NarratorPos", "LibraryShared", "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryLayout", "LibraryOff", "LibraryScroll", "LibraryLectern", "RubbingsPos", "RubbingsScale", "RubbingMark", "ExhibitPick" }
     DWE.EXTRA_VARS = EXTRA
     local me = ...
 
@@ -1041,6 +1041,7 @@ end
 local bookState = {}
 local function ResetBook(active, title)
     bookState = { active = active, title = title or "", pages = {}, currentPage = 1, maxPage = 0 }
+    DWE.plateTranslated = nil -- (chaque stele a runes s'ouvre sur ses runes)
 end
 ResetBook(false)
 
@@ -1636,6 +1637,21 @@ function BuildOptions(event, keepSelection)
         BuildBookOptions()
     end
 
+    -- Stele gravee de runes : "Traduire" montre le texte, "Original" revient aux runes.
+    if isBook and DWE.PlateHasRunes and DWE.PlateHasRunes() and (DWE.PlateRunesShown() or DWE.plateTranslated) then
+        local shown = DWE.PlateRunesShown()
+        AddOption({
+            icon = "Interface\\Icons\\INV_Misc_Book_11",
+            rawLabel = shown and (L.RUNE_TRANSLATE or "Translate") or (L.RUNE_ORIGINAL or "Original"),
+            action = function()
+                DWE.plateTranslated = DWE.PlateRunesShown() or nil
+                local o = DWE.currentOptions[DWE.selectedIndex]
+                if o then o.rawLabel = DWE.plateTranslated and (L.RUNE_ORIGINAL or "Original") or (L.RUNE_TRANSLATE or "Translate") end
+                if DWE.UpdateTextPanelVisuals then DWE.UpdateTextPanelVisuals() end
+                if DWE.UpdateVisuals then DWE.UpdateVisuals() end
+            end,
+        })
+    end
     AddOption({
         isGoodbye = true,
         icon = ICON_GOODBYE,
@@ -3271,7 +3287,7 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
         local which, d, fa, pi, ro = msg:match("^%s*libpose%s+(%a+)%s*([%d%.%-]*)%s*([%d%.%-]*)%s*([%d%.%-]*)%s*([%d%.%-]*)")
         local Lib = DWE.Library
         local pose = Lib and (which == "lectern" and Lib.LECTERN_BOOK_POSE or which == "lecternscroll" and Lib.LECTERN_POSE or which == "shelf" and Lib.SHELF_POSE
-            or which == "letter" and Lib.SHELF_POSES and Lib.SHELF_POSES.letter or which == "plate" and Lib.SHELF_POSES and Lib.SHELF_POSES.plate)
+            or which == "letter" and Lib.SHELF_POSES and Lib.SHELF_POSES.letter or which == "plate" and Lib.SHELF_POSES and Lib.SHELF_POSES.plate or which == "sheet" and Lib.SHEET_POSE)
         if pose then
             pose.dist = tonumber(d) or pose.dist
             pose.yaw = tonumber(fa) or pose.yaw
@@ -3867,7 +3883,7 @@ end)
 -- Ecrit relu depuis la bibliotheque : le livre habituel de Storytale (theme, marque-page, pages,
 -- voix, deplacement...), rempli avec les pages gardees au lieu de celles du jeu. Fermer le livre
 -- rouvre la bibliotheque.
-function DWE.OpenLibraryBook(title, pages, material)
+function DWE.OpenLibraryBook(title, pages, material, centered)
     if InCombatLockdown and InCombatLockdown() then return false end
     if type(pages) ~= "table" or #pages == 0 then return false end
     if DWE.bookMode and bookState.active and not DWE.libraryBook and CloseItemText then pcall(CloseItemText) end
@@ -3878,6 +3894,8 @@ function DWE.OpenLibraryBook(title, pages, material)
     DWE.SetBookMode(true)
     ResetBook(true, title or "")
     for i, t in ipairs(pages) do bookState.pages[i] = DWE.PlainItemText(t or "") end
+    -- (gravure mise en page comme un estampage : centree, une phrase par ligne)
+    DWE.bookCentered = centered and true or nil
     bookState.maxPage = #bookState.pages
     bookState.reachedEnd = true
     local marks, key = rawget(_G, "DialogueWheelE_Bookmarks"), DWE.BookKey(bookState.title)

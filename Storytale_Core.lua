@@ -1883,7 +1883,7 @@ function DWE.SpokenStamp()
     return clip.dweStamp
 end
 -- Mot lu par Spoken sur une plaque de l'addon : couleur propre a la matiere (neutre, aucun camp).
-DWE.PLATE_MARK = { Stone = "|cff7a5a1e", Marble = "|cff8c6a1a", Silver = "|cff6e5418", Bronze = "|cff1f4a3a", Dalaran = "|cffd9c2ff" }
+DWE.PLATE_MARK = { Stone = "|cff7a5a1e", Marble = "|cff8c6a1a", Silver = "|cff6e5418", Bronze = "|cff1f4a3a", Dalaran = "|cffd9c2ff", Elven = "|cff2a3a5a" }
 function DWE.SpokenPlateMat()
     local st = DWE.SpokenStamp()
     if st then return st.override and st.mat or nil end
@@ -3602,6 +3602,11 @@ DWE.PLATES = {
     -- Disque grave de Dalaran (plaques des statues des heros) : rond, il ne s'etire pas, il grandit.
     Dalaran = { tex = "PlateDalaran", round = true, slice = { 0, 0, 0, 0 }, body = { 0.62, 0.71, 0.81 }, hdr = { 0.67, 0.76, 0.86 }, rule = { 0.02, 0.04, 0.09, 0.35 }, engrave = { 0.01, 0.02, 0.05, 0.9 }, engraveOffset = { -1, 1 },
         mini = { slice = { 124, 124, 124, 124 }, inner = { 136, 96, 136, 96 } } },
+    -- Tablette elfique carree, un cercle grave au centre : le texte s'ecrit dans le cercle
+    -- (cadre carre qui grandit avec le texte, comme le disque de Dalaran).
+    -- `runes` : la meme stele avec ses runes, montree d'abord ("Traduire" passe au texte).
+    Elven = { tex = "PlateElven", runes = "PlateElvenRunes", round = true, disc = { w = 0.36, h = 0.32, cx = 0.525, cy = 0.52 }, plainFont = true, fontAdd = 5, slice = { 0, 0, 0, 0 },
+        body = { 0.13, 0.16, 0.21 }, hdr = { 0.08, 0.10, 0.15 }, rule = { 0.20, 0.24, 0.30, 0.45 }, engrave = { 1, 1, 1, 0.45 } },
     -- Steles trolles (pas une matiere du jeu : reconnues par les donnees de Spoken Readables).
     Troll = { tex = "PlateTroll", rep = true, slice = { 124, 124, 124, 124 }, inner = { 92, 96, 92, 96 }, body = { 0.20, 0.11, 0.03 }, hdr = { 0.13, 0.07, 0.02 }, rule = { 0.36, 0.20, 0.06, 0.45 }, engrave = { 1, 0.92, 0.72, 0.5 } },
     Tablet = { tex = "PlateTablet", rep = true, slice = { 124, 124, 124, 124 }, inner = { 92, 96, 92, 96 }, body = { 0.20, 0.11, 0.03 }, hdr = { 0.13, 0.07, 0.02 }, rule = { 0.36, 0.20, 0.06, 0.45 }, engrave = { 1, 0.92, 0.72, 0.5 } },
@@ -3654,8 +3659,10 @@ end
 -- pas deja une vraie matiere. (Memes supports qu'avec Spoken Readables.)
 DWE.STONE_TEXTS = {}
 for plate, names in pairs({
-    Stone = { "Archmage Khadgar of the Kirin Tor", "Erzmagier Khadgar von den Kirin Tor", "Archimago Khadgar del Kirin Tor", "Archimage Khadgar du Kirin Tor", "Arquimago Hadggar do Kirin Tor", "Верховный маг Кадгар из Кирин-Тора", "키린 토의 대마법사 카드가", "肯瑞托的大法师卡德加", "Danath Trollbane", "Danath Aterratrols", "Danath Matatroll", "Данат Троллебой", "다나스 트롤베인", "达纳斯·托尔贝恩", "General Turalyon", "Général Turalyon", "Генерал Туралион", "투랄리온 장군", "图拉扬将军", "Ranger Captain Alleria Windrunner", "Waldläufercaptain Alleria Windrunner", "Capitán guardabosques Alleria Brisaveloz", "Capitaine des forestiers Alleria Windrunner", "Capitão-patrulheira Alleria Correventos", "Капитан следопытов Аллерия Ветрокрылая", "순찰대장 알레리아 윈드러너", "游侠队长奥蕾莉亚·风行者", "Kurdran Wildhammer", "Kurdran Martillo Salvaje", "Kurdran Martelo Feroz", "Курдран Громовой Молот", "쿠르트란 와일드해머", "库德兰·蛮锤", "Archbishop Alonsus Faol", "Erzbischof Alonsus Faol", "Arzobispo Alonsus Faol", "Archevêque Alonsus Faol", "Arcebispo Alonso Faol", "Архиепископ Алонсий Фаол", "대주교 알론수스 파올", "大主教阿隆索斯·法奥", "King Llane I of the House of Wrynn", "König Llane I. aus dem Hause Wrynn", "El rey Llane I de la Casa de Wrynn", "Roi Llane Ier de la maison Wrynn", "Rei Llane I da Casa de Wrynn", "Король Ллейн I из рода Риннов", "린 가문의 국왕 레인 1세", "乌瑞恩家族的国王，莱尼一世", "Grand Admiral Daelin Proudmoore", "Großadmiral Daelin Proudmoore", "Almirante general Daelin Valiente", "Grand-amiral Daelin Proudmoore", "Grão-almirante Daelin Proudmore", "Великий адмирал Даэлин Праудмур", "댈린 프라우드무어 제독", "海军上将戴林·普罗德摩尔", "Lady Mara Fordragon", "Fürstin Mara Fordragon", "Dame Mara Fordragon", "Леди Мара Фордрагон", "여군주 마라 포드래곤", "玛拉·弗塔根" , "Eliza's Tombstone", "Elizas Grabstein", "Lápida de Eliza", "Tombe d'Eliza", "Lápide de Elisa", "Надгробный камень Элизы", "엘리자의 묘비", "伊莉莎的墓碑", "Yuriv's Tombstone", "Yurivs Grabstein", "Lápida de Yuriv", "Tombe de Yuriv", "Lápide de Yuriv", "Надгробная плита Юрива", "유리브의 묘비", "尤瑞夫的墓碑", "Decorated Headstone", "Geschmückter Grabstein", "Lápida decorada", "Pierre tombale décorée", "Lápide Decorada", "Резное надгробие", "꽃이 놓여진 묘비", "华丽的墓碑", "In Loving Memory", "In liebendem Angedenken", "En amado recuerdo", "Souvenir affectueux", "In memorian", "С вечной любовью", "사랑하는 안소니 여기 잠들다", "爱情的回忆", "Here Lies King Terenas Menethil II", "Hier ruht König Terenas Menethil II.", "Aquí yace el rey Terenas Menethil II", "Ci-gît le roi Terenas Menethil II", "Aqui Jaz o Rei Terenas Menethil II", "Здесь покоится Теренас Менетил II", "국왕 테레나스 메네실 2세 여기 잠들다", "泰瑞纳斯·米奈希尔二世在此长眠", "Uther the Lightbringer", "Uther Lightbringer", "Uther el Iluminado", "Uther, le Porteur de Lumière", "Uther, o Arauto da Luz", "Утер Светоносный", "빛의 수호자 우서", "光明使者乌瑟尔", "Monument to Grom Hellscream", "Denkmal für Grom Hellscream", "Monumento a Grom Grito Infernal", "Monument à Grom Hellscream", "Monument de Grom Hurlenfer", "Monumento para Grom Grito Infernal", "Памятник Грому Адскому Крику", "그롬 헬스크림의 기념비", "格罗姆·地狱咆哮的纪念碑", "Rock of Durotan", "Fels von Durotan", "Roca de Durotan", "Rocher de Durotan", "Rocha de Durotan", "Обелиск Дуротана", "듀로탄 바위", "杜隆坦之石", "Ancient Inscription", "Uralte Inschrift", "Inscripción antigua", "Inscription ancienne", "Inscrição Ancestral", "Древняя надпись", "고대 비문", "古代碑铭", "Carved Stone", "Verzierter Stein", "Piedra tallada", "Pierre sculptée", "Pedra Entalhada", "Резной камень", "조각된 돌", "Etched Carving", "Geätzte Schnitzerei", "Talla grabada", "Sculpture gravée", "Entalhe Cinzelado", "Резьба", "새겨진 조각품", "铭刻雕像", "Altar of Reverence", "Altar der Ehrerbietung", "Autel de révérence", "Altar da Reverência", "Алтарь почтения", "경배의 제단", "崇尊祭坛", "Altar of Thorns", "Altar der Dornen", "Altar de espinas", "Autel des épines", "Алтарь шипов", "가시의 제단", "荆棘祭坛", "Shrine of the Beast", "Schrein des Tieres", "Santuario de la bestia", "Sanctuaire de la Bête", "Altar da Fera", "Святилище зверя", "야수의 제단", "野兽神龛", "Shrine of the Moon", "Schrein des Mondes", "Santuario de la luna", "Sanctuaire de la Lune", "Святилище луны", "달의 제단", "月亮神龛", "Dark Keeper Nameplate", "Dunkelbewahrer-Namensschild", "Placa de Guarda oscuro", "Nom du Gardien noir", "Placa de Identificação do Guardião Sombrio", "Табличка с именем темного хранителя", "암흑의 문지기 명판", "黑暗守护者的标示牌", "Admiral Barean Westwind", "Almirante Barean Viento Oeste", "Amiral Barean Westwind", "Almirante Barean Zefirália", "Адмирал Бареан Вествинд", "제독 바렌 웨스트윈드", "海军上将巴利·韦斯温", "Arellas Fireleaf", "Arellas Hojafuego", "Arellas Firafolha", "Ареллас Огненный Лист", "아렐라스 파이어리프", "阿雷拉斯·火叶", "Dorgar Stoenbrow", "Dorgar Stonebrow", "Dorgar Petrocejas", "Dorgar Hefastão", "Доргар Камнелоб", "도르가르 스톤브로", "多加尔·石眉", "Fellari Swiftarrow", "Fellari Flechaveloz", "Fellari Velosseta", "Феллари Быстрая Стрела", "펠라리 스위프트애로우", "菲尔拉蕾·迅箭", "Ferren Marcus", "Fernando Marco", "Феррен Маркус", "페렌 마커스", "费伦·玛库斯", "Harthal Truesight", "Harthal Vistarreal", "Hereno Justo", "Хартал Проницательный", "하르탈 트루사이트", "Holia Sunshield", "Holia Escusol", "Holia Solbroquel", "Холия Солнечный Щит", "홀리아 선쉴드", "Invar One-Arm", "Invar Unibrazo", "Invar le Manchot", "Invar Sem-braço", "Инвар Однорукий", "외팔이 이바르", "Orman of Stromgarde", "Orman von Stromgarde", "Orman de Stromgarde", "Орман из Стромгарда", "스트롬가드의 오르만", "激流堡的奥玛尔", "Valea Twinblades", "Valea Filosgemelos", "Valea Bilâmina", "Валея Два Клинка", "발리아 트윈블레이즈", "Yana Bloodspear", "Yana Lanza de Sangre", "Yana Lanssang", "Яна Кровавое Копье", "야나 블러드스피어", "亚娜·血矛" },
+    Stone = { "Archmage Khadgar of the Kirin Tor", "Erzmagier Khadgar von den Kirin Tor", "Archimago Khadgar del Kirin Tor", "Archimage Khadgar du Kirin Tor", "Arquimago Hadggar do Kirin Tor", "Верховный маг Кадгар из Кирин-Тора", "키린 토의 대마법사 카드가", "肯瑞托的大法师卡德加", "Danath Trollbane", "Danath Aterratrols", "Danath Matatroll", "Данат Троллебой", "다나스 트롤베인", "达纳斯·托尔贝恩", "General Turalyon", "Général Turalyon", "Генерал Туралион", "투랄리온 장군", "图拉扬将军", "Ranger Captain Alleria Windrunner", "Waldläufercaptain Alleria Windrunner", "Capitán guardabosques Alleria Brisaveloz", "Capitaine des forestiers Alleria Windrunner", "Capitão-patrulheira Alleria Correventos", "Капитан следопытов Аллерия Ветрокрылая", "순찰대장 알레리아 윈드러너", "游侠队长奥蕾莉亚·风行者", "Kurdran Wildhammer", "Kurdran Martillo Salvaje", "Kurdran Martelo Feroz", "Курдран Громовой Молот", "쿠르트란 와일드해머", "库德兰·蛮锤", "Archbishop Alonsus Faol", "Erzbischof Alonsus Faol", "Arzobispo Alonsus Faol", "Archevêque Alonsus Faol", "Arcebispo Alonso Faol", "Архиепископ Алонсий Фаол", "대주교 알론수스 파올", "大主教阿隆索斯·法奥", "King Llane I of the House of Wrynn", "König Llane I. aus dem Hause Wrynn", "El rey Llane I de la Casa de Wrynn", "Roi Llane Ier de la maison Wrynn", "Rei Llane I da Casa de Wrynn", "Король Ллейн I из рода Риннов", "린 가문의 국왕 레인 1세", "乌瑞恩家族的国王，莱尼一世", "Grand Admiral Daelin Proudmoore", "Großadmiral Daelin Proudmoore", "Almirante general Daelin Valiente", "Grand-amiral Daelin Proudmoore", "Grão-almirante Daelin Proudmore", "Великий адмирал Даэлин Праудмур", "댈린 프라우드무어 제독", "海军上将戴林·普罗德摩尔", "Lady Mara Fordragon", "Fürstin Mara Fordragon", "Dame Mara Fordragon", "Леди Мара Фордрагон", "여군주 마라 포드래곤", "玛拉·弗塔根" , "Eliza's Tombstone", "Elizas Grabstein", "Lápida de Eliza", "Tombe d'Eliza", "Lápide de Elisa", "Надгробный камень Элизы", "엘리자의 묘비", "伊莉莎的墓碑", "Yuriv's Tombstone", "Yurivs Grabstein", "Lápida de Yuriv", "Tombe de Yuriv", "Lápide de Yuriv", "Надгробная плита Юрива", "유리브의 묘비", "尤瑞夫的墓碑", "Decorated Headstone", "Geschmückter Grabstein", "Lápida decorada", "Pierre tombale décorée", "Lápide Decorada", "Резное надгробие", "꽃이 놓여진 묘비", "华丽的墓碑", "In Loving Memory", "In liebendem Angedenken", "En amado recuerdo", "Souvenir affectueux", "In memorian", "С вечной любовью", "사랑하는 안소니 여기 잠들다", "爱情的回忆", "Here Lies King Terenas Menethil II", "Hier ruht König Terenas Menethil II.", "Aquí yace el rey Terenas Menethil II", "Ci-gît le roi Terenas Menethil II", "Aqui Jaz o Rei Terenas Menethil II", "Здесь покоится Теренас Менетил II", "국왕 테레나스 메네실 2세 여기 잠들다", "泰瑞纳斯·米奈希尔二世在此长眠", "Uther the Lightbringer", "Uther Lightbringer", "Uther el Iluminado", "Uther, le Porteur de Lumière", "Uther, o Arauto da Luz", "Утер Светоносный", "빛의 수호자 우서", "光明使者乌瑟尔", "Monument to Grom Hellscream", "Denkmal für Grom Hellscream", "Monumento a Grom Grito Infernal", "Monument à Grom Hellscream", "Monument de Grom Hurlenfer", "Monumento para Grom Grito Infernal", "Памятник Грому Адскому Крику", "그롬 헬스크림의 기념비", "格罗姆·地狱咆哮的纪念碑", "Rock of Durotan", "Fels von Durotan", "Roca de Durotan", "Rocher de Durotan", "Rocha de Durotan", "Обелиск Дуротана", "듀로탄 바위", "杜隆坦之石", "Carved Stone", "Verzierter Stein", "Piedra tallada", "Pierre sculptée", "Pedra Entalhada", "Резной камень", "조각된 돌", "Etched Carving", "Geätzte Schnitzerei", "Talla grabada", "Sculpture gravée", "Entalhe Cinzelado", "Резьба", "새겨진 조각품", "铭刻雕像", "Altar of Reverence", "Altar der Ehrerbietung", "Autel de révérence", "Altar da Reverência", "Алтарь почтения", "경배의 제단", "崇尊祭坛", "Altar of Thorns", "Altar der Dornen", "Altar de espinas", "Autel des épines", "Алтарь шипов", "가시의 제단", "荆棘祭坛", "Shrine of the Beast", "Schrein des Tieres", "Santuario de la bestia", "Sanctuaire de la Bête", "Altar da Fera", "Святилище зверя", "야수의 제단", "野兽神龛", "Shrine of the Moon", "Schrein des Mondes", "Santuario de la luna", "Sanctuaire de la Lune", "Святилище луны", "달의 제단", "月亮神龛", "Dark Keeper Nameplate", "Dunkelbewahrer-Namensschild", "Placa de Guarda oscuro", "Nom du Gardien noir", "Placa de Identificação do Guardião Sombrio", "Табличка с именем темного хранителя", "암흑의 문지기 명판", "黑暗守护者的标示牌", "Admiral Barean Westwind", "Almirante Barean Viento Oeste", "Amiral Barean Westwind", "Almirante Barean Zefirália", "Адмирал Бареан Вествинд", "제독 바렌 웨스트윈드", "海军上将巴利·韦斯温", "Arellas Fireleaf", "Arellas Hojafuego", "Arellas Firafolha", "Ареллас Огненный Лист", "아렐라스 파이어리프", "阿雷拉斯·火叶", "Dorgar Stoenbrow", "Dorgar Stonebrow", "Dorgar Petrocejas", "Dorgar Hefastão", "Доргар Камнелоб", "도르가르 스톤브로", "多加尔·石眉", "Fellari Swiftarrow", "Fellari Flechaveloz", "Fellari Velosseta", "Феллари Быстрая Стрела", "펠라리 스위프트애로우", "菲尔拉蕾·迅箭", "Ferren Marcus", "Fernando Marco", "Феррен Маркус", "페렌 마커스", "费伦·玛库斯", "Harthal Truesight", "Harthal Vistarreal", "Hereno Justo", "Хартал Проницательный", "하르탈 트루사이트", "Holia Sunshield", "Holia Escusol", "Holia Solbroquel", "Холия Солнечный Щит", "홀리아 선쉴드", "Invar One-Arm", "Invar Unibrazo", "Invar le Manchot", "Invar Sem-braço", "Инвар Однорукий", "외팔이 이바르", "Orman of Stromgarde", "Orman von Stromgarde", "Orman de Stromgarde", "Орман из Стромгарда", "스트롬가드의 오르만", "激流堡的奥玛尔", "Valea Twinblades", "Valea Filosgemelos", "Valea Bilâmina", "Валея Два Клинка", "발리아 트윈블레이즈", "Yana Bloodspear", "Yana Lanza de Sangre", "Yana Lanssang", "Яна Кровавое Копье", "야나 블러드스피어", "亚娜·血矛" },
     Tablet = { "Fossilized Egg", "Fossiles Ei", "Huevo fosilizado", "Oeuf fossilisé", "Ovo Fossilizado", "Окаменелое яйцо", "화석 알", "化石蛋", "Geru Strider", "Geruschreiter", "Zancudo Geru", "Trotteur Geru", "Pinote Geru", "Геру-Странник", "게루 타조", "格鲁陆行鸟", "Saurial Egg", "Saurier-Ei", "Huevo saurio", "Oeuf de saurien", "Ovo de Sáurio", "Яйцо завра", "사우리알의 알", "蜥蜴卵", "Pteradon Skeleton", "Pteradonskelett", "Esqueleto de pteradon", "Squelette de ptéradon", "Esqueleto de Pterodonte", "Скелет птерадона", "프테라돈 뼈", "翼手龙骨架", "Highborne Astrolabe", "Astrolabium der Hochgeborenen", "Astrolabio altonato", "Astrolabe des bien-nés", "Astrolábio do Altaneiro", "Астролябия высокорожденных", "귀족 아스트롤라베", "上层精灵星盘", "Horde Catapult", "Katapult der Horde", "Catapulta de la Horda", "Catapulte de la Horde", "Catapulta da Horda", "Катапульта Орды", "호드 투석기", "部落投石车", "Roc Talon", "Kralle eines Roc", "Garrapiedra", "Serre de Roc", "Garra de Pássaro-roca", "Коготь руха", "로크 갈퀴발톱", "大鹏爪", "Toothgnasher's Skeleton", "Knirschzahns Skelett", "Esqueleto de rechinador", "Squelette de Grincedents", "Esqueleto do Rangedente", "Скелет Щелкозуба", "이갈이산양의 골격", "The Skull of Tyrannistrasz", "Der Schädel des Tyrannistrasz", "El cráneo de Tyrannistrasz", "Le crâne de Tyrannistrasz", "O Crânio de Tyrannistrasz", "Череп Тираннистраса", "티란니스트라즈의 뼈", "塔兰尼斯塔兹的颅骨", "Uldaman Relics", "Uldamanrelikte", "Reliquias de Uldaman", "Reliques d'Uldaman", "Relíquias de Uldaman", "Ульдаманские святыни", "울다만 유적", "奥达曼遗物", "Uldaman Reliefs", "Bruchstücke aus Uldaman", "Relieves de Uldaman", "Relevés d'Uldaman", "Ульдаманские барельефы", "奥达曼浮雕" },
+    -- Tablette elfique au cercle grave (sanctuaire de Mel'Thandris, Sombrivage).
+    Elven = { "Ancient Inscription", "Uralte Inschrift", "Inscripción antigua", "Inscription ancienne", "Inscrição Ancestral", "Древняя надпись", "고대 비문", "古代碑铭" },
     Troll = { "Altar of Zanza", "Altar von Zanza", "Altar de Zanza", "Autel de Zanza", "Алтарь Занзы", "잔자의 제단", "赞扎祭坛", "The Twin Empires", "Die Zwillingsimperien", "Los Imperios Gemelos", "Les empires jumeaux", "Os Impérios Gêmeos", "Империи-близнецы", "쌍둥이 제국", "两个帝国", "Empires' Fall", "Der Falls des Imperiums", "La caída de los imperios", "La chute de l'empire", "A Queda do Império", "Падение Империи", "제국의 몰락", "帝国的陷落", "Wrath of Soulflayer", "Der Zorn des Seelenschinders", "La ira del Cazador de Almas", "La colère du fléau des âmes", "A Ira do Esfolador de Almas", "Гнев Свежевателя Душ", "영혼약탈자의 격노", "噬灵者的愤怒" },
 }) do
     for _, n in ipairs(names) do DWE.STONE_TEXTS[n] = plate end
@@ -3755,6 +3762,22 @@ function DWE.RawPlate()
     -- jeu ne donne pas la matiere) gardaient l'allure de la stele.
     if DWE.bookMode and DWE.lastPlate and DWE.lastPlateTitle == DWE.OpenTitle() then return DWE.lastPlate end
     return nil
+end
+-- Stele a runes ouverte : runes montrees (vrai) ou texte (apres "Traduire", ou lue par Spoken).
+function DWE.PlateHasRunes()
+    local m = DWE.PlateMaterial and DWE.PlateMaterial()
+    return m and DWE.PLATES[m] and DWE.PLATES[m].runes ~= nil or false
+end
+function DWE.PlateRunesShown()
+    if not DWE.PlateHasRunes() or DWE.plateTranslated then return false end
+    local F = DWE.SpokenFocus
+    if F and F.Available and F.Available() and not DWE.libraryBook then
+        local t = DWE.OpenTitle and DWE.OpenTitle()
+        local now = F.SpeakingBookTitle and F.SpeakingBookTitle()
+        if t and now and DWE.BookKey(now) == DWE.BookKey(t) then return false end
+        if t and F.BookQueued and F.BookQueued(DWE.BookKey(t)) then return false end
+    end
+    return true
 end
 function DWE.PlateMaterial()
     if not DWE.BookByAddon() then return nil end
@@ -4130,7 +4153,12 @@ local function LayoutNote()
     -- Stele tres reduite (texte sous 12 a l'ecran) : police d'interface nette au lieu de Skurri,
     -- texte un peu plus clair.
     local roundSmall = round and ((tonumber(DialogueWheelE_FontSize) or 13) + 9) * DWE.NoteScale() < 12
-    local glyphSpace = (plate and not round) and 40 or 0
+    -- (place du symbole grave qui ouvre le menu de lecture : seulement s'il est affiche, pas pour
+    -- une plaque relue depuis le carnet, un hommage, ou sans Spoken)
+    local focus = DWE.SpokenFocus
+    local glyph = plate and not round and focus and focus.Available and focus.Available()
+        and not DWE.libraryBook and not (DWE.MemorialOpen and DWE.MemorialOpen())
+    local glyphSpace = glyph and 40 or 0
     textHeader:ClearAllPoints()
     textHeader:SetPoint("TOPLEFT", textBox, "TOPLEFT", 0, -2 - glyphSpace)
     textHeader:SetPoint("TOPRIGHT", textBox, "TOPRIGHT", 0, -2 - glyphSpace)
@@ -4164,7 +4192,9 @@ local function LayoutNote()
     end
     noteRule:SetColorTexture(ruleC[1], ruleC[2], ruleC[3], ruleC[4])
     NOTE.noteThumb:SetColorTexture(ruleC[1], ruleC[2], ruleC[3], 0.5)
-    local texName = plate and plate.tex or "BookPaper"
+    -- Stele gravee de runes : ses runes d'abord, le texte apres "Traduire" (ou si Spoken la lit).
+    local runesShown = DWE.PlateRunesShown and DWE.PlateRunesShown()
+    local texName = (runesShown and plate.runes) or (plate and plate.tex) or "BookPaper"
     if noteBg.dweTex ~= texName then
         noteBg.dweTex = texName
         noteBg:SetTexture(ADDON_PATH .. texName .. ".png")
@@ -4205,10 +4235,12 @@ local function LayoutNote()
     -- texte devenu enorme.)
     local nsz = (nsc < 0.98 and not round) and math.floor(nbase / (nsc ^ 0.9) + 0.5) or nbase
     -- Plaque ronde (Dalaran) : la police anguleuse du jeu (Skurri), proche des runes gravees.
-    if round and not DWE.IS_CJK then
+    if round and not plate.plainFont and not DWE.IS_CJK then
         font, nsz = (DWE.IS_CYRILLIC and "Fonts\\SKURRI_CYR.TTF") or "Fonts\\SKURRI.TTF", math.floor((nsz + 9) * roundK + 0.5)
         if roundSmall then font = "Fonts\\FRIZQT__.TTF"; nsz = nsz - 3 end
     end
+    -- (stele a grand cercle : texte plus gros, lisible sur la pierre)
+    if plate and plate.fontAdd then nsz = nsz + plate.fontAdd end
     if font then pcall(NOTE.noteText.SetFont, NOTE.noteText, font, nsz, "") end
     local hFont, hSize = textHeader:GetFont()
     if nsc < 0.98 and hFont and hSize and not DWE.IS_CJK and not round then
@@ -4246,7 +4278,24 @@ local function LayoutNote()
             if hh <= w * 0.9 then break end
         end
     else
-        NOTE.noteText:SetWidth(NOTE_W)
+        if plate then
+            -- Plaque : aussi large que sa plus longue ligne (ou son titre), pas plus ; un texte
+            -- court ne flotte plus au milieu d'une grande plaque vide.
+            local m = NOTE.measure
+            local f1, s1, fl = NOTE.noteText:GetFont()
+            if f1 then pcall(m.SetFont, m, f1, s1, fl or "") end
+            local longest = 0
+            for line in (body .. "\n"):gmatch("(.-)\n") do
+                m:SetWidth(0)
+                m:SetText(line)
+                longest = math.max(longest, m:GetStringWidth() or 0)
+            end
+            m:SetText("")
+            local hw = textHeader:GetStringWidth() or 0
+            noteW = math.max(260, math.min(NOTE_W, math.ceil(math.max(longest, hw)) + 8))
+            textBox:SetWidth(noteW)
+        end
+        NOTE.noteText:SetWidth(noteW)
     end
     NOTE.noteChild:SetWidth(noteW)
     local th = TextHeight(NOTE.noteText, 20)
@@ -4258,19 +4307,28 @@ local function LayoutNote()
     noteScroll:Show()
     NOTE.PlaceThumb()
     local h = TextHeight(textHeader, 22) + 24 + view + glyphSpace
-    textBox:SetHeight(round and h or math.max(160, h))
+    -- (une plaque garde la hauteur de son texte ; la page de papier, une hauteur minimale)
+    textBox:SetHeight(round and h or math.max(plate and 60 or 160, h))
     if round then
         -- Le symbole grave occupe le haut du disque (jusqu'a 28 %) : le texte commence juste
         -- dessous, et le disque grandit avec le texte.
         -- (Les runes gravees en bas, la "signature", commencent a 73 % : le texte s'arrete avant.)
-        local outer = math.max(noteW / 0.52, h / 0.42)
+        local dc = plate.disc
+        local outer = dc and math.max(noteW / dc.w, h / dc.h) or math.max(noteW / 0.52, h / 0.42)
         local side = (outer - noteW) / 2
-        local top = outer * 0.295
+        -- (tablette elfique : le texte centre dans le cercle)
+        local top = dc and (outer * dc.cy - h / 2) or outer * 0.295
         padL, padR, padT, padB = side, side, top, outer - h - top
+        if dc and dc.cx then
+            padL = outer * dc.cx - noteW / 2
+            padR = outer - noteW - padL
+        end
         textBox.dwePadB = padB
         textBox.dweOuter = outer -- taille du disque (poignee de redimensionnement)
         textBox.dwePadL, textBox.dwePadT = padL, padT
     end
+    -- (runes montrees : le texte est la, mais invisible, pour garder la meme taille de stele)
+    for _, fs in ipairs({ textHeader, NOTE.noteText, NOTE.noteHi }) do fs:SetAlpha(runesShown and 0 or 1) end
     textBox.dweGripAnchor, textBox.dweGripX, textBox.dweGripY = noteBg, 0, 0
     textBox.dweNoGrip = nil
     noteBg:ClearAllPoints()
@@ -4445,10 +4503,57 @@ do
     local LEFT_PAGE = { 120, 512, 40, 490 }
     local RIGHT_PAGE = { 516, 930, 40, 490 }
     local DUR = 0.36
-    local tex = F:CreateTexture(nil, "OVERLAY", nil, 7)
+    -- La feuille : un cadre qui coupe ce qui depasse, avec le papier de la page et une copie de
+    -- son texte, places comme les vrais. En se soulevant, elle emporte l'ancien texte (qui
+    -- s'efface quand elle se dresse) ; en se posant, elle reste vierge, et la page qu'elle couvre
+    -- montre son nouveau texte une fois posee (comme le carnet d'estampages).
+    local sheet = CreateFrame("Frame", nil, F)
+    if sheet.SetClipsChildren then sheet:SetClipsChildren(true) end
+    local tex = sheet:CreateTexture(nil, "BACKGROUND")
     tex:SetTexture(ADDON_PATH .. "BookSpread.png")
+    local copies = {}
+    for _, src in ipairs({ textHeader, textBody, textBody2, bookPageNum }) do
+        copies[src] = sheet:CreateFontString(nil, "OVERLAY")
+    end
+    local shade = sheet:CreateTexture(nil, "ARTWORK")
+    shade:SetAllPoints(sheet)
+    shade:SetColorTexture(0.12, 0.08, 0.04, 1)
+    -- Ombre de la feuille soulevee sur la page en dessous.
+    local shadow = F:CreateTexture(nil, "OVERLAY", nil, 5)
+    shadow:SetTexture("Interface\\Buttons\\WHITE8X8")
+    shadow:Hide()
+    local function ShadowFade(rightSide, a)
+        if shadow.SetGradient and CreateColor then
+            local dark, clear = CreateColor(0, 0, 0, a), CreateColor(0, 0, 0, 0)
+            if pcall(shadow.SetGradient, shadow, "HORIZONTAL", rightSide and dark or clear, rightSide and clear or dark) then return end
+        end
+        shadow:SetVertexColor(0, 0, 0, a * 0.5)
+    end
+    local function Copy(src, text)
+        local c = copies[src]
+        local font, size, flags = src:GetFont()
+        if font then pcall(c.SetFont, c, font, size, flags or "") end
+        local r, g, b = src:GetTextColor()
+        c:SetTextColor(r or 0, g or 0, b or 0)
+        local sr, sg, sb, sa = src:GetShadowColor()
+        c:SetShadowColor(sr or 0, sg or 0, sb or 0, sa or 0)
+        c:SetShadowOffset(src:GetShadowOffset())
+        c:SetJustifyH(src:GetJustifyH() or "LEFT")
+        c:SetJustifyV(src:GetJustifyV() or "TOP")
+        if c.SetSpacing and src.GetSpacing then c:SetSpacing(src:GetSpacing() or 0) end
+        c:ClearAllPoints()
+        c:SetAllPoints(src)
+        c:SetText(text or "")
+        c:Show()
+    end
+    -- (la page decouverte par la feuille qui se souleve : vide le temps qu'elle passe)
+    local hidden
+    local function Reveal(a)
+        for _, fs in ipairs(hidden or {}) do fs:SetAlpha(a) end
+        if a >= 1 then hidden = nil end
+    end
+    F:SetScript("OnHide", function() Reveal(1); shadow:Hide() end)
     local function Page(p)
-        tex:SetTexCoord(p[1] / 1024, p[2] / 1024, p[3] / 1024, p[4] / 1024)
         return (p[2] - p[1]) * S, (p[4] - p[3]) * S
     end
     local spineX = 514 * S
@@ -4458,21 +4563,60 @@ do
         local first = k < 0.5
         -- Avant : la page de droite se replie, puis se deplie a gauche. Arriere : l'inverse.
         local fromRight = (self.dir > 0) == first
-        local w, h = Page(fromRight and RIGHT_PAGE or LEFT_PAGE)
+        local pg = fromRight and RIGHT_PAGE or LEFT_PAGE
+        local w, h = Page(pg)
         local f = first and (1 - k * 2) or ((k - 0.5) * 2)
         f = math.max(0.001, f)
         -- Un peu d'acceleration au debut, de freinage a la fin : plus naturel qu'un mouvement egal.
         f = first and (f * f) or (1 - (1 - f) * (1 - f))
-        tex:ClearAllPoints()
         local top = -(LEFT_PAGE[3] * S)
-        if fromRight then
-            tex:SetPoint("TOPLEFT", DWE.bookSpreadTex, "TOPLEFT", spineX, top)
-        else
-            tex:SetPoint("TOPRIGHT", DWE.bookSpreadTex, "TOPLEFT", spineX, top)
+        local phase = first and "lift" or "land"
+        if self.phase ~= phase then
+            self.phase = phase
+            for _, c in pairs(copies) do c:Hide() end
+            if first and self.old then
+                -- (l'ancien texte de la page qui se souleve, sur la feuille)
+                if fromRight then
+                    Copy(textBody2, self.old.r)
+                    if self.old.n and self.old.n ~= "" then Copy(bookPageNum, self.old.n) end
+                else
+                    Copy(textHeader, self.old.h); Copy(textBody, self.old.l)
+                end
+            end
+            -- (le papier se comprime avec la feuille, bords brules compris, comme avant : on voit
+            -- bien une feuille qui se leve ; son texte, lui, est coupe a sa largeur)
+            tex:ClearAllPoints()
+            tex:SetAllPoints(sheet)
+            tex:SetTexCoord(pg[1] / 1024, pg[2] / 1024, pg[3] / 1024, pg[4] / 1024)
         end
-        tex:SetSize(math.max(0.5, w * f), h)
-        local shade = 0.62 + 0.38 * f
-        tex:SetVertexColor(shade, shade * 0.97, shade * 0.93)
+        sheet:ClearAllPoints()
+        if fromRight then
+            sheet:SetPoint("TOPLEFT", DWE.bookSpreadTex, "TOPLEFT", spineX, top)
+        else
+            sheet:SetPoint("TOPRIGHT", DWE.bookSpreadTex, "TOPLEFT", spineX, top)
+        end
+        sheet:SetSize(math.max(0.5, w * f), h)
+        shade:SetAlpha(0.45 * (1 - f) + 0.06)
+        -- (vu de biais, le texte de la feuille ne se lit plus : il s'efface quand elle se dresse)
+        local ca = first and math.max(0, math.min(1, (f - 0.6) / 0.4)) or 0
+        for _, c in pairs(copies) do c:SetAlpha(ca) end
+        -- (la page decouverte apparait des que la feuille est passee de l'autre cote)
+        if not first and hidden then Reveal(math.min(1, (k - 0.5) / 0.2)) end
+        local lift = 1 - f
+        local shW = math.min(w * (1 - f), (14 + 46 * lift) * S)
+        shadow:ClearAllPoints()
+        if shW > 1 and lift > 0.02 then
+            if fromRight then
+                shadow:SetPoint("TOPLEFT", sheet, "TOPRIGHT", 0, 0)
+            else
+                shadow:SetPoint("TOPRIGHT", sheet, "TOPLEFT", 0, 0)
+            end
+            ShadowFade(fromRight, 0.55 * lift)
+            shadow:SetSize(shW, h)
+            shadow:Show()
+        else
+            shadow:Hide()
+        end
         -- (la feuille posee : la page qu'elle recouvre montre enfin son nouveau texte)
         if k >= 1 then
             self:Hide()
@@ -4485,6 +4629,13 @@ do
             end
         end
     end)
+    DWE.BookFlipHide = function(dir)
+        Reveal(1)
+        -- (le numero de page est sur la page de droite : il part et revient avec elle)
+        hidden = dir > 0 and { textBody2, bookPageNum } or { textHeader, textBody }
+        Reveal(0)
+        hidden = dir > 0 and { textBody2, bookPageNum } or { textHeader, textBody }
+    end
     function DWE.BookTurnFX(dir)
         if DialogueWheelE_BookTurnFX == false then return end
         -- Realisme : la page que la feuille va recouvrir garde son ancien texte jusqu'a ce que la
@@ -4494,7 +4645,7 @@ do
             local last = DWE.bookShownLast
             local hold
             if last then
-                local list = dir > 0 and { { textHeader, last.h }, { textBody, last.l } } or { { textBody2, last.r } }
+                local list = dir > 0 and { { textHeader, last.h }, { textBody, last.l } } or { { textBody2, last.r }, { bookPageNum, last.n } }
                 hold = {}
                 for _, it in ipairs(list) do
                     local fs, old = it[1], it[2]
@@ -4509,6 +4660,8 @@ do
             local prev = DWE.bookTurnHold
             if prev then for _, h in ipairs(prev) do if h.fs:GetText() == h.old then h.fs:SetText(h.new) end end end
             DWE.bookTurnHold = hold
+            -- (jamais plus longtemps que la feuille : livre ferme en plein tour, etc.)
+            DWE.bookTurnHoldUntil = (GetTime and GetTime() or 0) + DUR + 0.05
         end
         if PlaySound then
             local id = SOUNDKIT and (SOUNDKIT.IG_ABILITY_PAGE_TURN or SOUNDKIT.IG_SPELLBOOK_PAGE_TURN) or 836
@@ -4521,6 +4674,8 @@ do
         if rib and rib.tex then
             rib.tex:SetAlpha(0)
             if rib.glow then rib.glow:SetAlpha(0) end
+            -- (la lueur de la page marquee revient avec le ruban, au meme rythme, pas avant)
+            rib.fadeK = 0
             local fade = DWE.ribbonFade or CreateFrame("Frame", nil, textBox)
             DWE.ribbonFade = fade
             fade.t = 0
@@ -4530,13 +4685,21 @@ do
                 if a <= 0 then return end
                 if a >= 1 then a = 1; self:SetScript("OnUpdate", nil) end
                 rib.tex:SetAlpha(a)
+                if rib.glow then rib.glow:SetAlpha((rib.glowTarget or 0) * a) end
+                if a >= 1 then rib.fadeK = nil else rib.fadeK = a end
             end)
         end
-        F.dir, F.t = dir, 0
+        F.dir, F.t, F.phase = dir, 0, nil
+        -- (ce que montrait chaque page avant le tour : la feuille qui se souleve l'emporte)
+        local last = DWE.bookShownLast
+        F.old = last and { h = last.h, l = last.l, r = last.r, n = last.n } or nil
+        DWE.BookFlipHide(dir)
         -- Au-dessus du marque-page (+6) : la page qui tourne passe par-dessus le ruban, comme dans
         -- un vrai livre, au lieu que le ruban flotte devant elle.
         F:SetFrameLevel((textBox:GetFrameLevel() or 1) + 8)
         F:Show()
+        -- (la feuille couvre la page qui se souleve des cette image, pas a la suivante)
+        F:GetScript("OnUpdate")(F, 0)
     end
 end
 
@@ -4624,7 +4787,16 @@ local function LayoutBook()
         -- sous elle le temps de se poser)
         local held = DWE.bookTurnHold
         local function Now(fs) if held then for _, hh in ipairs(held) do if hh.fs == fs then return hh.new end end end return fs:GetText() end
-        DWE.bookShownLast = { h = Now(textHeader), l = Now(textBody), r = Now(textBody2) }
+        DWE.bookShownLast = { h = Now(textHeader), l = Now(textBody), r = Now(textBody2), n = Now(bookPageNum) }
+        -- (le livre se redessine plusieurs fois pendant que la feuille tourne : la page qu'elle
+        -- va recouvrir reprend chaque fois son ancien texte, jusqu'a ce que la feuille s'y pose)
+        held = DWE.bookTurnHold
+        if held and DWE.bookFlip and DWE.bookFlip:IsShown()
+            and (GetTime and GetTime() or 0) < (DWE.bookTurnHoldUntil or 0) then
+            for _, hh in ipairs(held) do
+                if hh.fs:GetText() == hh.new then hh.fs:SetText(hh.old) end
+            end
+        end
     end
     if noteScroll then noteScroll:Hide() end
     textBody:Show()
@@ -5029,6 +5201,7 @@ do
         rib.pulse = nil
         rib.glowTarget = target
         rib:SetScript("OnUpdate", function(self, elapsed)
+            if self.fadeK then return end -- (ruban en train de revenir : sa lueur suit son fondu)
             local a = self.glow:GetAlpha() or 0
             local t = self.glowTarget or 0
             a = a + (t - a) * math.min(1, elapsed * 10)
@@ -5064,11 +5237,14 @@ do
         -- Note et plaque : leur menu n'a que les reglages de Spoken. Sans Spoken, pas de signature
         -- ni de gravure (rien a ouvrir). Le livre garde son ruban (marque-page, pages animees).
         local focus = DWE.SpokenFocus
-        local useful = book == true or (focus and focus.Available and focus.Available())
+        -- (ecrit relu depuis la bibliotheque ou le carnet : pas encore de voix, donc rien dans le
+        -- menu d'une note ou d'une plaque, pas de glyphe)
+        local useful = book == true or (focus and focus.Available and focus.Available() and not DWE.libraryBook)
         -- Hommage a une personne disparue : ni gravure ni menu de lecture, la pierre seule.
         if not (active and useful and DWE.BookByAddon() and (book == true or book == "note"))
             or (DWE.MemorialOpen and DWE.MemorialOpen()) then
             rib.marked = nil
+            rib.fadeK = nil
             rib.glow:SetAlpha(0)
             rib:Hide()
             bar:Hide()
@@ -5088,7 +5264,7 @@ do
             local plate = DWE.PlateMaterial and DWE.PlateMaterial()
             rib.tex:SetVertexColor(1, 1, 1)
             if rib.tex.SetDesaturated then rib.tex:SetDesaturated(false) end
-            local roundPl = plate and DWE.PLATES[plate] and DWE.PLATES[plate].round
+            local roundPl = plate and DWE.PLATES[plate] and DWE.PLATES[plate].round and not DWE.PLATES[plate].disc
             if roundPl and textBox.dweOuter then
                 -- Stele ronde : son propre symbole grave ouvre le menu ; il s'illumine au survol
                 -- (lueur a sa forme), sans rien ajouter sur la pierre.
@@ -5105,7 +5281,12 @@ do
                     rib.tex:SetTexture(ADDON_PATH .. "EngraveKnot.png")
                     rib.glow:SetTexture(ADDON_PATH .. "EngraveKnotGlow.png")
                     rib:SetSize(40, 40)
-                    rib:SetPoint("CENTER", textBox, "TOP", 0, -12)
+                    if DWE.PLATES[plate] and DWE.PLATES[plate].disc and textBox.dweOuter then
+                        -- (tablette elfique : dans la bande de pierre du haut, hors du cercle)
+                        rib:SetPoint("CENTER", noteBg, "TOP", 0, -textBox.dweOuter * 0.05)
+                    else
+                        rib:SetPoint("CENTER", textBox, "TOP", 0, -12)
+                    end
                     rib.baseAlpha = 0.8 -- gravure un peu plus discrete
                     rib.glow:SetSize(40, 40)
                 end
@@ -6287,7 +6468,9 @@ function DWE.SetGripCorner(frame, anchorPoint)
         g:SetPoint("BOTTOMRIGHT", frame.dweGripAnchor or frame, "BOTTOMRIGHT", ox - 6, -(oy - 6))
     end
     g.dweNoGrip = frame.dweNoGrip
-    if frame.dweNoGrip then g:Hide() elseif not DWE.IsLocked() then g:Show() end
+    -- (une poignee nait visible : creee apres le verrouillage, carnet ou bibliotheque ouverts
+    -- plus tard, elle restait affichee alors que les fenetres sont verrouillees)
+    g:SetShown(not frame.dweNoGrip and not DWE.IsLocked())
 end
 
 function DWE.ApplyLock()

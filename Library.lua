@@ -274,8 +274,23 @@ end)
 --------------------------------------------------------------------------------
 -- Genre d'un ecrit : plaque (matiere gravee), lettre (une seule page) ou livre.
 local OBJ_KIND_OF -- (table des objets du monde, plus bas)
+-- Objets graves qu'on porte sur soi (le jeu les affiche sur du parchemin) : tablettes, runes,
+-- legendes trolles sur pierre. Ils vont au carnet d'estampages, pas sur les etageres.
+Lib.ENGRAVED_ITEMS = {
+    [2005] = "The First Troll Legend", [2006] = "The Second Troll Legend", [2007] = "The Third Troll Legend",
+    [2008] = "The Fourth Troll Legend", [6488] = "Simple Tablet", [9242] = "Ancient Tablet",
+    [9554] = "Encrypted Tablet", [9561] = "Hallowed Tablet", [9562] = "Rune-Inscribed Tablet",
+    [9564] = "Etched Tablet", [9575] = "Glyphic Tablet", [9543] = "Simple Rune", [9550] = "Encrypted Rune",
+    [9556] = "Hallowed Rune", [9563] = "Consecrated Rune", [9566] = "Etched Rune",
+}
+Lib.ENGRAVED_TITLES = {}
+for _, t in pairs(Lib.ENGRAVED_ITEMS) do Lib.ENGRAVED_TITLES[t] = true end
+local function Engraved(item, title)
+    return (item and Lib.ENGRAVED_ITEMS[item] ~= nil) or (title and Lib.ENGRAVED_TITLES[title]) or false
+end
 local function Kind(e)
     if e.m and DWE.PLATES and DWE.PLATES[e.m] then return "plate" end
+    if Engraved(e.i, e.t) then return "plate" end
     -- Objet du monde connu : plaque, stele, statue, tombe... ou affiche, ou livre.
     local k = OBJ_KIND_OF and OBJ_KIND_OF(e.o, e.t)
     if k then return k end
@@ -307,7 +322,8 @@ function Lib.List(filter, search, sort)
             -- (pas encore trouves : seulement comptes, pas ranges ; l'option "Tous les livres"
             -- les met sur les etageres, lisibles)
             if not seen[k] and DialogueWheelE_LibraryUnlock == true then
-                local kind = OBJ_KIND_OF(nil, b.title) or (#b.pages > 1 and "book" or "letter")
+                local kind = OBJ_KIND_OF(nil, b.title) or (Engraved(nil, b.title) and "plate")
+                    or (#b.pages > 1 and "book" or "letter")
                 rows[#rows + 1] = { key = k, title = b.title, kind = kind, locked = DialogueWheelE_LibraryUnlock ~= true }
                 if DialogueWheelE_LibraryUnlock == true then rows[#rows].spoken = b end
             end
@@ -835,7 +851,10 @@ Lib.BOOK_THICK = 0.23 -- (epaisseur d'un livre debout, en part de sa hauteur)
 -- qu'un, le cadre etant juste assez large et la camera decalee sur lui : un cercle = un ecrit)
 Lib.SCROLL_PILE = { dist = 0.9, w = 0.171, dia = 0.171 }
 Lib.SHELF_BOOK_OK = { [200900] = true, [200901] = true, [200902] = true, [200903] = true, [200904] = true, [200905] = true }
-Lib.SCROLL_SHELF = { 203430 } -- (le feuillet plie, 203429, rendait mal sur les rayons)
+Lib.SCROLL_SHELF = { 203429, 512439 } -- (Uldaman scroll 1 et Held scroll, melanges)
+-- Rouleaux qui se tiennent debout sur le rayon (et leur vue : /storytale libpose sheet ...).
+Lib.SHEET_MODELS = { [203429] = true, [512439] = true }
+Lib.SHEET_POSE = { dist = 1.0, yaw = 0, pitch = 0, roll = 0, vfrac = 0.55, across = 1.0 }
 Lib.SCROLL_OPEN = { 198451, 198452, 198454, 198455, 201113 }
 local function TitleHash(t)
     local h = 0
@@ -844,6 +863,12 @@ local function TitleHash(t)
 end
 function Lib.ModelFor(row, where)
     local o = (row.entry and row.entry.o) or TITLE_OBJ[row.title or ""]
+    -- (carnet d'estampages : la piece exposee du musee plutot que sa plaque, quand elle est connue)
+    if where == "rub" then
+        local ex = o and Lib.ExhibitModel and Lib.ExhibitModel(o)
+        if ex then return ex end
+        where = "lectern"
+    end
     if row.kind == "letter" and where == "shelf" then
         return tonumber(DialogueWheelE_LibraryScroll) or Lib.SCROLL_SHELF[TitleHash(row.title) % #Lib.SCROLL_SHELF + 1]
     end
@@ -925,6 +950,9 @@ local function LoadModel(sc, id, pose)
     if a.ClearModel then pcall(a.ClearModel, a) end
     if sc.fileID ~= id then sc.size = nil end
     sc.fileID = id
+    -- (pret a l'ecran une fois le fichier charge par le jeu, pas a l'appel)
+    sc.ready = false
+    sc.readyAt = (GetTime and GetTime() or 0) + 0.25
     if a.SetScale then pcall(a.SetScale, a, 1) end
     local ok, res = pcall(a.SetModelByFileID, a, id)
     if not ok or res == false then Lib.modelErr = ok and ("no model " .. tostring(id)) or tostring(res); return false end
@@ -937,7 +965,7 @@ local function LoadModel(sc, id, pose)
     -- (la boite du modele n'est connue qu'une fois charge)
     if a.SetScript and not sc.hooked then
         sc.hooked = true
-        pcall(a.SetScript, a, "OnModelLoaded", function() if sc.pose then Lib.Pose(sc) end end)
+        pcall(a.SetScript, a, "OnModelLoaded", function() sc.ready = true; if sc.pose then Lib.Pose(sc) end end)
     end
     -- (et au cas ou le jeu ne previent pas : on recadre un peu plus tard)
     if C_Timer and C_Timer.After then
@@ -1006,7 +1034,17 @@ function Lib.ShelfPose(row, i)
     local every = row.kind == "letter" and 4 or 5
     if h % every == 0 and not row.noLean then p.lean = 12 + (h % 9) end
     -- Parchemins : couches, empiles. Quelques livres couches aussi, par deux ou trois.
-    if row.kind == "letter" then
+    if row.kind == "letter" and Lib.SHEET_MODELS[Lib.ModelFor(row, "shelf") or 0] then
+        -- Rouleau a fermoir (Uldaman scroll 1) : debout, vu de cote, le fermoir au milieu,
+        -- comme un livre sur le rayon (pas de piles : un rouleau debout se tient seul).
+        -- (exactement la vue de la fenetre de choix : couche, vu de cote, dans un cadre presque
+        -- carre comme ses cases ; ils s'empilent a deux ou trois, comme des rouleaux)
+        local sp = Lib.SHEET_POSE
+        p.lean = nil
+        p.yaw, p.pitch, p.roll, p.flat = sp.yaw, sp.pitch, sp.roll, true
+        p.vfrac, p.across, p.fill = sp.vfrac, sp.across, Lib.BBOX_FILL
+        p.dist = sp.dist / size
+    elseif row.kind == "letter" then
         -- Couches, vus par le bout (on voit les rouleaux de face, jamais leur longueur), ranges
         -- par trois en pyramide : deux cote a cote, le troisieme pose entre les deux (Refresh).
         p.lean = nil
@@ -1956,6 +1994,8 @@ Lib.SCROLLS = {
     { 198451, "Scroll A2" }, { 198452, "Scroll A3" }, { 198453, "Scroll B1" }, { 198454, "Scroll B2" },
     { 198455, "Scroll B3" }, { 198457, "Map scroll" }, { 203429, "Uldaman scroll 1" },
     { 203430, "Uldaman scroll 2" }, { 203431, "Uldaman scroll 3" }, { 201113, "Open scroll" },
+    { 203432, "Uldaman clasp" }, { 199424, "Wanted scroll" }, { 200551, "Tauren scroll" },
+    { 512439, "Held scroll" }, { 615450, "Floating scroll" },
 }
 function Lib.ScrollPicker()
     local f = Lib.picker
@@ -1963,7 +2003,7 @@ function Lib.ScrollPicker()
     f = CreateFrame("Frame", "StorytaleScrollPicker", UIParent, "BackdropTemplate")
     Lib.picker = f
     f:SetFrameStrata("FULLSCREEN_DIALOG")
-    f:SetSize(5 * 150 + 30, 2 * 170 + 60)
+    f:SetSize(5 * 150 + 30, 3 * 170 + 60)
     f:SetPoint("CENTER")
     f:SetMovable(true); f:EnableMouse(true); f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
@@ -2001,6 +2041,114 @@ function Lib.ScrollPicker()
         f.cells[i] = cell
     end
     -- (ils tournent lentement, pour voir leur forme)
+    local yaw = 0
+    f:SetScript("OnUpdate", function(_, el)
+        yaw = yaw + (el or 0) * 0.8
+        for _, cell in ipairs(f.cells) do
+            local a = cell.sc and cell.sc.actor
+            if a and a.SetYaw then pcall(a.SetYaw, a, yaw) end
+        end
+    end)
+end
+
+-- Pieces du musee (Hall des explorateurs, Forgefer) : le carnet montre l'objet expose plutot
+-- que la plaque. Le jeu ne relie pas la plaque a son objet (c'est un decor du batiment) : le
+-- modele est choisi a la main. Sans choix, la plaque reste.
+Lib.EXHIBIT = {}
+Lib.EXHIBIT_CANDIDATES = {
+    { 175679, "The Skull of Tyrannistrasz", { { 198370, "Dragon skull" }, { 198369, "Dragon skeleton" },
+        { 199050, "Carnosaur skull" }, { 190439, "Great skull 1" }, { 190440, "Great skull 2" } } },
+    { 175680, "Fossilized Egg", { { 203089, "Dragonkin egg" }, { 200964, "Black dragon egg" },
+        { 200966, "Chromatic egg" }, { 199222, "Raptor eggs" }, { 197456, "Fossil" } } },
+    { 175681, "Roc Talon", { { 203196, "Claw exhibit" }, { 200669, "Great claw" } } },
+    { 175682, "Geru Strider", { { 199052, "Strider skull" }, { 197847, "Stuffed strider" }, { 197456, "Fossil" } } },
+    { 175683, "Toothgnasher's Skeleton", { { 197456, "Fossil" }, { 203523, "Raptor bones" },
+        { 199050, "Carnosaur skull" }, { 201363, "Beast bones" } } },
+    { 175684, "Saurial Egg", { { 199222, "Raptor eggs 1" }, { 199223, "Raptor eggs 2" }, { 199224, "Raptor eggs 3" },
+        { 199225, "Raptor eggs 4" }, { 203089, "Dragonkin egg" } } },
+    { 175685, "Pteradon Skeleton", { { 198369, "Hanging skeleton" }, { 197456, "Fossil" }, { 199640, "Winged bones" } } },
+    { 175686, "Highborne Astrolabe", { { 203194, "Museum globe" }, { 198254, "Globe" } } },
+    { 175687, "Uldaman Relics", { { 203420, "Platinum disc" }, { 201133, "Uldaman map" }, { 203327, "Titan head" },
+        { 203385, "Uldaman book" } } },
+    { 175688, "Horde Catapult", { { 189709, "Catapult" }, { 189840, "Ruined catapult" }, { 124003, "Forsaken catapult" },
+        { 196933, "Catapult (doodad)" }, { 341891, "Blackrock catapult" } } },
+    { 175689, "Uldaman Reliefs", { { 203333, "Titan wall 1" }, { 203334, "Titan wall 2" }, { 203335, "Titan wall 3" },
+        { 203415, "Uldaman painting 1" }, { 203417, "Uldaman painting 2" } } },
+}
+function Lib.ExhibitModel(o)
+    local p = type(DialogueWheelE_ExhibitPick) == "table" and DialogueWheelE_ExhibitPick[o]
+    if p == 0 then return nil end
+    return tonumber(p) or Lib.EXHIBIT[o]
+end
+-- /storytale library exhibits : une piece par page, ses modeles candidats cote a cote ; un clic
+-- choisit (le carnet le montre aussitot), "Plaque" garde la plaque.
+function Lib.ExhibitPicker()
+    local f = Lib.exPicker
+    if f then f:SetShown(not f:IsShown()) return end
+    f = CreateFrame("Frame", "StorytaleExhibitPicker", UIParent, "BackdropTemplate")
+    Lib.exPicker = f
+    f:SetFrameStrata("FULLSCREEN_DIALOG")
+    f:SetSize(6 * 150 + 30, 170 + 100)
+    f:SetPoint("CENTER")
+    f:SetMovable(true); f:EnableMouse(true); f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 16, insets = { left = 4, right = 4, top = 4, bottom = 4 } })
+    f:SetBackdropColor(0.07, 0.045, 0.03, 0.95)
+    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", -2, -2)
+    local t = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    t:SetPoint("TOP", 0, -14)
+    local pose = { dist = 1.0, yaw = 0, pitch = 10, roll = 0 }
+    f.cells = {}
+    for i = 1, 6 do
+        local cell = CreateFrame("Button", nil, f, "BackdropTemplate")
+        cell:SetSize(140, 160)
+        cell:SetPoint("TOPLEFT", 15 + (i - 1) * 150, -44)
+        cell:SetBackdrop({ edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12 })
+        cell.sc = NewScene(cell)
+        if cell.sc then cell.sc:SetPoint("TOPLEFT", 6, -6); cell.sc:SetPoint("BOTTOMRIGHT", -6, 24) end
+        cell.lab = cell:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        cell.lab:SetPoint("BOTTOM", 0, 8)
+        f.cells[i] = cell
+    end
+    local page = 1
+    local Show
+    function Show()
+        local ex = Lib.EXHIBIT_CANDIDATES[page]
+        t:SetText(page .. "/" .. #Lib.EXHIBIT_CANDIDATES .. " : " .. ex[2])
+        DialogueWheelE_ExhibitPick = type(DialogueWheelE_ExhibitPick) == "table" and DialogueWheelE_ExhibitPick or {}
+        local cur = DialogueWheelE_ExhibitPick[ex[1]]
+        local list = { { 0, "Plaque", MODELS.plate } }
+        for _, c in ipairs(ex[3]) do list[#list + 1] = { c[1], c[2], c[1] } end
+        for i, cell in ipairs(f.cells) do
+            local c = list[i]
+            cell:SetShown(c ~= nil)
+            if c then
+                if cell.sc then LoadModel(cell.sc, c[3], pose) end
+                cell.lab:SetText(c[2])
+                local on = (cur or 0) == c[1]
+                cell:SetBackdropBorderColor(1, on and 0.82 or 1, on and 0 or 1, on and 1 or 0.4)
+                cell:SetScript("OnClick", function()
+                    DialogueWheelE_ExhibitPick[ex[1]] = c[1]
+                    Show()
+                    if Lib.RubRefresh and Lib.rubFrame and Lib.rubFrame:IsShown() then Lib.RubRefresh() end
+                end)
+            end
+        end
+    end
+    local function Arrow(dir, x)
+        local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+        b:SetSize(110, 24)
+        b:SetPoint("BOTTOM", x, 16)
+        b:SetText(dir < 0 and "< Previous" or "Next >")
+        b:SetScript("OnClick", function()
+            page = (page - 1 + dir) % #Lib.EXHIBIT_CANDIDATES + 1
+            Show()
+        end)
+    end
+    Arrow(-1, -70); Arrow(1, 70)
+    Show()
     local yaw = 0
     f:SetScript("OnUpdate", function(_, el)
         yaw = yaw + (el or 0) * 0.8
@@ -2151,7 +2299,7 @@ function Refresh()
         -- Debout : l'epaisseur reelle du livre (les livres se touchent) ; penche, en plus, ce que
         -- son haut avance sur le voisin.
         local hm = (p.fill or Lib.BBOX_FILL) * sl.h / (1.1 * p.dist)
-        local w = hm * (p.fill and 0.14 or Lib.BOOK_THICK)
+        local w = hm * (p.thick or (p.fill and 0.14) or Lib.BOOK_THICK)
         if p.lean then w = w + hm * math.sin(math.rad(p.lean)) end
         return math.max(4, math.floor(w + 0.5))
     end
@@ -2453,7 +2601,7 @@ function Lib.OnBookClosed()
     end
     if Lib.rubState and Lib.rubState.reopen then
         Lib.rubState.reopen = nil
-        if Lib.OpenRubbings then Lib.OpenRubbings() end
+        if Lib.OpenRubbings then Lib.OpenRubbings(true) end
         if DWE.FadeInFrames and Lib.rubFrame then DWE.FadeInFrames({ Lib.rubFrame }, 0.3) end
     end
 end
@@ -2498,8 +2646,9 @@ end
 -- lentement, son nom, le lieu et la date ; a droite l'estampage, le texte grave qui ressort en
 -- clair sur le fusain (RubbingCharcoal.png). Un monument par double page.
 --------------------------------------------------------------------------------
-local RB = { w = 1024, h = 627, scale = 0.8,
-    left = { 122, 55, 515, 578 }, right = { 523, 55, 910, 578 } }
+-- (couverture resserree : 924 pixels de large dans une image de 1024)
+local RB = { w = 924, h = 627, tex = 1024, scale = 0.8,
+    left = { 72, 39, 465, 590 }, right = { 473, 39, 860, 590 } }
 local rub, rui
 local rstate = { index = 1, search = "" }
 Lib.rubState = rstate
@@ -2526,16 +2675,97 @@ local function FitText(fs, text, maxW, maxH)
     return 9
 end
 
+-- Page de gauche : modele 3D, nom, lieu et date.
+local function RubDrawLeft(row, w)
+    w = w or rui
+    w.name:SetText(row.title)
+    local e = row.entry
+    local meta = {}
+    if e and e.z then meta[#meta + 1] = e.z end
+    if e and e.d and date and e.d > 0 then meta[#meta + 1] = date("%d/%m/%Y", e.d) end
+    if not e then meta[#meta + 1] = L.LIB_NOT_FOUND or "not found yet" end
+    w.meta:SetText(table.concat(meta, " - "))
+    -- (pas encore trouve : pale)
+    local a = e and 1 or 0.45
+    if w.model then
+        local id = Lib.ModelFor(row, "rub")
+        -- (chaque page : le monument de face, quelle que soit la facon dont on l'avait tourne)
+        w.model.yaw, w.model.pitch, w.model.dragX = 0, nil, nil
+        local ok = LoadModel(w.model, id, Lib.RUB_POSE)
+        local act = w.model.actor
+        if ok and act then
+            if act.SetYaw then pcall(act.SetYaw, act, 0) end
+            if act.SetPitch then pcall(act.SetPitch, act, math.rad(Lib.RUB_POSE.pitch)) end
+        end
+        w.model:SetShown(ok)
+        w.model:SetAlpha(a)
+        -- (pas encore charge par le jeu : invisible, puis apparait d'un coup, deja a sa taille ;
+        -- sinon on le voyait un instant ecrase ou geant)
+        if w == rui and ok and not Lib.ModelReady(w.model) then
+            w.model:SetAlpha(0)
+            rui.modelWait = a
+        elseif w == rui then
+            rui.modelWait = nil
+        end
+    end
+end
+-- Page de droite : l'estampage, le fusain a la taille du texte.
+local function RubDrawRight(row, w)
+    w = w or rui
+    local e = row.entry
+    local pages = Lib.Pages(row)
+    local text = DWE.PlainItemText and DWE.PlainItemText(table.concat(pages, "\n\n")) or table.concat(pages, "\n\n")
+    text = Lib.Inscription(row.title, text)
+    FitText(w.text, text, rui.textW, rui.textH)
+    -- (un texte court, un petit frottis : on ne frotte que la ou c'est grave)
+    do
+        local fs = w.text
+        local longest = 0
+        for line in (text .. "\n"):gmatch("(.-)\n") do
+            fs:SetWidth(0); fs:SetText(line)
+            longest = math.max(longest, fs:GetStringWidth() or 0)
+        end
+        local tw = math.min(rui.textW, math.max(60, longest + 4))
+        fs:SetWidth(tw); fs:SetText(text)
+        local h = fs:GetStringHeight() or rui.textH
+        local cw = math.min(rui.chMaxW, math.max(rui.chMinW, tw + 70))
+        local chh = math.min(rui.chMaxH, math.max(rui.chMinH, h + 80))
+        w.charcoal:ClearAllPoints()
+        w.charcoal:SetPoint("CENTER", rub, "TOPLEFT", rui.chCX, rui.chCY)
+        w.charcoal:SetSize(cw, chh)
+    end
+    local a = e and 1 or 0.45
+    w.charcoal:SetAlpha(a); w.text:SetAlpha(a)
+end
+-- Modele affiche pour de bon (charge par le jeu, ou on n'attend plus).
+function Lib.ModelReady(sc)
+    if not sc or sc.ready ~= false then return true end
+    -- (le jeu ne previent pas toujours, modele deja en memoire : on lui demande directement,
+    -- et on cale alors sa taille, qui n'etait pas encore connue)
+    local a = sc.actor
+    if a and a.IsLoaded then
+        local ok, loaded = pcall(a.IsLoaded, a)
+        if ok and loaded then
+            sc.ready = true
+            if not sc.size then Lib.Pose(sc) end
+            return true
+        end
+    end
+    return (GetTime and GetTime() or 0) >= (sc.readyAt or 0)
+end
+-- Pendant qu'une feuille tourne, la page qu'elle va recouvrir garde son ancien contenu
+-- (rstate.holdLeft / holdRight) jusqu'a ce que la feuille s'y pose.
 local function RubRefresh()
     if not rub then return end
     local rows = RubRows()
     local n = #rows
     rstate.index = math.max(1, math.min(rstate.index, math.max(1, n)))
     local row = rows[rstate.index]
-    rui.count:SetText(n > 0 and (rstate.index .. " / " .. n) or "")
-    rui.prev:SetShown(rstate.index > 1)
-    rui.next:SetShown(rstate.index < n)
+    rui.count:SetText(n > 0 and tostring(rstate.index) or "")
+    Lib.RubBarRefresh(n)
+    if rui.menu and rui.menu:IsShown() and not rui.menu.closing then Lib.RubMenuRefresh() end
     if not row then
+        rstate.holdLeft, rstate.holdRight = nil, nil
         rui.name:SetText("")
         rui.meta:SetText("")
         rui.text:SetText("")
@@ -2547,51 +2777,19 @@ local function RubRefresh()
     end
     rui.empty:Hide()
     rui.charcoal:Show()
-    rui.name:SetText(row.title)
-    local e = row.entry
-    local meta = {}
-    if e and e.z then meta[#meta + 1] = e.z end
-    if e and e.d and date and e.d > 0 then meta[#meta + 1] = date("%d/%m/%Y", e.d) end
-    if not e then meta[#meta + 1] = L.LIB_NOT_FOUND or "not found yet" end
-    rui.meta:SetText(table.concat(meta, " - "))
-    local pages = Lib.Pages(row)
-    local text = DWE.PlainItemText and DWE.PlainItemText(table.concat(pages, "\n\n")) or table.concat(pages, "\n\n")
-    text = Lib.Inscription(row.title, text)
-    FitText(rui.text, text, rui.textW, rui.textH)
-    -- Fusain a la taille du texte : un texte court, un petit frottis (on ne frotte que la ou
-    -- c'est grave), dans la limite de la page.
-    do
-        local fs = rui.text
-        local w = rui.textW
-        local longest = 0
-        for line in (text .. "\n"):gmatch("(.-)\n") do
-            fs:SetWidth(0); fs:SetText(line)
-            longest = math.max(longest, fs:GetStringWidth() or 0)
-        end
-        w = math.min(rui.textW, math.max(60, longest + 4))
-        fs:SetWidth(w); fs:SetText(text)
-        local h = fs:GetStringHeight() or rui.textH
-        local cw = math.min(rui.chMaxW, math.max(rui.chMinW, w + 70))
-        local chh = math.min(rui.chMaxH, math.max(rui.chMinH, h + 80))
-        rui.charcoal:ClearAllPoints()
-        rui.charcoal:SetPoint("CENTER", rub, "TOPLEFT", rui.chCX, rui.chCY)
-        rui.charcoal:SetSize(cw, chh)
+    RubDrawLeft(rstate.holdLeft or row)
+    RubDrawRight(rstate.holdRight or row)
+    -- (la feuille, au repos et invisible, tient deja la page de gauche : si on la tourne en
+    -- arriere, elle l'emporte sans attendre que son modele 3D se charge)
+    if rui.sheetW and not (rui.flipper and rui.flipper:IsShown()) then
+        RubDrawLeft(rstate.holdLeft or row, rui.sheetW)
+        rui.sheetW.baseA = (rstate.holdLeft or row).entry and 1 or 0.45
     end
-    -- (pas encore trouve : estampage pale)
-    local a = e and 1 or 0.45
-    rui.charcoal:SetAlpha(a); rui.text:SetAlpha(a)
-    if rui.model then
-        local id = Lib.ModelFor(row, "lectern")
-        -- (chaque page : le monument de face, quelle que soit la facon dont on l'avait tourne)
-        rui.model.yaw, rui.model.pitch, rui.model.dragX = 0, nil, nil
-        local ok = LoadModel(rui.model, id, Lib.RUB_POSE)
-        local a = rui.model.actor
-        if ok and a then
-            if a.SetYaw then pcall(a.SetYaw, a, 0) end
-            if a.SetPitch then pcall(a.SetPitch, a, math.rad(Lib.RUB_POSE.pitch)) end
-        end
-        rui.model:SetShown(ok)
-        rui.model:SetAlpha(a)
+    -- (les monuments des pages voisines se chargent en avance, invisibles : tourner la page
+    -- les montre tout de suite)
+    for i, sc in ipairs(rui.preload or {}) do
+        local r = rows[rstate.index + (i == 1 and 1 or -1)]
+        if r then LoadModel(sc, Lib.ModelFor(r, "rub"), Lib.RUB_POSE) end
     end
 end
 Lib.RubRefresh = RubRefresh
@@ -2620,7 +2818,7 @@ function Lib.RubRibbon()
     if not (rui and rui.ribbon) then return end
     local row = RubRows()[rstate.index]
     local on = row and DialogueWheelE_RubbingMark == row.key
-    rui.ribbon.tex:SetAlpha(1)
+    if not rui.ribbon.fadeK then rui.ribbon.tex:SetAlpha(1) end
     rui.ribbon.Glow(on and 0.35 or 0)
     rui.ribbon:SetShown(row ~= nil)
 end
@@ -2633,14 +2831,53 @@ function Lib.RubTurn(dir)
     local n = #RubRows()
     local to = math.max(1, math.min(n, rstate.index + dir))
     if to == rstate.index then return end
+    local fx = DialogueWheelE_BookTurnFX ~= false and rui.flipper
+    -- (une feuille encore en train de tourner : elle se pose d'un coup)
+    if rui.flipper and rui.flipper:IsShown() then rui.flipper:Hide(); Lib.RubSheetIdle(); rui.flipShadow:Hide() end
+    rstate.holdLeft, rstate.holdRight = nil, nil
+    local old = RubRows()[rstate.index]
+    if fx and old then
+        -- En avant, la feuille se pose sur la page de gauche ; en arriere, sur celle de droite.
+        if dir > 0 then rstate.holdLeft = old else rstate.holdRight = old end
+    end
     rstate.index = to
-    RubRefresh()
-    Lib.RubRibbon()
-    if DialogueWheelE_BookTurnFX ~= false and rui.flipper then
+    rstate.turnOld, rstate.turnNew = old, RubRows()[to]
+    if fx then
+        rui.flipper.phase, rui.flipper.settle = nil, nil
+        -- (la feuille couvre deja la page qui se souleve avant que la nouvelle soit dessinee)
         if PlaySound then pcall(PlaySound, SOUNDKIT and (SOUNDKIT.IG_ABILITY_PAGE_TURN or SOUNDKIT.IG_SPELLBOOK_PAGE_TURN) or 836) end
         rui.flipper.t, rui.flipper.dir = 0, dir
-        Lib.RubContentAlpha(0)
+        -- (la page decouverte par la feuille qui se souleve reste vide le temps qu'elle passe,
+        -- puis son contenu apparait : un monument identique, deja la, donnait l'impression que
+        -- la feuille glissait au travers)
+        if rui.revealed then rui.revealed:SetAlpha(1) end
+        rui.revealed = dir > 0 and rui.right or rui.content
+        rui.revealed:SetAlpha(0)
         rui.flipper:Show()
+        rui.flipper:GetScript("OnUpdate")(rui.flipper, 0)
+    end
+    RubRefresh()
+    Lib.RubRibbon()
+    if fx then
+        -- Comme dans le livre : le marque-page disparait pendant qu'on feuillette et revient en
+        -- fondu une fois la page posee, sa lueur avec lui (pas avant).
+        local rib = rui.ribbon
+        if rib then
+            rib.tex:SetAlpha(0)
+            rib.glow:SetAlpha(0)
+            rib.fadeK = 0
+            rib.fader = rib.fader or CreateFrame("Frame", nil, rub)
+            rib.fader.t = 0
+            rib.fader:SetScript("OnUpdate", function(self, el)
+                self.t = self.t + (el or 0)
+                local a = (self.t - 0.36 - 0.35) / 0.35
+                if a <= 0 then return end
+                if a >= 1 then a = 1; self:SetScript("OnUpdate", nil) end
+                rib.tex:SetAlpha(a)
+                rib.glow:SetAlpha((rib.glowTarget or 0) * a)
+                rib.fadeK = a < 1 and a or nil
+            end)
+        end
     end
 end
 Lib.RUB_POSE = { dist = 1.47, yaw = 0, pitch = 8, roll = 0 }
@@ -2686,7 +2923,7 @@ local function RubBuild()
     right:SetFrameLevel(rub:GetFrameLevel() + 1)
     rui.content, rui.right = content, right
     rui.fadeList = { content }
-    bg:SetTexCoord(0, 1, 0, RB.h / 1024)
+    bg:SetTexCoord(0, RB.w / RB.tex, 0, RB.h / RB.tex)
     bg:SetAllPoints()
     -- Page de gauche : modele 3D, nom, lieu et date.
     local L1 = RB.left
@@ -2716,6 +2953,25 @@ local function RubBuild()
             if a and a.SetPitch then pcall(a.SetPitch, a, self.pitch) end
         end)
     end
+    rui.preload = {}
+    for i = 1, 2 do
+        local pre = NewScene(rub)
+        if pre then
+            pre:SetSize(48, 48)
+            pre:SetPoint("CENTER", rub, "CENTER", 0, 0)
+            pre:SetAlpha(0)
+            rui.preload[i] = pre
+        end
+    end
+    -- (le modele de la page attend d'etre charge, puis apparait en un instant)
+    local waiter = CreateFrame("Frame", nil, rub)
+    waiter:SetScript("OnUpdate", function()
+        local want = rui.modelWait
+        if want and rui.model and Lib.ModelReady(rui.model) then
+            rui.modelWait = nil
+            rui.model:SetAlpha(want)
+        end
+    end)
     local name = content:CreateFontString(nil, "OVERLAY")
     name:SetPoint("TOP", rub, "TOPLEFT", (L1[1] + L1[3]) / 2 * s, -(L1[2] + 320) * s)
     name:SetWidth((L1[3] - L1[1] - 50) * s)
@@ -2773,22 +3029,37 @@ local function RubBuild()
     close:SetPoint("BOTTOMRIGHT", rub, "TOPRIGHT", -4, 0)
     close:SetScript("OnClick", function() rub:Hide() end)
     rui.close = close
-    local prev = TextButton(rub, "<", function() Lib.RubTurn(-1) end, { 0.30, 0.22, 0.15 })
-    local nextb = TextButton(rub, ">", function() Lib.RubTurn(1) end, { 0.30, 0.22, 0.15 })
-    local count = rub:CreateFontString(nil, "OVERLAY")
-    count:SetPoint("BOTTOM", rub, "BOTTOM", 0, 6)
-    Font(count, 12, PALE)
-    prev:SetPoint("BOTTOMLEFT", rub, "TOPLEFT", (L1[1] + 20) * s, -(L1[4] - 6) * s)
-    nextb:SetPoint("BOTTOMRIGHT", rub, "TOPLEFT", (R1[3] - 20) * s, -(R1[4] - 6) * s)
-    -- (les boutons de page reprennent la couleur sombre de l'encre au repos)
-    for _, b in ipairs({ prev, nextb }) do
-        b:SetScript("OnLeave", function(self) local c = self.color; self.text:SetTextColor(c[1], c[2], c[3]) end)
-    end
-    rui.prev, rui.next, rui.count = prev, nextb, count
+    -- Boutons sous le carnet, comme ceux du livre de Storytale : icone et nom, sans cadre.
+    local bar = CreateFrame("Frame", nil, rub)
+    bar:SetSize(10, 30)
+    bar:SetPoint("TOP", rub, "BOTTOM", 0, 2)
+    bar:EnableMouseWheel(true)
+    bar:SetScript("OnMouseWheel", function(_, delta) Lib.RubTurn(-delta) end)
+    bar.buttons = {}
+    rui.bar = bar
+    -- Numero de page comme dans le livre de Storytale : en bas de la page de droite, a l'encre.
+    local count = right:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    count:SetPoint("BOTTOM", rub, "TOPLEFT", (R1[1] + R1[3]) / 2 * s, -(R1[4] - 14) * s)
+    count:SetTextColor(0.40, 0.22, 0.08)
+    count:SetShadowOffset(0, 0)
+    rui.count = count
     -- Apercu : la plaque telle que Storytale l'affiche, avec son vrai texte.
-    local pv = TextButton(content, L.RUB_PREVIEW or "Preview", function() Lib.PreviewRubbing() end, { 0.30, 0.22, 0.15 })
-    pv:SetPoint("TOP", meta, "BOTTOM", 0, -14)
-    pv:SetScript("OnLeave", function(self) local c = self.color; self.text:SetTextColor(c[1], c[2], c[3]) end)
+    -- (une loupe a l'encre, plutot qu'un mot : on regarde la plaque de pres)
+    local pv = CreateFrame("Button", nil, content)
+    pv:SetSize(30, 30)
+    pv:SetPoint("TOP", meta, "BOTTOM", 0, -10)
+    pv.icon = pv:CreateTexture(nil, "ARTWORK")
+    pv.icon:SetAllPoints()
+    pv.icon:SetTexture("Interface\\Common\\UI-Searchbox-Icon")
+    pv.icon:SetVertexColor(0.30, 0.22, 0.15)
+    pv:SetScript("OnClick", function() Lib.PreviewRubbing() end)
+    pv:SetScript("OnEnter", function(self)
+        self.icon:SetVertexColor(0.55, 0.38, 0.12)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(L.RUB_PREVIEW or "Preview", 1, 0.82, 0)
+        GameTooltip:Show()
+    end)
+    pv:SetScript("OnLeave", function(self) self.icon:SetVertexColor(0.30, 0.22, 0.15); GameTooltip:Hide() end)
     rui.preview = pv
     rub:EnableMouseWheel(true)
     rub:SetScript("OnMouseWheel", function(_, delta) Lib.RubTurn(-delta) end)
@@ -2798,16 +3069,110 @@ local function RubBuild()
     local flipLayer = CreateFrame("Frame", nil, rub)
     flipLayer:SetAllPoints()
     flipLayer:SetFrameLevel(rub:GetFrameLevel() + 6)
-    local flip = flipLayer:CreateTexture(nil, "OVERLAY", nil, 6)
+    -- La feuille qui tourne porte son contenu : en se soulevant, l'ancienne page (le recto qui
+    -- part) ; en se posant, la nouvelle (son verso). Un cadre qui coupe ce qui depasse, a la
+    -- taille de la feuille, avec une copie des pages dedans, placee comme les vraies.
+    local sheet = CreateFrame("Frame", nil, flipLayer)
+    sheet:SetFrameLevel(flipLayer:GetFrameLevel() + 1)
+    if sheet.SetClipsChildren then sheet:SetClipsChildren(true) end
+    rui.sheet = sheet
+    local flip = sheet:CreateTexture(nil, "BACKGROUND")
     flip:SetTexture(ADDON .. "RubbingBook.png")
-    flip:Hide()
     rui.flip = flip
+    local sw = { }
+    rui.sheetW = sw
+    sw.left = CreateFrame("Frame", nil, sheet)
+    sw.left:SetAllPoints(rub)
+    sw.right = CreateFrame("Frame", nil, sheet)
+    sw.right:SetAllPoints(rub)
+    do
+        local L1, R1 = RB.left, RB.right
+        local m2 = NewScene(sw.left)
+        if m2 then
+            m2:SetSize(320 * s, 320 * s)
+            m2:SetPoint("TOP", rub, "TOPLEFT", (L1[1] + L1[3]) / 2 * s, -(L1[2] + 5) * s)
+            sw.model = m2
+        end
+        sw.name = sw.left:CreateFontString(nil, "OVERLAY")
+        sw.name:SetPoint("TOP", rub, "TOPLEFT", (L1[1] + L1[3]) / 2 * s, -(L1[2] + 320) * s)
+        sw.name:SetWidth((L1[3] - L1[1] - 50) * s)
+        Font(sw.name, 18, { 0.24, 0.17, 0.11 })
+        sw.name:SetJustifyH("CENTER")
+        sw.meta = sw.left:CreateFontString(nil, "OVERLAY")
+        sw.meta:SetPoint("TOP", sw.name, "BOTTOM", 0, -6)
+        sw.meta:SetWidth((L1[3] - L1[1] - 50) * s)
+        Font(sw.meta, 12, { 0.40, 0.32, 0.24 })
+        sw.meta:SetJustifyH("CENTER")
+        sw.preview = sw.left:CreateTexture(nil, "ARTWORK")
+        sw.preview:SetSize(30, 30)
+        sw.preview:SetPoint("TOP", sw.meta, "BOTTOM", 0, -10)
+        sw.preview:SetTexture("Interface\\Common\\UI-Searchbox-Icon")
+        sw.preview:SetVertexColor(0.30, 0.22, 0.15)
+        sw.charcoal = sw.right:CreateTexture(nil, "ARTWORK")
+        sw.charcoal:SetTexture(ADDON .. "RubbingCharcoal.png")
+        sw.text = sw.right:CreateFontString(nil, "OVERLAY")
+        sw.text:SetPoint("CENTER", sw.charcoal, "CENTER", 0, 0)
+        sw.text:SetJustifyH("CENTER")
+        sw.text:SetJustifyV("MIDDLE")
+        sw.text:SetShadowOffset(0, 0)
+        Font(sw.text, 15, { 0.90, 0.87, 0.80 })
+    end
+    -- (la feuille s'assombrit en se levant, contenu compris)
+    local shadeF = CreateFrame("Frame", nil, sheet)
+    shadeF:SetAllPoints(sheet)
+    shadeF:SetFrameLevel(sheet:GetFrameLevel() + 4)
+    local shadeT = shadeF:CreateTexture(nil, "OVERLAY")
+    shadeT:SetAllPoints()
+    shadeT:SetColorTexture(0.12, 0.08, 0.04, 1)
+    rui.sheetShade = shadeT
+    -- Au repos : invisible, sur la page de gauche (son modele 3D reste charge, pret a partir).
+    function Lib.RubSheetIdle()
+        if rui.revealed then rui.revealed:SetAlpha(1); rui.revealed = nil end
+        sheet:ClearAllPoints()
+        sheet:SetPoint("TOPLEFT", rub, "TOPLEFT", RB.left[1] * s, -RB.left[2] * s)
+        sheet:SetSize((RB.left[3] - RB.left[1]) * s, (RB.left[4] - RB.left[2]) * s)
+        sheet:SetAlpha(0)
+        sw.left:Show(); sw.right:Hide()
+        sw.left:SetAlpha(1)
+        if sw.model then sw.model:SetAlpha(sw.baseA or 1) end
+        if rui.flipper then rui.flipper.phase, rui.flipper.settle = nil, nil end
+    end
+    -- Ombre de la feuille soulevee sur la page qu'elle va couvrir (ou qu'elle quitte) : c'est ce
+    -- qui montre qu'elle passe au-dessus du contenu, pas au travers.
+    local shadow = flipLayer:CreateTexture(nil, "OVERLAY", nil, 5)
+    shadow:SetTexture("Interface\\Buttons\\WHITE8X8")
+    shadow:Hide()
+    rui.flipShadow = shadow
+    local function ShadowFade(side, a)
+        -- (sombre contre le bord de la feuille, rien a l'autre bout)
+        if shadow.SetGradient and CreateColor then
+            local dark, clear = CreateColor(0, 0, 0, a), CreateColor(0, 0, 0, 0)
+            if pcall(shadow.SetGradient, shadow, "HORIZONTAL", side == "right" and dark or clear, side == "right" and clear or dark) then return end
+        end
+        shadow:SetVertexColor(0, 0, 0, a * 0.5)
+    end
     local fl = CreateFrame("Frame", nil, rub)
     fl:Hide()
     rui.flipper = fl
+    Lib.RubSheetIdle()
+    -- (carnet ferme en plein tour : la feuille se pose, plus rien n'est retenu)
+    rub:HookScript("OnHide", function()
+        fl:Hide(); Lib.RubSheetIdle(); if rui.flipShadow then rui.flipShadow:Hide() end
+        rstate.holdLeft, rstate.holdRight = nil, nil
+    end)
     local spineX = (RB.left[3] + RB.right[1]) / 2
     fl:SetScript("OnUpdate", function(self, el)
         self.t = self.t + (el or 0)
+        -- (feuille posee, on attend que le nouveau modele 3D de la page soit a l'ecran : la
+        -- feuille, qui montre deja ce monument, reste par-dessus jusque-la)
+        if self.settle then
+            if Lib.ModelReady(rui.model) or self.t > self.settle then
+                self:Hide()
+                Lib.RubSheetIdle()
+                Lib.RubRefresh()
+            end
+            return
+        end
         local k = math.min(1, self.t / 0.36)
         local first = k < 0.5
         local fromRight = (self.dir > 0) == first
@@ -2815,29 +3180,96 @@ local function RubBuild()
         local f = first and (1 - k * 2) or ((k - 0.5) * 2)
         f = math.max(0.001, first and (f * f) or (1 - (1 - f) * (1 - f)))
         local pw, ph = (pg[3] - pg[1]) * s, (pg[4] - pg[2]) * s
-        flip:SetTexCoord(pg[1] / RB.w, pg[3] / RB.w, pg[2] / 1024, pg[4] / 1024)
-        flip:ClearAllPoints()
-        if fromRight then
-            flip:SetPoint("TOPLEFT", rub, "TOPLEFT", spineX * s, -pg[2] * s)
-        else
-            flip:SetPoint("TOPRIGHT", rub, "TOPLEFT", spineX * s, -pg[2] * s)
+        -- (contenu porte par la feuille : l'ancien cote qui se souleve, puis le nouveau qui se pose)
+        local phase = first and "lift" or "land"
+        if self.phase ~= phase then
+            self.phase = phase
+            if phase == "land" and rui.revealed then
+                local rv = rui.revealed
+                rui.revealed = nil
+                if DWE.FadeInFrames then DWE.FadeInFrames({ rv }, 0.15) else rv:SetAlpha(1) end
+            end
+            local row = first and rstate.turnOld or rstate.turnNew
+            sw.left:SetShown(not fromRight and row ~= nil)
+            sw.right:SetShown(fromRight and row ~= nil)
+            if row then
+                if fromRight then RubDrawRight(row, sw) else RubDrawLeft(row, sw) end
+                sw.baseA = row.entry and 1 or 0.45
+            end
+            -- (le papier se comprime avec la feuille, comme dans le livre : on la voit se lever)
+            flip:ClearAllPoints()
+            flip:SetAllPoints(sheet)
+            flip:SetTexCoord(pg[1] / RB.tex, pg[3] / RB.tex, pg[2] / RB.tex, pg[4] / RB.tex)
         end
-        flip:SetSize(math.max(0.5, pw * f), ph)
-        local shade = 0.62 + 0.38 * f
-        flip:SetVertexColor(shade, shade * 0.97, shade * 0.93)
-        flip:Show()
-        -- (le contenu des pages, cache pendant que la feuille tourne, revient en fondu)
+        local w = math.max(0.5, pw * f)
+        sheet:ClearAllPoints()
+        if fromRight then
+            sheet:SetPoint("TOPLEFT", rub, "TOPLEFT", spineX * s, -pg[2] * s)
+        else
+            sheet:SetPoint("TOPRIGHT", rub, "TOPLEFT", spineX * s, -pg[2] * s)
+        end
+        sheet:SetSize(w, ph)
+        sheet:SetAlpha(1)
+        rui.sheetShade:SetAlpha(0.38 * (1 - f))
+        -- (vue de biais, la feuille ne laisse plus lire ce qu'elle porte : son contenu s'efface
+        -- quand elle se dresse et revient quand elle se couche)
+        -- (en se posant, la feuille reste blanche, comme dans le livre : la nouvelle page apparait
+        -- une fois posee. Un monument fantome qui se dessinait dessus, a la place exacte de
+        -- l'ancien, donnait l'impression que la feuille passait au travers.)
+        local ca = first and math.max(0, math.min(1, (f - 0.6) / 0.4)) or 0
+        sw.left:SetAlpha(ca); sw.right:SetAlpha(ca)
+        -- (le modele 3D de la feuille s'efface quand le bord de la feuille l'atteint : un rendu
+        -- 3D ne se laisse pas toujours couper)
+        if sw.model and not fromRight then
+            local mc = (RB.left[1] + RB.left[3]) / 2 * s
+            local half = 0.36 * 320 * s
+            local x0 = spineX * s - w
+            local covered = math.max(0, math.min(1, ((mc + half) - math.max(x0, mc - half)) / (2 * half)))
+            local rdy = Lib.ModelReady(sw.model) and 1 or 0
+            sw.model:SetAlpha(rdy * (sw.baseA or 1) * math.max(0, math.min(1, (covered - 0.8) / 0.2)))
+        end
+        local flip = sheet
+        -- (ombre devant le bord libre de la feuille, d'autant plus large et sombre qu'elle est
+        -- haute ; jamais au-dela du bord de la page)
+        local lift = 1 - f
+        local room = pw * (1 - f)
+        local shW = math.min(room, (14 + 46 * lift) * s)
+        shadow:ClearAllPoints()
+        if shW > 1 and lift > 0.02 then
+            if fromRight then
+                shadow:SetPoint("TOPLEFT", flip, "TOPRIGHT", 0, 0)
+                ShadowFade("right", 0.55 * lift)
+            else
+                shadow:SetPoint("TOPRIGHT", flip, "TOPLEFT", 0, 0)
+                ShadowFade("left", 0.55 * lift)
+            end
+            shadow:SetSize(shW, ph)
+            shadow:Show()
+        else
+            shadow:Hide()
+        end
+        -- (la feuille posee : la page qu'elle recouvrait montre enfin le nouveau monument)
         if k >= 1 then
-            self:Hide(); flip:Hide()
-            if DWE.FadeInFrames then DWE.FadeInFrames(rui.fadeList, 0.25) else Lib.RubContentAlpha(1) end
+            shadow:Hide()
+            local wasLeft = rstate.holdLeft ~= nil
+            rstate.holdLeft, rstate.holdRight = nil, nil
+            RubRefresh()
+            if wasLeft and not Lib.ModelReady(rui.model) then
+                self.settle = self.t + 0.4
+            else
+                self:Hide()
+                Lib.RubSheetIdle()
+                RubRefresh()
+            end
         end
     end)
     -- Marque-page (vert, celui du livre est rouge) : marque le monument affiche ; le carnet se
     -- rouvre a cette page.
     local rib = CreateFrame("Button", nil, rub)
-    -- (comme celui du livre de Storytale : a cheval sur la reliure, en haut, 55 x 96)
+    -- (comme celui du livre de Storytale : il sort du haut des pages, dans le pli, pose sur la
+    -- page de gauche ; le ruban visible va de 13 a 39 pixels de son image de 55)
     rib:SetSize(55 * s, 96 * s)
-    rib:SetPoint("TOPLEFT", rub, "TOPLEFT", ((RB.left[3] + RB.right[1]) / 2 - 27) * s, -(RB.left[2] + 20) * s)
+    rib:SetPoint("TOPLEFT", rub, "TOPLEFT", (Lib.RUB_FOLD - 39) * s, -Lib.RUB_PAGE_TOP * s)
     rib:SetFrameLevel(rub:GetFrameLevel() + 8)
     -- Lueur doree comme celle du livre : douce quand la page est marquee, plus forte au survol.
     local glow = rib:CreateTexture(nil, "BACKGROUND")
@@ -2854,6 +3286,7 @@ local function RubBuild()
     function rib.Glow(target)
         rib.glowTarget = target
         rib:SetScript("OnUpdate", function(self, el)
+            if self.fadeK then return end -- (ruban en train de revenir : sa lueur suit son fondu)
             local a = self.glow:GetAlpha() or 0
             local t = self.glowTarget or 0
             a = a + (t - a) * math.min(1, (el or 0) * 10)
@@ -2861,15 +3294,11 @@ local function RubBuild()
             self.glow:SetAlpha(a)
         end)
     end
-    rib:SetScript("OnClick", function()
-        local row = RubRows()[rstate.index]
-        if not row then return end
-        DialogueWheelE_RubbingMark = (DialogueWheelE_RubbingMark ~= row.key) and row.key or nil
-        Lib.RubRibbon()
-    end)
+    -- Un clic deroule au-dessus du carnet ses reglages de lecture, comme le ruban du livre.
+    rib:SetScript("OnClick", function() Lib.RubMenuToggle() end)
     rib:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(L.MENU_MARK or "Bookmark this page", 1, 0.82, 0)
+        GameTooltip:SetText(L.RIBBON_TIP or "Reading options", 1, 0.82, 0)
         GameTooltip:Show()
         self.Glow(0.55)
     end)
@@ -2892,35 +3321,216 @@ local function RubBuild()
     rub:SetScale(math.max(0.6, math.min(1.8, tonumber(DialogueWheelE_RubbingsScale) or 1)))
 end
 
+-- Pli du carnet et haut de ses pages, en pixels de RubbingBook.png (mesures sur l'image).
+Lib.RUB_FOLD, Lib.RUB_PAGE_TOP = 471, 38
+-- Bouton du carnet (barre du bas, menu du ruban) : icone, nom, couleurs du livre de Storytale.
+local function BarButton(parent, size)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetHeight(26)
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetSize(16, 16)
+    b.icon:SetPoint("LEFT", b, "LEFT", 0, 0)
+    b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    b.text:SetPoint("LEFT", b.icon, "RIGHT", 6, 0)
+    b.text:SetShadowColor(0, 0, 0, 1)
+    b.text:SetShadowOffset(1, -1)
+    return b
+end
+local function BarColor(b)
+    if b.hover then b.text:SetTextColor(b.goodbye and 1 or 1, b.goodbye and 0.35 or 0.85, b.goodbye and 0.3 or 0.2)
+    elseif b.goodbye then b.text:SetTextColor(0.75, 0.75, 0.75)
+    else b.text:SetTextColor(0.95, 0.92, 0.85) end
+end
+-- Page precedente / suivante / Fermer, sous le carnet (comme sous le livre ouvert).
+function Lib.RubBarRefresh(n)
+    local bar = rui and rui.bar
+    if not bar then return end
+    local list = {}
+    if rstate.index > 1 then
+        list[#list + 1] = { "Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Up", L.PREV_PAGE or "Previous Page", function() Lib.RubTurn(-1) end }
+    end
+    if rstate.index < (n or 0) then
+        list[#list + 1] = { "Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up", L.NEXT_PAGE or "Next Page", function() Lib.RubTurn(1) end }
+    end
+    list[#list + 1] = { "Interface\\Buttons\\UI-GroupLoot-Pass-Up", rawget(_G, "CLOSE") or L.BOOK_CLOSE or "Close",
+        function() rub:Hide() end, true }
+    local x = 0
+    for i, it in ipairs(list) do
+        local b = bar.buttons[i]
+        if not b then
+            b = BarButton(bar)
+            b:EnableMouseWheel(true)
+            b:SetScript("OnMouseWheel", function(_, delta) Lib.RubTurn(-delta) end)
+            b:SetScript("OnEnter", function(self) self.hover = true; BarColor(self) end)
+            b:SetScript("OnLeave", function(self) self.hover = nil; BarColor(self) end)
+            b:SetScript("OnClick", function(self) if self.action then self.action() end end)
+            bar.buttons[i] = b
+        end
+        b.icon:SetTexture(it[1])
+        b.text:SetText(it[2])
+        b.action, b.goodbye = it[3], it[4]
+        BarColor(b)
+        local w = (b.text:GetStringWidth() or 90) + 26
+        b:SetWidth(w)
+        b:ClearAllPoints()
+        b:SetPoint("LEFT", bar, "LEFT", x, 0)
+        b:Show()
+        x = x + w + 28
+    end
+    for i = #list + 1, #bar.buttons do bar.buttons[i]:Hide() end
+    bar:SetWidth(math.max(10, x - 28))
+end
+-- Menu du ruban : marquer la page, animation des pages. Il se deroule au-dessus du carnet,
+-- chaque reglage apparaissant l'un apres l'autre, comme celui du livre.
+local function RubMenuItems()
+    local row = RubRows()[rstate.index]
+    local list = {}
+    if row then
+        list[#list + 1] = { label = L.MENU_MARK or "Bookmark this page", icon = "Interface\\Icons\\INV_Misc_Note_02",
+            on = DialogueWheelE_RubbingMark == row.key,
+            click = function()
+                DialogueWheelE_RubbingMark = (DialogueWheelE_RubbingMark ~= row.key) and row.key or nil
+                Lib.RubRibbon()
+            end }
+    end
+    list[#list + 1] = { label = L.MENU_TURN_FX or "Page animation", icon = "Interface\\Icons\\INV_Misc_Book_09",
+        on = DialogueWheelE_BookTurnFX ~= false,
+        click = function() DialogueWheelE_BookTurnFX = DialogueWheelE_BookTurnFX == false end }
+    return list
+end
+local function MenuPaint(b)
+    local it = b.item
+    b.icon:SetTexture(it.icon)
+    if b.icon.SetDesaturated then b.icon:SetDesaturated(not it.on) end
+    b.text:SetText(it.label)
+    if it.on then
+        b.text:SetTextColor(b.hover and 1 or 0.95, b.hover and 0.85 or 0.92, b.hover and 0.2 or 0.85)
+    else
+        b.text:SetTextColor(0.6, 0.58, 0.55)
+    end
+    b.line:SetShown(it.on)
+end
+function Lib.RubMenuRefresh()
+    local menu = rui and rui.menu
+    if not menu then return 0 end
+    local list = RubMenuItems()
+    local x = 0
+    for i, it in ipairs(list) do
+        local b = menu.items[i]
+        if not b then
+            b = BarButton(menu)
+            b.text:SetPoint("LEFT", b, "LEFT", 22, 0)
+            b.icon:ClearAllPoints()
+            b.icon:SetPoint("CENTER", b, "LEFT", 8, 0)
+            b.line = b:CreateTexture(nil, "ARTWORK")
+            b.line:SetColorTexture(0.85, 0.68, 0.30, 0.8)
+            b.line:SetHeight(1)
+            b.line:SetPoint("BOTTOMLEFT", b.text, "BOTTOMLEFT", 0, -3)
+            b.line:SetPoint("BOTTOMRIGHT", b.text, "BOTTOMRIGHT", 0, -3)
+            b:SetScript("OnEnter", function(self) self.hover = true; MenuPaint(self) end)
+            b:SetScript("OnLeave", function(self) self.hover = nil; MenuPaint(self) end)
+            b:SetScript("OnClick", function(self) self.item.click(); Lib.RubMenuRefresh() end)
+            menu.items[i] = b
+        end
+        b.item = it
+        MenuPaint(b)
+        local w = (b.text:GetStringWidth() or 90) + 26
+        b:SetWidth(w)
+        b.x = x
+        b:ClearAllPoints()
+        b:SetPoint("LEFT", menu, "LEFT", x, 0)
+        b:Show()
+        x = x + w + 24
+    end
+    for i = #list + 1, #menu.items do menu.items[i]:Hide() end
+    menu.count = #list
+    menu:SetWidth(math.max(10, x - 24))
+    return #list
+end
+function Lib.RubMenuToggle(close)
+    local menu = rui.menu
+    if not menu then
+        menu = CreateFrame("Frame", nil, rub)
+        menu:SetSize(10, 28)
+        menu.items = {}
+        menu:Hide()
+        rui.menu = menu
+        -- (au-dessus du carnet, entre la recherche et la croix)
+        menu:SetPoint("BOTTOMRIGHT", rui.close, "BOTTOMLEFT", -16, 4)
+        local STAGGER, FADE = 0.06, 0.18
+        menu:SetScript("OnUpdate", function(self, el)
+            if self.idle then return end
+            self.t = (self.t or 0) + (el or 0) * (self.closing and -1.6 or 1)
+            local done = true
+            for i = 1, self.count or 0 do
+                local b = self.items[i]
+                local k = math.max(0, math.min(1, (self.t - (i - 1) * STAGGER * (self.closing and 0.4 or 1)) / FADE))
+                local e = 1 - (1 - k) * (1 - k)
+                b:SetAlpha(e)
+                b:ClearAllPoints()
+                b:SetPoint("LEFT", self, "LEFT", b.x or 0, 8 * (1 - e))
+                if (self.closing and k > 0) or (not self.closing and k < 1) then done = false end
+            end
+            if done then
+                if self.closing then self:Hide() end
+                self.closing, self.idle = nil, true
+            end
+        end)
+        rub:HookScript("OnHide", function() menu:Hide(); menu.closing = nil end)
+    end
+    if close or (menu:IsShown() and not menu.closing) then
+        if not menu:IsShown() then return end
+        menu.closing, menu.idle = true, nil
+        menu.t = math.max(menu.t or 0, 0.18 + (menu.count or 1) * 0.06 * 0.4)
+        return
+    end
+    if Lib.RubMenuRefresh() == 0 then return end
+    menu:SetFrameLevel(rub:GetFrameLevel() + 10)
+    menu.closing, menu.t, menu.idle = nil, 0, nil
+    for i = 1, menu.count do menu.items[i]:SetAlpha(0) end
+    menu:Show()
+end
+
 -- Matiere d'une plaque d'apres son modele, quand elle n'a pas ete notee a la lecture.
 Lib.PLATE_MAT = { [189534] = "Stone", [189536] = "Stone", [190635] = "Stone", [190929] = "Marble", [199349] = "Bronze",
-    [199981] = "Bronze", [199983] = "Bronze", [199985] = "Silver", [199989] = "Stone", [200640] = "Stone",
+    [199981] = "Bronze", [199983] = "Bronze", [199985] = "Silver", [199989] = "Stone", [200640] = "Troll",
     [201080] = "Stone", [203051] = "Bronze", [204142] = "Marble" }
 function Lib.PreviewRubbing()
     local row = RubRows()[rstate.index]
     if not (row and DWE.OpenLibraryBook) then return end
     local pages = Lib.Pages(row)
     if #pages == 0 then return end
-    local mat = (row.entry and row.entry.m) or Lib.PLATE_MAT[Lib.ModelFor(row, "lectern") or 0] or "Stone"
+    -- (matiere : celle vue en jeu, sinon celle que Storytale connait pour ce titre ou ce modele)
+    local mat = (row.entry and row.entry.m) or (DWE.STONE_TEXTS and DWE.STONE_TEXTS[row.title or ""])
+        or ((row.title or ""):find("Troll Legend", 1, true) and "Troll")
+        or Lib.PLATE_MAT[Lib.ModelFor(row, "lectern") or 0] or "Stone"
     local libBack = room and room:IsShown()
-    if DWE.OpenLibraryBook(row.title, pages, mat) then
+    -- (le texte mis en page comme sur l'estampage, sans le nom, deja en titre de la plaque)
+    local plain = DWE.PlainItemText and DWE.PlainItemText(table.concat(pages, "\n\n")) or table.concat(pages, "\n\n")
+    local laid = Lib.Inscription(row.title, plain)
+    if type(row.title) == "string" and laid:sub(1, #row.title + 2) == row.title .. "\n\n" then
+        laid = laid:sub(#row.title + 3)
+    end
+    if DWE.OpenLibraryBook(row.title, { laid }, mat, true) then
         rstate.reopen = true
         state.reopen = libBack or nil
         rub:Hide()
         if libBack then room:Hide() end
     end
 end
-function Lib.OpenRubbings()
+function Lib.OpenRubbings(keepPage)
     if not Lib.Enabled() then return end
-    local fresh = not rub
     RubBuild()
     rub:SetAlpha(1)
     Lib.RubContentAlpha(1)
     rub:Show()
     rub:Raise()
-    -- (ouvert la premiere fois a la page marquee)
-    if fresh and DialogueWheelE_RubbingMark then
-        for i, r in ipairs(RubRows()) do if r.key == DialogueWheelE_RubbingMark then rstate.index = i end end
+    -- (s'ouvre a la page marquee, sinon au debut ; retour d'un apercu : la meme page)
+    if not keepPage then
+        rstate.index = 1
+        if DialogueWheelE_RubbingMark then
+            for i, r in ipairs(RubRows()) do if r.key == DialogueWheelE_RubbingMark then rstate.index = i end end
+        end
     end
     RubRefresh()
     Lib.RubRibbon()

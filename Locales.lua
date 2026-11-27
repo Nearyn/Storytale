@@ -969,6 +969,18 @@ for loc, v in pairs(RUB) do
     if dest then dest.RUB_TITLE, dest.RUB_EMPTY, dest.RUB_PREVIEW = v[1], v[2], v[3] end
 end
 
+-- Steles gravees de runes : "Traduire" montre le texte, "Original" revient aux runes.
+local RUNES = {
+    enUS = { "Translate", "Original" }, frFR = { "Traduire", "Original" }, deDE = { "Übersetzen", "Original" },
+    esES = { "Traducir", "Original" }, esMX = { "Traducir", "Original" }, itIT = { "Traduci", "Originale" },
+    ptBR = { "Traduzir", "Original" }, ruRU = { "Перевести", "Оригинал" }, koKR = { "번역", "원본" },
+    zhCN = { "翻译", "原文" }, zhTW = { "翻譯", "原文" },
+}
+for loc, v in pairs(RUNES) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.RUNE_TRANSLATE, dest.RUNE_ORIGINAL = v[1], v[2] end
+end
+
 -- Bibliotheque activee (decochee : plus rien ne l'ouvre, ni clic droit, ni raccourci).
 local LIB_ENABLE = {
     enUS = { "Enable the library", "Click: options. Drag: move this button." },
