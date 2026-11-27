@@ -1170,7 +1170,8 @@ local function Build()
             local r = self.row
             if not r then return end
             Lib.Glow(self.model, true)
-            self:SetPoint("BOTTOMLEFT", self:GetParent(), "BOTTOMLEFT", self.x, self.y + 4)
+            -- (un livre debout se souleve un peu ; couche dans une pile, il reste en place)
+            if not self.flat then self:SetPoint("BOTTOMLEFT", self:GetParent(), "BOTTOMLEFT", self.x, self.y + 4) end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(r.title, 1, 0.86, 0.55, 1, true)
             if r.locked then
@@ -2100,7 +2101,16 @@ function Refresh()
                 -- 1 / (1,1 x dist) en hauteur (fois vfrac, couche) ; on descend le cadre d'autant.
                 local F = sl.h
                 local hm = Lib.BBOX_FILL * F / (1.1 * b.pose.dist) * (b.pose.vfrac or 1)
-                b.mF, b.mY = F, -(F - hm) / 2 - 2 + (pl.level or 0) * hm
+                b.mF, b.mY = F, -(F - hm) / 2 - 2
+                if b.pose.flat then
+                    -- Couche : le bouton n'est que sa tranche de pile (sinon les livres empiles se
+                    -- recouvraient et la souris passait de l'un a l'autre sans fin).
+                    b.y = b.y + (pl.level or 0) * hm
+                    b:SetHeight(math.max(4, hm))
+                    b:ClearAllPoints()
+                    b:SetPoint("BOTTOMLEFT", b:GetParent(), "BOTTOMLEFT", b.x, b.y)
+                end
+                b.flat = b.pose.flat
                 Lib.PlaceModel(b)
             end
             if not use3d and b.model then b.model:Hide(); b.tex:Show(); b.shade:Show() end
