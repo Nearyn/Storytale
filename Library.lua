@@ -450,24 +450,49 @@ function Lib.ModelFor(row)
     end
     return best
 end
+-- Charge un modele dans un cadre 3D. Seul SetModel doit reussir ; les reglages de camera sont
+-- tentes un par un (certains manquent selon le client). La derniere erreur est gardee dans
+-- Lib.modelErr pour le diagnostic.
+local function LoadModel(m, id, pose)
+    if not (m and m.SetModel) then Lib.modelErr = "no model frame"; return false end
+    if m.ClearModel then pcall(m.ClearModel, m) end
+    local ok, err = pcall(m.SetModel, m, id)
+    if not ok then Lib.modelErr = tostring(err); return false end
+    local function try(name, ...)
+        if m[name] then
+            local okc, e = pcall(m[name], m, ...)
+            if not okc then Lib.modelErr = name .. ": " .. tostring(e) end
+        end
+    end
+    try("SetPosition", 0, 0, 0)
+    try("SetCamDistanceScale", pose.dist)
+    try("SetFacing", math.rad(pose.facing))
+    try("SetPitch", math.rad(pose.pitch))
+    try("SetRoll", math.rad(pose.roll))
+    return true
+end
+Lib.LECTERN_POSE = { dist = 1.6, facing = 90, pitch = -35, roll = 0 }
 function Lib.ShowModel(cover, row)
     local m = cover.model
     local id = Lib.ModelFor(row)
-    local shown = false
-    if m and m.SetModel then
-        shown = pcall(function()
-            m:ClearModel()
-            m:SetModel(id)
-            -- (pose a plat, vu un peu de face, comme sur le pupitre incline)
-            m:SetCamDistanceScale(1.6)
-            m:SetPosition(0, 0, 0)
-            m:SetFacing(math.rad(90))
-            if m.SetPitch then m:SetPitch(math.rad(-35)) end
-        end)
-    end
+    local shown = LoadModel(m, id, Lib.LECTERN_POSE)
     if m then m.fileID = shown and id or nil; m:SetShown(shown) end
     cover.open:SetShown(not shown)
 end
+
+-- Etageres en 3D : peu de livres par rangee (chaque modele coute), le reste va sur les pages
+-- suivantes. Pose : le livre debout, le dos face a nous.
+Lib.PER_ROW_3D = 6
+Lib.SHELF_POSE = { dist = 1.0, facing = 0, pitch = 0, roll = 90 }
+function Lib.ShowShelfModel(b, row)
+    local m = b.model
+    local id = Lib.ModelFor(row)
+    local shown = LoadModel(m, id, Lib.SHELF_POSE)
+    if m then m.fileID = shown and id or nil; m:SetShown(shown) end
+    b.tex:SetShown(not shown); b.shade:SetShown(not shown)
+    return shown
+end
+function Lib.Use3D() return DialogueWheelE_Library3D ~= false end
 
 local function Build()
     if room then return end
@@ -566,6 +591,13 @@ local function Build()
         shade:SetWidth(2)
         shade:SetVertexColor(0, 0, 0, 0.35)
         b.shade = shade
+        -- (le vrai modele 3D du livre, debout sur l'etagere ; le dos peint reste si le modele manque)
+        local okm, m = pcall(CreateFrame, "PlayerModel", nil, b)
+        if okm and m then
+            m:SetPoint("TOPLEFT", -6, 4); m:SetPoint("BOTTOMRIGHT", 6, 0)
+            m:EnableMouse(false)
+            b.model = m
+        end
         b:SetScript("OnEnter", function(self)
             local r = self.row
             if not r then return end
@@ -685,7 +717,7 @@ local function Build()
     open:SetTexCoord(0, 1, 0, 576 / 1024)
     open:Hide()
     cover.open = open
-    local ok, m = pcall(CreateFrame, "Model", nil, cover)
+    local ok, m = pcall(CreateFrame, "PlayerModel", nil, cover)
     if ok and m then
         m:SetPoint("TOPLEFT", -40, 50); m:SetPoint("BOTTOMRIGHT", 40, -30)
         m:EnableMouse(false)
@@ -906,17 +938,22 @@ function Refresh()
     local winH = room:GetHeight()
     local views, cur = { 1 }, { slot = 1, x = 0 }
     local placed = {}
+    local use3d = Lib.Use3D()
+    cur.n = 0
     for idx, row in ipairs(rows) do
         local _, w = Lib.Spine(row)
-        if cur.x + w > slots[cur.slot].w - 2 then
-            cur.slot, cur.x = cur.slot + 1, 0
+        if use3d then w = math.floor(slots[cur.slot].w / Lib.PER_ROW_3D) - 1 end
+        if cur.x + w > slots[cur.slot].w - 2 or (use3d and cur.n >= Lib.PER_ROW_3D) then
+            cur.slot, cur.x, cur.n = cur.slot + 1, 0, 0
+            if use3d then w = math.floor(slots[math.min(cur.slot, #slots)].w / Lib.PER_ROW_3D) - 1 end
             if cur.slot > #slots then
                 views[#views + 1] = idx
                 cur.slot = 1
             end
         end
-        placed[idx] = { view = #views, slot = cur.slot, x = cur.x }
+        placed[idx] = { view = #views, slot = cur.slot, x = cur.x, w = w }
         cur.x = cur.x + w + 1
+        cur.n = cur.n + 1
     end
     state.shelf = math.max(1, math.min(state.shelf, #views))
     local used = 0
@@ -929,6 +966,7 @@ function Refresh()
             local b = ui.Spine(used)
             local color, w, hf = Lib.Spine(row)
             local sl = slots[pl.slot]
+            if use3d then w, hf = pl.w, 0.95 end
             local h = math.floor(sl.h * hf)
             b.x = math.floor(sl.x + pl.x)
             b.y = math.floor(sl.y or (winH - sl.fromTop))
@@ -936,8 +974,10 @@ function Refresh()
             b:SetSize(w, h)
             b:SetPoint("BOTTOMLEFT", room, "BOTTOMLEFT", b.x, b.y)
             b.tex:SetVertexColor(color[1], color[2], color[3], 1)
-            b.band:SetShown(row.kind == "book")
-            b.band2:SetShown(row.kind == "book")
+            local is3d = use3d and Lib.ShowShelfModel(b, row)
+            if not use3d and b.model then b.model:Hide(); b.tex:Show(); b.shade:Show() end
+            b.band:SetShown(row.kind == "book" and not is3d)
+            b.band2:SetShown(row.kind == "book" and not is3d)
             b:SetAlpha(row.locked and 0.28 or 1)
             b.row = row
             b:Show()
