@@ -723,6 +723,24 @@ for loc, text in pairs(HIDE_UI) do
     local dest = (loc == "enUS") and enUS or T[loc]
     if dest then dest.HIDE_UI = text end
 end
+-- Style de narrateur "Storytale" dans Spoken : description de sa carte (le titre reste Storytale).
+local NARRATOR = {
+    enUS = "Spoken's lines in a Storytale frame, in your theme (bubble or frame), with Spoken's portrait, captions and buttons.",
+    frFR = "Les répliques de Spoken dans un cadre Storytale, à votre thème (bulle ou cadre), avec le portrait, les sous-titres et les boutons de Spoken.",
+    deDE = "Spokens Zeilen in einem Storytale-Rahmen, in deinem Thema (Sprechblase oder Rahmen), mit Spokens Porträt, Untertiteln und Knöpfen.",
+    esES = "Las frases de Spoken en un marco de Storytale, con tu tema (bocadillo o marco), con el retrato, los subtítulos y los botones de Spoken.",
+    esMX = "Las frases de Spoken en un marco de Storytale, con tu tema (bocadillo o marco), con el retrato, los subtítulos y los botones de Spoken.",
+    itIT = "Le battute di Spoken in una cornice di Storytale, con il tuo tema (fumetto o cornice), con ritratto, sottotitoli e pulsanti di Spoken.",
+    ptBR = "As falas do Spoken em um quadro do Storytale, no seu tema (balão ou quadro), com o retrato, as legendas e os botões do Spoken.",
+    ruRU = "Реплики Spoken в рамке Storytale, в вашей теме (облачко или рамка), с портретом, субтитрами и кнопками Spoken.",
+    koKR = "Spoken의 대사를 Storytale 창에, 선택한 테마(말풍선 또는 창)로 표시합니다. Spoken의 초상화, 자막, 버튼 포함.",
+    zhCN = "以你的主题（气泡或边框）在 Storytale 框中显示 Spoken 的台词，附带 Spoken 的头像、字幕和按钮。",
+    zhTW = "以你的主題（氣泡或邊框）在 Storytale 框中顯示 Spoken 的台詞，附帶 Spoken 的頭像、字幕和按鈕。",
+}
+for loc, text in pairs(NARRATOR) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.NARRATOR_TITLE, dest.NARRATOR_DESC = "Storytale", text end
+end
 -- Ce que "Cacher l'interface" garde visible (rien par defaut) : titre, puis discussion,
 -- mini-carte, portraits, barres d'action, effets (ameliorations), suivi des quetes.
 local HIDE_KEEP = {

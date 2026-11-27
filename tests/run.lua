@@ -107,7 +107,7 @@ SlashCmdList = {}
 local chat = {}
 DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) table.insert(chat, m) end }
 -- Load the addon ------------------------------------------------------------
-for _, file in ipairs({ "Locales.lua", "Storytale_Core.lua", "GeneratedTimings.lua", "Bubble.lua", "SpokenFocus.lua", "SpokenQueueUI.lua", "Storytale.lua", "Options_Native.lua", "MinimapButton.lua" }) do
+for _, file in ipairs({ "Locales.lua", "Storytale_Core.lua", "GeneratedTimings.lua", "Bubble.lua", "SpokenFocus.lua", "SpokenQueueUI.lua", "Storytale.lua", "SpokenNarrator.lua", "Options_Native.lua", "MinimapButton.lua" }) do
     local chunk, err = loadfile(dir .. "/" .. file)
     check(chunk ~= nil, "compile " .. file .. ": " .. tostring(err))
     local ok, rerr = pcall(chunk, "Storytale", {})
@@ -2303,6 +2303,51 @@ do
     check(DWE.ManualVoiceStarted({ text = "Anything at all", length = 3 }) == false and skips == 0, "typewriter: a starting voice is left alone")
     DWE.SetDialogueText("NPC", "")
     DialogueWheelE_BubbleMode, Spoken, GetTime, DialogueWheelE_ManualVoice = savedMode, savedSpoken, savedGT, savedMV
+end
+-- Style de narrateur "Storytale" (API publique de Spoken : RegisterNarrator)
+do
+    local savedSpoken, savedTheme = Spoken, DialogueWheelE_Theme
+    local reg, made = nil, {}
+    local function Btn(parent) local b = CreateFrame("Button", nil, parent); b:SetSize(24, 24); b:Show(); return b end
+    Spoken = {
+        IsCompatible = function() return true end,
+        RegisterNarrator = function(_, id, info) reg = { id = id, info = info } end,
+        CreatePortrait = function(_, parent, size)
+            local p = CreateFrame("Frame", nil, parent); p:SetSize(size, size)
+            function p:SetClip(c) self.clip = c end
+            made.portrait = p
+            return p
+        end,
+        CreateControl = function(_, parent, kind) made[kind] = true; return Btn(parent) end,
+        CreateActions = function(_, parent)
+            local r = CreateFrame("Frame", nil, parent)
+            function r:SetClip(c) self.clip = c end
+            made.actions = r
+            return r
+        end,
+        ShowCaptions = function(_, parent, width) made.capW = width; return 40 end,
+    }
+    local N = DWE.Narrator
+    N.registered = nil
+    check(N.Register() == true and reg and reg.id == "storytale" and reg.info.addon == "Storytale", "narrator: Storytale style registered with Spoken")
+    check(type(reg.info.title) == "string" and type(reg.info.description) == "string" and type(reg.info.Update) == "function",
+        "narrator: card has a title, a description and Update")
+    M.FireEvent("GOSSIP_CLOSED"); M.RunTimers(); M.RunTimers()
+    DialogueWheelE_Theme = "parchment"
+    local clip = { text = "The road north is long.", present = { header = "Marshal Dughan", label = "A Threat Within" } }
+    reg.info.Update(clip)
+    local f = N.frame
+    check(f:IsShown(), "narrator: shown for a line")
+    check(N.header:GetText() == "Marshal Dughan" and N.label:GetText() == "A Threat Within", "narrator: speaker and title shown")
+    check(made.portrait and made.portrait.clip == clip and made.actions and made.actions.clip == clip, "narrator: Spoken's portrait and line buttons get the line")
+    check(made.previous and made.pause and made.stop and made.skip, "narrator: Spoken's controls built")
+    check(made.capW and made.capW > 100 and f:GetHeight() > 40 + 52, "narrator: captions inside, frame sized to them")
+    check(N.themeId == DWE.SpokenStyleId(), "narrator: painted in the theme's style")
+    DialogueWheelE_Theme = "bubble"
+    check(DWE.SpokenStyleId() ~= "parchment", "narrator: bubble theme gives its own Spoken look")
+    reg.info.Update(nil)
+    check(not f:IsShown() and DWE.narratorClip == nil, "narrator: hidden when Spoken has nothing to show")
+    Spoken, DialogueWheelE_Theme = savedSpoken, savedTheme
 end
 -- Themes sans bulle : "Tout d'un coup" et "Avance manuelle" montrent tout le texte du cadre
 -- d'un coup, meme quand une voix de Spoken lit.

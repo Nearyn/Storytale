@@ -16,5 +16,6 @@ Bubble.lua
 SpokenFocus.lua
 SpokenQueueUI.lua
 Storytale.lua
+SpokenNarrator.lua
 Options_Native.lua
 MinimapButton.lua

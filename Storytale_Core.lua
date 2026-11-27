@@ -1044,6 +1044,7 @@ local function CreateThemeParts(owner, level)
     return parts
 end
 
+DWE.CreateThemeParts = CreateThemeParts
 -- Dessine le theme `id` autour de `content`. `divAnchor` : region sous laquelle placer le
 -- trait de titre. Renvoie la config du theme (nil pour Transparent).
 local PaintThemeParts
@@ -1063,6 +1064,7 @@ end
 
 -- Efface un fond de theme. Oublie aussi le theme : sinon un changement de taille du cadre
 -- (WatchSize) redessinerait l'ancien theme, et deux themes se retrouveraient melanges.
+function DWE.PaintThemeParts(...) return PaintThemeParts(...) end
 local function ClearThemeParts(parts)
     parts.lastId, parts.lastDiv = nil, nil
     for _, r in ipairs(parts.list) do r:Hide() end
@@ -1808,6 +1810,8 @@ local spokenSkinRef
 -- La ligne que montre Spoken, quel que soit son style : sous-titres, petite fenetre ou lecteur
 -- facon DialogueUI (celui-ci n'existe qu'avec DialogueUI installe).
 local function SpokenCurClip()
+    -- Style de narrateur "Storytale" : la ligne que Spoken nous a donnee a montrer.
+    if DWE.narratorClip then return DWE.narratorClip end
     local env = rawget(_G, "SpokenEnv")
     local addon = type(env) == "table" and rawget(env, "Addon")
     if type(addon) == "table" and type(addon.DisplayStyle) == "function" and addon.db then
@@ -2055,6 +2059,7 @@ local function SpokenStyle()
     return ThemeSpokenStyle(DWE.SpokenBaseTheme())
 end
 
+DWE.SpokenStyleId = SpokenStyle
 local function SpokenTextShadow()
     local cfg = THEME_STYLES[SpokenStyle()]
     return (not cfg) or cfg.shadow == 1
