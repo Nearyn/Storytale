@@ -3074,6 +3074,13 @@ cineBars.alpha = 0
 -- systeme (menu Echap, options, fenetres de confirmation).
 local hiddenUI = {} -- cadre -> opacite d'origine
 local protectedUI = {} -- cadres proteges parmi eux : rendus des l'entree en combat
+local plateUI = {} -- plaques de nom parmi eux : le jeu remet leur opacite, reappliquee a chaque image
+-- Noms caches en ce moment (option "Cacher l'interface" ou Cinematique, "Noms" non coche).
+function DWE.NamesHidden()
+    if not (DWE.cineBars and DWE.cineBars.want) then return false end
+    local keep = DialogueWheelE_HideKeep
+    return not (type(keep) == "table" and keep.names)
+end
 local ignoredUI = {} -- cadres remis a suivre l'opacite de leur parent (a rendre a la fin)
 local KEEP_UI = {
     GameTooltip = true, ItemRefTooltip = true, ShoppingTooltip1 = true, ShoppingTooltip2 = true,
@@ -3277,6 +3284,7 @@ local function CollectUI()
             local a = plate:GetAlpha()
             if type(a) == "number" and not (issecretvalue and issecretvalue(a)) and a > 0 then
                 hiddenUI[plate] = a
+                plateUI[plate] = true
                 WatchAlpha(plate)
             end
         end)
@@ -3295,9 +3303,61 @@ local function RestoreProtectedUI()
     wipe(protectedUI)
 end
 DWE.RestoreProtectedUI = RestoreProtectedUI
+-- Une fois effaces, les cadres non proteges sont aussi caches pour de bon (Hide) : invisibles,
+-- ils restaient sous la souris (bulle d'aide d'un bouton de la mini-carte) et la fleche du joueur
+-- restait sur la mini-carte. On retient s'ils doivent revenir : un autre addon qui les cache ou
+-- les montre entre-temps a le dernier mot (jamais de cadre remontre qu'il a cache).
+local shownUI = {} -- cadre cache par nous -> doit-il revenir a la fin
+local showing = false
+local hookedShown = {}
+local function WatchShown(fr)
+    if hookedShown[fr] then return end
+    hookedShown[fr] = true
+    local function Their(self, show)
+        if showing or shownUI[self] == nil then return end
+        shownUI[self] = show and true or false
+        if show and DWE.cineBars and DWE.cineBars.want and not (InCombatLockdown and InCombatLockdown()) then
+            showing = true
+            pcall(self.Hide, self)
+            showing = false
+        end
+    end
+    pcall(hooksecurefunc, fr, "Show", function(self) Their(self, true) end)
+    pcall(hooksecurefunc, fr, "Hide", function(self) Their(self, false) end)
+    pcall(hooksecurefunc, fr, "SetShown", function(self, v) Their(self, v) end)
+end
+local function HideFaded()
+    if InCombatLockdown and InCombatLockdown() then return end
+    for fr in pairs(hiddenUI) do
+        if shownUI[fr] == nil and not protectedUI[fr] and not plateUI[fr] then
+            pcall(function()
+                if fr:IsForbidden() or fr:IsProtected() or not fr:IsShown() then return end
+                WatchShown(fr)
+                shownUI[fr] = true
+                showing = true
+                fr:Hide()
+                showing = false
+            end)
+            showing = false
+        end
+    end
+end
+local function ShowBack()
+    for fr, back in pairs(shownUI) do
+        if back then
+            showing = true
+            pcall(fr.Show, fr)
+            showing = false
+        end
+    end
+    wipe(shownUI)
+end
+DWE.ShowBackUI = ShowBack
 local function RestoreUI()
+    ShowBack()
     RestoreNames()
     wipe(protectedUI)
+    wipe(plateUI)
     FadeUI(0)
     wipe(hiddenUI)
     -- (jamais de cadre protege ici : rendu meme en combat)
@@ -3328,11 +3388,22 @@ cineBars:SetScript("OnUpdate", function(self, dt)
         self.lastA, self.tick = a, 0
         FadeUI(a)
     end
+    -- (plaques : a chaque image, le jeu leur rend leur opacite de lui-meme)
+    for fr in pairs(plateUI) do
+        local o = hiddenUI[fr]
+        if o then
+            local v = o * (1 - a)
+            local okG, cur = pcall(fr.GetAlpha, fr)
+            if okG and type(cur) == "number" and math.abs(cur - v) > 0.01 then FadeOne(fr, v) end
+        end
+    end
     self.pinTick = (self.pinTick or 0) + dt
     if self.want and self.pinTick > 0.5 then
         self.pinTick = 0
         pcall(DWE.HideMinimapPins)
     end
+    -- Tout efface : cache pour de bon. Retour : remontre avant de reapparaitre en fondu.
+    if self.want and a == 1 then HideFaded() elseif not self.want and next(shownUI) then ShowBack() end
     if a == 0 and not self.want then
         RestoreUI()
         self:Hide()
@@ -3402,6 +3473,7 @@ do
             -- (les noms reviennent tout de suite : on peut en avoir besoin pour se battre)
             if DWE.RestoreNames then pcall(DWE.RestoreNames) end
             pcall(RestoreProtectedUI)
+            pcall(ShowBack)
         else
             DWE.UpdateCinemaBars()
         end
@@ -5598,6 +5670,9 @@ function DWE.PlateNameStyle(parts, token)
     pcall(fs.SetTextColor, fs, r, g, b, 1)
     pcall(fs.SetShadowColor, fs, r, g, b, 1)
     if not fs:IsShown() then fs:Show() end
+    -- "Cacher l'interface" : notre nom (qui ignore la transparence de la plaque) s'efface aussi.
+    local want = (DWE.NamesHidden and DWE.NamesHidden()) and 0 or 1
+    if fs:GetAlpha() ~= want then pcall(fs.SetAlpha, fs, want) end
     -- Journal : de quoi caler la taille sur la distance de la camera (le nom habituel en depend).
     if DWE.followLog and parts.loggedFor ~= token then
         parts.loggedFor = token

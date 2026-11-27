@@ -472,10 +472,20 @@ do
     DialogueWheelE_HideUI = true
     DWE.UpdateTextPanelVisuals(); DWE.UpdateCinemaBars(); run()
     check(chat:GetAlpha() < 0.01 and other:GetAlpha() < 0.01 and holder:GetAlpha() < 0.01, "hide UI: everything hidden by default")
+    check(not chat:IsShown() and not other:IsShown(), "hide UI: faded frames are also hidden (no mouse over them)")
+    -- un addon remontre un cadre pendant la conversation : recache, et rendu a la fin
+    chat:Show()
+    check(not chat:IsShown(), "hide UI: a frame shown again meanwhile is hidden again")
     -- un autre addon cache un cadre pendant la conversation : il reste cache a la fin
+    local gone = CreateFrame("Frame", "SomeGoneFrame", UIParent); gone:Show(); gone:SetAlpha(1)
+    DWE.RefreshHideUI(); run()
+    gone:Hide()
     other:SetAlpha(0)
     DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
     check(other:GetAlpha() < 0.01, "hide UI: a frame another addon hid meanwhile is not shown again")
+    check(not gone:IsShown(), "hide UI: a frame another addon hid (Hide) meanwhile stays hidden")
+    check(chat:IsShown() and other:IsShown(), "hide UI: hidden frames shown again at the end")
+    gone:Hide(); _G.SomeGoneFrame = nil
     check(math.abs(chat:GetAlpha() - 1) < 0.001 and math.abs(holder:GetAlpha() - 1) < 0.001, "hide UI: the rest comes back")
     other:SetAlpha(1)
     -- noms au-dessus des personnages : caches pendant la conversation, rendus a la fin
