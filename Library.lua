@@ -3181,8 +3181,6 @@ local function RubBuild()
         -- (feuille posee, on attend que le nouveau modele 3D de la page soit a l'ecran : la
         -- feuille, qui montre deja ce monument, reste par-dessus jusque-la)
         if self.settle then
-            -- (la feuille posee montre deja le nouveau monument, des que son modele est pret)
-            if sw.model then sw.model:SetAlpha((Lib.ModelReady(sw.model) and 1 or 0) * (sw.baseA or 1)) end
             if Lib.ModelReady(rui.model) or self.t > self.settle then
                 self:Hide()
                 Lib.RubSheetIdle()
@@ -3233,9 +3231,7 @@ local function RubBuild()
         -- (en se posant, la feuille reste blanche, comme dans le livre : la nouvelle page apparait
         -- une fois posee. Un monument fantome qui se dessinait dessus, a la place exacte de
         -- l'ancien, donnait l'impression que la feuille passait au travers.)
-        -- (en se posant, elle ne montre le nouveau contenu qu'une fois presque a plat, quand elle
-        -- couvre deja la page : plus de page vide entre la feuille et le contenu)
-        local ca = first and math.max(0, math.min(1, (f - 0.6) / 0.4)) or math.max(0, math.min(1, (f - 0.8) / 0.2))
+        local ca = first and math.max(0, math.min(1, (f - 0.6) / 0.4)) or 0
         sw.left:SetAlpha(ca); sw.right:SetAlpha(ca)
         -- (le modele 3D de la feuille s'efface quand le bord de la feuille l'atteint : un rendu
         -- 3D ne se laisse pas toujours couper)
