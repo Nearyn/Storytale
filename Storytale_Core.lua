@@ -7899,7 +7899,7 @@ DWE.THEME_LIST = THEME_LIST
 -- deja entendus avec Spoken (ce n'est pas un reglage).
 -- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
 DWE.OPTION_VARS = {}
-for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI HideKeep LibraryAll LibraryUnlock LibraryStyle LibraryBg ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
+for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI HideKeep LibraryAll LibraryUnlock LibraryStyle LibraryBg LibraryOff ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
@@ -8875,6 +8875,14 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_LibraryBg = (v < 1) and v or nil
         if DWE.Library and DWE.Library.ApplyBg then DWE.Library.ApplyBg() end
     end)
+    -- Bibliotheque activee (par defaut) ; decochee, plus rien ne l'ouvre.
+    AddCheck(L.LIB_ENABLE or "Enable the library", 300, y - 432, function() return DialogueWheelE_LibraryOff ~= true end, function(self)
+        DialogueWheelE_LibraryOff = (not self:GetChecked()) and true or nil
+        local on = DialogueWheelE_LibraryOff ~= true
+        if on then libBtn:Enable() else libBtn:Disable() end
+        if not on and DWE.Library and DWE.Library.frame then DWE.Library.frame:Hide() end
+    end)
+    if DialogueWheelE_LibraryOff == true then libBtn:Disable() end
     if unlockCheck and not (DWE.Library and DWE.Library.SpokenData()) then
         unlockCheck:Disable()
         local t = unlockCheck.Text or unlockCheck.text
@@ -9398,7 +9406,8 @@ function DWE.InitOptionsPanel()
     local PAGE_VARS = {
         { "Theme", "Font", "FontSize", "Opacity", "ThemeFrames", "WheelTheme", "HideUI", "HideKeep", "ChoiceSize", "MinimapHide", "BubbleMode" }, -- (position du bouton gardee : "MinimapAngle" n'est jamais remis par defaut)
         { "BookStyle", "BookLook", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookTurnFX",
-            "BookVoiceTurn", "BookStopOnClose", "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos" },
+            "BookVoiceTurn", "BookStopOnClose", "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos",
+            "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryOff" },
         { "AttachNPC", "Locked", "WheelSide", "QuestAuto", "QuestWidth", "NPCOffset", "Pos", "TextPos", "WheelWidth", "TextW", "TextH", "BubbleWidth" },
         { "UseBlizzKey", "InteractKey", "ToggleKey", "EscClose", "WheelScroll", "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "GamePad", "PadTips", "PadFreeLook" },
         { "SpokenTheme", "SpokenSkin", "BookSkin", "PlateSkin", "PlaceSkin", "SpokenButton", "ShowText", "SpokenSmart", "BubbleHighlight",

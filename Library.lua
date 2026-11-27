@@ -1653,18 +1653,24 @@ function Lib.OnBookClosed()
     end
 end
 
+-- Bibliotheque desactivee dans les options : rien ne l'ouvre (clic droit sur le bouton de la
+-- mini-carte, raccourci, commande). Les ecrits lus restent gardes, pour le jour ou on la remet.
+function Lib.Enabled() return DialogueWheelE_LibraryOff ~= true end
 function Lib.Open()
+    if not Lib.Enabled() then return end
     Build()
     room:Show()
     room:Raise()
     Refresh()
 end
 function Lib.Toggle()
+    if not Lib.Enabled() then if room then room:Hide() end return end
     Build()
     if room:IsShown() then room:Hide() else Lib.Open() end
 end
 -- Ouvre la bibliotheque sur l'ecrit `title`, ouvert pour la lecture.
 function Lib.Show(title)
+    if not Lib.Enabled() then return end
     local key = DWE.BookKey and DWE.BookKey(title)
     Lib.Open()
     state.key = key

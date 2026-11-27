@@ -945,6 +945,25 @@ for loc, text in pairs(LIB_PARTIAL) do
     end
 end
 
+-- Bibliotheque activee (decochee : plus rien ne l'ouvre, ni clic droit, ni raccourci).
+local LIB_ENABLE = {
+    enUS = { "Enable the library", "Click: options. Drag: move this button." },
+    frFR = { "Activer la bibliothèque", "Clic : options. Glisser : déplacer ce bouton." },
+    deDE = { "Bibliothek aktivieren", "Klick: Optionen. Ziehen: Knopf verschieben." },
+    esES = { "Activar la biblioteca", "Clic: opciones. Arrastrar: mover este botón." },
+    esMX = { "Activar la biblioteca", "Clic: opciones. Arrastrar: mover este botón." },
+    itIT = { "Attiva la biblioteca", "Clic: opzioni. Trascina: sposta questo pulsante." },
+    ptBR = { "Ativar a biblioteca", "Clique: opções. Arrastar: mover este botão." },
+    ruRU = { "Включить библиотеку", "Щелчок: настройки. Перетащить: переместить кнопку." },
+    koKR = { "서재 사용", "클릭: 설정. 드래그: 버튼 이동." },
+    zhCN = { "启用藏书馆", "点击：设置。拖动：移动此按钮。" },
+    zhTW = { "啟用藏書館", "點擊：設定。拖曳：移動此按鈕。" },
+}
+for loc, list in pairs(LIB_ENABLE) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.LIB_ENABLE, dest.MINIMAP_TIP_NOLIB = list[1], list[2] end
+end
+
 -- Bouton de la mini-carte : option, et son infobulle.
 local MINIMAP = {
     enUS = { "Show the minimap button", "Click: options. Right-click: library. Drag: move this button." },

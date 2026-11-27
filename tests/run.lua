@@ -2445,6 +2445,12 @@ do
     SlashCmdList.DIALOGUEWHEELE("library")
     check(Lib.frame:IsShown(), "library: /storytale library opens it")
     Lib.frame:Hide()
+    DialogueWheelE_LibraryOff = true
+    SlashCmdList.DIALOGUEWHEELE("library")
+    Lib.Toggle()
+    check(not Lib.frame:IsShown(), "library: turned off, nothing opens it")
+    DialogueWheelE_LibraryOff = nil
+    Lib.frame:Hide()
     M.book, M.bookPage, DialogueWheelE_Library, DialogueWheelE_LibraryShared = savedBook, savedPage, savedLib, savedShared
     _G.SpokenReadablesData, DialogueWheelE_LibraryAll, DialogueWheelE_LibraryUnlock = savedData, savedAll, savedUnlock
     GetLocale = savedLocale
