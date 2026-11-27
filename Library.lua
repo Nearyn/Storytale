@@ -1243,7 +1243,9 @@ local function Build()
             -- (un livre debout se souleve un peu ; couche dans une pile, il reste en place ; un
             -- parchemin grossit, pour qu'on voie lequel on va prendre)
             if not self.flat then self:SetPoint("BOTTOMLEFT", self:GetParent(), "BOTTOMLEFT", self.x, self.y + 4) end
-            if self.pose and self.pose.scroll then Lib.PlaceModel(self, 1.45) end
+            -- (couche dans une pile : il grossit un peu et passe devant ses voisins)
+            if self.pose and self.pose.scroll then Lib.PlaceModel(self, 1.45)
+            elseif self.flat then Lib.PlaceModel(self, 1.2) end
             if self.found == false then self:SetAlpha(1) end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(r.title, 1, 0.86, 0.55, 1, true)
@@ -1257,7 +1259,7 @@ local function Build()
         b:SetScript("OnLeave", function(self)
             Lib.Glow(self.model, false)
             self:SetPoint("BOTTOMLEFT", self:GetParent(), "BOTTOMLEFT", self.x, self.y)
-            if self.pose and self.pose.scroll then Lib.PlaceModel(self) end
+            if self.pose and (self.pose.scroll or self.flat) then Lib.PlaceModel(self) end
             if self.found == false then self:SetAlpha(0.4) end
             if GameTooltip then GameTooltip:Hide() end
         end)
