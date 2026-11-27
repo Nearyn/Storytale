@@ -2389,6 +2389,8 @@ do
     check(not onShelf(ui.featured:GetText()), "library: the book on the lectern left its shelf")
     check(ui.cover.model and ui.cover.model.fileID and ui.cover.model:IsShown() and not ui.cover.open:IsShown(), "library: the lectern shows the closed 3D model")
     check(Lib.ModelFor({ kind = "letter", title = "x" }) == Lib.MODELS.letter and Lib.ModelFor({ kind = "plate", title = "x" }) == Lib.MODELS.plate, "library: letters and plates get their own model")
+    check(Lib.ModelFor({ kind = "book", title = "x", entry = { o = 21581 } }) == 200902, "library: a book from the world gets its own binding, closed")
+    check(Lib.ModelFor({ kind = "book", title = "Aftermath of the Second War" }) == 200902, "library: an older book finds its object by title")
     -- un clic sur un autre livre de l'etagere le pose sur le pupitre (l'ancien reprend sa place)
     local before = ui.featured:GetText()
     local other
@@ -2396,13 +2398,13 @@ do
     local picked = other.row.title
     other:Click()
     check(ui.featured:GetText() == picked and onShelf(before) ~= nil and not onShelf(picked), "library: clicked book goes to the lectern, the other back on its shelf")
-    -- Fenetre de lecture : ouvrir un livre, deux pages a la fois
+    -- Lire : le livre habituel de Storytale, avec les pages gardees ; la bibliotheque revient a
+    -- la fermeture.
     Lib.Show("Exile of the High Elves")
-    check(Lib.reader:IsShown() and ui.bookTitle:GetText() == "Exile of the High Elves" and ui.body:GetText() == "Long ago the elves."
-        and ui.body2:GetText() == "They sailed east.", "library: reader shows two pages")
-    check(not ui.next:IsShown(), "library: no next page on a two-page book")
-    ui.back:Click()
-    check(not Lib.reader:IsShown() and Lib.frame:IsShown(), "library: closing the book goes back to the room")
+    check(DWE.libraryBook and DWE.bookMode and DWE.textBox:IsShown() and not Lib.frame:IsShown(), "library: the book opens in Storytale's own book")
+    check(DWE.bookInfo and DWE.bookInfo.total == 2, "library: Storytale's book has every kept page")
+    DWE.CloseAllDialogue()
+    check(not DWE.libraryBook and not DWE.bookMode and Lib.frame:IsShown(), "library: closing the book goes back to the room")
     -- Fond reglable : de plein a rien
     DialogueWheelE_LibraryBg = 0
     Lib.ApplyBg()
@@ -2417,8 +2419,8 @@ do
     local any
     for _, b in ipairs(ui.spines) do if b:IsShown() and b.row and not b.row.locked then any = b break end end
     any:Click()
-    check(Lib.reader:IsShown(), "library: simple style opens the book at once")
-    ui.back:Click()
+    check(DWE.libraryBook ~= nil or Lib.reader:IsShown(), "library: simple style opens the book at once")
+    if DWE.libraryBook then DWE.CloseAllDialogue() else ui.back:Click() end
     DialogueWheelE_LibraryStyle = nil
     Lib.Refresh()
     Lib.Toggle()

@@ -3717,11 +3717,20 @@ function DWE.OpenTrollTabletRaw()
     return false
 end
 function DWE.OpenTitle()
+    if DWE.libraryBook then return DWE.libraryBook.title end
     local ok, t = pcall(ItemTextGetItem or function() end)
     if not ok or type(t) ~= "string" or (issecretvalue and issecretvalue(t)) then return nil end
     return t
 end
 function DWE.RawPlate()
+    -- Ecrit relu depuis la bibliotheque : sa matiere gardee a la lecture (le jeu n'en dit rien).
+    local lb = DWE.libraryBook
+    if lb then
+        local m = lb.material
+        local pick = DialogueWheelE_PlateLook
+        if m and DWE.PLATES[m] and pick and DWE.PLATES[pick] then m = pick end
+        return (m and DWE.PLATES[m]) and m or nil
+    end
     if DWE.testPlate and (DWE.bookMode or (ItemTextGetMaterial and ItemTextGetMaterial())) then
         DWE.lastPlate = DWE.testPlate
         return DWE.testPlate
@@ -3754,6 +3763,7 @@ end
 -- Qui affiche le texte en cours : "addon", "dui" ou "blizzard". Les plaques ont leur propre
 -- reglage (DialogueUI seulement s'il est installe).
 function DWE.BookStyleNow()
+    if DWE.libraryBook then return "addon" end -- (la bibliotheque rouvre toujours dans Storytale)
     if DWE.RawPlate() then
         local ps = DialogueWheelE_PlateStyle or "addon"
         if ps == "dui" then
@@ -6556,6 +6566,7 @@ function DWE.FollowerRunning() return follower:IsShown() end
 --------------------------------------------------------------------------------
 
 function DWE.CloseAllDialogue()
+    if DWE.libraryBook and DWE.CloseLibraryBook then DWE.CloseLibraryBook() return end
     if C_GossipInfo and C_GossipInfo.CloseGossip then
         C_GossipInfo.CloseGossip()
     elseif CloseGossip then

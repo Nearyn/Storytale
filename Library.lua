@@ -439,7 +439,230 @@ local MODELS = {
     plate = 201080,  -- world/goober/g_netablet.m2
 }
 Lib.MODELS = MODELS
+-- Le vrai modele de chaque ecrit pose dans le monde : objet du jeu (entree) -> fichier du modele.
+-- Les livres du monde sont ouverts : on prend la meme reliure, fermee (meme couleur, meme
+-- forme). Plaques, steles, statues, tombes : leur propre modele. Titres anglais -> objet, pour
+-- les ecrits gardes avant que l'objet soit note. (Table tiree des donnees du jeu Classic.)
+local OBJ_MODEL = {
+    [37] = 189534, -- Eliza\'s Tombstone
+    [1726] = 198409, -- Missing: Corporal Keeshan
+    [2082] = 204142, -- Uther the Lightbringer
+    [19025] = 201080, -- Ancient Inscription
+    [21004] = 199349, -- Monument to Grom Hellscream
+    [21581] = 200902, -- Aftermath of the Second War
+    [21582] = 200904, -- Beyond the Dark Portal
+    [21583] = 200903, -- The Kaldorei and the Well of Eternity
+    [24777] = 189534, -- Yuriv\'s Tombstone
+    [25329] = 199983, -- Kurdran Wildhammer
+    [25330] = 199983, -- General Turalyon
+    [25331] = 199983, -- Ranger Captain Alleria Windrunner
+    [25332] = 199983, -- Danath Trollbane
+    [25333] = 199983, -- Archmage Khadgar of the Kirin Tor
+    [123463] = 200904, -- Baelog\'s Journal
+    [124374] = 190929, -- Horatio Montgomery, M.D.
+    [164820] = 203051, -- Dark Keeper Nameplate
+    [164821] = 203051, -- Dark Keeper Nameplate
+    [164822] = 203051, -- Dark Keeper Nameplate
+    [164823] = 203051, -- Dark Keeper Nameplate
+    [164824] = 203051, -- Dark Keeper Nameplate
+    [164825] = 203051, -- Dark Keeper Nameplate
+    [174746] = 199985, -- Etched Note
+    [175658] = 199983, -- The Armor of Mannoroth
+    [175659] = 199985, -- Here Lies King Terenas Menethil II
+    [175679] = 199983, -- The Skull of Tyrannistrasz
+    [175680] = 199983, -- Fossilized Egg
+    [175681] = 199983, -- Roc Talon
+    [175682] = 199983, -- Geru Strider
+    [175683] = 199983, -- Toothgnasher\'s Skeleton
+    [175684] = 199983, -- Saurial Egg
+    [175685] = 199983, -- Pteradon Skeleton
+    [175686] = 199983, -- Highborne Astrolabe
+    [175687] = 199983, -- Uldaman Relics
+    [175688] = 199983, -- Horde Catapult
+    [175689] = 199983, -- Uldaman Reliefs
+    [175724] = 200901, -- Sargeras and the Betrayal
+    [175725] = 200902, -- The Old Gods and the Ordering of Azeroth
+    [175726] = 200903, -- Charge of the Dragonflights
+    [175727] = 200904, -- The War of the Ancients
+    [175729] = 200904, -- Mount Hyjal and Illidan\'s Gift
+    [175730] = 200904, -- The World Tree and the Emerald Dream
+    [175731] = 200902, -- Exile of the High Elves
+    [175732] = 200903, -- The Sentinels and the Long Vigil
+    [175733] = 200905, -- The Founding of Quel\'Thalas
+    [175734] = 200904, -- Arathor and the Troll Wars
+    [175735] = 200901, -- The Guardians of Tirisfal
+    [175736] = 200902, -- Ironforge - the Awakening of the Dwarves
+    [175737] = 200903, -- The Seven Kingdoms
+    [175738] = 200905, -- Aegwynn and the Dragon Hunt
+    [175739] = 200903, -- War of the Three Hammers
+    [175740] = 200904, -- The Last Guardian
+    [175741] = 200901, -- Kil\'jaeden and the Shadow Pact
+    [175742] = 200903, -- Rise of the Horde
+    [175745] = 200902, -- The Dark Portal and the Fall of Stormwin
+    [175746] = 200902, -- The Alliance of Lordaeron
+    [175747] = 200905, -- The Invasion of Draenor
+    [175748] = 200901, -- The Birth of the Lich King
+    [175749] = 200904, -- Icecrown and the Frozen Throne
+    [175750] = 200903, -- The Battle of Grim Batol
+    [175751] = 200905, -- Lethargy of the Orcs
+    [175752] = 200904, -- The New Horde
+    [175753] = 200902, -- War of the Spider
+    [175754] = 200901, -- Kel\'Thuzad and the Forming of the Scour
+    [175756] = 200901, -- The Scourge of Lordaeron
+    [175757] = 200904, -- Sunwell - The Fall of Quel\'Thalas
+    [175758] = 200903, -- Archimonde\'s Return and the Flight to K
+    [175759] = 200901, -- The Betrayer Ascendant
+    [175760] = 200905, -- Rise of the Blood Elves
+    [175761] = 200904, -- Civil War in the Plaguelands
+    [175762] = 200903, -- The Lich King Triumphant
+    [175763] = 200903, -- Old Hatreds - The Colonization of Kalimd
+    [175771] = 199983, -- Arellas Fireleaf
+    [175772] = 199983, -- Admiral Barean Westwind
+    [175773] = 199983, -- Dorgar Stoenbrow
+    [175774] = 199983, -- Fellari Swiftarrow
+    [175775] = 199983, -- Ferren Marcus
+    [175776] = 199983, -- Harthal Truesight
+    [175777] = 199983, -- Holia Sunshield
+    [175778] = 199983, -- Invar One-Arm
+    [175779] = 199983, -- Orman of Stromgarde
+    [175780] = 199983, -- Valea Twinblades
+    [175781] = 199983, -- Yana Bloodspear
+    [175854] = 200904, -- The Twin Empires
+    [175855] = 200902, -- Empires\' Fall
+    [175856] = 200905, -- Wrath of Soulflayer
+    [175933] = 190635, -- Decorated Headstone
+    [177199] = 199983, -- Archbishop Alonsus Faol
+    [177200] = 199983, -- King Llane I of the House of Wrynn
+    [177201] = 199983, -- Grand Admiral Daelin Proudmoore
+    [177202] = 199983, -- Lady Mara Fordragon
+    [177204] = 200552, -- Sorrow of the Earthmother
+    [177205] = 200552, -- Forestlord and the first Druids
+    [177207] = 200554, -- Mists of Dawn
+    [177208] = 200554, -- The White Stag and the Moon
+    [177209] = 200554, -- Hatred of the Centaur
+    [177222] = 199983, -- Pteradon Skeleton
+    [179706] = 198022, -- A Treatise on Military Ranks
+    [179707] = 198026, -- Military Ranks of the Horde & Alliance
+    [179735] = 199981, -- Alliance Military Ranks
+    [179741] = 199983, -- Horde Military Ranks
+    [179909] = 199989, -- Rock of Durotan
+    [180367] = 200640, -- Altar of Zanza
+    [181062] = 189536, -- In Loving Memory
+    [181475] = 199983, -- Monument of Remembrance
+    [181573] = 189817, -- Jar of ashes
+    [181895] = 198023, -- Trans-dimensional Ship Repair for Simple
+    [182203] = 200904, -- The Green Hills of Stranglethorn
+}
+local TITLE_OBJ = {
+    ["Eliza's Tombstone"] = 37,
+    ["Missing: Corporal Keeshan"] = 1726,
+    ["Uther the Lightbringer"] = 2082,
+    ["Ancient Inscription"] = 19025,
+    ["Monument to Grom Hellscream"] = 21004,
+    ["Aftermath of the Second War"] = 21581,
+    ["Beyond the Dark Portal"] = 21582,
+    ["The Kaldorei and the Well of Eternity"] = 21583,
+    ["Yuriv's Tombstone"] = 24777,
+    ["Kurdran Wildhammer"] = 25329,
+    ["General Turalyon"] = 25330,
+    ["Ranger Captain Alleria Windrunner"] = 25331,
+    ["Danath Trollbane"] = 25332,
+    ["Archmage Khadgar of the Kirin Tor"] = 25333,
+    ["Baelog's Journal"] = 123463,
+    ["Horatio Montgomery, M.D."] = 124374,
+    ["Dark Keeper Nameplate"] = 164820,
+    ["Dark Keeper Nameplate"] = 164821,
+    ["Dark Keeper Nameplate"] = 164822,
+    ["Dark Keeper Nameplate"] = 164823,
+    ["Dark Keeper Nameplate"] = 164824,
+    ["Dark Keeper Nameplate"] = 164825,
+    ["Etched Note"] = 174746,
+    ["The Armor of Mannoroth"] = 175658,
+    ["Here Lies King Terenas Menethil II"] = 175659,
+    ["The Skull of Tyrannistrasz"] = 175679,
+    ["Fossilized Egg"] = 175680,
+    ["Roc Talon"] = 175681,
+    ["Geru Strider"] = 175682,
+    ["Toothgnasher's Skeleton"] = 175683,
+    ["Saurial Egg"] = 175684,
+    ["Pteradon Skeleton"] = 175685,
+    ["Highborne Astrolabe"] = 175686,
+    ["Uldaman Relics"] = 175687,
+    ["Horde Catapult"] = 175688,
+    ["Uldaman Reliefs"] = 175689,
+    ["Sargeras and the Betrayal"] = 175724,
+    ["The Old Gods and the Ordering of Azeroth"] = 175725,
+    ["Charge of the Dragonflights"] = 175726,
+    ["The War of the Ancients"] = 175727,
+    ["Mount Hyjal and Illidan's Gift"] = 175729,
+    ["The World Tree and the Emerald Dream"] = 175730,
+    ["Exile of the High Elves"] = 175731,
+    ["The Sentinels and the Long Vigil"] = 175732,
+    ["The Founding of Quel'Thalas"] = 175733,
+    ["Arathor and the Troll Wars"] = 175734,
+    ["The Guardians of Tirisfal"] = 175735,
+    ["Ironforge - the Awakening of the Dwarves"] = 175736,
+    ["The Seven Kingdoms"] = 175737,
+    ["Aegwynn and the Dragon Hunt"] = 175738,
+    ["War of the Three Hammers"] = 175739,
+    ["The Last Guardian"] = 175740,
+    ["Kil'jaeden and the Shadow Pact"] = 175741,
+    ["Rise of the Horde"] = 175742,
+    ["The Dark Portal and the Fall of Stormwind"] = 175745,
+    ["The Alliance of Lordaeron"] = 175746,
+    ["The Invasion of Draenor"] = 175747,
+    ["The Birth of the Lich King"] = 175748,
+    ["Icecrown and the Frozen Throne"] = 175749,
+    ["The Battle of Grim Batol"] = 175750,
+    ["Lethargy of the Orcs"] = 175751,
+    ["The New Horde"] = 175752,
+    ["War of the Spider"] = 175753,
+    ["Kel'Thuzad and the Forming of the Scourge"] = 175754,
+    ["The Scourge of Lordaeron"] = 175756,
+    ["Sunwell - The Fall of Quel'Thalas"] = 175757,
+    ["Archimonde's Return and the Flight to Kalimdor"] = 175758,
+    ["The Betrayer Ascendant"] = 175759,
+    ["Rise of the Blood Elves"] = 175760,
+    ["Civil War in the Plaguelands"] = 175761,
+    ["The Lich King Triumphant"] = 175762,
+    ["Old Hatreds - The Colonization of Kalimdor"] = 175763,
+    ["Arellas Fireleaf"] = 175771,
+    ["Admiral Barean Westwind"] = 175772,
+    ["Dorgar Stoenbrow"] = 175773,
+    ["Fellari Swiftarrow"] = 175774,
+    ["Ferren Marcus"] = 175775,
+    ["Harthal Truesight"] = 175776,
+    ["Holia Sunshield"] = 175777,
+    ["Invar One-Arm"] = 175778,
+    ["Orman of Stromgarde"] = 175779,
+    ["Valea Twinblades"] = 175780,
+    ["Yana Bloodspear"] = 175781,
+    ["The Twin Empires"] = 175854,
+    ["Empires' Fall"] = 175855,
+    ["Wrath of Soulflayer"] = 175856,
+    ["Decorated Headstone"] = 175933,
+    ["Archbishop Alonsus Faol"] = 177199,
+    ["King Llane I of the House of Wrynn"] = 177200,
+    ["Grand Admiral Daelin Proudmoore"] = 177201,
+    ["Lady Mara Fordragon"] = 177202,
+    ["Sorrow of the Earthmother"] = 177204,
+    ["Forestlord and the first Druids"] = 177205,
+    ["Mists of Dawn"] = 177207,
+    ["The White Stag and the Moon"] = 177208,
+    ["Hatred of the Centaur"] = 177209,
+    ["Pteradon Skeleton"] = 177222,
+    ["A Treatise on Military Ranks"] = 179706,
+    ["Military Ranks of the Horde & Alliance"] = 179707,
+    ["Alliance Military Ranks"] = 179735,
+    ["Horde Military Ranks"] = 179741,
+    ["Rock of Durotan"] = 179909,
+    ["Altar of Zanza"] = 180367,
+    ["In Loving Memory"] = 181062,
+}
+Lib.OBJ_MODEL, Lib.TITLE_OBJ = OBJ_MODEL, TITLE_OBJ
 function Lib.ModelFor(row)
+    local o = (row.entry and row.entry.o) or TITLE_OBJ[row.title or ""]
+    if o and OBJ_MODEL[o] then return OBJ_MODEL[o] end
     if row.kind == "letter" then return MODELS.letter end
     if row.kind == "plate" then return MODELS.plate end
     local c = Lib.Spine(row)
@@ -471,7 +694,7 @@ local function LoadModel(m, id, pose)
     try("SetRoll", math.rad(pose.roll))
     return true
 end
-Lib.LECTERN_POSE = { dist = 1.6, facing = 90, pitch = -35, roll = 0 }
+Lib.LECTERN_POSE = { dist = 0.9, facing = 90, pitch = -35, roll = 0 }
 function Lib.ShowModel(cover, row)
     local m = cover.model
     local id = Lib.ModelFor(row)
@@ -483,7 +706,7 @@ end
 -- Etageres en 3D : peu de livres par rangee (chaque modele coute), le reste va sur les pages
 -- suivantes. Pose : le livre debout, le dos face a nous.
 Lib.PER_ROW_3D = 6
-Lib.SHELF_POSE = { dist = 1.0, facing = 0, pitch = 0, roll = 90 }
+Lib.SHELF_POSE = { dist = 0.7, facing = 90, pitch = 0, roll = 90 }
 function Lib.ShowShelfModel(b, row)
     local m = b.model
     local id = Lib.ModelFor(row)
@@ -594,7 +817,7 @@ local function Build()
         -- (le vrai modele 3D du livre, debout sur l'etagere ; le dos peint reste si le modele manque)
         local okm, m = pcall(CreateFrame, "PlayerModel", nil, b)
         if okm and m then
-            m:SetPoint("TOPLEFT", -6, 4); m:SetPoint("BOTTOMRIGHT", 6, 0)
+            m:SetPoint("CENTER")
             m:EnableMouse(false)
             b.model = m
         end
@@ -974,6 +1197,7 @@ function Refresh()
             b:SetSize(w, h)
             b:SetPoint("BOTTOMLEFT", room, "BOTTOMLEFT", b.x, b.y)
             b.tex:SetVertexColor(color[1], color[2], color[3], 1)
+            if b.model then b.model:SetSize(h * 1.25, h * 1.25) end
             local is3d = use3d and Lib.ShowShelfModel(b, row)
             if not use3d and b.model then b.model:Hide(); b.tex:Show(); b.shade:Show() end
             b.band:SetShown(row.kind == "book" and not is3d)
@@ -1017,11 +1241,33 @@ end
 Lib.Refresh = Refresh
 
 -- Ouvre l'ecrit `key` dans le grand livre.
+-- Lire : le livre habituel de Storytale, la bibliotheque cachee le temps de la lecture et
+-- rouverte quand on le ferme. (Le petit lecteur peint ne sert que si ce livre n'est pas la.)
 function Lib.Read(key)
     Build()
+    local row
+    for _, r in ipairs((Lib.List("all", "", "az"))) do if r.key == key then row = r end end
+    if row and not row.locked and DWE.OpenLibraryBook then
+        local pages = Lib.Pages(row)
+        if #pages > 0 then
+            local back = room:IsShown()
+            if DWE.OpenLibraryBook(row.title, pages, row.entry and row.entry.m) then
+                state.reopen = back
+                state.key = key
+                if back then room:Hide() end
+                return
+            end
+        end
+    end
     state.readKey, state.page = key, 1
     reader:Show()
     RefreshReader()
+end
+function Lib.OnBookClosed()
+    if state.reopen then
+        state.reopen = nil
+        Lib.Open()
+    end
 end
 
 function Lib.Open()
