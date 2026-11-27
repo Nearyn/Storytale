@@ -867,7 +867,7 @@ local function Frame(sc, pose)
     if sc.SetCameraNearClip then pcall(sc.SetCameraNearClip, sc, 0.01) end
     if sc.SetCameraFarClip then pcall(sc.SetCameraFarClip, sc, 100) end
     if sc.SetCameraPosition then pcall(sc.SetCameraPosition, sc, d, 0, 0) end
-    if sc.SetCameraOrientationByYawPitchRoll then pcall(sc.SetCameraOrientationByYawPitchRoll, sc, math.pi, 0, 0) end
+    if sc.SetCameraOrientationByYawPitchRoll then pcall(sc.SetCameraOrientationByYawPitchRoll, sc, math.pi, 0, math.rad(pose.lean or 0)) end
 end
 -- Rotation et cadrage (repris une fois le modele charge : sa boite n'est connue qu'alors).
 function Lib.Pose(sc)
@@ -882,7 +882,7 @@ local function LoadModel(sc, id, pose)
     local a = sc and sc.actor
     if not (a and a.SetModelByFileID) then Lib.modelErr = "no model scene"; return false end
     -- (meme modele, meme pose : rien a recharger ; tourner les pages ne recharge que ce qui change)
-    local key = id .. ":" .. (pose.dist or 1) .. ":" .. (pose.yaw or 0) .. ":" .. (pose.pitch or 0) .. ":" .. (pose.roll or 0)
+    local key = id .. ":" .. (pose.dist or 1) .. ":" .. (pose.yaw or 0) .. ":" .. (pose.pitch or 0) .. ":" .. (pose.roll or 0) .. ":" .. (pose.lean or 0)
     if sc.loadedKey == key and sc.loaded then return true end
     sc.loadedKey = key
     sc.loaded = false
@@ -932,9 +932,12 @@ end
 -- (etageres). Reglables en jeu : /storytale libpose shelf|lectern distance lacet tangage roulis.
 Lib.LECTERN_POSE = { dist = 1.0, yaw = 0, pitch = 30, roll = 0 }
 Lib.LECTERN_BOOK_POSE = { dist = 0.62, yaw = 0, pitch = 30, roll = 0 }
+-- (la boite donnee par le jeu est plus grande que le modele visible : part reellement occupee)
+Lib.BBOX_FILL = 0.68
 Lib.SHELF_POSES = {
-    book = { dist = 0.92, yaw = 90, pitch = 90, roll = 0, vfrac = 1 },
-    letter = { dist = 1.9, yaw = 90, pitch = 0, roll = 0, vfrac = 0.3 },
+    book = { dist = 0.66, yaw = 90, pitch = 90, roll = 0, vfrac = 1 },
+    letter = { dist = 0.9, yaw = 90, pitch = 90, roll = 0, vfrac = 1 },
+    flat = { yaw = 90, pitch = 0, roll = 0, vfrac = 0.22 },
     plate = { dist = 1.0, yaw = 90, pitch = 0, roll = 0, vfrac = 1 },
 }
 Lib.SHELF_POSE = Lib.SHELF_POSES.book
@@ -950,7 +953,7 @@ end
 
 -- Etageres en 3D : peu de livres par rangee (chaque modele coute), le reste va sur les pages
 -- suivantes. Pose : le livre debout, le dos face a nous.
-Lib.PER_ROW_3D = 11
+Lib.PER_ROW_3D = 13
 -- Rangement naturel : chaque livre (selon son titre, toujours pareil) a sa taille, et certains
 -- penchent, appuyes sur leur voisin. Lettres : parchemins enroules couches sur le rayon.
 function Lib.ShelfPose(row, i)
@@ -958,10 +961,19 @@ function Lib.ShelfPose(row, i)
     local h = 0
     for k = 1, #(row.title or "") do h = (h * 31 + (row.title or ""):byte(k)) % 100003 end
     local p = { yaw = base.yaw, pitch = base.pitch, roll = base.roll, vfrac = base.vfrac }
-    local size = (row.kind == "book") and (0.84 + (h % 17) / 100) or 1
+    local size = (row.kind == "book") and (0.86 + (h % 15) / 100) or (0.9 + (h % 8) / 100)
     p.size = size
     p.dist = base.dist / size
-    if row.kind == "book" and (h % 7 == 0) then p.roll = (p.roll or 0) + ((h % 2 == 0) and 14 or -14); p.lean = true end
+    -- Penche (vu de face, la camera tourne) : appuye sur son voisin de gauche.
+    local every = row.kind == "letter" and 3 or 5
+    if h % every == 0 then p.lean = 12 + (h % 9) end
+    -- Quelques livres couches, empiles par deux ou trois, tranche vers nous.
+    if row.kind == "book" and not p.lean and h % 6 == 1 then
+        local fp = Lib.SHELF_POSES.flat
+        p.yaw, p.pitch, p.roll, p.vfrac, p.flat = fp.yaw, fp.pitch, fp.roll, fp.vfrac, true
+    end
+    -- Petit espace de temps en temps entre deux groupes de livres.
+    p.gap = (h % 9 == 0) and true or nil
     return p
 end
 -- Chargement etale : quelques modeles par image (ouvrir la bibliotheque ou tourner une page
@@ -990,7 +1002,7 @@ function Lib.ShowShelfModel(b, row)
     local pose = Lib.ShelfPose(row)
     b.pose = pose
     if not (m and m.actor) then b.tex:Show(); b.shade:Show(); return false end
-    local key = id .. ":" .. (pose.dist or 1) .. ":" .. (pose.yaw or 0) .. ":" .. (pose.pitch or 0) .. ":" .. (pose.roll or 0)
+    local key = id .. ":" .. (pose.dist or 1) .. ":" .. (pose.yaw or 0) .. ":" .. (pose.pitch or 0) .. ":" .. (pose.roll or 0) .. ":" .. (pose.lean or 0)
     if m.loadedKey == key and m.loaded then
         b.job = nil
         m:Show(); b.tex:Hide(); b.shade:Hide()
@@ -1680,20 +1692,37 @@ function Refresh()
     local placed = {}
     local use3d = Lib.Use3D()
     cur.n = 0
+    -- Largeur d'un livre sur le rayon : debout, son epaisseur ; penche, un peu plus ; couche,
+    -- sa longueur (et les suivants couches s'empilent dessus, trois au plus).
+    local function Width(row, sl)
+        if not use3d then local _, w = Lib.Spine(row); return w end
+        local p = Lib.ShelfPose(row)
+        if p.flat then return math.floor(Lib.BBOX_FILL * sl.h / (1.1 * p.dist)) end
+        return math.floor(sl.w / Lib.PER_ROW_3D * (p.lean and 1.7 or 1)) - 1
+    end
+    local stack
     for idx, row in ipairs(rows) do
-        local _, w = Lib.Spine(row)
-        if use3d then w = math.floor(slots[cur.slot].w / Lib.PER_ROW_3D) - 1 end
-        if cur.x + w > slots[cur.slot].w - 2 or (use3d and cur.n >= Lib.PER_ROW_3D) then
-            cur.slot, cur.x, cur.n = cur.slot + 1, 0, 0
-            if use3d then w = math.floor(slots[math.min(cur.slot, #slots)].w / Lib.PER_ROW_3D) - 1 end
-            if cur.slot > #slots then
-                views[#views + 1] = idx
-                cur.slot = 1
+        local p = use3d and Lib.ShelfPose(row) or {}
+        local w = Width(row, slots[cur.slot])
+        if p.flat and stack and stack.slot == cur.slot and stack.view == #views and stack.n < 3 then
+            -- (sur la pile d'a cote)
+            stack.n = stack.n + 1
+            placed[idx] = { view = #views, slot = cur.slot, x = stack.x, w = stack.w, level = stack.n - 1 }
+        else
+            if p.gap and cur.x > 0 then cur.x = cur.x + 6 end
+            if cur.x + w > slots[cur.slot].w - 2 then
+                cur.slot, cur.x, cur.n = cur.slot + 1, 0, 0
+                if cur.slot > #slots then
+                    views[#views + 1] = idx
+                    cur.slot = 1
+                end
+                w = Width(row, slots[cur.slot])
             end
+            placed[idx] = { view = #views, slot = cur.slot, x = cur.x, w = w, level = 0 }
+            stack = p.flat and { slot = cur.slot, view = #views, x = cur.x, w = w, n = 1 } or nil
+            cur.x = cur.x + w + 1
+            cur.n = cur.n + 1
         end
-        placed[idx] = { view = #views, slot = cur.slot, x = cur.x, w = w }
-        cur.x = cur.x + w + 1
-        cur.n = cur.n + 1
     end
     state.shelf = math.max(1, math.min(state.shelf, #views))
     -- Rangees utiles dans la vue : on coupe la bibliotheque juste en dessous (une rangee vide
@@ -1746,10 +1775,10 @@ function Refresh()
                 -- Pose sur le plancher du rayon : le modele, centre dans son cadre, en occupe
                 -- 1 / (1,1 x dist) en hauteur (fois vfrac, couche) ; on descend le cadre d'autant.
                 local F = sl.h
-                local hm = F / (1.1 * b.pose.dist) * (b.pose.vfrac or 1)
+                local hm = Lib.BBOX_FILL * F / (1.1 * b.pose.dist) * (b.pose.vfrac or 1)
                 b.model:ClearAllPoints()
                 b.model:SetSize(F, F)
-                b.model:SetPoint("BOTTOM", b, "BOTTOM", 0, -(F - hm) / 2 - 2)
+                b.model:SetPoint("BOTTOM", b, "BOTTOM", 0, -(F - hm) / 2 - 2 + (pl.level or 0) * hm)
             end
             if not use3d and b.model then b.model:Hide(); b.tex:Show(); b.shade:Show() end
             b.band:SetShown(row.kind == "book" and not is3d)
