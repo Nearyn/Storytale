@@ -1311,7 +1311,7 @@ local function Build()
     local x = right
     ui.filters = {}
     for _, f in ipairs({ { "all", L.LIB_ALL or "All" }, { "book", L.LIB_BOOKS or "Books" },
-        { "letter", L.LIB_LETTERS or "Letters" } }) do
+        { "letter", L.LIB_LETTERS or "Scrolls" } }) do
         local b = TextButton(head, f[2], function() state.filter = f[1]; state.shelf = 1; Refresh() end)
         b:SetPoint("TOPLEFT", head, "TOPLEFT", x, -84)
         b.id = f[1]
@@ -2187,26 +2187,32 @@ function Refresh()
             end
         end
         local w = Width(row, slots[cur.slot])
-        if join then
+        -- Le livre pose sur le pupitre : debout, sa place reste vide sur le rayon ; couche dans
+        -- une pile, ou parchemin, il n'y prend pas de place (sinon ce qui etait pose dessus
+        -- flottait dans le vide).
+        local away = style == "room" and row.key == state.key and (p.flat or p.scroll)
+        if away then
+            placed[idx] = { view = #views, slot = cur.slot, x = cur.x, w = 0, level = 0 }
+        elseif join then
             stack.n = stack.n + 1
             local dia = Lib.SCROLL_PILE.dia * sl.h
             if stack.onbooks then
-                placed[idx] = { view = #views, slot = cur.slot, x = stack.x + stack.w, w = stack.w, level = 0, lift = stack.lift }
+                placed[idx] = { view = #views, slot = cur.slot, x = stack.x + stack.w, w = stack.w, level = 0, lift = stack.lift, on = stack.base }
             elseif stack.n == 2 then
-                placed[idx] = { view = #views, slot = cur.slot, x = stack.x + stack.w, w = stack.w, level = 0 }
+                placed[idx] = { view = #views, slot = cur.slot, x = stack.x + stack.w, w = stack.w, level = 0, g = stack, pos = 2 }
             else
-                placed[idx] = { view = #views, slot = cur.slot, x = stack.x + stack.w / 2, w = stack.w, level = 0, lift = dia * 0.87 }
+                placed[idx] = { view = #views, slot = cur.slot, x = stack.x + stack.w / 2, w = stack.w, level = 0, lift = dia * 0.87, g = stack, pos = 3 }
             end
         elseif group == "onbooks" then
             -- (pose sur la pile de livres couches, au milieu)
             books.topped = true
             local x = books.x + math.max(0, (books.w - 2 * w) / 2)
-            placed[idx] = { view = #views, slot = cur.slot, x = x, w = w, level = 0, lift = books.lift }
-            stack = { slot = cur.slot, view = #views, x = x, w = w, n = 1, scroll = true, max = 2, onbooks = true, lift = books.lift }
+            placed[idx] = { view = #views, slot = cur.slot, x = x, w = w, level = 0, lift = books.lift, on = books }
+            stack = { slot = cur.slot, view = #views, x = x, w = w, n = 1, scroll = true, max = 2, onbooks = true, lift = books.lift, base = books }
         elseif p.flat and not p.scroll and stack and stack.kind == row.kind and Here(stack) and stack.n < 3 then
             -- (sur la pile d'a cote)
             stack.n = stack.n + 1
-            placed[idx] = { view = #views, slot = cur.slot, x = stack.x, w = stack.w, level = stack.n - 1 }
+            placed[idx] = { view = #views, slot = cur.slot, x = stack.x, w = stack.w, level = stack.n - 1, g = stack }
             if books == stack then
                 books.lift = books.lift + Lib.BBOX_FILL * sl.h / (1.1 * p.dist) * (p.vfrac or 1)
             end
@@ -2222,10 +2228,13 @@ function Refresh()
                 w = Width(row, slots[cur.slot])
             end
             placed[idx] = { view = #views, slot = cur.slot, x = cur.x, w = w, level = 0 }
+            if p.flat then placed[idx].pos = 1 end
             stack = p.flat and { slot = cur.slot, view = #views, x = cur.x, w = w, n = 1, kind = row.kind, scroll = p.scroll,
                 max = (group == "pair") and 2 or 3 } or nil
+            if p.scroll then placed[idx].g = stack end
             if p.flat and not p.scroll then
                 books = stack
+                placed[idx].g = books
                 books.lift = Lib.BBOX_FILL * slots[cur.slot].h / (1.1 * p.dist) * (p.vfrac or 1)
             end
             last = { slot = cur.slot, view = #views, upright = not p.flat and not p.lean, book = row.kind == "book" }
@@ -2266,9 +2275,38 @@ function Refresh()
         end
         for _, t in ipairs(ui.capTop) do t:Show() end
     end
+    -- Le livre pose sur le pupitre a quitte une pile : ce qui etait pose dessus descend (rien ne
+    -- flotte), et dans une pyramide de parchemins, celui du haut prend la place vide.
+    local fix = {}
+    if style == "room" and use3d then
+        for idx, row in ipairs(rows) do
+            local lp = placed[idx]
+            if row.key == state.key and lp and lp.g then
+                local sl = slots[lp.slot]
+                local p = Lib.ShelfPose(row)
+                if not p.scroll then
+                    local drop = Lib.BBOX_FILL * sl.h / (1.1 * p.dist) * (p.vfrac or 1)
+                    for j, q in ipairs(placed) do
+                        if q.g == lp.g and (q.level or 0) > (lp.level or 0) then fix[j] = { level = q.level - 1 } end
+                        if q.on == lp.g then fix[j] = { lift = (q.lift or 0) - drop } end
+                    end
+                elseif (lp.pos or 1) < 3 then
+                    for j, q in ipairs(placed) do
+                        if q.g == lp.g and q.pos == 3 then fix[j] = { x = lp.x, lift = 0 } end
+                    end
+                end
+            end
+        end
+    end
     local used = 0
     for idx, row in ipairs(rows) do
         local pl = placed[idx]
+        if fix[idx] then
+            local c = {}
+            for k, v in pairs(pl) do c[k] = v end
+            for k, v in pairs(fix[idx]) do c[k] = v end
+            pl = c
+        end
         -- (style complet : le livre pose sur le pupitre a quitte sa place, qui reste vide)
         local onLectern = style == "room" and row.key == state.key
         -- (le livre du pupitre garde son emplacement, vide : les autres ne changent pas de

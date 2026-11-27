@@ -1,5 +1,25 @@
 # Changelog / Journal des versions
 
+## 1.13.1
+
+**English**
+
+### Changed
+- Library: the one-page writings are now called "Scrolls", like they look on the shelves.
+
+### Fixed
+- Library: when you take a book or a scroll from a pile, what lay on it no longer floats in the air.
+
+---
+
+**Français**
+
+### Changements
+- Bibliothèque : les écrits d'une page s'appellent maintenant « Parchemins », comme ils apparaissent sur les étagères.
+
+### Corrections
+- Bibliothèque : quand vous prenez un livre ou un parchemin dans une pile, ce qui était posé dessus ne flotte plus en l'air.
+
 ## 1.13.0
 
 **English**

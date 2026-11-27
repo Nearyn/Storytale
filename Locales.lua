@@ -849,7 +849,12 @@ local LIBRARY = {
         "所有角色共用藏書館", "顯示所有書籍（Spoken Readables）",
         "也列出尚未找到的書，可立即閱讀。需要知曉所有書籍的 Spoken Readables。", "打開藏書館" },
 }
+-- (categorie des ecrits d'une page : rangee en parchemins sur les etageres, d'ou son nom)
+local LIB_SCROLLS = { enUS = "Scrolls", frFR = "Parchemins", deDE = "Schriftrollen", esES = "Pergaminos",
+    esMX = "Pergaminos", itIT = "Pergamene", ptBR = "Pergaminhos", ruRU = "Свитки", koKR = "두루마리",
+    zhCN = "卷轴", zhTW = "卷軸" }
 for loc, v in pairs(LIBRARY) do
+    if LIB_SCROLLS[loc] then v[4] = LIB_SCROLLS[loc] end
     local dest = (loc == "enUS") and enUS or T[loc]
     if dest then
         dest.LIBRARY, dest.LIB_ALL, dest.LIB_BOOKS, dest.LIB_LETTERS, dest.LIB_PLATES = v[1], v[2], v[3], v[4], v[5]
