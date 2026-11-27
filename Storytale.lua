@@ -3893,7 +3893,8 @@ function DWE.OpenLibraryBook(title, pages, material)
         pcall(PlaySound, SOUNDKIT and SOUNDKIT.IG_SPELLBOOK_OPEN or 829)
     end
     if DWE.UpdateVisuals then pcall(DWE.UpdateVisuals) end
-    DWE.FadeInFrames({ DWE.textBox, DWE.choiceBox }, 0.3, 2)
+    -- (la barre sous le livre aussi : elle apparaissait une image a cote de sa place)
+    DWE.FadeInFrames({ DWE.textBox, DWE.choiceBox, DWE.bookBar }, 0.3, 2)
     return true
 end
 -- Fondu d'apparition (sans toucher a ce que Storytale regle ensuite : on ne fait que monter
@@ -3903,8 +3904,10 @@ function DWE.FadeInFrames(list, dur, holdFrames)
     DWE.fadeInFrame = fr
     local targets = {}
     for _, f in ipairs(list) do
-        if f and f.IsShown and f:IsShown() then
-            targets[#targets + 1] = { f = f, a = f:GetAlpha() or 1 }
+        -- (meme cache pour l'instant : il peut s'afficher juste apres, il est deja invisible)
+        if f and f.SetAlpha then
+            local a = f:GetAlpha() or 1
+            targets[#targets + 1] = { f = f, a = (a > 0) and a or 1 }
             f:SetAlpha(0)
         end
     end
