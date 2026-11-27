@@ -2320,6 +2320,15 @@ do
     M.FireEvent("ITEM_TEXT_BEGIN"); M.FireEvent("ITEM_TEXT_READY")
     local e = Lib.Get("The Founding of Quel'Thalas", false)
     check(e and e.p[1] == "First page." and not e.p[2] and not e.done, "library: page read is kept, book not finished")
+    do
+        local savedGUID = UnitGUID
+        UnitGUID = function(u) if u == "npc" then return "GameObject-0-1-2-3-175730-0000ABCD" end end
+        M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
+        M.bookPage = 1
+        M.FireEvent("ITEM_TEXT_BEGIN"); M.FireEvent("ITEM_TEXT_READY")
+        check(Lib.Get("The Founding of Quel'Thalas", false).o == 175730, "library: the world object the book came from is kept")
+        UnitGUID = savedGUID
+    end
     check(Lib.Get("The Founding of Quel'Thalas", true) ~= nil, "library: kept in the shared library too")
     M.bookPage = 3
     M.FireEvent("ITEM_TEXT_READY")

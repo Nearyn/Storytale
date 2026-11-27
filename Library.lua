@@ -159,6 +159,29 @@ function Lib.ImportRead()
     return n
 end
 
+-- Numero de l'objet du monde (GUID "GameObject-0-1-2-3-<numero>-<apparition>") ou de l'objet
+-- du sac qui a ouvert l'ecrit : l'unite "npc" (le jeu la donne pour une note du sac), sinon
+-- l'objet vise par la touche d'interaction ou sous la souris.
+function Lib.Source()
+    local obj, item
+    for _, unit in ipairs({ "npc", "softinteract", "mouseover" }) do
+        local ok, guid = pcall(UnitGUID or function() end, unit)
+        guid = ok and Clean(guid) or nil
+        if guid then
+            local entry = guid:match("^GameObject%-%d+%-%d+%-%d+%-%d+%-(%d+)%-")
+            if entry and not obj then obj = tonumber(entry) end
+            if guid:match("^Item%-") and not item then
+                local getID = (C_Item and C_Item.GetItemIDByGUID) or rawget(_G, "GetItemIDByGUID")
+                if getID then
+                    local okI, id = pcall(getID, guid)
+                    if okI and type(id) == "number" then item = id end
+                end
+            end
+        end
+    end
+    return obj, item
+end
+
 local ev = CreateFrame("Frame")
 ev:RegisterEvent("PLAYER_LOGIN")
 ev:RegisterEvent("ITEM_TEXT_BEGIN")
@@ -173,6 +196,13 @@ ev:SetScript("OnEvent", function(_, event)
         open = { title = title }
         local mat = ItemTextGetMaterial and Clean(ItemTextGetMaterial()) or nil
         Lib.AddBook(title, nil, Zone(), mat)
+        -- D'ou vient l'ecrit : l'objet du monde (son numero, pour montrer son vrai modele en 3D)
+        -- ou l'objet du sac (pour son icone).
+        local obj, item = Lib.Source()
+        for _, shared in ipairs({ false, true }) do
+            local e = Lib.Get(title, shared)
+            if e then e.o, e.i = obj or e.o, item or e.i end
+        end
     end
     if event ~= "ITEM_TEXT_READY" then return end
     local n = ItemTextGetPage and ItemTextGetPage() or 1
