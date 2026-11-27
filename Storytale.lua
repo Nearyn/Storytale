@@ -3888,10 +3888,9 @@ function DWE.OpenLibraryBook(title, pages, material)
     BuildOptions("ITEM_TEXT_CACHED")
     EnableKeys()
     ArmEscape()
-    -- Ouverture : le meme son qu'un livre ouvert dans le monde (celui de la fenetre de lecture
-    -- du jeu), le livre place tout de suite, puis en fondu (il apparaissait une image ailleurs).
+    -- Ouverture : un bruit de papier (celui du grimoire), le livre place tout de suite, puis en fondu (il apparaissait une image ailleurs).
     if PlaySound then
-        pcall(PlaySound, SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPEN or 850)
+        pcall(PlaySound, SOUNDKIT and SOUNDKIT.IG_SPELLBOOK_OPEN or 829)
     end
     if DWE.UpdateVisuals then pcall(DWE.UpdateVisuals) end
     DWE.FadeInFrames({ DWE.textBox, DWE.choiceBox }, 0.3, 2)
@@ -3927,7 +3926,7 @@ function DWE.CloseLibraryBook()
     DWE.bookResumeHold = nil
     DisableKeys()
     DWE.SetBookMode(false)
-    if PlaySound then pcall(PlaySound, SOUNDKIT and SOUNDKIT.IG_MAINMENU_CLOSE or 851) end
+    if PlaySound then pcall(PlaySound, SOUNDKIT and SOUNDKIT.IG_SPELLBOOK_CLOSE or 830) end
     if DWE.Library and DWE.Library.OnBookClosed then DWE.Library.OnBookClosed() end
 end
 

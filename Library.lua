@@ -1519,13 +1519,14 @@ end
 local function Layout()
     if type(DialogueWheelE_LibraryLayout) ~= "table" then DialogueWheelE_LibraryLayout = {} end
     local t = DialogueWheelE_LibraryLayout
+    -- (une disposition par facon d'afficher : piece ou simple, et avec ou sans tous les livres)
     -- (v2 : les bibliotheques grandissent depuis leur pied ; l'ancienne disposition, faite avant,
     -- est devenue celle par defaut : on repart d'elle)
     if t.v ~= 2 then
         for k in pairs(t) do t[k] = nil end
         t.v = 2
     end
-    local st = Lib.Style()
+    local st = Lib.Style() .. (DialogueWheelE_LibraryUnlock == true and "_all" or "")
     t[st] = type(t[st]) == "table" and t[st] or {}
     return t, t[st]
 end
@@ -1551,7 +1552,8 @@ Lib.Areas = Areas
 function Lib.Free() return (Lib.bgAlpha or 1) <= 0 end
 function Lib.ApplyLayout()
     if not room then return end
-    local all, lay = Layout()
+    local _, lay = Layout()
+    local all = lay -- (place et taille de la fenetre : par facon d'afficher aussi)
     local free = Lib.Free()
     -- Disposition par defaut (celle choisie par Nearyn) ; avec fond, toujours elle ; sans fond,
     -- chaque element garde la place ou le joueur l'a mis.
@@ -1756,7 +1758,7 @@ function MakeHandles()
     function Lib.RoomMoved()
         local self = room
         self:StopMovingOrSizing()
-        local all = Layout()
+        local _, all = Layout()
         Lib.avoid.room = nil
         all.roomPinned = Lib.Overlaps(Lib.bgFrame) or nil
         local x, y = self:GetCenter()
@@ -1772,7 +1774,7 @@ function MakeHandles()
         DWE.MakeResizeGrip(bgf, {
             get = function() return room:GetWidth() * room:GetScale(), 0 end,
             set = function(w)
-                local all = Layout()
+                local _, all = Layout()
                 all.scale = math.max(0.5, math.min(2, w / room:GetWidth()))
                 Lib.ApplyLayout()
             end,
@@ -1822,7 +1824,8 @@ local function Escape(r, obs)
         cands[#cands + 1] = { 0, o[4] + MARGIN - r[2] + 1 }
         cands[#cands + 1] = { 0, o[2] - MARGIN - r[4] - 1 }
     end
-    table.sort(cands, function(a, b) return math.abs(a[1]) + math.abs(a[2]) < math.abs(b[1]) + math.abs(b[2]) end)
+    -- (de cote plutot qu'en haut ou en bas : un livre reste a hauteur des yeux)
+    table.sort(cands, function(a, b) return math.abs(a[1]) + 3 * math.abs(a[2]) < math.abs(b[1]) + 3 * math.abs(b[2]) end)
     for _, c in ipairs(cands) do
         local m = { r[1] + c[1], r[2] + c[2], r[3] + c[1], r[4] + c[2] }
         if m[1] >= 0 and m[2] >= 0 and m[3] <= sw and m[4] <= sh then
@@ -1877,7 +1880,7 @@ function Lib.Push(f)
 end
 local hooked = {}
 function Lib.PushAll()
-    for _, f in ipairs({ DWE.textBox, rawget(_G, "StorytaleNarratorFrame") }) do
+    for _, f in ipairs({ DWE.textBox, rawget(_G, "StorytaleNarratorFrame"), rawget(_G, "SpokenSubtitleFrame") }) do
         if f and not hooked[f] and hooksecurefunc then
             hooked[f] = true
             hooksecurefunc(f, "SetPoint", function(self) if not pushing then Lib.Push(self) end end)
@@ -1915,7 +1918,7 @@ function Lib.Avoid()
         end
         Lib.avoid.room = nil
     else
-        local all = Layout()
+        local _, all = Layout()
         Check("room", Lib.bgFrame, all.roomPinned)
     end
     if changed then Lib.ApplyLayout() end
@@ -1985,8 +1988,7 @@ end
 -- Revenir a la disposition d'origine (style en cours).
 function Lib.ResetLayout()
     local all, _ = Layout()
-    all[Lib.Style()] = {}
-    all.scale, all.pos = nil, nil
+    all[Lib.Style() .. (DialogueWheelE_LibraryUnlock == true and "_all" or "")] = {}
     if room then room:ClearAllPoints(); room:SetPoint("CENTER") end
     Lib.ApplyLayout()
 end
