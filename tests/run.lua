@@ -2406,7 +2406,7 @@ do
     check(Lib.Kind({ t = "Eliza's Tombstone", p = { "x" } }) == "plate", "library: a tombstone counts as a plaque")
     Lib.RunQueue()
     local loadedOne
-    for _, sp in ipairs(ui.spines) do if sp:IsShown() and sp.actor and sp.actor.fileID then loadedOne = true end end
+    for _, sp in ipairs(ui.spines) do if sp:IsShown() and sp.model and sp.model.fileID then loadedOne = true end end
     check(loadedOne, "library: shelf models load a few per frame")
     -- un clic sur un autre livre de l'etagere le pose sur le pupitre (l'ancien reprend sa place)
     local before = ui.featured:GetText()
