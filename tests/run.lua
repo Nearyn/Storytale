@@ -2405,6 +2405,14 @@ do
     check(DWE.bookInfo and DWE.bookInfo.total == 2, "library: Storytale's book has every kept page")
     DWE.CloseAllDialogue()
     check(not DWE.libraryBook and not DWE.bookMode and Lib.frame:IsShown(), "library: closing the book goes back to the room")
+    -- Disposition libre : chaque bloc a sa poignee et sa taille
+    check(ui.handles and ui.handles.cases and ui.handles.lectern and ui.handles.header and ui.handles.lectern.dweGrip ~= nil, "library: each block can be moved and resized")
+    DialogueWheelE_LibraryLayout = { room = { lectern = { x = 30, y = 0, s = 1.5 } } }
+    Lib.ApplyLayout()
+    check(ui.boxes.lectern:GetScale() == 1.5 and ui.boxes.cases:GetScale() == 1, "library: a block keeps its own size")
+    Lib.ResetLayout()
+    check(ui.boxes.lectern:GetScale() == 1, "library: layout can be reset")
+    DialogueWheelE_LibraryLayout = nil
     -- Fond reglable : de plein a rien
     DialogueWheelE_LibraryBg = 0
     Lib.ApplyBg()

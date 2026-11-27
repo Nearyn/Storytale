@@ -717,6 +717,7 @@ function Lib.ShowShelfModel(b, row)
 end
 function Lib.Use3D() return DialogueWheelE_Library3D ~= false end
 
+local MakeHandles
 local function Build()
     if room then return end
     room = CreateFrame("Frame", "StorytaleLibraryFrame", UIParent, "BackdropTemplate")
@@ -748,6 +749,20 @@ local function Build()
     Lib.frame = room
     ui = {}
     Lib.ui = ui
+    -- Trois blocs, deplacables et redimensionnables chacun (Verrouiller les fenetres decoche) :
+    -- les bibliotheques, le pupitre, l'en-tete. Chacun couvre toute la fenetre ; son contenu
+    -- garde les memes coordonnees, le bloc est seulement decale et mis a l'echelle.
+    ui.boxes = {}
+    local function Box(id)
+        local b = CreateFrame("Frame", nil, room)
+        b:SetSize(W, H)
+        b:SetPoint("BOTTOMLEFT", room, "BOTTOMLEFT", 0, 0)
+        b.id = id
+        b:SetFrameLevel(room:GetFrameLevel() + 2)
+        ui.boxes[id] = b
+        return b
+    end
+    local cases, lect, head = Box("cases"), Box("lectern"), Box("header")
     local close = CreateFrame("Button", nil, room, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", room, "TOPRIGHT", -2, -2)
 
@@ -756,10 +771,10 @@ local function Build()
     local caseW = (CASE.contentR - CASE.contentL) * CS
     for c = 1, 2 do
         local x = 24 + (c - 1) * (caseW + 6)
-        local t = room:CreateTexture(nil, "ARTWORK")
+        local t = cases:CreateTexture(nil, "ARTWORK")
         t:SetTexture(ADDON .. "LibraryBookcase.png")
         t:SetSize(512 * CS, CASE_H)
-        t:SetPoint("BOTTOMLEFT", room, "BOTTOMLEFT", x - CASE.contentL * CS, 20)
+        t:SetPoint("BOTTOMLEFT", cases, "BOTTOMLEFT", x - CASE.contentL * CS, 20)
         ui.cases[c] = t
     end
     -- Style simple : une grande etagere. Chaque rangee en trois morceaux de la bibliotheque :
@@ -774,11 +789,11 @@ local function Build()
             { CASE.right, CASE.contentR, r.x + r.edgeL + r.mid, r.edgeR },
         }
         for _, pt in ipairs(parts) do
-            local t = room:CreateTexture(nil, "ARTWORK")
+            local t = cases:CreateTexture(nil, "ARTWORK")
             t:SetTexture(ADDON .. "LibraryBookcase.png")
             t:SetTexCoord(pt[1] / 512, pt[2] / 512, v0, v1)
             t:SetSize(pt[4], r.h)
-            t:SetPoint("TOPLEFT", room, "TOPLEFT", pt[3], -r.top)
+            t:SetPoint("TOPLEFT", cases, "TOPLEFT", pt[3], -r.top)
             t:Hide()
             ui.strips[#ui.strips + 1] = t
         end
@@ -788,8 +803,8 @@ local function Build()
     function ui.Spine(i)
         local b = ui.spines[i]
         if b then return b end
-        b = CreateFrame("Button", nil, room)
-        b:SetFrameLevel(room:GetFrameLevel() + 3)
+        b = CreateFrame("Button", nil, cases)
+        b:SetFrameLevel(room:GetFrameLevel() + 6)
         local t = b:CreateTexture(nil, "ARTWORK")
         t:SetAllPoints()
         t:SetTexture("Interface\\Buttons\\WHITE8X8")
@@ -824,7 +839,7 @@ local function Build()
         b:SetScript("OnEnter", function(self)
             local r = self.row
             if not r then return end
-            self:SetPoint("BOTTOMLEFT", room, "BOTTOMLEFT", self.x, self.y + 4)
+            self:SetPoint("BOTTOMLEFT", cases, "BOTTOMLEFT", self.x, self.y + 4)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(r.title, 1, 0.86, 0.55, 1, true)
             if r.locked then
@@ -835,7 +850,7 @@ local function Build()
             GameTooltip:Show()
         end)
         b:SetScript("OnLeave", function(self)
-            self:SetPoint("BOTTOMLEFT", room, "BOTTOMLEFT", self.x, self.y)
+            self:SetPoint("BOTTOMLEFT", cases, "BOTTOMLEFT", self.x, self.y)
             if GameTooltip then GameTooltip:Hide() end
         end)
         b:SetScript("OnClick", function(self)
@@ -862,19 +877,19 @@ local function Build()
     -- Mur de droite : titre, compteur, recherche, filtres, tri, etageres precedentes / suivantes.
     local right = 24 + 2 * (caseW + 6) + 30
     ui.right = right
-    local title = room:CreateFontString(nil, "OVERLAY")
-    title:SetPoint("TOPLEFT", room, "TOPLEFT", right, -22)
+    local title = head:CreateFontString(nil, "OVERLAY")
+    title:SetPoint("TOPLEFT", head, "TOPLEFT", right, -22)
     Font(title, 22, GOLD)
     title:SetShadowOffset(1, -1)
     title:SetText(L.LIBRARY or "Library")
     ui.title = title
-    local count = room:CreateFontString(nil, "OVERLAY")
+    local count = head:CreateFontString(nil, "OVERLAY")
     count:SetPoint("LEFT", title, "RIGHT", 12, -2)
     Font(count, 13, PALE)
     ui.count = count
-    local search = CreateFrame("EditBox", nil, room, "SearchBoxTemplate")
+    local search = CreateFrame("EditBox", nil, head, "SearchBoxTemplate")
     search:SetSize(W - right - 40, 20)
-    search:SetPoint("TOPLEFT", room, "TOPLEFT", right + 6, -56)
+    search:SetPoint("TOPLEFT", head, "TOPLEFT", right + 6, -56)
     search:SetAutoFocus(false)
     search:HookScript("OnTextChanged", function(self)
         state.search = self:GetText() or ""
@@ -886,43 +901,44 @@ local function Build()
     ui.filters = {}
     for _, f in ipairs({ { "all", L.LIB_ALL or "All" }, { "book", L.LIB_BOOKS or "Books" },
         { "letter", L.LIB_LETTERS or "Letters" }, { "plate", L.LIB_PLATES or "Plaques" } }) do
-        local b = TextButton(room, f[2], function() state.filter = f[1]; state.shelf = 1; Refresh() end)
-        b:SetPoint("TOPLEFT", room, "TOPLEFT", x, -84)
+        local b = TextButton(head, f[2], function() state.filter = f[1]; state.shelf = 1; Refresh() end)
+        b:SetPoint("TOPLEFT", head, "TOPLEFT", x, -84)
         b.id = f[1]
         x = x + b:GetWidth() + 6
         ui.filters[#ui.filters + 1] = b
     end
-    local sort = TextButton(room, L.LIB_SORT_AZ or "A-Z", function()
+    local sort = TextButton(head, L.LIB_SORT_AZ or "A-Z", function()
         state.sort = state.sort == "az" and "recent" or "az"
         state.shelf = 1
         Refresh()
     end)
-    sort:SetPoint("TOPRIGHT", room, "TOPRIGHT", -30, -84)
+    sort:SetPoint("TOPRIGHT", head, "TOPRIGHT", -30, -84)
     ui.sort = sort
     -- Etageres suivantes / precedentes (sous les bibliotheques).
-    local up = TextButton(room, "<", function() state.shelf = state.shelf - 1; Refresh() end)
-    local down = TextButton(room, ">", function() state.shelf = state.shelf + 1; Refresh() end)
-    local shelfNum = room:CreateFontString(nil, "OVERLAY")
-    shelfNum:SetPoint("BOTTOM", room, "BOTTOMLEFT", 24 + caseW + 3, 6)
+    local up = TextButton(cases, "<", function() state.shelf = state.shelf - 1; Refresh() end)
+    local down = TextButton(cases, ">", function() state.shelf = state.shelf + 1; Refresh() end)
+    local shelfNum = cases:CreateFontString(nil, "OVERLAY")
+    shelfNum:SetPoint("BOTTOM", cases, "BOTTOMLEFT", 24 + caseW + 3, 6)
     Font(shelfNum, 12, PALE)
     up:SetPoint("RIGHT", shelfNum, "LEFT", -6, 0)
     down:SetPoint("LEFT", shelfNum, "RIGHT", 6, 0)
     ui.up, ui.down, ui.shelfNum = up, down, shelfNum
     ui.close = close
+    MakeHandles()
 
     -- Le pupitre, et le livre presente dessus.
-    local lec = room:CreateTexture(nil, "ARTWORK")
+    local lec = lect:CreateTexture(nil, "ARTWORK")
     lec:SetTexture(ADDON .. "LibraryLectern.png")
     lec:SetSize(LECTERN.size, LECTERN.size)
     local lx = right + (W - right - 30 - LECTERN.size) / 2
-    lec:SetPoint("BOTTOMLEFT", room, "BOTTOMLEFT", lx, 12)
+    lec:SetPoint("BOTTOMLEFT", lect, "BOTTOMLEFT", lx, 12)
     ui.lectern = lec
     local k = LECTERN.size / 1024
     local tp = LECTERN.top
-    local cover = CreateFrame("Button", nil, room)
-    cover:SetFrameLevel(room:GetFrameLevel() + 4)
+    local cover = CreateFrame("Button", nil, lect)
+    cover:SetFrameLevel(room:GetFrameLevel() + 6)
     cover:SetSize((tp[2] - tp[1]) * k * 0.62, (tp[4] - tp[3]) * k * 0.95)
-    cover:SetPoint("CENTER", room, "BOTTOMLEFT", lx + (tp[1] + tp[2]) / 2 * k, 12 + LECTERN.size - (tp[3] + tp[4]) / 2 * k + 6)
+    cover:SetPoint("CENTER", lect, "BOTTOMLEFT", lx + (tp[1] + tp[2]) / 2 * k, 12 + LECTERN.size - (tp[3] + tp[4]) / 2 * k + 6)
     local ct = cover:CreateTexture(nil, "ARTWORK")
     ct:SetAllPoints()
     ct:SetTexture("Interface\\Buttons\\WHITE8X8")
@@ -960,13 +976,13 @@ local function Build()
     end)
     cover:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     ui.cover = cover
-    local ft = room:CreateFontString(nil, "OVERLAY")
-    ft:SetPoint("BOTTOM", room, "BOTTOMLEFT", lx + LECTERN.size / 2, 12 + LECTERN.size + 34)
+    local ft = lect:CreateFontString(nil, "OVERLAY")
+    ft:SetPoint("BOTTOM", lect, "BOTTOMLEFT", lx + LECTERN.size / 2, 12 + LECTERN.size + 34)
     ft:SetWidth(W - right - 40)
     Font(ft, 16, GOLD)
     ft:SetShadowOffset(1, -1)
     ui.featured = ft
-    local fm = room:CreateFontString(nil, "OVERLAY")
+    local fm = lect:CreateFontString(nil, "OVERLAY")
     fm:SetPoint("TOP", ft, "BOTTOM", 0, -4)
     fm:SetWidth(W - right - 40)
     Font(fm, 12, PALE)
@@ -1049,6 +1065,153 @@ local function Build()
     ui.back = back
 end
 
+-- Disposition libre (Verrouiller les fenetres decoche) : la fenetre se deplace en tirant son
+-- fond et grandit par sa poignee ; chaque bloc (bibliotheques, pupitre, en-tete) se deplace en
+-- le tirant et grandit par sa propre poignee. Garde par style dans DialogueWheelE_LibraryLayout.
+local function Layout()
+    if type(DialogueWheelE_LibraryLayout) ~= "table" then DialogueWheelE_LibraryLayout = {} end
+    local t = DialogueWheelE_LibraryLayout
+    local st = Lib.Style()
+    t[st] = type(t[st]) == "table" and t[st] or {}
+    return t, t[st]
+end
+-- Zone de chaque bloc (coordonnees de la fenetre, depuis le bas-gauche), selon le style.
+local function Areas()
+    local w, h = room:GetWidth(), room:GetHeight()
+    if Lib.Style() == "simple" then
+        return { cases = { 8, 0, w - 16, h - 92 }, header = { 8, h - 90, w - 60, 80 } }
+    end
+    local k = LECTERN.size
+    local lx = ui.right + (W - ui.right - 30 - k) / 2
+    return {
+        cases = { 14, 0, ui.right - 40, H - 28 },
+        lectern = { lx - 10, 8, k + 20, k + 70 },
+        header = { ui.right - 12, H - 112, W - ui.right - 24, 100 },
+    }
+end
+Lib.Areas = Areas
+function Lib.ApplyLayout()
+    if not room then return end
+    local all, lay = Layout()
+    local s0 = tonumber(all.scale) or 1
+    room:SetScale(math.max(0.5, math.min(2, s0)))
+    if type(all.pos) == "table" and all.pos[1] then
+        room:ClearAllPoints()
+        room:SetPoint(all.pos[1], UIParent, all.pos[1], all.pos[2] or 0, all.pos[3] or 0)
+    end
+    local areas = Areas()
+    for id, box in pairs(ui.boxes) do
+        local a = areas[id]
+        local L2 = type(lay[id]) == "table" and lay[id] or {}
+        local sc = math.max(0.4, math.min(2.5, tonumber(L2.s) or 1))
+        local dx, dy = tonumber(L2.x) or 0, tonumber(L2.y) or 0
+        box:SetSize(room:GetWidth(), room:GetHeight())
+        box:SetScale(sc)
+        box:SetShown(a ~= nil)
+        if a then
+            -- (grandit autour de son centre)
+            local cx, cy = a[1] + a[3] / 2, a[2] + a[4] / 2
+            local ox, oy = dx + cx * (1 - sc), dy + cy * (1 - sc)
+            box:ClearAllPoints()
+            box:SetPoint("BOTTOMLEFT", room, "BOTTOMLEFT", ox / sc, oy / sc)
+            local hd = ui.handles and ui.handles[id]
+            if hd then
+                hd:ClearAllPoints()
+                hd:SetPoint("BOTTOMLEFT", room, "BOTTOMLEFT", ox + a[1] * sc, oy + a[2] * sc)
+                hd:SetSize(a[3] * sc, a[4] * sc)
+                hd:Show()
+                if DWE.SetGripCorner then DWE.SetGripCorner(hd, "CENTER") end
+            end
+        end
+    end
+    for id, hd in pairs(ui.handles or {}) do if not areas[id] then hd:Hide() end end
+end
+-- Poignees de deplacement des blocs, et redimensionnement des blocs et de la fenetre.
+function MakeHandles()
+    ui.handles = {}
+    local function Cursor()
+        local x, y = GetCursorPosition()
+        local es = room:GetEffectiveScale()
+        return x / es, y / es
+    end
+    for _, id in ipairs({ "cases", "lectern", "header" }) do
+        local hd = CreateFrame("Frame", nil, room)
+        hd:SetFrameLevel(room:GetFrameLevel() + 1)
+        hd:EnableMouse(true)
+        hd:RegisterForDrag("LeftButton")
+        hd:SetScript("OnDragStart", function(self)
+            if DWE.IsLocked and DWE.IsLocked() then return end
+            local _, lay = Layout()
+            lay[id] = type(lay[id]) == "table" and lay[id] or {}
+            local cx, cy = Cursor()
+            self.drag = { x = cx, y = cy, dx = tonumber(lay[id].x) or 0, dy = tonumber(lay[id].y) or 0 }
+            self:SetScript("OnUpdate", function(me)
+                local d = me.drag
+                if not d then return end
+                local nx, ny = Cursor()
+                lay[id].x, lay[id].y = math.floor(d.dx + nx - d.x + 0.5), math.floor(d.dy + ny - d.y + 0.5)
+                Lib.ApplyLayout()
+            end)
+        end)
+        hd:SetScript("OnDragStop", function(self)
+            self.drag = nil
+            self:SetScript("OnUpdate", nil)
+        end)
+        -- (la molette tourne les etageres, comme sur le fond)
+        hd:EnableMouseWheel(true)
+        hd:SetScript("OnMouseWheel", function(_, delta) state.shelf = state.shelf - delta; Refresh() end)
+        ui.handles[id] = hd
+        if DWE.MakeResizeGrip then
+            DWE.MakeResizeGrip(hd, {
+                get = function()
+                    local _, lay = Layout()
+                    local a = Areas()[id]
+                    local sc = lay[id] and tonumber(lay[id].s) or 1
+                    return (a and a[3] or 100) * sc * room:GetScale(), 0
+                end,
+                set = function(w)
+                    local _, lay = Layout()
+                    local a = Areas()[id]
+                    if not a then return end
+                    lay[id] = type(lay[id]) == "table" and lay[id] or {}
+                    lay[id].s = math.max(0.4, math.min(2.5, w / room:GetScale() / a[3]))
+                    Lib.ApplyLayout()
+                end,
+            })
+        end
+    end
+    -- La fenetre entiere : tirer le fond la deplace, sa poignee l'agrandit.
+    room:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local all = Layout()
+        local x, y = self:GetCenter()
+        local ux, uy = UIParent:GetCenter()
+        if x and ux then
+            local sc = self:GetScale()
+            all.pos = { "CENTER", math.floor(x * sc - ux + 0.5) / sc, math.floor(y * sc - uy + 0.5) / sc }
+        end
+    end)
+    if DWE.MakeResizeGrip then
+        room.dweGripX, room.dweGripY = 14, 14
+        DWE.MakeResizeGrip(room, {
+            get = function() return room:GetWidth() * room:GetScale(), 0 end,
+            set = function(w)
+                local all = Layout()
+                all.scale = math.max(0.5, math.min(2, w / room:GetWidth()))
+                Lib.ApplyLayout()
+            end,
+        })
+    end
+end
+-- Revenir a la disposition d'origine (style en cours).
+function Lib.ResetLayout()
+    local all, _ = Layout()
+    all[Lib.Style()] = {}
+    all.scale, all.pos = nil, nil
+    if room then room:ClearAllPoints(); room:SetPoint("CENTER") end
+    Lib.ApplyLayout()
+end
+
 -- Met la fenetre au style choisi : la piece entiere, ou les rangees seules (plus petite).
 local function ApplyStyle()
     local style = Lib.Style()
@@ -1066,26 +1229,27 @@ local function ApplyStyle()
     end
     room:SetSize(w, h)
     Lib.ApplyBg()
+    Lib.ApplyLayout()
     local left = full and ui.right or 22
     ui.title:ClearAllPoints()
-    ui.title:SetPoint("TOPLEFT", room, "TOPLEFT", left, -22)
+    ui.title:SetPoint("TOPLEFT", ui.boxes.header, "TOPLEFT", left, -22)
     ui.search:ClearAllPoints()
-    ui.search:SetPoint("TOPLEFT", room, "TOPLEFT", left + 6, -56)
+    ui.search:SetPoint("TOPLEFT", ui.boxes.header, "TOPLEFT", left + 6, -56)
     ui.search:SetWidth(full and (W - ui.right - 40) or 180)
     local x = full and left or (left + 200)
     for _, b in ipairs(ui.filters) do
         b:ClearAllPoints()
-        b:SetPoint("TOPLEFT", room, "TOPLEFT", x, full and -84 or -58)
+        b:SetPoint("TOPLEFT", ui.boxes.header, "TOPLEFT", x, full and -84 or -58)
         x = x + b:GetWidth() + 6
     end
     ui.sort:ClearAllPoints()
-    ui.sort:SetPoint("TOPRIGHT", room, "TOPRIGHT", -30, full and -84 or -58)
+    ui.sort:SetPoint("TOPRIGHT", ui.boxes.header, "TOPRIGHT", -30, full and -84 or -58)
     ui.shelfNum:ClearAllPoints()
     if full then
         local caseW = (CASE.contentR - CASE.contentL) * CS
-        ui.shelfNum:SetPoint("BOTTOM", room, "BOTTOMLEFT", 24 + caseW + 3, 6)
+        ui.shelfNum:SetPoint("BOTTOM", ui.boxes.cases, "BOTTOMLEFT", 24 + caseW + 3, 6)
     else
-        ui.shelfNum:SetPoint("BOTTOM", room, "BOTTOM", 0, 8)
+        ui.shelfNum:SetPoint("BOTTOM", ui.boxes.cases, "BOTTOM", 0, 8)
     end
     ui.empty:ClearAllPoints()
     if full then
@@ -1195,7 +1359,7 @@ function Refresh()
             b.y = math.floor(sl.y or (winH - sl.fromTop))
             b:ClearAllPoints()
             b:SetSize(w, h)
-            b:SetPoint("BOTTOMLEFT", room, "BOTTOMLEFT", b.x, b.y)
+            b:SetPoint("BOTTOMLEFT", ui.boxes.cases, "BOTTOMLEFT", b.x, b.y)
             b.tex:SetVertexColor(color[1], color[2], color[3], 1)
             if b.model then b.model:SetSize(h * 1.25, h * 1.25) end
             local is3d = use3d and Lib.ShowShelfModel(b, row)
