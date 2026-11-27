@@ -833,7 +833,7 @@ end
 Lib.BOOK_THICK = 0.23 -- (epaisseur d'un livre debout, en part de sa hauteur)
 -- (le modele est un parchemin a deux rouleaux : vu par le bout, deux cercles ; on n'en montre
 -- qu'un, le cadre etant juste assez large et la camera decalee sur lui : un cercle = un ecrit)
-Lib.SCROLL_PILE = { dist = 1.1, w = 0.14, dia = 0.14 }
+Lib.SCROLL_PILE = { dist = 0.9, w = 0.171, dia = 0.171 }
 Lib.SHELF_BOOK_OK = { [200900] = true, [200901] = true, [200902] = true, [200903] = true, [200904] = true, [200905] = true }
 Lib.SCROLL_SHELF = { 203430 } -- (le feuillet plie, 203429, rendait mal sur les rayons)
 Lib.SCROLL_OPEN = { 198451, 198452, 198454, 198455, 201113 }
@@ -971,7 +971,7 @@ Lib.LECTERN_BOOK_POSE = { dist = 0.94, yaw = 0, pitch = 30, roll = 0 }
 -- (la boite donnee par le jeu est plus grande que le modele visible : part reellement occupee)
 Lib.BBOX_FILL = 0.68
 Lib.SHELF_POSES = {
-    book = { dist = 0.74, yaw = 90, pitch = 90, roll = 0, vfrac = 1 },
+    book = { dist = 0.6, yaw = 90, pitch = 90, roll = 0, vfrac = 1 },
     letter = { dist = 1.15, yaw = 90, pitch = 0, roll = 0, vfrac = 0.3 },
     -- (couche, le bloc de pages vers nous : moins large que de profil)
     flat = { yaw = 0, pitch = 0, roll = 0, vfrac = 0.22, across = 0.75 },
@@ -1013,7 +1013,7 @@ function Lib.ShelfPose(row, i)
         if row.standScroll then
             -- (debout, cale contre le livre d'a cote)
             p.yaw, p.pitch, p.roll, p.vfrac, p.fill = 90, 90, 0, 1, 1.77
-            p.dist = 2.1 / size
+            p.dist = 1.75 / size
         else
             p.yaw, p.pitch, p.roll, p.flat, p.scroll = 0, 0, 0, true, true
             local sc = Lib.SCROLL_PILE
