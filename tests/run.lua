@@ -2401,6 +2401,12 @@ do
     check(not ui.next:IsShown(), "library: no next page on a two-page book")
     ui.back:Click()
     check(not Lib.reader:IsShown() and Lib.frame:IsShown(), "library: closing the book goes back to the room")
+    -- Fond reglable : de plein a rien
+    DialogueWheelE_LibraryBg = 0
+    Lib.ApplyBg()
+    check(Lib.bgAlpha == 0, "library: background can be removed")
+    DialogueWheelE_LibraryBg = nil
+    Lib.ApplyBg()
     -- Style simple : rangees seules, plus petite fenetre ; un clic ouvre directement le livre
     DialogueWheelE_LibraryStyle = "simple"
     Lib.Refresh()

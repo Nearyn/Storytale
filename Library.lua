@@ -442,8 +442,14 @@ local function Build()
     room:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
     room:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
         edgeSize = 16, insets = { left = 4, right = 4, top = 4, bottom = 4 } })
-    room:SetBackdropColor(0.07, 0.045, 0.03, 0.97)
-    room:SetBackdropBorderColor(0.55, 0.38, 0.2, 1)
+    function Lib.ApplyBg()
+        if not room then return end
+        local a = math.max(0, math.min(1, tonumber(DialogueWheelE_LibraryBg) or 1))
+        Lib.bgAlpha = a
+        room:SetBackdropColor(0.07, 0.045, 0.03, 0.97 * a)
+        room:SetBackdropBorderColor(0.55, 0.38, 0.2, a)
+    end
+    Lib.ApplyBg()
     room:Hide()
     if UISpecialFrames then table.insert(UISpecialFrames, "StorytaleLibraryFrame") end
     Lib.frame = room

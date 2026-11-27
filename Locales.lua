@@ -857,6 +857,23 @@ for loc, v in pairs(LIBRARY) do
         dest.LIB_SHARED, dest.LIB_UNLOCK, dest.LIB_UNLOCK_TIP, dest.LIB_OPEN = v[11], v[12], v[13], v[14]
     end
 end
+local LIB_BG = {
+    enUS = "Library background",
+    frFR = "Fond de la bibliothèque",
+    deDE = "Bibliothekshintergrund",
+    esES = "Fondo de la biblioteca",
+    esMX = "Fondo de la biblioteca",
+    itIT = "Sfondo della biblioteca",
+    ptBR = "Fundo da biblioteca",
+    ruRU = "Фон библиотеки",
+    koKR = "서재 배경",
+    zhCN = "藏书馆背景",
+    zhTW = "藏書館背景",
+}
+for loc, text in pairs(LIB_BG) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.LIB_BG = text end
+end
 local LIB_SIMPLE = {
     enUS = "Simple library (shelves only)",
     frFR = "Bibliothèque simple (étagères seules)",

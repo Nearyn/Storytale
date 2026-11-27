@@ -7888,7 +7888,7 @@ DWE.THEME_LIST = THEME_LIST
 -- deja entendus avec Spoken (ce n'est pas un reglage).
 -- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
 DWE.OPTION_VARS = {}
-for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI HideKeep LibraryAll LibraryUnlock LibraryStyle ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
+for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI HideKeep LibraryAll LibraryUnlock LibraryStyle LibraryBg ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
@@ -8858,6 +8858,12 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_LibraryUnlock = self:GetChecked() and true or nil
         if DWE.Library then DWE.Library.Refresh() end
     end)
+    -- Fond de la piece : de plein a rien du tout (0 : ni fond ni bordure, les meubles seuls).
+    AddSlider("DWESliderLibBg", L.LIB_BG or "Library background", 22, y - 532, 0, 1, 0.05,
+        function() return tonumber(DialogueWheelE_LibraryBg) or 1 end, "%.2f", function(v)
+        DialogueWheelE_LibraryBg = (v < 1) and v or nil
+        if DWE.Library and DWE.Library.ApplyBg then DWE.Library.ApplyBg() end
+    end)
     if unlockCheck and not (DWE.Library and DWE.Library.SpokenData()) then
         unlockCheck:Disable()
         local t = unlockCheck.Text or unlockCheck.text
@@ -8865,7 +8871,7 @@ function DWE.InitOptionsPanel()
     end
 
     ---------------------------------------------------------------- Placement
-    y = y - 522
+    y = y - 580
     NewPage(L.SEC_PLACE, y)
     AddSection(L.SEC_PLACE, y)
     AddCheck(L.ATTACH_NPC, 16, y - 32, function() return DialogueWheelE_AttachNPC ~= false end, function(self)
