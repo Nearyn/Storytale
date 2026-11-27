@@ -63,7 +63,9 @@ local function Build()
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")
     -- (un clic ouvre les options, un second clic les referme)
-    btn:SetScript("OnClick", function()
+    btn:SetScript("OnClick", function(_, button)
+        -- (clic droit : la bibliotheque)
+        if button == "RightButton" and DWE.Library then DWE.Library.Toggle() return end
         if DWE.NATIVE_OPTIONS and DWE.ToggleOptionsWindow then DWE.ToggleOptionsWindow() else OpenOptions() end
     end)
     btn:SetScript("OnDragStart", function(self)

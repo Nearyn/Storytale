@@ -107,7 +107,7 @@ SlashCmdList = {}
 local chat = {}
 DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) table.insert(chat, m) end }
 -- Load the addon ------------------------------------------------------------
-for _, file in ipairs({ "Locales.lua", "Storytale_Core.lua", "GeneratedTimings.lua", "Bubble.lua", "SpokenFocus.lua", "SpokenQueueUI.lua", "Storytale.lua", "SpokenNarrator.lua", "Options_Native.lua", "MinimapButton.lua" }) do
+for _, file in ipairs({ "Locales.lua", "Storytale_Core.lua", "GeneratedTimings.lua", "Bubble.lua", "SpokenFocus.lua", "SpokenQueueUI.lua", "Storytale.lua", "SpokenNarrator.lua", "Library.lua", "Options_Native.lua", "MinimapButton.lua" }) do
     local chunk, err = loadfile(dir .. "/" .. file)
     check(chunk ~= nil, "compile " .. file .. ": " .. tostring(err))
     local ok, rerr = pcall(chunk, "Storytale", {})
@@ -2303,6 +2303,74 @@ do
     check(DWE.ManualVoiceStarted({ text = "Anything at all", length = 3 }) == false and skips == 0, "typewriter: a starting voice is left alone")
     DWE.SetDialogueText("NPC", "")
     DialogueWheelE_BubbleMode, Spoken, GetTime, DialogueWheelE_ManualVoice = savedMode, savedSpoken, savedGT, savedMV
+end
+-- Bibliotheque : chaque ecrit ouvert y est range ; livre entier depuis Spoken ; options
+do
+    local Lib = DWE.Library
+    local savedBook, savedPage, savedLib, savedShared = M.book, M.bookPage, DialogueWheelE_Library, DialogueWheelE_LibraryShared
+    local savedData, savedAll, savedUnlock = rawget(_G, "SpokenReadablesData"), DialogueWheelE_LibraryAll, DialogueWheelE_LibraryUnlock
+    local savedLocale = GetLocale
+    GetLocale = function() return "enUS" end -- (donnees de Spoken : jeu en anglais seulement)
+    DialogueWheelE_Library, DialogueWheelE_LibraryShared, DialogueWheelE_LibraryAll, DialogueWheelE_LibraryUnlock = nil, nil, nil, nil
+    _G.SpokenReadablesData = nil
+    M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
+    -- Sans Spoken : les pages lues
+    M.book = { title = "The Founding of Quel'Thalas", pages = { "First page.", "Second page.", "Third page." } }
+    M.bookPage = 1
+    M.FireEvent("ITEM_TEXT_BEGIN"); M.FireEvent("ITEM_TEXT_READY")
+    local e = Lib.Get("The Founding of Quel'Thalas", false)
+    check(e and e.p[1] == "First page." and not e.p[2] and not e.done, "library: page read is kept, book not finished")
+    check(Lib.Get("The Founding of Quel'Thalas", true) ~= nil, "library: kept in the shared library too")
+    M.bookPage = 3
+    M.FireEvent("ITEM_TEXT_READY")
+    e = Lib.Get("The Founding of Quel'Thalas", false)
+    check(e.p[3] == "Third page." and e.done == true, "library: last page reached, book complete")
+    M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
+    -- Avec Spoken Readables : le livre entier des la premiere page
+    _G.SpokenReadablesData = {
+        pages = { [10] = { book = 10, number = 1, text = "Long ago the elves." }, [11] = { book = 10, number = 2, text = "They sailed east." },
+            [12] = { book = 12, number = 1, text = "Hello Morgan." } },
+        books = { [10] = { title = "Exile of the High Elves", pages = { 10, 11 } }, [12] = { title = "William's Shipment", pages = { 12 } } },
+    }
+    M.book = { title = "Exile of the High Elves", pages = { "Long ago the elves.", "They sailed east." } }
+    M.bookPage = 1
+    M.FireEvent("ITEM_TEXT_BEGIN"); M.FireEvent("ITEM_TEXT_READY")
+    e = Lib.Get("Exile of the High Elves", false)
+    check(e and e.p[2] == "They sailed east.", "library: whole book from Spoken's data on opening")
+    M.FireEvent("ITEM_TEXT_CLOSED"); M.RunTimers()
+    -- Liste : trouves, compteur, filtre, recherche, pas encore trouves
+    local rows, found, total = Lib.List("all", "", "az")
+    check(found == 2 and total == 3, "library: 2 found out of 3 known (" .. found .. "/" .. total .. ")")
+    local locked
+    for _, r in ipairs(rows) do if r.title == "William's Shipment" then locked = r end end
+    check(locked and locked.locked, "library: book not found yet listed, locked")
+    rows = Lib.List("book", "exile", "az")
+    check(#rows == 1 and rows[1].title == "Exile of the High Elves", "library: filter and search")
+    DialogueWheelE_LibraryUnlock = true
+    rows = Lib.List("all", "william", "az")
+    check(#rows == 1 and not rows[1].locked and Lib.Pages(rows[1])[1] == "Hello Morgan.", "library: every book unlocked with the option")
+    DialogueWheelE_LibraryUnlock = nil
+    -- Par personnage / commune
+    DialogueWheelE_Library = {}
+    check(select(2, Lib.List("all", "", "az")) == 0, "library: per character by default (new character: empty)")
+    DialogueWheelE_LibraryAll = true
+    check(select(2, Lib.List("all", "", "az")) == 2, "library: shared option shows every character's books")
+    -- Fenetre : ouvrir un livre, tourner ses pages
+    Lib.Show("Exile of the High Elves")
+    local ui = Lib.ui
+    check(Lib.frame:IsShown() and ui.bookTitle:GetText() == "Exile of the High Elves" and ui.body:GetText() == "Long ago the elves.", "library: window shows the book")
+    ui.next:Click()
+    check(ui.body:GetText() == "They sailed east." and ui.num:GetText() == "2 / 2", "library: next page")
+    ui.prev:Click()
+    check(ui.body:GetText() == "Long ago the elves.", "library: previous page")
+    Lib.Toggle()
+    check(not Lib.frame:IsShown(), "library: toggled closed")
+    SlashCmdList.DIALOGUEWHEELE("library")
+    check(Lib.frame:IsShown(), "library: /storytale library opens it")
+    Lib.frame:Hide()
+    M.book, M.bookPage, DialogueWheelE_Library, DialogueWheelE_LibraryShared = savedBook, savedPage, savedLib, savedShared
+    _G.SpokenReadablesData, DialogueWheelE_LibraryAll, DialogueWheelE_LibraryUnlock = savedData, savedAll, savedUnlock
+    GetLocale = savedLocale
 end
 -- Style de narrateur "Storytale" (API publique de Spoken : RegisterNarrator)
 do

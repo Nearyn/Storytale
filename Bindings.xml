@@ -8,4 +8,7 @@
 	<Binding name="STORYTALE_BUBBLE_PREV" category="ADDONS">
 		if DWE and DWE.BubblePrev then DWE.BubblePrev() end
 	</Binding>
+	<Binding name="STORYTALE_LIBRARY" category="ADDONS">
+		if DWE and DWE.Library then DWE.Library.Toggle() end
+	</Binding>
 </Bindings>

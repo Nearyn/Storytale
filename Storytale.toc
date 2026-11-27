@@ -6,7 +6,7 @@
 ## Notes-frFR: Storytale : roue de dialogue, bulles et livres pour PNJ, quêtes et textes à lire (molette + touche d'interaction), avec aperçu des quêtes. Fonctionne seul ou avec DialogueUI et Spoken.
 ## OptionalDeps: DialogueUI, Spoken
 ## X-Wago-ID: aNer2062
-## SavedVariablesPerCharacter: DialogueWheelE_ReadBooks, DialogueWheelE_Bookmarks
+## SavedVariablesPerCharacter: DialogueWheelE_ReadBooks, DialogueWheelE_Bookmarks, DialogueWheelE_Library
 ## SavedVariables: DialogueWheelE_Pos, DialogueWheelE_TextPos, DialogueWheelE_Theme, DialogueWheelE_Font, DialogueWheelE_FontSize, DialogueWheelE_Opacity, DialogueWheelE_ShowText, DialogueWheelE_UseBlizzKey, DialogueWheelE_InteractKey, DialogueWheelE_ToggleKey, DialogueWheelE_WheelScroll, DialogueWheelE_SpokenTheme, DialogueWheelE_AttachNPC, DialogueWheelE_NPCOffset, DialogueWheelE_WheelWidth, DialogueWheelE_TextW, DialogueWheelE_TextH, DialogueWheelE_BubbleWidth, DialogueWheelE_Locked, DialogueWheelE_WheelTheme, DialogueWheelE_EscClose, DialogueWheelE_BookStyle, DialogueWheelE_ThemeFrames, DialogueWheelE_BookLook, DialogueWheelE_BookPos, DialogueWheelE_BookScale, DialogueWheelE_NoteScale, DialogueWheelE_QuestWidth, DialogueWheelE_QuestAuto, DialogueWheelE_PlaceSkin, DialogueWheelE_SpokenHeard, DialogueWheelE_ChoiceSize, DialogueWheelE_WheelSide, DialogueWheelE_PlateStyle, DialogueWheelE_PlateLook, DialogueWheelE_ReadMarks, DialogueWheelE_BookTipCursor, DialogueWheelE_SpokenSmart, DialogueWheelE_Extra
 
 Locales.lua
@@ -17,5 +17,6 @@ SpokenFocus.lua
 SpokenQueueUI.lua
 Storytale.lua
 SpokenNarrator.lua
+Library.lua
 Options_Native.lua
 MinimapButton.lua

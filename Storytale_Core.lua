@@ -6862,7 +6862,9 @@ local function PaintRow(row, opt, selected, pillWidth, index)
     -- zoomait (vu en video le 26/11 : les choix "tremblaient").
     local P = function(v) return DWE.PixelRound(row, v) end
     local src = pill and PILL_PAD or ROW_PAD
-    local pad = { left = P(src.left), iconLeft = P(src.iconLeft), top = P(src.top), right = P(src.right), iconTop = P(src.iconTop) }
+    local shift = pill and (DWE.pillShift or 0) or 0
+    local pad = { left = P(src.left + shift), iconLeft = P(src.iconLeft + shift), top = P(src.top), right = P(src.right), iconTop = P(src.iconTop) }
+    row.dwePad = pad
     if opt.icon then
         DWE.SetOptionIcon(row.icon, opt)
         local ic = opt.iconColor
@@ -7256,7 +7258,13 @@ function DWE.UpdateVisualsInner()
                 pillWidth = math.max(pillWidth, (opt.icon and PILL_PAD.iconLeft or PILL_PAD.left) + tw + PILL_PAD.right + 4)
             end
         end
+        local need = pillWidth
         pillWidth = math.min(full, math.max(120, pillWidth))
+        -- Bulle plus large que son texte (largeur minimale) : le texte est decale pour etre au
+        -- milieu (vu en jeu le 27/11 : "1. Goodbye" colle a gauche d'une bulle trop large). Les
+        -- choix restent alignes entre eux : le meme decalage pour tous. La marge de mesure (+4)
+        -- est partagee entre les deux cotes.
+        DWE.pillShift = (not tonumber(DialogueWheelE_WheelWidth)) and math.floor(math.max(0, pillWidth - need) / 2 + 2) or 2
         -- Largeur choisie avec la poignee : les bulles la prennent (sinon elles suivent le texte).
         -- ... sans depasser le texte le plus long de plus de DWE.WHEEL_SLACK.
         if tonumber(DialogueWheelE_WheelWidth) then
@@ -7297,6 +7305,22 @@ function DWE.UpdateVisualsInner()
         -- recouvraient plus ou moins le filet du precedent (il scintillait, toujours aux memes places).
         h = DWE.PixelRound(choiceBox, h)
         row:SetHeight(h)
+        -- Bulle : texte au milieu de la hauteur (la marge du haut seule le placait un peu trop
+        -- haut), l'icone au milieu de la premiere ligne.
+        if pill and row.dwePad then
+            local pd = row.dwePad
+            local th = TextHeight(row.text, 16)
+            local top = DWE.PixelRound(choiceBox, math.max(4, (h - th) / 2))
+            local okF, _, size = pcall(row.text.GetFont, row.text)
+            local lineH = (okF and tonumber(size)) or 14
+            row.text:ClearAllPoints()
+            row.text:SetPoint("TOPLEFT", row, "TOPLEFT", opt.icon and pd.iconLeft or pd.left, -top)
+            row.text:SetPoint("TOPRIGHT", row.pill or row, "TOPRIGHT", -pd.right, -top)
+            if opt.icon then
+                row.icon:ClearAllPoints()
+                row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", pd.left, -DWE.PixelRound(choiceBox, top + (lineH - row.icon:GetHeight()) / 2))
+            end
+        end
         tops[i], heights[i] = yy, h
         yy = yy + h + gap
     end
@@ -7864,7 +7888,7 @@ DWE.THEME_LIST = THEME_LIST
 -- deja entendus avec Spoken (ce n'est pas un reglage).
 -- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
 DWE.OPTION_VARS = {}
-for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI HideKeep ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
+for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI HideKeep LibraryAll LibraryUnlock ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
@@ -8197,7 +8221,7 @@ function DWE.InitOptionsPanel()
     -- Precisions des options (infobulle au survol) : texte court a l'ecran, details ici.
     local TIP_OF = {}
     for _, k in ipairs({ "LOCK", "READ_MARKS", "BOOK_TIP_CURSOR", "BOOK_AUTOSCROLL", "QUEST_AUTO_W",
-        "THEME_BUBBLES", "SPOKEN_BUTTON", "ZONE_ART", "BUBBLE_HIGHLIGHT", "BUBBLE_MODE_TYPE", "BUBBLE_MODE_PAGE", "BUBBLE_MODE_MANUAL" }) do
+        "THEME_BUBBLES", "SPOKEN_BUTTON", "ZONE_ART", "BUBBLE_HIGHLIGHT", "BUBBLE_MODE_TYPE", "BUBBLE_MODE_PAGE", "BUBBLE_MODE_MANUAL", "LIB_UNLOCK" }) do
         if L[k] and L[k .. "_TIP"] then TIP_OF[L[k]] = L[k .. "_TIP"] end
     end
     -- Chaque reglage sait relire sa valeur (profil change, page remise a zero) : il se remet a
@@ -8816,8 +8840,28 @@ function DWE.InitOptionsPanel()
     end
     RefreshBookExtras()
 
+    -- Bibliotheque : l'ouvrir, la partager entre personnages, montrer tous les livres.
+    local libBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    libBtn:SetSize(210, 22)
+    libBtn:SetPoint("TOPLEFT", 16, y - 432)
+    libBtn:SetText(L.LIB_OPEN or "Open the library")
+    libBtn:SetScript("OnClick", function() if DWE.Library then DWE.Library.Open() end end)
+    AddCheck(L.LIB_SHARED or "Library shared by all my characters", 16, y - 460, function() return DialogueWheelE_LibraryAll == true end, function(self)
+        DialogueWheelE_LibraryAll = self:GetChecked() and true or nil
+        if DWE.Library then DWE.Library.Refresh() end
+    end)
+    local unlockCheck = AddCheck(L.LIB_UNLOCK or "Show every book (Spoken Readables)", 16, y - 486, function() return DialogueWheelE_LibraryUnlock == true end, function(self)
+        DialogueWheelE_LibraryUnlock = self:GetChecked() and true or nil
+        if DWE.Library then DWE.Library.Refresh() end
+    end)
+    if unlockCheck and not (DWE.Library and DWE.Library.SpokenData()) then
+        unlockCheck:Disable()
+        local t = unlockCheck.Text or unlockCheck.text
+        if t and t.SetTextColor then t:SetTextColor(0.5, 0.5, 0.5) end
+    end
+
     ---------------------------------------------------------------- Placement
-    y = y - 442
+    y = y - 522
     NewPage(L.SEC_PLACE, y)
     AddSection(L.SEC_PLACE, y)
     AddCheck(L.ATTACH_NPC, 16, y - 32, function() return DialogueWheelE_AttachNPC ~= false end, function(self)
