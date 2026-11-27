@@ -889,8 +889,11 @@ local function Frame(sc, pose)
     end
     if not size or size <= 0 then size = Lib.KNOWN_SIZE[sc.fileID or 0] or 1 end
     if a.SetScale then pcall(a.SetScale, a, 1 / size) end
-    local d = (0.55 / math.tan(FOV / 2)) * (pose.dist or 1)
-    if sc.SetCameraFieldOfView then pcall(sc.SetCameraFieldOfView, sc, FOV) end
+    -- (champ etroit possible : camera lointaine, presque sans perspective, pour un objet vu par
+    -- le bout qui s'etire vers nous)
+    local fov = pose.fov or FOV
+    local d = (0.55 / math.tan(fov / 2)) * (pose.dist or 1)
+    if sc.SetCameraFieldOfView then pcall(sc.SetCameraFieldOfView, sc, fov) end
     if sc.SetCameraNearClip then pcall(sc.SetCameraNearClip, sc, 0.01) end
     if sc.SetCameraFarClip then pcall(sc.SetCameraFarClip, sc, 100) end
     if sc.SetCameraPosition then pcall(sc.SetCameraPosition, sc, d, 0, 0) end
@@ -1000,14 +1003,16 @@ function Lib.ShelfPose(row, i)
     if row.kind == "letter" then
         -- (debout comme les livres, parfois penches : rouleaux d'Uldaman et feuillet plie)
         if Lib.ModelFor(row, "shelf") == 203430 and (h % 5 < 2) then
-            -- (couches, en pile de deux ou trois, comme des rouleaux ranges a plat)
+            -- (couches, vus par le bout : on voit les rouleaux de face, en pile de deux ou trois,
+            -- jamais leur longueur)
             p.lean = nil
-            p.yaw, p.pitch, p.roll, p.vfrac, p.flat = 90, 0, 0, 0.32, true
-            p.dist = 1.25
+            p.yaw, p.pitch, p.roll, p.vfrac, p.flat = 0, 0, 0, 0.22, true
+            p.dist, p.fov, p.across, p.fill = 1.41, math.rad(8), 0.42, 1.77
         elseif Lib.ModelFor(row, "shelf") == 203430 then
             -- (debout, un peu plus petits que les livres : ils ne touchent plus la planche)
-            p.yaw, p.pitch, p.roll, p.vfrac = 90, 90, 0, 1
-            p.dist = 1.3 / size
+            -- (ce modele occupe plus que sa boite ne le dit : part visible mesuree en jeu, 1,77)
+            p.yaw, p.pitch, p.roll, p.vfrac, p.fill = 90, 90, 0, 1, 1.77
+            p.dist = 1.89 / size
         else
             p.yaw, p.pitch, p.roll, p.vfrac = 20 + (h % 30), 0, 0, 1
             p.dist = 1.1
@@ -2104,8 +2109,8 @@ function Refresh()
     local function Width(row, sl)
         if not use3d then local _, w = Lib.Spine(row); return w end
         local p = Lib.ShelfPose(row)
-        if p.flat then return math.floor(Lib.BBOX_FILL * sl.h / (1.1 * p.dist) * (row.kind == "book" and Lib.SHELF_POSES.flat.across or 1)) end
-        return math.floor(sl.w / Lib.PER_ROW_3D * (p.lean and 1.7 or 1)) - 1
+        if p.flat then return math.floor((p.fill or Lib.BBOX_FILL) * sl.h / (1.1 * p.dist) * (p.across or (row.kind == "book" and Lib.SHELF_POSES.flat.across) or 1)) end
+        return math.floor(sl.w / Lib.PER_ROW_3D * (p.lean and 1.45 or 1)) - 1
     end
     -- Livres couches par deux au moins : un livre couche seul prend le suivant sur lui, ou se
     -- releve s'il n'y en a pas.
@@ -2153,16 +2158,21 @@ function Refresh()
             cur.n = cur.n + 1
         end
     end
-    -- Un livre penche s'appuie sur son voisin de droite : sans voisin debout sur le meme rayon
-    -- (fin de rangee, pile couchee a cote), il se tient droit.
+    -- Un livre penche (le haut vers la gauche) s'appuie sur son voisin de gauche : il lui faut
+    -- un voisin debout et droit juste avant lui sur le meme rayon (pas un autre penche, pas une
+    -- pile couchee, pas le bord du meuble) ; sinon il se tient droit.
     if use3d then
+        local prevOK = false
         for idx, row in ipairs(rows) do
             local pl = placed[idx]
-            if (pl.level or 0) == 0 and Lib.ShelfPose(row).lean then
-                local nx, np = placed[idx + 1], rows[idx + 1]
-                local ok = nx and np and nx.view == pl.view and nx.slot == pl.slot and (nx.level or 0) == 0
-                    and not Lib.ShelfPose(np).flat
-                if not ok then row.noLean = true end
+            local pv = placed[idx - 1]
+            local sameRow = pv and pv.view == pl.view and pv.slot == pl.slot
+            if (pl.level or 0) > 0 then
+                prevOK = false
+            else
+                local p = Lib.ShelfPose(row)
+                if p.lean and not (sameRow and prevOK) then row.noLean = true; p = Lib.ShelfPose(row) end
+                prevOK = not p.lean and not p.flat
             end
         end
     end
@@ -2224,7 +2234,7 @@ function Refresh()
                 -- Pose sur le plancher du rayon : le modele, centre dans son cadre, en occupe
                 -- 1 / (1,1 x dist) en hauteur (fois vfrac, couche) ; on descend le cadre d'autant.
                 local F = sl.h
-                local hm = Lib.BBOX_FILL * F / (1.1 * b.pose.dist) * (b.pose.vfrac or 1)
+                local hm = (b.pose.fill or Lib.BBOX_FILL) * F / (1.1 * b.pose.dist) * (b.pose.vfrac or 1)
                 b.mF, b.mY = F, -(F - hm) / 2 - 2
                 if b.pose.flat then
                     -- Couche : le bouton n'est que sa tranche de pile (sinon les livres empiles se
