@@ -3888,16 +3888,18 @@ function DWE.OpenLibraryBook(title, pages, material)
     BuildOptions("ITEM_TEXT_CACHED")
     EnableKeys()
     ArmEscape()
-    -- Ouverture : le bruit d'un livre qu'on ouvre, et le livre qui apparait en fondu.
+    -- Ouverture : le meme son qu'un livre ouvert dans le monde (celui de la fenetre de lecture
+    -- du jeu), le livre place tout de suite, puis en fondu (il apparaissait une image ailleurs).
     if PlaySound then
-        pcall(PlaySound, SOUNDKIT and SOUNDKIT.IG_SPELLBOOK_OPEN or 829)
+        pcall(PlaySound, SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPEN or 850)
     end
-    DWE.FadeInFrames({ DWE.textBox, DWE.choiceBox }, 0.3)
+    if DWE.UpdateVisuals then pcall(DWE.UpdateVisuals) end
+    DWE.FadeInFrames({ DWE.textBox, DWE.choiceBox }, 0.3, 2)
     return true
 end
 -- Fondu d'apparition (sans toucher a ce que Storytale regle ensuite : on ne fait que monter
 -- l'alpha jusqu'a sa valeur d'arrivee).
-function DWE.FadeInFrames(list, dur)
+function DWE.FadeInFrames(list, dur, holdFrames)
     local fr = DWE.fadeInFrame or CreateFrame("Frame")
     DWE.fadeInFrame = fr
     local targets = {}
@@ -3908,7 +3910,10 @@ function DWE.FadeInFrames(list, dur)
         end
     end
     fr.t = 0
+    fr.hold = holdFrames or 0
     fr:SetScript("OnUpdate", function(self, el)
+        -- (quelques images invisibles d'abord : le temps que tout soit a sa place)
+        if self.hold > 0 then self.hold = self.hold - 1 return end
         self.t = self.t + (el or 0)
         local k = math.min(1, self.t / dur)
         for _, tg in ipairs(targets) do tg.f:SetAlpha(tg.a * k) end
@@ -3922,7 +3927,7 @@ function DWE.CloseLibraryBook()
     DWE.bookResumeHold = nil
     DisableKeys()
     DWE.SetBookMode(false)
-    if PlaySound then pcall(PlaySound, SOUNDKIT and SOUNDKIT.IG_SPELLBOOK_CLOSE or 830) end
+    if PlaySound then pcall(PlaySound, SOUNDKIT and SOUNDKIT.IG_MAINMENU_CLOSE or 851) end
     if DWE.Library and DWE.Library.OnBookClosed then DWE.Library.OnBookClosed() end
 end
 

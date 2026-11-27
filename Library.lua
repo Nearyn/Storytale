@@ -828,7 +828,7 @@ end
 -- Parchemins : sur les etageres, ceux d'Uldaman (feuillet plie, debout ; paire de rouleaux,
 -- couchee) ; sur le pupitre, le vrai modele s'il est connu, sinon un parchemin ouvert du jeu.
 -- Le meme parchemin garde toujours le meme (choisi par son titre).
-Lib.SCROLL_SHELF = { 203429, 203430 }
+Lib.SCROLL_SHELF = { 203430 } -- (le feuillet plie, 203429, rendait mal sur les rayons)
 Lib.SCROLL_OPEN = { 198451, 198452, 198454, 198455, 201113 }
 local function TitleHash(t)
     local h = 0
@@ -1359,7 +1359,9 @@ local function Build()
     cover:SetScript("OnClick", function() if state.key then Lib.Read(state.key) end end)
     cover:SetScript("OnEnter", function(self)
         Lib.Glow(self.model, true)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        -- (a cote du pupitre, pas au milieu du livre)
+        GameTooltip:SetOwner(self, "ANCHOR_NONE")
+        GameTooltip:SetPoint("LEFT", self, "RIGHT", 60, 0)
         GameTooltip:SetText(L.LIB_READ or "Read", 1, 1, 1)
         GameTooltip:Show()
     end)
