@@ -2449,6 +2449,7 @@ do
         Lib.ToggleRubbings()
         check(Lib.rubFrame and Lib.rubFrame:IsShown(), "rubbings: the notebook opens")
         check(Lib.rui.title:GetText() ~= nil and Lib.rui.text:GetFont() ~= nil, "rubbings: titled, text has a font")
+        check(Lib.rui.preview ~= nil and Lib.rui.preview:GetText() ~= nil, "rubbings: preview button")
         Lib.ToggleRubbings()
         check(not Lib.rubFrame:IsShown(), "rubbings: closes again")
     end

@@ -1325,9 +1325,28 @@ local function Build()
     end)
     sort:SetPoint("TOPRIGHT", head, "TOPRIGHT", -30, -84)
     ui.sort = sort
-    -- Le carnet d'estampages (plaques, monuments, tombes), a part des etageres.
-    local rubBtn = TextButton(head, L.RUB_TITLE or "Rubbings", function() if Lib.ToggleRubbings then Lib.ToggleRubbings() end end, GOLD)
-    rubBtn:SetPoint("LEFT", ui.filters[#ui.filters], "RIGHT", 16, 0)
+    -- Le carnet d'estampages (plaques, monuments, tombes), a part des etageres : un vrai bouton
+    -- encadre avec son icone, a cote du titre (pas un filtre de plus, qui laisserait croire que
+    -- "Tous" les montre).
+    local rubBtn = CreateFrame("Button", nil, head, "BackdropTemplate")
+    rubBtn:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 10, insets = { left = 2, right = 2, top = 2, bottom = 2 } })
+    rubBtn:SetBackdropColor(0.10, 0.07, 0.04, 0.85)
+    rubBtn:SetBackdropBorderColor(0.75, 0.6, 0.3, 0.9)
+    local ic = rubBtn:CreateTexture(nil, "ARTWORK")
+    ic:SetTexture("Interface\\Icons\\INV_Misc_Note_02")
+    ic:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    ic:SetSize(16, 16)
+    ic:SetPoint("LEFT", 6, 0)
+    local rt = rubBtn:CreateFontString(nil, "OVERLAY")
+    rt:SetPoint("LEFT", ic, "RIGHT", 5, 0)
+    Font(rt, 13, GOLD)
+    rt:SetText(L.RUB_TITLE or "Rubbings")
+    rubBtn:SetSize((rt:GetStringWidth() or 60) + 36, 24)
+    rubBtn:SetPoint("LEFT", ui.count, "RIGHT", 18, 0)
+    rubBtn:SetScript("OnClick", function() if Lib.ToggleRubbings then Lib.ToggleRubbings() end end)
+    rubBtn:SetScript("OnEnter", function(self) self:SetBackdropBorderColor(1, 0.85, 0.45, 1); rt:SetTextColor(1, 0.95, 0.7) end)
+    rubBtn:SetScript("OnLeave", function(self) self:SetBackdropBorderColor(0.75, 0.6, 0.3, 0.9); rt:SetTextColor(GOLD[1], GOLD[2], GOLD[3]) end)
     ui.rubBtn = rubBtn
     -- Etageres suivantes / precedentes (sous les bibliotheques).
     local up = TextButton(head, "<", function() state.shelf = state.shelf - 1; Refresh() end)
@@ -2432,6 +2451,11 @@ function Lib.OnBookClosed()
         Lib.Open()
         if DWE.FadeInFrames then DWE.FadeInFrames({ room }, 0.3) end
     end
+    if Lib.rubState and Lib.rubState.reopen then
+        Lib.rubState.reopen = nil
+        if Lib.OpenRubbings then Lib.OpenRubbings() end
+        if DWE.FadeInFrames and Lib.rubFrame then DWE.FadeInFrames({ Lib.rubFrame }, 0.3) end
+    end
 end
 
 -- Bibliotheque desactivee dans les options : rien ne l'ouvre (clic droit sur le bouton de la
@@ -2533,6 +2557,7 @@ local function RubRefresh()
     rui.charcoal:SetAlpha(a); rui.text:SetAlpha(a)
     if rui.model then
         local id = Lib.ModelFor(row, "lectern")
+        rui.model.yaw = 0
         local ok = LoadModel(rui.model, id, Lib.RUB_POSE)
         rui.model:SetShown(ok)
         rui.model:SetAlpha(a)
@@ -2580,12 +2605,20 @@ local function RubBuild()
         m:SetSize(250 * s, 250 * s)
         m:SetPoint("TOP", rub, "TOPLEFT", (L1[1] + L1[3]) / 2 * s, -(L1[2] + 40) * s)
         rui.model = m
-        -- (tourne lentement sur lui-meme)
-        local yaw = 0
-        m:SetScript("OnUpdate", function(self, el)
-            yaw = yaw + (el or 0) * 0.5
+        -- (de face ; on le tourne en le tirant a la souris, il ne tourne pas seul : de dos, une
+        -- plaque ne montre rien)
+        m:EnableMouse(true)
+        m:SetScript("OnMouseDown", function(self)
+            self.dragX = GetCursorPosition()
+            self.yaw0 = self.yaw or 0
+        end)
+        m:SetScript("OnMouseUp", function(self) self.dragX = nil end)
+        m:SetScript("OnUpdate", function(self)
+            if not self.dragX then return end
+            local x = GetCursorPosition()
+            self.yaw = self.yaw0 + (x - self.dragX) * 0.012
             local a = self.actor
-            if a and a.SetYaw then pcall(a.SetYaw, a, yaw) end
+            if a and a.SetYaw then pcall(a.SetYaw, a, self.yaw) end
         end)
     end
     local name = rub:CreateFontString(nil, "OVERLAY")
@@ -2654,6 +2687,11 @@ local function RubBuild()
         b:SetScript("OnLeave", function(self) local c = self.color; self.text:SetTextColor(c[1], c[2], c[3]) end)
     end
     rui.prev, rui.next, rui.count = prev, nextb, count
+    -- Apercu : la plaque telle que Storytale l'affiche, avec son vrai texte.
+    local pv = TextButton(rub, L.RUB_PREVIEW or "Preview", function() Lib.PreviewRubbing() end, { 0.30, 0.22, 0.15 })
+    pv:SetPoint("TOP", meta, "BOTTOM", 0, -14)
+    pv:SetScript("OnLeave", function(self) local c = self.color; self.text:SetTextColor(c[1], c[2], c[3]) end)
+    rui.preview = pv
     rub:EnableMouseWheel(true)
     rub:SetScript("OnMouseWheel", function(_, delta)
         rstate.index = rstate.index - delta
@@ -2676,6 +2714,24 @@ local function RubBuild()
     rub:SetScale(math.max(0.6, math.min(1.8, tonumber(DialogueWheelE_RubbingsScale) or 1)))
 end
 
+-- Matiere d'une plaque d'apres son modele, quand elle n'a pas ete notee a la lecture.
+Lib.PLATE_MAT = { [189534] = "Stone", [189536] = "Stone", [190635] = "Stone", [190929] = "Marble", [199349] = "Bronze",
+    [199981] = "Bronze", [199983] = "Bronze", [199985] = "Silver", [199989] = "Stone", [200640] = "Stone",
+    [201080] = "Stone", [203051] = "Bronze", [204142] = "Marble" }
+function Lib.PreviewRubbing()
+    local row = RubRows()[rstate.index]
+    if not (row and DWE.OpenLibraryBook) then return end
+    local pages = Lib.Pages(row)
+    if #pages == 0 then return end
+    local mat = (row.entry and row.entry.m) or Lib.PLATE_MAT[Lib.ModelFor(row, "lectern") or 0] or "Stone"
+    local libBack = room and room:IsShown()
+    if DWE.OpenLibraryBook(row.title, pages, mat) then
+        rstate.reopen = true
+        state.reopen = libBack or nil
+        rub:Hide()
+        if libBack then room:Hide() end
+    end
+end
 function Lib.OpenRubbings()
     if not Lib.Enabled() then return end
     RubBuild()
