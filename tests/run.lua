@@ -1564,6 +1564,35 @@ M.FireEvent("QUEST_GREETING")
 check(#DWE.currentOptions == 4 + OFF, "greeting options")
 M.FireEvent("QUEST_FINISHED")
 
+-- Page qui tourne : la page que la feuille recouvre garde son ancien texte jusqu'a ce que la
+-- feuille s'y pose, meme si le livre se redessine entre-temps.
+do
+    DialogueWheelE_BookTurnFX = nil
+    DialogueWheelE_ShowText = true
+    M.book = { title = "Turning Test", pages = { "t1", "t2" } }
+    M.bookPage = 1
+    M.FireEvent("ITEM_TEXT_BEGIN")
+    M.FireEvent("ITEM_TEXT_READY")
+    if DWE.textBox.dweBook == true and DWE.textBody:GetText() == "t1" then
+        for _, o in ipairs(DWE.currentOptions) do
+            if o.rawLabel == DWE.L.NEXT_PAGE and o.action then o.action(); break end
+        end
+        M.FlushPending()
+        local during = DWE.textBody:GetText()
+        local revealA = DWE.textBody2:GetAlpha()
+        if DWE.UpdateTextPanelVisuals then DWE.UpdateTextPanelVisuals() end
+        local redrawn = DWE.textBody:GetText()
+        for _ = 1, 20 do if DWE.bookFlip:IsShown() then DWE.bookFlip._scripts.OnUpdate(DWE.bookFlip, 0.05) end end
+        check(during == "t1" and redrawn == "t1", "page under the turning sheet keeps its old text (" .. tostring(during) .. ", " .. tostring(redrawn) .. ")")
+        check(DWE.textBody:GetText() == "t2", "new text once the sheet lands (" .. tostring(DWE.textBody:GetText()) .. ")")
+        check(revealA == 0 and DWE.textBody2:GetAlpha() == 1, "page uncovered by the lifting sheet stays blank while it passes, then shows")
+    end
+    M.FireEvent("ITEM_TEXT_CLOSED")
+    M.FlushPending()
+end
+-- (la navigation se verifie sans l'animation : elle lit le texte affiche)
+DialogueWheelE_BookTurnFX = false
+
 -- Book, 4 pages, popup on.
 M.book = { title = "War of the Spider", pages = { "p1", "p2", "p3", "p4" } }
 M.bookPage = 1
@@ -2367,6 +2396,20 @@ do
     rows = Lib.List("all", "william", "az")
     check(#rows == 1 and not rows[1].locked and Lib.Pages(rows[1])[1] == "Hello Morgan.", "library: every book unlocked with the option")
     DialogueWheelE_LibraryUnlock = nil
+    -- Carnet complet avec la meme option ; tablettes et runes portees sur soi : des gravures
+    do
+        local saved = SpokenReadablesData
+        SpokenReadablesData = { books = { [1] = { title = "Simple Tablet", pages = { 1 } }, [2] = { title = "Horde Catapult", pages = { 2 } } },
+            pages = { [1] = { text = "Aye, mon." }, [2] = { text = "This catapult." } } }
+        DialogueWheelE_LibraryUnlock = true
+        local names = {}
+        for _, r in ipairs((Lib.List("plate", "", "az"))) do names[r.title] = true end
+        check(names["Simple Tablet"] and names["Horde Catapult"], "rubbings: every engraving shown with the 'every book' option, found or not")
+        check(#(Lib.List("all", "tablet", "az")) == 0, "library: a tablet is not shelved")
+        DialogueWheelE_LibraryUnlock = nil
+        SpokenReadablesData = saved
+        check(Lib.Kind({ t = "Glyphic Tablet", i = 9575, p = {} }) == "plate", "rubbings: a carried tablet is an engraving")
+    end
     -- Par personnage / commune
     DialogueWheelE_Library = {}
     check(select(2, Lib.List("all", "", "az")) == 0, "library: per character by default (new character: empty)")
@@ -2443,6 +2486,89 @@ do
         check(dx < 0 and dy == 0 and 400 + dx < 350 - 10, "library: a block steps aside from an open book, shortest way")
         dx, dy = Lib.Escape({ 300, 300, 400, 400 }, { { 500, 500, 600, 600 } })
         check(dx == 0 and dy == 0, "library: nothing in the way, it stays")
+    end
+    -- Carnet d'estampages : les plaques, a part des etageres, un monument par double page
+    do
+        local wasLocked = DialogueWheelE_Locked
+        DialogueWheelE_Locked = true
+        Lib.ToggleRubbings()
+        check(Lib.rubFrame and Lib.rubFrame:IsShown(), "rubbings: the notebook opens")
+        check(not (Lib.rubFrame.dweGrip and Lib.rubFrame.dweGrip:IsShown()), "rubbings: windows locked, no resize grip on a frame built later")
+        DialogueWheelE_Locked = wasLocked
+        check(Lib.rui.title:GetText() ~= nil and Lib.rui.text:GetFont() ~= nil, "rubbings: titled, text has a font")
+        check(Lib.Inscription("Archmage Khadgar", "Archmage Khadgar Former apprentice. Presumed deceased. We wish you well. - Antonidas - Archmage of Dalaran")
+            == "Archmage Khadgar\n\nFormer apprentice.\nPresumed deceased.\nWe wish you well.\n\n\226\128\148 Antonidas \226\128\148\nArchmage of Dalaran", "rubbings: inscription laid out like an engraving")
+        -- (deux fondus l'un apres l'autre : le premier n'est pas oublie, la fenetre reapparait)
+        DWE.FadeInFrames({ Lib.frame }, 0.3)
+        DWE.FadeInFrames({ Lib.rubFrame }, 0.3)
+        for _ = 1, 40 do local u = DWE.fadeInFrame:GetScript("OnUpdate"); if u then u(DWE.fadeInFrame, 0.05) end end
+        check(Lib.frame:GetAlpha() == 1 and Lib.rubFrame:GetAlpha() == 1, "fades: two fades in a row both finish")
+        Lib.frame:Hide()
+        Lib.Toggle()
+        check(Lib.frame:IsShown(), "rubbings: with the notebook open, the library can be closed and opened again")
+        check(Lib.rui.preview ~= nil and Lib.rui.preview.icon ~= nil, "rubbings: preview button (magnifying glass)")
+        -- (avec de vraies plaques : le modele 3D, la page qui tourne, les boutons du bas)
+        Lib.AddBook("Alliance Military Ranks", { "ALLIANCE MILITARY RANKS OFFICERS Grand Marshal" })
+        Lib.AddBook("Horde Catapult", { "This catapult was recovered from the Barrens." })
+        DialogueWheelE_BookTurnFX = nil
+        Lib.rubState.index = 1
+        do -- (apercu : la gravure mise en page, centree, sans son nom repete)
+            local got
+            local real = DWE.OpenLibraryBook
+            DWE.OpenLibraryBook = function(t, pages, mat, centered) got = { pages = pages, centered = centered } return false end
+            Lib.rubState.index = 1
+            for i, r in ipairs(Lib.RubRows()) do if r.title == "Alliance Military Ranks" then Lib.rubState.index = i end end
+            Lib.PreviewRubbing()
+            DWE.OpenLibraryBook = real
+            check(got and got.centered and not got.pages[1]:find("^Alliance Military Ranks"), "rubbings: preview laid out like the rubbing, centered")
+        end
+        local okR, errR = pcall(Lib.RubRefresh)
+        check(okR, "rubbings: a page with its 3D model draws without error (" .. tostring(errR) .. ")")
+        local n = #Lib.RubRows()
+        check(n >= 2, "rubbings: plates listed (" .. n .. ")")
+        local rowsT = Lib.RubRows()
+        local okT, errT = pcall(Lib.RubTurn, 1)
+        check(okT and Lib.rubState.index == 2, "rubbings: next page turns (" .. tostring(errT) .. ")")
+        check(Lib.rui.flipper:IsShown(), "rubbings: the page-turn animation plays")
+        -- (en avant : la page de gauche garde l'ancien monument sous la feuille qui arrive, la
+        -- droite montre deja le nouveau, decouvert par la feuille qui se souleve)
+        check(Lib.rui.name:GetText() == rowsT[1].title, "rubbings: left page kept until the sheet lands (" .. tostring(Lib.rui.name:GetText()) .. ")")
+        check(Lib.rui.count:GetText() == "2" and Lib.rui.right:GetAlpha() == 0, "rubbings: page number belongs to the uncovered page (hidden until the sheet passes)")
+        check(Lib.rui.content:GetAlpha() == 1, "rubbings: the left page does not vanish while the sheet turns")
+        do local u = Lib.rui.flipper:GetScript("OnUpdate"); u(Lib.rui.flipper, 0.1) end
+        check(Lib.rui.flipShadow:IsShown(), "rubbings: the lifted sheet casts a shadow on the page")
+        -- (la feuille qui se souleve, a droite, emporte l'ancien estampage)
+        check(Lib.rui.sheet:GetAlpha() == 1 and Lib.rui.sheetW.right:IsShown() and not Lib.rui.sheetW.left:IsShown(), "rubbings: the lifting sheet carries its old page")
+        for _ = 1, 20 do local u = Lib.rui.flipper:GetScript("OnUpdate"); if Lib.rui.flipper:IsShown() and u then u(Lib.rui.flipper, 0.05) end end
+        check(Lib.rui.name:GetText() == rowsT[2].title, "rubbings: new left page once the sheet lands")
+        check(not Lib.rui.flipShadow:IsShown(), "rubbings: no shadow once the sheet lies flat")
+        for _ = 1, 20 do local u = Lib.rui.flipper:GetScript("OnUpdate"); if Lib.rui.flipper:IsShown() and u then u(Lib.rui.flipper, 0.05) end end
+        check(not Lib.rui.flipper:IsShown() and Lib.rui.sheet:GetAlpha() == 0, "rubbings: the sheet rests out of sight once the new page shows")
+        do -- (le marque-page s'efface pendant le tour, puis revient en fondu avec sa lueur)
+            local rib = Lib.rui.ribbon
+            local hidden = rib.tex:GetAlpha() == 0 and rib.glow:GetAlpha() == 0
+            rib.glowTarget = 0.35
+            local u = rib:GetScript("OnUpdate"); if u then u(rib, 0.05) end
+            local glowWhileHidden = rib.glow:GetAlpha()
+            for _ = 1, 40 do local f = rib.fader:GetScript("OnUpdate"); if f then f(rib.fader, 0.05) end end
+            check(hidden and glowWhileHidden == 0, "rubbings: ribbon and its glow hidden while the page turns")
+            check(rib.tex:GetAlpha() == 1 and math.abs(rib.glow:GetAlpha() - 0.35) < 1e-6 and not rib.fadeK, "rubbings: ribbon fades back with its glow")
+        end
+        local labels = {}
+        for _, b in ipairs(Lib.rui.bar.buttons) do if b:IsShown() then labels[#labels + 1] = b.text:GetText() end end
+        check(#labels == 2 and labels[1] == DWE.L.PREV_PAGE, "rubbings: buttons under the notebook (" .. table.concat(labels, ",") .. ")")
+        Lib.RubMenuToggle()
+        check(Lib.rui.menu:IsShown() and Lib.rui.menu.count == 2, "rubbings: the ribbon opens its menu")
+        -- (sans marque-page, le carnet se rouvre au debut ; avec, a la page marquee)
+        DialogueWheelE_RubbingMark = nil
+        Lib.ToggleRubbings(); Lib.ToggleRubbings()
+        check(Lib.rubState.index == 1, "rubbings: no bookmark, reopens at the start (" .. Lib.rubState.index .. ")")
+        DialogueWheelE_RubbingMark = Lib.RubRows()[2].key
+        Lib.ToggleRubbings(); Lib.ToggleRubbings()
+        check(Lib.rubState.index == 2, "rubbings: reopens at the bookmarked page")
+        DialogueWheelE_RubbingMark = nil
+        Lib.ToggleRubbings()
+        check(not Lib.rubFrame:IsShown(), "rubbings: closes again")
     end
     -- Fond reglable : de plein a rien
     DialogueWheelE_LibraryBg = 0
@@ -3596,6 +3722,24 @@ do
     _G.SpokenReadables, _G.SpokenReadablesPlaces = oldSR, oldPl
     DWE.lastPlate = nil
     check(M.addonDir == nil or io.open(M.addonDir .. "/PlateTroll.png", "rb") ~= nil and io.open(M.addonDir .. "/PlateTrollS.png", "rb") ~= nil and io.open(M.addonDir .. "/PlateTablet.png", "rb") ~= nil and io.open(M.addonDir .. "/PlateDalaran.png", "rb") ~= nil and io.open(M.addonDir .. "/PlateDalaranS.png", "rb") ~= nil and io.open(M.addonDir .. "/PlateDalaranGlow.png", "rb") ~= nil, "troll stele textures shipped")
+end
+-- Stele a runes (elfique) : ses runes d'abord, "Traduire" montre le texte, "Original" revient.
+do
+    local ok = DWE.OpenLibraryBook and DWE.OpenLibraryBook("Ancient Inscription", { "May the light of Elune shine." }, "Elven", true)
+    if ok then
+        local function opt(label) for i, o in ipairs(DWE.currentOptions) do if o.rawLabel == label then return o, i end end end
+        local tr, i = opt(DWE.L.RUNE_TRANSLATE or "Translate")
+        check(DWE.PlateRunesShown() and tr ~= nil, "rune stele opens on its runes, with a Translate button")
+        if tr then
+            DWE.selectedIndex = i
+            tr.action()
+            check(not DWE.PlateRunesShown() and opt(DWE.L.RUNE_ORIGINAL or "Original") ~= nil, "Translate shows the text, the button turns to Original")
+            check(DWE.textHeader:GetAlpha() == 1, "translated: the text is visible")
+        end
+        DWE.CloseAllDialogue()
+        M.FlushPending()
+    end
+    check(M.addonDir == nil or io.open(M.addonDir .. "/PlateElvenRunes.png", "rb") ~= nil, "elven stele with runes shipped")
 end
 -- Texte HTML d'une tombe : seulement le texte.
 do
