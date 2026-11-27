@@ -13,7 +13,6 @@
 ### Changed
 - Storytale's book: the turning page now carries its text and casts a shadow, and the page it uncovers appears once it has passed.
 - Plaques fit their text, with no empty space above it.
-- Library: scrolls on the shelves use new models.
 - Carried tablets and runes (troll legends, class tablets and runes) are kept in the rubbings instead of the shelves.
 
 ### Fixed
@@ -32,7 +31,6 @@
 ### Changements
 - Livre de Storytale : la page qui tourne emporte son texte et projette une ombre, et la page qu'elle découvre apparaît une fois qu'elle est passée.
 - Les plaques s'adaptent à leur texte, sans espace vide au-dessus.
-- Bibliothèque : les parchemins des étagères utilisent de nouveaux modèles.
 - Les tablettes et runes que l'on porte (légendes trolles, tablettes et runes de classe) sont rangées dans les estampages plutôt que sur les étagères.
 
 ### Corrections
