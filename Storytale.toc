@@ -17,6 +17,15 @@ SpokenFocus.lua
 SpokenQueueUI.lua
 Storytale.lua
 SpokenNarrator.lua
+Data\Readables.lua
+Data\Readables_frFR.lua
+Data\Readables_deDE.lua
+Data\Readables_esES.lua
+Data\Readables_esMX.lua
+Data\Readables_ruRU.lua
+Data\Readables_zhCN.lua
+Data\Readables_zhTW.lua
+Data\Readables_koKR.lua
 Library.lua
 Options_Native.lua
 MinimapButton.lua

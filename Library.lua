@@ -34,10 +34,34 @@ local function Norm(s)
     return (s or ""):lower():gsub("[%s%p]+", " "):gsub("^ ", ""):sub(1, 60)
 end
 
--- Donnees de Spoken Readables (texte de chaque page de pres de 400 livres), si installe.
--- (titres et textes en anglais : seulement pour un jeu en anglais, sinon les titres ne
--- correspondraient pas a ceux vus en jeu)
+-- Tous les ecrits du jeu (titre et texte de chaque page) : la base de Storytale (Data\Readables,
+-- traduite dans la langue du jeu quand la traduction existe), sinon celle de Spoken Readables
+-- (en anglais seulement). Meme forme que celle de Spoken : books[n] = { title, pages = { id } },
+-- pages[id] = { text }, plus le numero de chaque ecrit (n), sa matiere (m) et ses objets.
+local readCache
 local function SpokenData()
+    local R = rawget(_G, "StorytaleReadables")
+    if type(R) == "table" and type(R.books) == "table" and type(R.pages) == "table" then
+        if readCache and readCache.src == R then return readCache.d end
+        local loc = rawget(_G, "StorytaleReadablesLocale")
+        local lt = type(loc) == "table" and type(loc.titles) == "table" and loc.titles or {}
+        local lp = type(loc) == "table" and type(loc.pages) == "table" and loc.pages or {}
+        local d = { books = {}, pages = {}, own = true, byItem = R.items or {}, byObject = R.objects or {}, objOf = {} }
+        for n, b in pairs(R.books) do
+            d.books[n] = { title = lt[n] or b.t, pages = b.p, m = b.m, n = n }
+        end
+        for o, n in pairs(d.byObject) do if not d.objOf[n] or o < d.objOf[n] then d.objOf[n] = o end end
+        -- (le texte d'une page n'est prepare que quand on le lit)
+        setmetatable(d.pages, { __index = function(t, id)
+            local txt = lp[id] or R.pages[id]
+            if type(txt) ~= "string" then return nil end
+            local v = { text = txt }
+            rawset(t, id, v)
+            return v
+        end })
+        readCache = { src = R, d = d }
+        return d
+    end
     local loc = GetLocale and GetLocale() or "enUS"
     if type(loc) ~= "string" or loc:sub(1, 2) ~= "en" then return nil end
     local d = rawget(_G, "SpokenReadablesData")
@@ -316,15 +340,27 @@ function Lib.List(filter, search, sort)
     local total = found
     local titles = SpokenTitles()
     if titles then
+        -- (un ecrit trouve se reconnait aussi a son objet : sans traduction, la base garde le titre
+        -- anglais, alors que le jeu l'a montre dans sa langue)
+        local d = SpokenData()
+        local foundN = {}
+        if d and d.own then
+            for _, r in ipairs(rows) do
+                local e = r.entry
+                local n = (e.o and d.byObject[e.o]) or (e.i and d.byItem[e.i])
+                if n then foundN[n] = true end
+            end
+        end
         total = 0
         for k, b in pairs(titles) do
-            total = total + 1
+            if not (b.n and foundN[b.n] and not seen[k]) then total = total + 1 end
             -- (pas encore trouves : seulement comptes, pas ranges ; l'option "Tous les livres"
             -- les met sur les etageres, lisibles)
-            if not seen[k] and DialogueWheelE_LibraryUnlock == true then
-                local kind = OBJ_KIND_OF(nil, b.title) or (Engraved(nil, b.title) and "plate")
-                    or (#b.pages > 1 and "book" or "letter")
-                rows[#rows + 1] = { key = k, title = b.title, kind = kind, locked = DialogueWheelE_LibraryUnlock ~= true }
+            if not seen[k] and not (b.n and foundN[b.n]) and DialogueWheelE_LibraryUnlock == true then
+                local obj = d and d.objOf and b.n and d.objOf[b.n]
+                local kind = (b.m and "plate") or (obj and Lib.OBJ_KIND and Lib.OBJ_KIND[obj]) or OBJ_KIND_OF(nil, b.title)
+                    or (Engraved(nil, b.title) and "plate") or (#b.pages > 1 and "book" or "letter")
+                rows[#rows + 1] = { key = k, title = b.title, kind = kind, n = b.n, locked = DialogueWheelE_LibraryUnlock ~= true }
                 if DialogueWheelE_LibraryUnlock == true then rows[#rows].spoken = b end
             end
         end
@@ -351,7 +387,24 @@ end
 
 -- Pages d'une ligne, dans l'ordre (trous bouches avec les donnees de Spoken).
 -- Second resultat : le livre est-il complet (derniere page atteinte en jeu, ou connu de Spoken) ?
+-- Codes du jeu dans un texte ($N le nom du joueur, $C sa classe, $R sa race, $G il:elle;) :
+-- remplaces comme le jeu le fait.
+function Lib.FillCodes(t)
+    if type(t) ~= "string" or not t:find("$", 1, true) then return t end
+    local name = UnitName and UnitName("player") or "?"
+    local class = UnitClass and UnitClass("player") or "?"
+    local race = UnitRace and UnitRace("player") or "?"
+    local female = UnitSex and UnitSex("player") == 3
+    t = t:gsub("%$[Gg]%s*([^:;]*):([^;]*);", function(m, f) return female and f or m end)
+    t = t:gsub("%$[Nn]", name):gsub("%$[Cc]", class):gsub("%$[Rr]", race)
+    return t
+end
 function Lib.Pages(row)
+    local pages, whole = Lib.PagesRaw(row)
+    for i, t in ipairs(pages) do pages[i] = Lib.FillCodes(t) end
+    return pages, whole
+end
+function Lib.PagesRaw(row)
     local pages = {}
     if row.entry then
         local max = 0
@@ -2659,10 +2712,24 @@ local rstate = { index = 1, search = "" }
 Lib.rubState = rstate
 
 -- (pas les hommages a de vraies personnes disparues : on va les lire sur leur tombe)
+-- Hommages a de vraies personnes : laisses sur leur pierre, jamais recopies. Reconnus a leur
+-- titre anglais, ou a leur objet (le titre traduit change avec la langue du jeu).
+Lib.MEMORIAL_OBJECTS = { [181062] = true, [175933] = true }
+function Lib.IsMemorial(r)
+    if DWE.MEMORIALS and DWE.MEMORIALS[r.title or ""] then return true end
+    local e = r.entry
+    if e and e.o and Lib.MEMORIAL_OBJECTS[e.o] then return true end
+    local d = r.n and Lib.SpokenData()
+    if d and d.objOf and d.objOf[r.n] and Lib.MEMORIAL_OBJECTS[d.objOf[r.n]] then return true end
+    if d and d.byObject then
+        for o in pairs(Lib.MEMORIAL_OBJECTS) do if d.byObject[o] == r.n then return true end end
+    end
+    return false
+end
 local function RubRows()
     local rows = {}
     for _, r in ipairs(Lib.List("plate", rstate.search, "az")) do
-        if not (DWE.MEMORIALS and DWE.MEMORIALS[r.title or ""]) then rows[#rows + 1] = r end
+        if not Lib.IsMemorial(r) then rows[#rows + 1] = r end
     end
     return rows
 end

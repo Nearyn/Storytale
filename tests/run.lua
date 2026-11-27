@@ -2410,6 +2410,47 @@ do
         SpokenReadablesData = saved
         check(Lib.Kind({ t = "Glyphic Tablet", i = 9575, p = {} }) == "plate", "rubbings: a carried tablet is an engraving")
     end
+    -- Base Storytale des ecrits (sans Spoken) : chargee depuis Data\, traduite dans la langue du jeu
+    if M.addonDir then
+        local savedR, savedL, savedS, savedGL, savedU = StorytaleReadables, StorytaleReadablesLocale, SpokenReadablesData, GetLocale, DialogueWheelE_LibraryUnlock
+        SpokenReadablesData = nil
+        local function load(f) local c = loadfile(M.addonDir .. "/Data/" .. f); if c then c() end return c ~= nil end
+        check(load("Readables.lua") and type(StorytaleReadables) == "table", "readables database loads")
+        local nb = 0 for _ in pairs(StorytaleReadables.books) do nb = nb + 1 end
+        check(nb > 350, "readables database: every book of the game (" .. nb .. ")")
+        DialogueWheelE_LibraryUnlock = true
+        local _, found0, total0 = Lib.List("all", "", "az")
+        check(total0 >= nb - 20, "library: complete without Spoken (" .. total0 .. ")")
+        local plates = 0 for _, r in ipairs((Lib.List("plate", "", "az"))) do plates = plates + 1 end
+        check(plates > 40, "rubbings: complete without Spoken (" .. plates .. ")")
+        local d = Lib.SpokenData()
+        local n = d.byObject[175688] -- Horde Catapult
+        check(n and d.books[n].title == "Horde Catapult" and d.pages[d.books[n].pages[1]].text:find("Second War", 1, true) ~= nil and d.books[n].m == "Bronze", "readables database: object, title, text and material")
+        -- (en francais : titres et textes traduits)
+        GetLocale = function() return "frFR" end
+        StorytaleReadablesLocale = nil
+        check(load("Readables_frFR.lua") and type(StorytaleReadablesLocale) == "table", "french readables load in a french game")
+        StorytaleReadables = { books = StorytaleReadables.books, pages = StorytaleReadables.pages, items = StorytaleReadables.items, objects = StorytaleReadables.objects }
+        d = Lib.SpokenData()
+        local t = d.books[d.byItem[2005]].title -- The First Troll Legend
+        check(t ~= "The First Troll Legend" and t ~= nil, "french title: " .. tostring(t))
+        -- (les hommages restent sur leur pierre, meme sous leur titre traduit)
+        local memo = false
+        for _, r in ipairs(Lib.RubRows()) do if r.n == d.byObject[181062] then memo = true end end
+        check(not memo, "rubbings: memorials left out in a translated game")
+        do
+            local on, oc, os2 = UnitName, UnitClass, UnitSex
+            UnitName, UnitClass, UnitSex = function() return "Kora" end, function() return "Priest" end, function() return 3 end
+            local got = Lib.FillCodes("Hello $N, the $c. $Gbrother:sister;")
+            check(got == "Hello Kora, the Priest. sister", "game codes filled in texts: " .. got)
+            UnitName, UnitClass, UnitSex = on, oc, os2
+        end
+        GetLocale = function() return "enUS" end
+        StorytaleReadablesLocale = nil
+        load("Readables_frFR.lua")
+        check(StorytaleReadablesLocale == nil, "french readables ignored in another language")
+        StorytaleReadables, StorytaleReadablesLocale, SpokenReadablesData, GetLocale, DialogueWheelE_LibraryUnlock = savedR, savedL, savedS, savedGL, savedU
+    end
     -- Par personnage / commune
     DialogueWheelE_Library = {}
     check(select(2, Lib.List("all", "", "az")) == 0, "library: per character by default (new character: empty)")

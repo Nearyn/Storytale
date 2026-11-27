@@ -9087,7 +9087,7 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_LibraryStyle = self:GetChecked() and "simple" or nil
         if DWE.Library then DWE.Library.Refresh() end
     end)
-    local unlockCheck = AddCheck(L.LIB_UNLOCK or "Show every book (Spoken Readables)", 16, y - 486, function() return DialogueWheelE_LibraryUnlock == true end, function(self)
+    local unlockCheck = AddCheck(L.LIB_UNLOCK or "Show every book", 16, y - 486, function() return DialogueWheelE_LibraryUnlock == true end, function(self)
         DialogueWheelE_LibraryUnlock = self:GetChecked() and true or nil
         if DWE.Library then DWE.Library.Refresh() end
     end)
