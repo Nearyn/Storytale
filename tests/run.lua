@@ -497,6 +497,18 @@ do
     check(M.cvars.UnitNameNPC == "1", "hide UI: names kept when ticked")
     DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
     DialogueWheelE_HideKeep = nil
+    -- plaques de nom des autres (et leurs icones d'addons) : effacees, pas celle du PNJ
+    local savedPlates = M.plates
+    local pOther = CreateFrame("Frame"); pOther.namePlateUnitToken = "nameplate7"; pOther:Show(); pOther:SetAlpha(1)
+    local icon = CreateFrame("Frame", nil, pOther); icon:Show()
+    local pNpc = CreateFrame("Frame"); pNpc.namePlateUnitToken = "nameplate1"; pNpc:Show(); pNpc:SetAlpha(1)
+    M.plates = { pOther, pNpc }
+    DialogueWheelE_HideUI = true; DWE.UpdateCinemaBars(); run()
+    check(pOther:GetAlpha() < 0.01 and math.abs(pNpc:GetAlpha() - 1) < 0.001, "hide UI: other nameplates (and icons on them) hidden, not the NPC's " .. pOther:GetAlpha() .. " " .. pNpc:GetAlpha() .. " " .. tostring(DWE.cineBars.want))
+    DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
+    check(math.abs(pOther:GetAlpha() - 1) < 0.001, "hide UI: nameplates back at the end")
+    M.plates = savedPlates
+    pOther:Hide(); pNpc:Hide()
     -- exceptions : discussion et mini-carte gardees (ElvUI : seul son enfant mini-carte reste)
     DialogueWheelE_HideKeep = { chat = true, minimap = true }
     DialogueWheelE_HideUI = true; DWE.UpdateCinemaBars(); run()

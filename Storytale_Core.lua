@@ -3211,7 +3211,27 @@ local function CollectUI()
         end
     end
     for _, fr in ipairs(list) do pcall(One, fr, 0) end
+    -- Plaques de nom (hors d'UIParent) et tout ce que d'autres addons y accrochent (icones de
+    -- quetes de Questie...), sauf celle du PNJ a qui l'on parle (Storytale s'en sert deja) et sauf
+    -- si le joueur garde les noms.
+    local keep = DialogueWheelE_HideKeep
+    if type(keep) == "table" and keep.names then return end
+    local okP, plates = pcall(function() return C_NamePlate and C_NamePlate.GetNamePlates and C_NamePlate.GetNamePlates() end)
+    if not okP or type(plates) ~= "table" then return end
+    for _, plate in ipairs(plates) do
+        pcall(function()
+            if (plate.IsForbidden and plate:IsForbidden()) or hiddenUI[plate] then return end
+            local token = plate.namePlateUnitToken or (plate.UnitFrame and plate.UnitFrame.unit)
+            if token and UnitIsUnit and UnitIsUnit(token, "npc") then return end
+            local a = plate:GetAlpha()
+            if type(a) == "number" and not (issecretvalue and issecretvalue(a)) and a > 0 then
+                hiddenUI[plate] = a
+                WatchAlpha(plate)
+            end
+        end)
+    end
 end
+DWE.CollectHiddenUI = CollectUI
 local function FadeUI(f)
     for fr, a in pairs(hiddenUI) do FadeOne(fr, a * (1 - f)) end
 end
@@ -3299,8 +3319,15 @@ do
     combat:RegisterEvent("PLAYER_REGEN_ENABLED")
     combat:RegisterEvent("PLAYER_LOGIN")
     combat:RegisterEvent("PLAYER_LOGOUT")
+    combat:RegisterEvent("NAME_PLATE_UNIT_ADDED")
     combat:SetScript("OnEvent", function(_, event)
-        if event == "PLAYER_LOGIN" or event == "PLAYER_LOGOUT" then
+        if event == "NAME_PLATE_UNIT_ADDED" then
+            -- plaque apparue pendant la conversation : effacee elle aussi
+            if cineBars.want and cineBars:IsShown() then
+                pcall(CollectUI)
+                FadeUI(cineBars.alpha or 0)
+            end
+        elseif event == "PLAYER_LOGIN" or event == "PLAYER_LOGOUT" then
             -- Noms caches lors d'un plantage ou d'une deconnexion en pleine conversation : rendus.
             pcall(RestoreNames)
         elseif event == "PLAYER_REGEN_DISABLED" then
