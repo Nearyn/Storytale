@@ -3267,17 +3267,17 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
     elseif msg:match("^errors") then
         DWE.ErrorsReport(msg:match("^errors%s+(%S+)"))
     elseif msg:match("^%s*libpose") then
-        -- Reglage de la vue des modeles 3D : /storytale libpose shelf|lectern distance rotation inclinaison roulis
+        -- Reglage de la vue des modeles 3D : /storytale libpose shelf|lectern distance lacet tangage roulis
         local which, d, fa, pi, ro = msg:match("^%s*libpose%s+(%a+)%s*([%d%.%-]*)%s*([%d%.%-]*)%s*([%d%.%-]*)%s*([%d%.%-]*)")
         local Lib = DWE.Library
         local pose = Lib and (which == "lectern" and Lib.LECTERN_POSE or which == "shelf" and Lib.SHELF_POSE)
         if pose then
             pose.dist = tonumber(d) or pose.dist
-            pose.facing = tonumber(fa) or pose.facing
+            pose.yaw = tonumber(fa) or pose.yaw
             pose.pitch = tonumber(pi) or pose.pitch
             pose.roll = tonumber(ro) or pose.roll
             if Lib.Refresh then Lib.Refresh() end
-            Out(string.format("%s : %.2f %d %d %d", which, pose.dist, pose.facing, pose.pitch, pose.roll))
+            Out(string.format("%s : %.2f %d %d %d", which, pose.dist, pose.yaw, pose.pitch, pose.roll))
         end
     elseif msg:match("^%s*librar") or msg:match("^%s*biblio") then
         if DWE.Library and msg:match("reset") then DWE.Library.ResetLayout()

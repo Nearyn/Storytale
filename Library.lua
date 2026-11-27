@@ -228,8 +228,12 @@ end)
 -- Liste
 --------------------------------------------------------------------------------
 -- Genre d'un ecrit : plaque (matiere gravee), lettre (une seule page) ou livre.
+local OBJ_KIND_OF -- (table des objets du monde, plus bas)
 local function Kind(e)
     if e.m and DWE.PLATES and DWE.PLATES[e.m] then return "plate" end
+    -- Objet du monde connu : plaque, stele, statue, tombe... ou affiche, ou livre.
+    local k = OBJ_KIND_OF and OBJ_KIND_OF(e.o, e.t)
+    if k then return k end
     local n = 0
     for _ in pairs(e.p or {}) do n = n + 1 end
     if n <= 1 then return "letter" end
@@ -261,7 +265,7 @@ function Lib.List(filter, search, sort)
         for k, b in pairs(titles) do
             total = total + 1
             if not seen[k] then
-                local kind = #b.pages > 1 and "book" or "letter"
+                local kind = OBJ_KIND_OF(nil, b.title) or (#b.pages > 1 and "book" or "letter")
                 rows[#rows + 1] = { key = k, title = b.title, kind = kind, locked = DialogueWheelE_LibraryUnlock ~= true }
                 if DialogueWheelE_LibraryUnlock == true then rows[#rows].spoken = b end
             end
@@ -435,7 +439,8 @@ end
 local MODELS = {
     book = { { 200903, .45, .28, .16 }, { 200905, .55, .12, .10 }, { 200902, .14, .22, .45 },
              { 200904, .14, .36, .18 }, { 200901, .12, .12, .12 } },
-    letter = 201113, -- world/goober/g_scroll01.m2
+    letter = 201113, -- world/goober/g_scroll01.m2 (ouvert)
+    rolled = 198453, -- world/generic/human/passive doodads/scrolls/scrollb01.m2 (enroule)
     plate = 201080,  -- world/goober/g_netablet.m2
 }
 Lib.MODELS = MODELS
@@ -553,6 +558,116 @@ local OBJ_MODEL = {
     [181895] = 198023, -- Trans-dimensional Ship Repair for Simple
     [182203] = 200904, -- The Green Hills of Stranglethorn
 }
+local OBJ_KIND = {
+    [37] = "plate",
+    [1726] = "letter",
+    [2082] = "plate",
+    [19025] = "plate",
+    [21004] = "plate",
+    [21581] = "book",
+    [21582] = "book",
+    [21583] = "book",
+    [24777] = "plate",
+    [25329] = "plate",
+    [25330] = "plate",
+    [25331] = "plate",
+    [25332] = "plate",
+    [25333] = "plate",
+    [123463] = "book",
+    [124374] = "plate",
+    [164820] = "plate",
+    [164821] = "plate",
+    [164822] = "plate",
+    [164823] = "plate",
+    [164824] = "plate",
+    [164825] = "plate",
+    [174746] = "plate",
+    [175658] = "plate",
+    [175659] = "plate",
+    [175679] = "plate",
+    [175680] = "plate",
+    [175681] = "plate",
+    [175682] = "plate",
+    [175683] = "plate",
+    [175684] = "plate",
+    [175685] = "plate",
+    [175686] = "plate",
+    [175687] = "plate",
+    [175688] = "plate",
+    [175689] = "plate",
+    [175724] = "book",
+    [175725] = "book",
+    [175726] = "book",
+    [175727] = "book",
+    [175729] = "book",
+    [175730] = "book",
+    [175731] = "book",
+    [175732] = "book",
+    [175733] = "book",
+    [175734] = "book",
+    [175735] = "book",
+    [175736] = "book",
+    [175737] = "book",
+    [175738] = "book",
+    [175739] = "book",
+    [175740] = "book",
+    [175741] = "book",
+    [175742] = "book",
+    [175745] = "book",
+    [175746] = "book",
+    [175747] = "book",
+    [175748] = "book",
+    [175749] = "book",
+    [175750] = "book",
+    [175751] = "book",
+    [175752] = "book",
+    [175753] = "book",
+    [175754] = "book",
+    [175756] = "book",
+    [175757] = "book",
+    [175758] = "book",
+    [175759] = "book",
+    [175760] = "book",
+    [175761] = "book",
+    [175762] = "book",
+    [175763] = "book",
+    [175771] = "plate",
+    [175772] = "plate",
+    [175773] = "plate",
+    [175774] = "plate",
+    [175775] = "plate",
+    [175776] = "plate",
+    [175777] = "plate",
+    [175778] = "plate",
+    [175779] = "plate",
+    [175780] = "plate",
+    [175781] = "plate",
+    [175854] = "book",
+    [175855] = "book",
+    [175856] = "book",
+    [175933] = "plate",
+    [177199] = "plate",
+    [177200] = "plate",
+    [177201] = "plate",
+    [177202] = "plate",
+    [177204] = "letter",
+    [177205] = "letter",
+    [177207] = "letter",
+    [177208] = "letter",
+    [177209] = "letter",
+    [177222] = "plate",
+    [179706] = "book",
+    [179707] = "book",
+    [179735] = "plate",
+    [179741] = "plate",
+    [179909] = "plate",
+    [180367] = "plate",
+    [181062] = "plate",
+    [181475] = "plate",
+    [181573] = "plate",
+    [181895] = "book",
+    [182203] = "book",
+}
 local TITLE_OBJ = {
     ["Eliza's Tombstone"] = 37,
     ["Missing: Corporal Keeshan"] = 1726,
@@ -659,9 +774,15 @@ local TITLE_OBJ = {
     ["Altar of Zanza"] = 180367,
     ["In Loving Memory"] = 181062,
 }
-Lib.OBJ_MODEL, Lib.TITLE_OBJ = OBJ_MODEL, TITLE_OBJ
-function Lib.ModelFor(row)
+Lib.OBJ_MODEL, Lib.TITLE_OBJ, Lib.OBJ_KIND = OBJ_MODEL, TITLE_OBJ, OBJ_KIND
+function OBJ_KIND_OF(o, title)
+    o = o or TITLE_OBJ[title or ""]
+    return o and OBJ_KIND[o] or nil
+end
+-- `where` : "shelf" (etageres : lettres et parchemins enroules) ou "lectern" (pupitre : ouverts).
+function Lib.ModelFor(row, where)
     local o = (row.entry and row.entry.o) or TITLE_OBJ[row.title or ""]
+    if row.kind == "letter" and where == "shelf" then return MODELS.rolled end
     if o and OBJ_MODEL[o] then return OBJ_MODEL[o] end
     if row.kind == "letter" then return MODELS.letter end
     if row.kind == "plate" then return MODELS.plate end
@@ -673,31 +794,68 @@ function Lib.ModelFor(row)
     end
     return best
 end
--- Charge un modele dans un cadre 3D. Seul SetModel doit reussir ; les reglages de camera sont
--- tentes un par un (certains manquent selon le client). La derniere erreur est gardee dans
--- Lib.modelErr pour le diagnostic.
-local function LoadModel(m, id, pose)
-    if not (m and m.SetModel) then Lib.modelErr = "no model frame"; return false end
-    if m.ClearModel then pcall(m.ClearModel, m) end
-    local ok, err = pcall(m.SetModel, m, id)
-    if not ok then Lib.modelErr = tostring(err); return false end
-    local function try(name, ...)
-        if m[name] then
-            local okc, e = pcall(m[name], m, ...)
-            if not okc then Lib.modelErr = name .. ": " .. tostring(e) end
+-- Scene 3D (ModelScene) : un seul acteur, centre sur lui-meme, mis a l'echelle pour que sa
+-- plus grande dimension tienne dans le cadre, tourne selon la pose (lacet, tangage, roulis en
+-- degres), camera fixe face a lui. `dist` : 1 = le modele remplit le cadre ; plus = plus petit.
+local function NewScene(parent)
+    local ok, sc = pcall(CreateFrame, "ModelScene", nil, parent)
+    if not (ok and sc and sc.CreateActor) then return nil end
+    sc:EnableMouse(false)
+    local okA, actor = pcall(sc.CreateActor, sc)
+    if not (okA and actor) then return nil end
+    sc.actor = actor
+    return sc
+end
+Lib.NewScene = NewScene
+local FOV = math.rad(30)
+local function Frame(sc, pose)
+    local a = sc.actor
+    local size = 1
+    if a.GetMaxBoundingBox then
+        local ok, x1, y1, z1, x2, y2, z2 = pcall(a.GetMaxBoundingBox, a)
+        if ok and type(x1) == "table" then
+            x1, y1, z1, x2, y2, z2 = x1.x, x1.y, x1.z, y1.x, y1.y, y1.z
+        end
+        if ok and type(x1) == "number" and type(z2) == "number" then
+            size = math.max(x2 - x1, y2 - y1, z2 - z1)
         end
     end
-    try("SetPosition", 0, 0, 0)
-    try("SetCamDistanceScale", pose.dist)
-    try("SetFacing", math.rad(pose.facing))
-    try("SetPitch", math.rad(pose.pitch))
-    try("SetRoll", math.rad(pose.roll))
+    if not size or size <= 0 then size = 1 end
+    if a.SetScale then pcall(a.SetScale, a, 1 / size) end
+    local d = (0.55 / math.tan(FOV / 2)) * (pose.dist or 1)
+    if sc.SetCameraFieldOfView then pcall(sc.SetCameraFieldOfView, sc, FOV) end
+    if sc.SetCameraNearClip then pcall(sc.SetCameraNearClip, sc, 0.01) end
+    if sc.SetCameraFarClip then pcall(sc.SetCameraFarClip, sc, 100) end
+    if sc.SetCameraPosition then pcall(sc.SetCameraPosition, sc, d, 0, 0) end
+    if sc.SetCameraOrientationByYawPitchRoll then pcall(sc.SetCameraOrientationByYawPitchRoll, sc, math.pi, 0, 0) end
+end
+local function LoadModel(sc, id, pose)
+    local a = sc and sc.actor
+    if not (a and a.SetModelByFileID) then Lib.modelErr = "no model scene"; return false end
+    if a.ClearModel then pcall(a.ClearModel, a) end
+    local ok, res = pcall(a.SetModelByFileID, a, id)
+    if not ok or res == false then Lib.modelErr = ok and ("no model " .. tostring(id)) or tostring(res); return false end
+    if a.SetUseCenterForOrigin then pcall(a.SetUseCenterForOrigin, a, true, true, true) end
+    if a.SetPosition then pcall(a.SetPosition, a, 0, 0, 0) end
+    if a.SetYaw then pcall(a.SetYaw, a, math.rad(pose.yaw or 0)) end
+    if a.SetPitch then pcall(a.SetPitch, a, math.rad(pose.pitch or 0)) end
+    if a.SetRoll then pcall(a.SetRoll, a, math.rad(pose.roll or 0)) end
+    Frame(sc, pose)
+    -- (la boite du modele n'est connue qu'une fois charge)
+    if a.SetScript and not sc.hooked then
+        sc.hooked = true
+        pcall(a.SetScript, a, "OnModelLoaded", function() if sc.pose then Frame(sc, sc.pose) end end)
+    end
+    sc.pose = pose
     return true
 end
-Lib.LECTERN_POSE = { dist = 0.9, facing = 90, pitch = -35, roll = 0 }
+-- Poses : livre fermé pose a plat et incline vers nous (pupitre), debout tranche face a nous
+-- (etageres). Reglables en jeu : /storytale libpose shelf|lectern distance lacet tangage roulis.
+Lib.LECTERN_POSE = { dist = 1.1, yaw = 0, pitch = 55, roll = 0 }
+Lib.SHELF_POSE = { dist = 1.0, yaw = 90, pitch = 90, roll = 0 }
 function Lib.ShowModel(cover, row)
     local m = cover.model
-    local id = Lib.ModelFor(row)
+    local id = Lib.ModelFor(row, "lectern")
     local shown = LoadModel(m, id, Lib.LECTERN_POSE)
     if m then m.fileID = shown and id or nil; m:SetShown(shown) end
     cover.open:SetShown(not shown)
@@ -706,10 +864,9 @@ end
 -- Etageres en 3D : peu de livres par rangee (chaque modele coute), le reste va sur les pages
 -- suivantes. Pose : le livre debout, le dos face a nous.
 Lib.PER_ROW_3D = 6
-Lib.SHELF_POSE = { dist = 0.7, facing = 90, pitch = 0, roll = 90 }
 function Lib.ShowShelfModel(b, row)
     local m = b.model
-    local id = Lib.ModelFor(row)
+    local id = Lib.ModelFor(row, "shelf")
     local shown = LoadModel(m, id, Lib.SHELF_POSE)
     if m then m.fileID = shown and id or nil; m:SetShown(shown) end
     b.tex:SetShown(not shown); b.shade:SetShown(not shown)
@@ -830,10 +987,9 @@ local function Build()
         shade:SetVertexColor(0, 0, 0, 0.35)
         b.shade = shade
         -- (le vrai modele 3D du livre, debout sur l'etagere ; le dos peint reste si le modele manque)
-        local okm, m = pcall(CreateFrame, "PlayerModel", nil, b)
-        if okm and m then
-            m:SetPoint("CENTER")
-            m:EnableMouse(false)
+        local m = NewScene(b)
+        if m then
+            m:SetPoint("BOTTOM")
             b.model = m
         end
         b:SetScript("OnEnter", function(self)
@@ -956,10 +1112,9 @@ local function Build()
     open:SetTexCoord(0, 1, 0, 576 / 1024)
     open:Hide()
     cover.open = open
-    local ok, m = pcall(CreateFrame, "PlayerModel", nil, cover)
-    if ok and m then
+    local m = NewScene(cover)
+    if m then
         m:SetPoint("TOPLEFT", -40, 50); m:SetPoint("BOTTOMRIGHT", 40, -30)
-        m:EnableMouse(false)
         cover.model = m
     end
     local ag = cover.CreateAnimationGroup and cover:CreateAnimationGroup()
@@ -1361,7 +1516,12 @@ function Refresh()
             b:SetSize(w, h)
             b:SetPoint("BOTTOMLEFT", ui.boxes.cases, "BOTTOMLEFT", b.x, b.y)
             b.tex:SetVertexColor(color[1], color[2], color[3], 1)
-            if b.model then b.model:SetSize(h * 1.25, h * 1.25) end
+            if b.model then
+                -- (pose sur le plancher de l'etagere, a la hauteur du rayon)
+                b.model:ClearAllPoints()
+                b.model:SetPoint("BOTTOM", b, "BOTTOM", 0, -h * 0.03)
+                b.model:SetSize(h * 1.05, h * 1.05)
+            end
             local is3d = use3d and Lib.ShowShelfModel(b, row)
             if not use3d and b.model then b.model:Hide(); b.tex:Show(); b.shade:Show() end
             b.band:SetShown(row.kind == "book" and not is3d)

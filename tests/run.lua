@@ -14,6 +14,7 @@ do
             fr.CreateActor = function()
                 return {
                     SetModelByUnit = function() end,
+                    SetModelByFileID = function() return true end,
                     GetMaxBoundingBox = function() return -0.5, -0.5, 0, 0.5, 0.5, M.npcHeight end,
                 }
             end
@@ -2391,6 +2392,8 @@ do
     check(Lib.ModelFor({ kind = "letter", title = "x" }) == Lib.MODELS.letter and Lib.ModelFor({ kind = "plate", title = "x" }) == Lib.MODELS.plate, "library: letters and plates get their own model")
     check(Lib.ModelFor({ kind = "book", title = "x", entry = { o = 21581 } }) == 200902, "library: a book from the world gets its own binding, closed")
     check(Lib.ModelFor({ kind = "book", title = "Aftermath of the Second War" }) == 200902, "library: an older book finds its object by title")
+    check(Lib.ModelFor({ kind = "letter", title = "x" }, "shelf") == Lib.MODELS.rolled, "library: letters stand rolled on the shelves")
+    check(Lib.Kind({ t = "Eliza's Tombstone", p = { "x" } }) == "plate", "library: a tombstone counts as a plaque")
     -- un clic sur un autre livre de l'etagere le pose sur le pupitre (l'ancien reprend sa place)
     local before = ui.featured:GetText()
     local other
