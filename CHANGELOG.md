@@ -1,5 +1,25 @@
 # Changelog / Journal des versions
 
+## 1.15.0
+
+**English**
+
+### Added
+- Library: Storytale now has its own collection of books and other readables, so "Show every book" fills the shelves and the rubbings notebook without Spoken. Titles and texts are in English, French, German, Spanish and Simplified Chinese, and most of Russian.
+
+### Fixed
+- Library: A Treatise on Military Ranks no longer shows as a blue square on the lectern.
+
+---
+
+**Français**
+
+### Ajouts
+- Bibliothèque : Storytale a maintenant sa propre collection de livres et autres écrits, donc « Tous les livres » remplit les étagères et le carnet d'estampages sans Spoken. Titres et textes en anglais, français, allemand, espagnol et chinois simplifié, et en grande partie en russe.
+
+### Corrections
+- Bibliothèque : A Treatise on Military Ranks ne s'affiche plus comme un carré bleu sur le pupitre.
+
 ## 1.14.0
 
 **English**
