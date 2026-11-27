@@ -13,7 +13,7 @@
   - Without background (default), every piece moves and resizes on its own while windows are unlocked; with a background, the whole library moves as one.
   - Books not found yet (with "Show every book") are half transparent.
   - Can be turned off completely in the options.
-  - Spoken doesn't read the library's books aloud yet: coming in the next update.
+  - Spoken doesn't read the library's books aloud yet: coming in a future update.
 - Option pages no longer scroll past their content.
 
 ---
@@ -29,7 +29,7 @@
   - Sans fond (par défaut), chaque élément se déplace et se redimensionne seul quand les fenêtres sont déverrouillées ; avec un fond, toute la bibliothèque se déplace d'un bloc.
   - Les livres pas encore trouvés (avec « Tous les livres ») sont à demi transparents.
   - Peut être désactivée complètement dans les options.
-  - Spoken ne lit pas encore à voix haute les livres de la bibliothèque : ce sera pour la prochaine mise à jour.
+  - Spoken ne lit pas encore à voix haute les livres de la bibliothèque : ce sera pour une prochaine mise à jour.
 - Les pages d'options ne défilent plus au-delà de leur contenu.
 
 ## 1.12.0
