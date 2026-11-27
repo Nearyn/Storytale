@@ -10,7 +10,7 @@
   - Click a book to put it on the lectern; click the lectern to read it in Storytale's usual book.
   - Search, filters (books, letters), A-Z or recent order, and pages of shelves. Only the rows in use are shown.
   - Per character, or shared by all your characters (option). With Spoken Readables, each book is complete from the first page, books you read before are added, and an option shows every book, even those not found yet.
-  - Without background (default), every piece moves and resizes on its own while windows are unlocked; with a background, the whole library moves as one. Your book and Spoken's narrator open beside it instead of under it.
+  - Without background (default), every piece moves and resizes on its own while windows are unlocked; with a background, the whole library moves as one.
   - Books not found yet (with "Show every book") are half transparent.
   - Can be turned off completely in the options.
   - Spoken doesn't read the library's books aloud yet: coming in the next update.
@@ -26,7 +26,7 @@
   - Un clic pose un livre sur le pupitre ; un clic sur le pupitre l'ouvre dans le livre habituel de Storytale.
   - Recherche, filtres (livres, lettres), ordre A-Z ou récent, et pages d'étagères. Seules les rangées utilisées s'affichent.
   - Par personnage, ou commune à tous vos personnages (option). Avec Spoken Readables, chaque livre est complet dès la première page, les livres déjà lus sont ajoutés, et une option montre tous les livres, même ceux pas encore trouvés.
-  - Sans fond (par défaut), chaque élément se déplace et se redimensionne seul quand les fenêtres sont déverrouillées ; avec un fond, toute la bibliothèque se déplace d'un bloc. Votre livre et le narrateur de Spoken s'ouvrent à côté d'elle au lieu de dessous.
+  - Sans fond (par défaut), chaque élément se déplace et se redimensionne seul quand les fenêtres sont déverrouillées ; avec un fond, toute la bibliothèque se déplace d'un bloc.
   - Les livres pas encore trouvés (avec « Tous les livres ») sont à demi transparents.
   - Peut être désactivée complètement dans les options.
   - Spoken ne lit pas encore à voix haute les livres de la bibliothèque : ce sera pour la prochaine mise à jour.
