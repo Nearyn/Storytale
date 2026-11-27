@@ -433,7 +433,9 @@ end
 -- dans l'ordre ou elles se remplissent. "room" : les deux bibliotheques entieres ; "simple" :
 -- une seule grande etagere, faite des rangees decoupees dans la bibliotheque et elargies
 -- (le bord gauche et le bord droit gardes tels quels, le milieu etire en largeur), sans fond.
-local SIMPLE = { rows = { 2, 3, 4, 5, 6, 7 }, scale = 0.7, wide = 2.2, gap = 0, top = 92, left = 14 }
+local SIMPLE = { rows = { 2, 3, 4, 5, 6, 7 }, scale = 0.7, wide = 2.2, gap = 0, top = 150, left = 14 }
+-- (haut et bas du meuble dans l'image : corniche, et socle avec ses pieds)
+local CAP_TOP, CAP_BOT = { 104, 161 }, { 964, 1014 }
 function Lib.Style() return DialogueWheelE_LibraryStyle == "simple" and "simple" or "room" end
 local function SimpleRow(i, y)
     local k = SIMPLE.scale
@@ -990,15 +992,13 @@ function Lib.ShelfPose(row, i)
     if h % every == 0 then p.lean = 12 + (h % 9) end
     -- Parchemins : couches, empiles. Quelques livres couches aussi, par deux ou trois.
     if row.kind == "letter" then
+        -- (debout comme les livres, parfois penches : rouleaux d'Uldaman et feuillet plie)
         if Lib.ModelFor(row, "shelf") == 203430 then
-            -- (paire de rouleaux : couchee, empilable)
-            p.lean = nil
-            p.yaw, p.pitch, p.roll, p.vfrac, p.flat = 90, 0, 0, 0.35, true
-            p.dist = 1.3
+            p.yaw, p.pitch, p.roll, p.vfrac = 90, 90, 0, 1
+            p.dist = 1.0
         else
-            -- (feuillet plie : debout, un peu tourne, parfois penche)
-            p.yaw, p.pitch, p.roll, p.vfrac = 35 + (h % 20), 0, 0, 1
-            p.dist = 1.05
+            p.yaw, p.pitch, p.roll, p.vfrac = 20 + (h % 30), 0, 0, 1
+            p.dist = 1.1
         end
     elseif row.kind == "book" and not row.noFlat and (row.forceFlat or (not p.lean and h % 6 == 1)) then
         p.lean = nil
@@ -1152,6 +1152,30 @@ local function Build()
             t:SetPoint("TOPLEFT", cases, "TOPLEFT", pt[3], -r.top)
             t:Hide()
             ui.strips[#ui.strips + 1] = t
+        end
+    end
+    -- Corniche en haut et socle en bas, etires comme les rangees : un vrai meuble, pas une
+    -- image coupee. Le socle se place sous la derniere rangee affichee.
+    do
+        local r = SlotsOf("simple")[1].strip
+        local k = SIMPLE.scale
+        local function Cap(v)
+            local list = {}
+            for _, pt in ipairs({ { CASE.contentL, CASE.left, 0, r.edgeL }, { CASE.left, CASE.right, r.edgeL, r.mid },
+                { CASE.right, CASE.contentR, r.edgeL + r.mid, r.edgeR } }) do
+                local t = cases:CreateTexture(nil, "ARTWORK")
+                t:SetTexture(ADDON .. "LibraryBookcase.png")
+                t:SetTexCoord(pt[1] / 512, pt[2] / 512, v[1] / 1024, v[2] / 1024)
+                t:SetSize(pt[4], (v[2] - v[1]) * k)
+                t.dx = r.x + pt[3]
+                t:Hide()
+                list[#list + 1] = t
+            end
+            return list
+        end
+        ui.capTop, ui.capBot = Cap(CAP_TOP), Cap(CAP_BOT)
+        for _, t in ipairs(ui.capTop) do
+            t:SetPoint("BOTTOMLEFT", cases, "TOPLEFT", t.dx, -SIMPLE.top)
         end
     end
     -- Dos des livres (boutons), pris dans une reserve.
@@ -1490,7 +1514,7 @@ end
 local function Areas()
     local w, h = room:GetWidth(), room:GetHeight()
     if Lib.Style() == "simple" then
-        return { cases = { 8, 0, w - 16, h - 92 }, header = { 8, h - 90, w - 60, 80 } }
+        return { cases = { 8, 0, w - 16, h - 112 }, header = { 8, h - 110, w - 16, 100 } }
     end
     local k = LECTERN.size
     local lx = ui.right + (W - ui.right - 30 - k) / 2
@@ -1513,9 +1537,44 @@ function Lib.ApplyLayout()
     -- Disposition par defaut (celle choisie par Nearyn) ; avec fond, toujours elle ; sans fond,
     -- chaque element garde la place ou le joueur l'a mis.
     local def = Lib.DEFAULT_LAYOUT[Lib.Style()] or {}
+    -- Bibliotheques par defaut : sous l'en-tete, aussi grandes que la place le permet (plus de
+    -- rangees = plus petites), la seconde collee a droite de la premiere.
+    local areas0 = Areas()
+    local dyn = {}
+    if Lib.Style() == "room" and def.case1 and def.header then
+        local ha, hd = areas0.header, def.header
+        local hs = hd.s or 1
+        local hcy = ha[2] + ha[4] / 2
+        local headerBottom = (hd.y or 0) + hcy * (1 - hs) + ha[2] * hs
+        local bottom = def.case1.y or 0
+        local avail = headerBottom - 8 - bottom
+        local function Fit(c)
+            local a = areas0["case" .. c]
+            if not a then return nil end
+            return math.min(def.case1.s or 1, avail / a[4]), a
+        end
+        local s1, a1 = Fit(1)
+        if s1 then
+            local cx1 = a1[1] + a1[3] / 2
+            local sd = def.case1.s or 1
+            local left = def.case1.x + cx1 * (1 - sd) + a1[1] * sd
+            local function XFor(sc) return left - cx1 * (1 - sc) - a1[1] * sc end
+            dyn.case1 = { x = XFor(s1), y = bottom, s = s1 }
+            local right1 = left + a1[3] * s1
+            local s2, a2 = Fit(2)
+            if s2 then
+                local s = math.min(s1, s2)
+                dyn.case1.s, dyn.case1.x = s, XFor(s)
+                right1 = left + a1[3] * s
+                local cx2 = a2[1] + a2[3] / 2
+                -- (gauche de la seconde = droite de la premiere + 6)
+                dyn.case2 = { x = right1 + 6 - cx2 * (1 - s) - a2[1] * s, y = bottom, s = s }
+            end
+        end
+    end
     local function Of(id)
         if free and type(lay[id]) == "table" and (lay[id].x or lay[id].y or lay[id].s) then return lay[id] end
-        return def[id] or {}
+        return dyn[id] or def[id] or {}
     end
     local bgf = Lib.bgFrame
     bgf.dweNoGrip = free or nil
@@ -1915,6 +1974,8 @@ local function ApplyStyle()
     local full = style == "room"
     for _, cs in ipairs(ui.cases) do if not full then for _, t in pairs(cs.pieces) do t:Hide() end end end
     for _, t in ipairs(ui.strips) do t:SetShown(not full) end
+    for _, t in ipairs(ui.capTop or {}) do t:SetShown(not full) end
+    for _, t in ipairs(ui.capBot or {}) do t:SetShown(not full) end
     for _, f in ipairs({ ui.lectern, ui.cover, ui.featured, ui.featuredMeta }) do f:SetShown(full) end
     local w, h
     if full then
@@ -1930,15 +1991,16 @@ local function ApplyStyle()
     ui.title:SetPoint("TOPLEFT", ui.boxes.header, "TOPLEFT", left, -22)
     ui.search:ClearAllPoints()
     ui.search:SetPoint("TOPLEFT", ui.boxes.header, "TOPLEFT", left + 6, -56)
-    ui.search:SetWidth(full and (W - ui.right - 40) or 180)
-    local x = full and left or (left + 200)
+    -- (meme en-tete dans les deux styles : recherche sous le titre, filtres et tri dessous)
+    ui.search:SetWidth(full and (W - ui.right - 40) or (w - left - 40))
+    local x = left
     for _, b in ipairs(ui.filters) do
         b:ClearAllPoints()
-        b:SetPoint("TOPLEFT", ui.boxes.header, "TOPLEFT", x, full and -84 or -58)
+        b:SetPoint("TOPLEFT", ui.boxes.header, "TOPLEFT", x, -84)
         x = x + b:GetWidth() + 6
     end
     ui.sort:ClearAllPoints()
-    ui.sort:SetPoint("TOPRIGHT", ui.boxes.header, "TOPRIGHT", -30, full and -84 or -58)
+    ui.sort:SetPoint("TOPRIGHT", ui.boxes.header, "TOPLEFT", full and (W - 30) or (w - 30), -84)
     ui.shelfNum:ClearAllPoints()
     ui.shelfNum:SetPoint("RIGHT", ui.sort, "LEFT", -40, 0)
     ui.empty:ClearAllPoints()
@@ -2096,6 +2158,13 @@ function Refresh()
         -- (grande etagere : les rangees utiles, une vide de plus, deux au moins)
         local n = math.max(2, math.min(#slots, maxSlot + 1))
         for k, t in ipairs(ui.strips) do t:SetShown(math.ceil(k / 3) <= n) end
+        local last = slots[n].strip
+        for _, t in ipairs(ui.capBot) do
+            t:ClearAllPoints()
+            t:SetPoint("TOPLEFT", ui.boxes.cases, "TOPLEFT", t.dx, -(last.top + last.h))
+            t:Show()
+        end
+        for _, t in ipairs(ui.capTop) do t:Show() end
     end
     local used = 0
     for idx, row in ipairs(rows) do
