@@ -1317,6 +1317,13 @@ end
 
 -- Police a utiliser : celle du theme (Encre et or, Cinematique) tant que le joueur garde la
 -- police par defaut ; sinon celle qu'il a choisie.
+-- Police choisie par le joueur (autre que celle par defaut) : elle s'applique partout, bulles du
+-- jeu comprises (avant, les bulles "jeu", PNJ et murmure gardaient la police de Blizzard).
+function DWE.FontChosen()
+    local u = DialogueWheelE_Font
+    return u ~= nil and u ~= "friz" and not DWE.IS_CJK
+end
+
 function DWE.ThemeFontId()
     local u = DialogueWheelE_Font
     if u == nil or u == "friz" then
@@ -1398,6 +1405,11 @@ function DWE.ApplyFont()
     if choiceBox:IsShown() then
         DWE.UpdateVisuals()
         DWE.UpdateTextPanelVisuals()
+        -- La bulle prend sa police dans SetShown : sans cet appel, elle gardait l'ancienne police
+        -- jusqu'au dialogue suivant (vu en jeu le 27/11).
+        if DWE.bubble and DWE.bubble:IsShown() and DWE.Bubble and DWE.Bubble.SetShown then
+            DWE.Bubble.SetShown(true)
+        end
         if DWE.Bubble and DWE.Bubble.Refit then DWE.Bubble.Refit() end
     elseif textBox:IsShown() then
         DWE.UpdateTextPanelVisuals()
@@ -3061,6 +3073,14 @@ cineBars.alpha = 0
 -- Restent visibles : l'addon, DialogueUI/Spoken (deja geres), les infobulles et les fenetres
 -- systeme (menu Echap, options, fenetres de confirmation).
 local hiddenUI = {} -- cadre -> opacite d'origine
+local protectedUI = {} -- cadres proteges parmi eux : rendus des l'entree en combat
+local plateUI = {} -- plaques de nom parmi eux : le jeu remet leur opacite, reappliquee a chaque image
+-- Noms caches en ce moment (option "Cacher l'interface" ou Cinematique, "Noms" non coche).
+function DWE.NamesHidden()
+    if not (DWE.cineBars and DWE.cineBars.want) then return false end
+    local keep = DialogueWheelE_HideKeep
+    return not (type(keep) == "table" and keep.names)
+end
 local ignoredUI = {} -- cadres remis a suivre l'opacite de leur parent (a rendre a la fin)
 local KEEP_UI = {
     GameTooltip = true, ItemRefTooltip = true, ShoppingTooltip1 = true, ShoppingTooltip2 = true,
@@ -3075,39 +3095,269 @@ local function KeepFrame(fr)
     return KEEP_UI[name] or name:find("^DialogueWheelE") or name:find("^Storytale") or name:find("^DWE") or name:find("^DUI")
         or name:find("^Spoken") or name:find("^StaticPopup")
 end
+-- "Cacher l'interface" : tout s'efface, sauf ce que le joueur choisit de garder (rien par defaut).
+-- Noms des cadres du jeu et des addons d'interface les plus courants (ElvUI, GW2 UI, Bartender,
+-- Dominos, Chattynator, Prat, SexyMap, Shadowed Unit Frames, Grid2, VuhDo, Cell...).
+local KEEP_GROUPS = {
+    { id = "chat", "^ChatFrame%d", "^GeneralDockManager", "^ChatFrameMenuButton", "^ChatFrameChannelButton",
+        "^ChatFrameToggleVoice", "^QuickJoinToastButton", "^ChatAlertFrame", "^Chattynator", "^LeftChat", "^RightChat",
+        "^ElvUI_Chat", "^Prat", "^GwChat", "^GW2_Chat", "^Glass" },
+    { id = "minimap", "^MinimapCluster", "^Minimap", "^MMHolder", "^ElvUI_Minimap", "^SexyMap", "^GwMinimap", "^GW2_Minimap" },
+    { id = "units", "^PlayerFrame", "^TargetFrame", "^FocusFrame", "^PetFrame", "^PartyFrame", "^PartyMemberFrame",
+        "^CompactRaidFrame", "^CompactPartyFrame", "^ElvUF_", "^oUF", "^SUFUnit", "^SUFHeader", "^Gw.*Unit", "^GW2_.*Unit",
+        "^Grid2", "^Vd%d", "^VuhDo", "^CellMain", "^CellParent", "^ZPerl" },
+    { id = "bars", "^MainMenuBar", "^MainActionBar", "^MultiBar", "^StanceBar", "^PetActionBar", "^PossessActionBar",
+        "^MicroMenu", "^MicroButtonAndBagsBar", "^BagsBar", "^StatusTrackingBarManager", "^Bartender4", "^BT4",
+        "^ElvUI_Bar", "^ElvUI_StanceBar", "^ElvUI_MicroBar", "^Dominos", "^GwActionBar", "^GwMultiBar", "^GW2_.*Bar" },
+    { id = "auras", "^BuffFrame", "^DebuffFrame", "^TemporaryEnchantFrame", "^ElvUIPlayerBuffs", "^ElvUIPlayerDebuffs",
+        "^GwPlayerAuras", "^GW2_.*Aura" },
+    { id = "names" }, -- noms des personnages au-dessus des tetes (reglages du jeu, voir HideNames)
+    { id = "tracker", "^ObjectiveTracker", "^QuestWatchFrame", "^WatchFrame", "^KT_", "^!KalielsTracker", "^GwQuestTracker", "^GW2_.*Tracker" },
+}
+DWE.HIDEUI_KEEP_GROUPS = KEEP_GROUPS
+local function KeptByPlayer(fr)
+    local keep = DialogueWheelE_HideKeep
+    if type(keep) ~= "table" or not next(keep) then return false end
+    local ok, name = pcall(fr.GetName, fr)
+    if not ok or type(name) ~= "string" then return false end
+    for _, g in ipairs(KEEP_GROUPS) do
+        if keep[g.id] then
+            for _, pat in ipairs(g) do if name:find(pat) then return true end end
+        end
+    end
+    return false
+end
+-- Cadre qui en contient un a garder (ElvUIParent : toute l'interface d'ElvUI est dedans) : on
+-- efface alors ses enfants un par un, sauf celui-la, au lieu du cadre entier.
+local function HoldsKept(fr, depth)
+    local okC, kids = pcall(function() return { fr:GetChildren() } end)
+    if not okC then return false end
+    for _, k in ipairs(kids) do
+        if KeptByPlayer(k) or (depth > 1 and HoldsKept(k, depth - 1)) then return true end
+    end
+    return false
+end
+-- Un autre addon change l'opacite d'un cadre efface (Auto Hide UI, fondu d'un chat...) : c'est sa
+-- nouvelle opacite qu'on rendra a la fin, et jamais celle d'avant (on ne remontre pas ce qu'il cache).
+local fading = false
+local hookedAlpha = {}
+local function FadeOne(fr, a)
+    fading = true
+    pcall(fr.SetAlpha, fr, a)
+    fading = false
+end
+local function WatchAlpha(fr)
+    if hookedAlpha[fr] then return end
+    hookedAlpha[fr] = true
+    pcall(hooksecurefunc, fr, "SetAlpha", function(self, a)
+        if fading or not hiddenUI[self] or type(a) ~= "number" then return end
+        if issecretvalue and issecretvalue(a) then return end
+        hiddenUI[self] = a
+        FadeOne(self, a * (1 - (DWE.cineBars and DWE.cineBars.alpha or 0)))
+    end)
+end
+-- Noms au-dessus des personnages (joueurs, PNJ, familiers...) : des reglages du jeu (CVars), pas
+-- des cadres. Leurs valeurs sont gardees dans les sauvegardes pendant la conversation, pour etre
+-- rendues meme apres un plantage ou une deconnexion (au chargement suivant).
+local NAME_CVARS = { "UnitNameOwn", "UnitNameNPC", "UnitNamePlayerGuild", "UnitNamePlayerPVPTitle",
+    "UnitNameFriendlyPlayerName", "UnitNameEnemyPlayerName", "UnitNameFriendlyPetName", "UnitNameEnemyPetName",
+    "UnitNameFriendlyGuardianName", "UnitNameEnemyGuardianName", "UnitNameFriendlyTotemName", "UnitNameEnemyTotemName",
+    "UnitNameGuildTitle", "UnitNameNonCombatCreatureName", "UnitNameFriendlySpecialNPCName", "UnitNameHostleNPC",
+    "UnitNameInteractiveNPC" }
+local function RestoreNames()
+    local saved = DialogueWheelE_NameCVars
+    if type(saved) ~= "table" then DialogueWheelE_NameCVars = nil return end
+    for k, v in pairs(saved) do pcall(SetCVar, k, v) end
+    DialogueWheelE_NameCVars = nil
+end
+DWE.RestoreNames = RestoreNames
+local function HideNames()
+    if type(DialogueWheelE_NameCVars) == "table" then return end
+    if not (GetCVar and SetCVar) or (InCombatLockdown and InCombatLockdown()) then return end
+    if type(DialogueWheelE_HideKeep) == "table" and DialogueWheelE_HideKeep.names then return end
+    local saved = {}
+    for _, k in ipairs(NAME_CVARS) do
+        local ok, v = pcall(GetCVar, k)
+        if ok and v ~= nil and v ~= "0" then saved[k] = v end
+    end
+    DialogueWheelE_NameCVars = saved
+    for k in pairs(saved) do pcall(SetCVar, k, "0") end
+end
+-- Ce qui est accroche a la mini-carte (boutons LibDBIcon, icones de Questie et des autres
+-- addons) ne suivait pas son opacite : chaque enfant est efface lui-meme. Revu deux fois par
+-- seconde : Questie en ajoute en continu.
+function DWE.HideMinimapPins()
+    if InCombatLockdown and InCombatLockdown() then return end
+    local keep = DialogueWheelE_HideKeep
+    if type(keep) == "table" and keep.minimap then return end
+    local mm = rawget(_G, "Minimap")
+    if type(mm) ~= "table" or not mm.GetChildren then return end
+    for _, k in ipairs({ mm:GetChildren() }) do
+        pcall(function()
+            if hiddenUI[k] or (k.IsForbidden and k:IsForbidden()) or not k:IsShown() then return end
+            local a = k:GetAlpha()
+            if type(a) == "number" and not (issecretvalue and issecretvalue(a)) and a > 0 then
+                hiddenUI[k] = a
+                if k.IsProtected and k:IsProtected() then protectedUI[k] = true end
+                WatchAlpha(k)
+                FadeOne(k, a * (1 - (DWE.cineBars and DWE.cineBars.alpha or 0)))
+            end
+        end)
+    end
+end
 local function CollectUI()
     if InCombatLockdown and InCombatLockdown() then return end
+    HideNames()
     if not UIParent.GetChildren then return end
     local list = { UIParent:GetChildren() }
     -- (chaque cadre dans un pcall : un cadre interdit aux addons ne doit rien casser)
-    local function One(fr)
+    local function One(fr, depth)
         if fr.IsForbidden and fr:IsForbidden() then return end
-        if KeepFrame(fr) then return end
+        if KeepFrame(fr) or KeptByPlayer(fr) then return end
+        if (depth or 0) < 2 and HoldsKept(fr, 2 - (depth or 0)) then
+            for _, k in ipairs({ fr:GetChildren() }) do pcall(One, k, (depth or 0) + 1) end
+            return
+        end
         -- Fenetres qui ignorent l'opacite de leur parent (fenetres de chat de Chattynator) : elles
         -- la suivent de nouveau le temps de la conversation, pour s'effacer avec le reste.
         for _, k in ipairs({ fr:GetChildren() }) do
             pcall(function()
-                if k:IsForbidden() or k:IsProtected() or ignoredUI[k] or KeepFrame(k) then return end
+                if k:IsForbidden() or ignoredUI[k] or hiddenUI[k] or KeepFrame(k) or KeptByPlayer(k) then return end
                 local ign = k:IsIgnoringParentAlpha()
                 -- (valeur secrete du jeu : on n'y touche pas)
                 if issecretvalue and issecretvalue(ign) then return end
                 if ign == true then
-                    k:SetIgnoreParentAlpha(false)
-                    ignoredUI[k] = true
+                    if k:IsProtected() then
+                        -- cadre protege (la carte de la mini-carte) : son opacite a lui, rendue
+                        -- avant le combat (voir RestoreProtectedUI)
+                        local a = k:GetAlpha()
+                        if type(a) == "number" and a > 0 and k:IsShown() then
+                            hiddenUI[k] = a
+                            protectedUI[k] = true
+                            WatchAlpha(k)
+                        end
+                    else
+                        k:SetIgnoreParentAlpha(false)
+                        ignoredUI[k] = true
+                    end
                 end
             end)
         end
         if fr:IsShown() and not hiddenUI[fr] then
             local a = fr:GetAlpha()
-            if type(a) == "number" and a > 0 then hiddenUI[fr] = a end
+            if type(a) == "number" and not (issecretvalue and issecretvalue(a)) and a > 0 then
+                hiddenUI[fr] = a
+                WatchAlpha(fr)
+            end
         end
     end
-    for _, fr in ipairs(list) do pcall(One, fr) end
+    for _, fr in ipairs(list) do pcall(One, fr, 0) end
+    -- La carte de la mini-carte ne suit pas toujours l'opacite de son cadre (vu en jeu le 27/11 :
+    -- cadre et fond effaces, carte et boutons encore la) : elle est effacee elle-meme.
+    local mm = rawget(_G, "Minimap")
+    if type(mm) == "table" and not hiddenUI[mm] then
+        pcall(function()
+            if (mm.IsForbidden and mm:IsForbidden()) or KeptByPlayer(mm) or not mm:IsShown() then return end
+            local keep = DialogueWheelE_HideKeep
+            if type(keep) == "table" and keep.minimap then return end
+            local a = mm:GetAlpha()
+            if type(a) == "number" and not (issecretvalue and issecretvalue(a)) and a > 0 then
+                hiddenUI[mm] = a
+                if mm.IsProtected and mm:IsProtected() then protectedUI[mm] = true end
+                WatchAlpha(mm)
+            end
+        end)
+    end
+    pcall(DWE.HideMinimapPins)
+    -- Plaques de nom (hors d'UIParent) et tout ce que d'autres addons y accrochent (icones de
+    -- quetes de Questie...), sauf celle du PNJ a qui l'on parle (Storytale s'en sert deja) et sauf
+    -- si le joueur garde les noms.
+    local keep = DialogueWheelE_HideKeep
+    if type(keep) == "table" and keep.names then return end
+    local okP, plates = pcall(function() return C_NamePlate and C_NamePlate.GetNamePlates and C_NamePlate.GetNamePlates() end)
+    if not okP or type(plates) ~= "table" then return end
+    for _, plate in ipairs(plates) do
+        pcall(function()
+            if (plate.IsForbidden and plate:IsForbidden()) or hiddenUI[plate] then return end
+            local token = plate.namePlateUnitToken or (plate.UnitFrame and plate.UnitFrame.unit)
+            if token and UnitIsUnit and UnitIsUnit(token, "npc") then return end
+            local a = plate:GetAlpha()
+            if type(a) == "number" and not (issecretvalue and issecretvalue(a)) and a > 0 then
+                hiddenUI[plate] = a
+                plateUI[plate] = true
+                WatchAlpha(plate)
+            end
+        end)
+    end
 end
+DWE.CollectHiddenUI = CollectUI
 local function FadeUI(f)
-    for fr, a in pairs(hiddenUI) do pcall(fr.SetAlpha, fr, a * (1 - f)) end
+    for fr, a in pairs(hiddenUI) do FadeOne(fr, a * (1 - f)) end
 end
+local function RestoreProtectedUI()
+    for fr in pairs(protectedUI) do
+        local a = hiddenUI[fr]
+        if a then FadeOne(fr, a) end
+        hiddenUI[fr] = nil
+    end
+    wipe(protectedUI)
+end
+DWE.RestoreProtectedUI = RestoreProtectedUI
+-- Une fois effaces, les cadres non proteges sont aussi caches pour de bon (Hide) : invisibles,
+-- ils restaient sous la souris (bulle d'aide d'un bouton de la mini-carte) et la fleche du joueur
+-- restait sur la mini-carte. On retient s'ils doivent revenir : un autre addon qui les cache ou
+-- les montre entre-temps a le dernier mot (jamais de cadre remontre qu'il a cache).
+local shownUI = {} -- cadre cache par nous -> doit-il revenir a la fin
+local showing = false
+local hookedShown = {}
+local function WatchShown(fr)
+    if hookedShown[fr] then return end
+    hookedShown[fr] = true
+    local function Their(self, show)
+        if showing or shownUI[self] == nil then return end
+        shownUI[self] = show and true or false
+        if show and DWE.cineBars and DWE.cineBars.want and not (InCombatLockdown and InCombatLockdown()) then
+            showing = true
+            pcall(self.Hide, self)
+            showing = false
+        end
+    end
+    pcall(hooksecurefunc, fr, "Show", function(self) Their(self, true) end)
+    pcall(hooksecurefunc, fr, "Hide", function(self) Their(self, false) end)
+    pcall(hooksecurefunc, fr, "SetShown", function(self, v) Their(self, v) end)
+end
+local function HideFaded()
+    if InCombatLockdown and InCombatLockdown() then return end
+    for fr in pairs(hiddenUI) do
+        if shownUI[fr] == nil and not protectedUI[fr] and not plateUI[fr] then
+            pcall(function()
+                if fr:IsForbidden() or fr:IsProtected() or not fr:IsShown() then return end
+                WatchShown(fr)
+                shownUI[fr] = true
+                showing = true
+                fr:Hide()
+                showing = false
+            end)
+            showing = false
+        end
+    end
+end
+local function ShowBack()
+    for fr, back in pairs(shownUI) do
+        if back then
+            showing = true
+            pcall(fr.Show, fr)
+            showing = false
+        end
+    end
+    wipe(shownUI)
+end
+DWE.ShowBackUI = ShowBack
 local function RestoreUI()
+    ShowBack()
+    RestoreNames()
+    wipe(protectedUI)
+    wipe(plateUI)
     FadeUI(0)
     wipe(hiddenUI)
     -- (jamais de cadre protege ici : rendu meme en combat)
@@ -3115,6 +3365,15 @@ local function RestoreUI()
     wipe(ignoredUI)
 end
 DWE.HiddenUI = hiddenUI
+-- Choix de ce qu'on garde change pendant une conversation : on rend tout et on recommence.
+function DWE.RefreshHideUI()
+    if not DWE.cineBars or not DWE.cineBars:IsShown() then return end
+    RestoreUI()
+    if DWE.cineBars.want then
+        CollectUI()
+        FadeUI(DWE.cineBars.alpha or 0)
+    end
+end
 
 cineBars:SetScript("OnUpdate", function(self, dt)
     local target = self.want and 1 or 0
@@ -3129,6 +3388,22 @@ cineBars:SetScript("OnUpdate", function(self, dt)
         self.lastA, self.tick = a, 0
         FadeUI(a)
     end
+    -- (plaques : a chaque image, le jeu leur rend leur opacite de lui-meme)
+    for fr in pairs(plateUI) do
+        local o = hiddenUI[fr]
+        if o then
+            local v = o * (1 - a)
+            local okG, cur = pcall(fr.GetAlpha, fr)
+            if okG and type(cur) == "number" and math.abs(cur - v) > 0.01 then FadeOne(fr, v) end
+        end
+    end
+    self.pinTick = (self.pinTick or 0) + dt
+    if self.want and self.pinTick > 0.5 then
+        self.pinTick = 0
+        pcall(DWE.HideMinimapPins)
+    end
+    -- Tout efface : cache pour de bon. Retour : remontre avant de reapparaitre en fondu.
+    if self.want and a == 1 then HideFaded() elseif not self.want and next(shownUI) then ShowBack() end
     if a == 0 and not self.want then
         RestoreUI()
         self:Hide()
@@ -3179,10 +3454,26 @@ do
     local combat = CreateFrame("Frame")
     combat:RegisterEvent("PLAYER_REGEN_DISABLED")
     combat:RegisterEvent("PLAYER_REGEN_ENABLED")
+    combat:RegisterEvent("PLAYER_LOGIN")
+    combat:RegisterEvent("PLAYER_LOGOUT")
+    combat:RegisterEvent("NAME_PLATE_UNIT_ADDED")
     combat:SetScript("OnEvent", function(_, event)
-        if event == "PLAYER_REGEN_DISABLED" then
+        if event == "NAME_PLATE_UNIT_ADDED" then
+            -- plaque apparue pendant la conversation : effacee elle aussi
+            if cineBars.want and cineBars:IsShown() then
+                pcall(CollectUI)
+                FadeUI(cineBars.alpha or 0)
+            end
+        elseif event == "PLAYER_LOGIN" or event == "PLAYER_LOGOUT" then
+            -- Noms caches lors d'un plantage ou d'une deconnexion en pleine conversation : rendus.
+            pcall(RestoreNames)
+        elseif event == "PLAYER_REGEN_DISABLED" then
             -- Entree en combat : l'interface revient tout de suite.
             if DWE.HideUIOn() and not DWE.IsCinema() then cineBars.want = false end
+            -- (les noms reviennent tout de suite : on peut en avoir besoin pour se battre)
+            if DWE.RestoreNames then pcall(DWE.RestoreNames) end
+            pcall(RestoreProtectedUI)
+            pcall(ShowBack)
         else
             DWE.UpdateCinemaBars()
         end
@@ -5379,6 +5670,9 @@ function DWE.PlateNameStyle(parts, token)
     pcall(fs.SetTextColor, fs, r, g, b, 1)
     pcall(fs.SetShadowColor, fs, r, g, b, 1)
     if not fs:IsShown() then fs:Show() end
+    -- "Cacher l'interface" : notre nom (qui ignore la transparence de la plaque) s'efface aussi.
+    local want = (DWE.NamesHidden and DWE.NamesHidden()) and 0 or 1
+    if fs:GetAlpha() ~= want then pcall(fs.SetAlpha, fs, want) end
     -- Journal : de quoi caler la taille sur la distance de la camera (le nom habituel en depend).
     if DWE.followLog and parts.loggedFor ~= token then
         parts.loggedFor = token
@@ -6461,7 +6755,7 @@ end
 local function ApplyWheelFont(fs, defaultObject, size, forceSize)
     local key = "default"
     local sk = DWE.WheelPillStyle() and DWE.BubbleSkin()
-    if sk and sk.optFont then
+    if sk and (sk.optFont or DWE.FontChosen()) then
         key = FontPath(DWE.ThemeFontId()) .. size
     elseif forceSize then
         key = "obj" .. size
@@ -6469,7 +6763,7 @@ local function ApplyWheelFont(fs, defaultObject, size, forceSize)
     if fs.dweFontKey == key then return end
     if key == "default" then
         if fs.dweFontKey then fs:SetFontObject(defaultObject) end
-    elseif sk and sk.optFont then
+    elseif sk and (sk.optFont or DWE.FontChosen()) then
         SafeSetFont(fs, FontPath(DWE.ThemeFontId()), size)
     else
         local path, _, flags = defaultObject:GetFont()
@@ -6557,12 +6851,20 @@ end
 
 local function PaintRow(row, opt, selected, pillWidth, index)
     local pill = DWE.WheelPillStyle()
-    local pad = pill and PILL_PAD or ROW_PAD
+    -- Marges en pixels entiers de l'ecran : la roue suit le PNJ a une position qui n'est pas un
+    -- pixel entier, et le jeu arrondit chaque piece (texte, icone, fond) pour elle-meme ; avec des
+    -- marges fractionnaires, l'icone et le cadre glissaient d'un pixel par rapport au texte quand on
+    -- zoomait (vu en video le 26/11 : les choix "tremblaient").
+    local P = function(v) return DWE.PixelRound(row, v) end
+    local src = pill and PILL_PAD or ROW_PAD
+    local pad = { left = P(src.left), iconLeft = P(src.iconLeft), top = P(src.top), right = P(src.right), iconTop = P(src.iconTop) }
     if opt.icon then
         DWE.SetOptionIcon(row.icon, opt)
         local ic = opt.iconColor
         row.icon:SetVertexColor(ic and ic[1] or 1, ic and ic[2] or 1, ic and ic[3] or 1)
         row.icon:ClearAllPoints()
+        local isz = P(16)
+        row.icon:SetSize(isz, isz)
         row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", pad.left, -pad.iconTop)
         row.icon:Show()
         row.text:SetPoint("TOPLEFT", row, "TOPLEFT", pad.iconLeft, -pad.top)
@@ -6584,7 +6886,7 @@ local function PaintRow(row, opt, selected, pillWidth, index)
         row.pill:ClearAllPoints()
         row.pill:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
         row.pill:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
-        row.pill:SetWidth(pillWidth or (DWE.WheelWidth() - 8))
+        row.pill:SetWidth(P(pillWidth or (DWE.WheelWidth() - 8)))
         row.pill:Show()
         -- Le texte s'arrete au bord de la bulle (largeur connue tout de suite, mesure juste).
         row.text:SetPoint("TOPRIGHT", row.pill, "TOPRIGHT", -pad.right, -pad.top)
@@ -7481,6 +7783,24 @@ function DWE.OnThemeChanged()
         -- (theme Cinematique choisi ou quitte : bandes noires et interface tout de suite)
         if DWE.UpdateCinemaBars then DWE.UpdateCinemaBars() end
         if DWE.RefreshPreview then DWE.RefreshPreview() else DWE.PaintWheelTheme() end
+        -- Une police utilisee pour la premiere fois n'est chargee par le jeu qu'apres coup : le
+        -- texte de la bulle gardait parfois l'ancienne police ou l'ancienne mise en page (vu en
+        -- jeu le 27/11, theme change dialogue ouvert). On redessine encore un peu plus tard.
+        if C_Timer and C_Timer.After then
+            DWE.themeSerial = (DWE.themeSerial or 0) + 1
+            local serial = DWE.themeSerial
+            local function Again()
+                if serial ~= DWE.themeSerial or not choiceBox:IsShown() then return end
+                DWE.ApplyFont()
+                if DWE.bubble and DWE.bubble:IsShown() and DWE.Bubble and DWE.Bubble.Restyle then
+                    DWE.Bubble.Restyle()
+                    DWE.Bubble.SetShown(true)
+                end
+                if DWE.Bubble and DWE.Bubble.Refit then DWE.Bubble.Refit() end
+            end
+            C_Timer.After(0.05, Again)
+            C_Timer.After(0.3, Again)
+        end
     else
         DWE.PaintWheelTheme()
     end
@@ -7539,7 +7859,7 @@ DWE.THEME_LIST = THEME_LIST
 -- deja entendus avec Spoken (ce n'est pas un reglage).
 -- (Liste en une chaine : un gros tableau ecrit d'un coup depasse la pile du chunk en Lua 5.1.)
 DWE.OPTION_VARS = {}
-for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
+for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI HideKeep ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
@@ -7872,7 +8192,7 @@ function DWE.InitOptionsPanel()
     -- Precisions des options (infobulle au survol) : texte court a l'ecran, details ici.
     local TIP_OF = {}
     for _, k in ipairs({ "LOCK", "READ_MARKS", "BOOK_TIP_CURSOR", "BOOK_AUTOSCROLL", "QUEST_AUTO_W",
-        "THEME_BUBBLES", "SPOKEN_BUTTON", "ZONE_ART", "BUBBLE_HIGHLIGHT", "BUBBLE_MODE_TYPE", "BUBBLE_MODE_PAGE" }) do
+        "THEME_BUBBLES", "SPOKEN_BUTTON", "ZONE_ART", "BUBBLE_HIGHLIGHT", "BUBBLE_MODE_TYPE", "BUBBLE_MODE_PAGE", "BUBBLE_MODE_MANUAL" }) do
         if L[k] and L[k .. "_TIP"] then TIP_OF[L[k]] = L[k .. "_TIP"] end
     end
     -- Chaque reglage sait relire sa valeur (profil change, page remise a zero) : il se remet a
@@ -8305,16 +8625,20 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_ChoiceSize = v
         if DWE.choiceBox:IsShown() then DWE.UpdateVisuals() end
     end)
-    -- Affichage de la bulle : ecriture progressive (par defaut) ou page entiere (chaque page d'un
-    -- coup ; quand une voix lit, le mot lu en couleur, comme le narrateur de Spoken).
+    -- Affichage du texte : ecriture progressive (par defaut), tout d'un coup (chaque partie entiere ;
+    -- dans les bulles, quand une voix lit, le mot lu en couleur) ou avance manuelle (comme un livre).
     AddText(L.BUBBLE_MODE, 16, y - 80, "GameFontHighlightSmall")
     AddGroup({
         { id = "type", label = L.BUBBLE_MODE_TYPE },
         { id = "page", label = L.BUBBLE_MODE_PAGE },
-    }, 300, y - 76, 26, function() return DialogueWheelE_BubbleMode == "page" and "page" or "type" end, function(id)
-        DialogueWheelE_BubbleMode = (id == "page") and "page" or nil
+        { id = "manual", label = L.BUBBLE_MODE_MANUAL },
+    }, 300, y - 76, 26, function()
+        local m = DialogueWheelE_BubbleMode
+        return (m == "page" or m == "manual") and m or "type"
+    end, function(id)
+        DialogueWheelE_BubbleMode = (id == "page" or id == "manual") and id or nil
         if DWE.Bubble and DWE.Bubble.RefreshHighlight then DWE.Bubble.RefreshHighlight() end
-    end, 1, 190) -- (colonnes plus larges : "Ecriture progressive" est long)
+    end, 2, 190) -- (deux par colonne : "Ecriture progressive" est long, la fenetre fait 600)
 
     ---------------------------------------------------------------- Interface
     y = y - 126
@@ -8323,7 +8647,30 @@ function DWE.InitOptionsPanel()
         DialogueWheelE_HideUI = self:GetChecked() and true or false
         -- (en direct pendant une conversation : l'interface s'efface ou revient tout de suite)
         DWE.UpdateCinemaBars()
+        if DWE.RefreshHideKeepBoxes then DWE.RefreshHideKeepBoxes() end
     end)
+    -- Ce que le joueur garde visible (rien de coche par defaut : tout s'efface).
+    AddText(L.HIDE_KEEP or "Keep visible:", 330, y - 36, "GameFontHighlightSmall")
+    local keepBoxes = {}
+    for i, g in ipairs(DWE.HIDEUI_KEEP_GROUPS) do
+        local col, row = (i - 1) % 2, math.floor((i - 1) / 2)
+        keepBoxes[i] = AddCheck(L["HIDE_KEEP_" .. g.id:upper()] or g.id, 330 + col * 135, y - 50 - row * 26, function()
+            return type(DialogueWheelE_HideKeep) == "table" and DialogueWheelE_HideKeep[g.id] == true
+        end, function(self)
+            if type(DialogueWheelE_HideKeep) ~= "table" then DialogueWheelE_HideKeep = {} end
+            DialogueWheelE_HideKeep[g.id] = self:GetChecked() and true or nil
+            if not next(DialogueWheelE_HideKeep) then DialogueWheelE_HideKeep = nil end
+            DWE.RefreshHideUI()
+        end)
+    end
+    function DWE.RefreshHideKeepBoxes()
+        local on = DialogueWheelE_HideUI == true
+        for _, cb in ipairs(keepBoxes) do
+            if on then cb:Enable() else cb:Disable() end
+            if cb.Text then cb.Text:SetTextColor(on and 1 or 0.5, on and 1 or 0.5, on and 1 or 0.5) end
+        end
+    end
+    DWE.RefreshHideKeepBoxes()
     -- Bouton de la mini-carte (ouvre ces options).
     AddCheck(L.MINIMAP_BTN, 16, y - 62, function() return DialogueWheelE_MinimapHide ~= true end, function(self)
         DialogueWheelE_MinimapHide = (not self:GetChecked()) and true or nil
@@ -8331,7 +8678,7 @@ function DWE.InitOptionsPanel()
     end)
 
     ---------------------------------------------------------------- Livres et lettres
-    y = y - 100
+    y = y - 165
     NewPage(L.SEC_BOOKS, y)
     AddSection(L.SEC_BOOKS, y)
     -- Livres et lettres : qui les affiche, puis leur style (seulement pour Storytale).
@@ -8979,7 +9326,7 @@ function DWE.InitOptionsPanel()
     for k, pg in ipairs(pages) do pg.search = MakeSearch(pg.panel, k == 1 and "DialogueWheelEOptionsSearch" or nil) end
     -- "Par defaut" en haut de chaque page : remet les reglages de cette page seulement.
     local PAGE_VARS = {
-        { "Theme", "Font", "FontSize", "Opacity", "ThemeFrames", "WheelTheme", "HideUI", "ChoiceSize", "MinimapHide", "BubbleMode" }, -- (position du bouton gardee : "MinimapAngle" n'est jamais remis par defaut)
+        { "Theme", "Font", "FontSize", "Opacity", "ThemeFrames", "WheelTheme", "HideUI", "HideKeep", "ChoiceSize", "MinimapHide", "BubbleMode" }, -- (position du bouton gardee : "MinimapAngle" n'est jamais remis par defaut)
         { "BookStyle", "BookLook", "PlateStyle", "PlateLook", "ReadMarks", "BookTipCursor", "BookAutoScroll", "BookTurnFX",
             "BookVoiceTurn", "BookStopOnClose", "BookPos", "BookScale", "NoteScale", "RoundScale", "RoundPos" },
         { "AttachNPC", "Locked", "WheelSide", "QuestAuto", "QuestWidth", "NPCOffset", "Pos", "TextPos", "WheelWidth", "TextW", "TextH", "BubbleWidth" },

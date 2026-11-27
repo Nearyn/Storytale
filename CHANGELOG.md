@@ -1,18 +1,52 @@
 # Changelog / Journal des versions
 
+## 1.12.0
+
+**English**
+
+### New
+- Text display option: Manual advance. The text is shown whole, without highlighting, and stays until you turn it, like a book: left-click the bubble or use "Text: next", right-click or "Text: previous" to go back. Both can be bound to a key or a gamepad button (Key Bindings > AddOns > Storytale). For now the voice is off in this mode: Spoken can't yet resume a line in the middle.
+- Hide UI: new "Keep visible" choices (chat, minimap, unit frames, action bars, buffs, names, quest tracker), none ticked by default.
+
+### Changed
+- Hide UI now also hides the names above characters, other nameplates, the minimap with its buttons and addon icons (Questie...). Hidden frames are really removed, so nothing stays under the mouse. Everything comes back at the end, at once in combat, and after a crash or a disconnect. Works with ElvUI, GW2 UI, Bartender, Dominos, Chattynator and more; what another addon hides stays hidden.
+- The font you choose now applies to every bubble, the game's bubbles included, right away.
+- Bubble sync now uses Spoken's public API.
+
+### Fixed
+- Dialogue wheel: the choices no longer tremble while zooming.
+- Changing theme or font during a dialogue now always updates the bubble.
+
+---
+
+**Français**
+
+### Nouveautés
+- Option d'affichage du texte : Avance manuelle. Le texte s'affiche en entier, sans surlignage, et reste jusqu'à ce que vous le tourniez, comme un livre : clic gauche sur la bulle ou « Texte : suite », clic droit ou « Texte : précédent » pour revenir. Les deux s'assignent à une touche ou à un bouton de manette (Raccourcis > AddOns > Storytale). Pour l'instant, la voix est coupée dans ce mode : Spoken ne sait pas encore reprendre une réplique au milieu.
+- Cacher l'interface : nouvelles cases « Garder visibles » (discussion, mini-carte, portraits, barres d'action, effets, noms, suivi des quêtes), aucune cochée par défaut.
+
+### Changements
+- Cacher l'interface cache aussi les noms au-dessus des personnages, les autres barres de nom, la mini-carte avec ses boutons et les icônes d'addons (Questie...). Les éléments cachés sont vraiment retirés : plus rien sous la souris. Tout revient à la fin, tout de suite en combat, et après un plantage ou une déconnexion. Compatible ElvUI, GW2 UI, Bartender, Dominos, Chattynator et d'autres ; ce qu'un autre addon cache reste caché.
+- La police choisie s'applique maintenant à toutes les bulles, celles du jeu comprises, tout de suite.
+- La synchro des bulles passe par l'API publique de Spoken.
+
+### Corrections
+- Roue de dialogue : les choix ne tremblent plus pendant le zoom.
+- Changer de thème ou de police pendant un dialogue met toujours la bulle à jour.
+
 ## 1.11.5
 
 **English**
 
 ### Changed
-- Quest preview: rewards your character cannot use (armour type, weapon, class, level) now have a red icon, like in the game's quest window, and a dimmed name, so you can tell at a glance what is useless to you. Thanks ToxinPix for the idea!
+- Quest preview: rewards your character cannot use (armour type, weapon, class, level) now have a red icon, like in the game's quest window, and a dimmed name, so you can tell at a glance what is useless to you. Thanks to the player who reported it!
 
 ---
 
 **Français**
 
 ### Changements
-- Aperçu des quêtes : les récompenses que votre personnage ne peut pas utiliser (type d'armure, arme, classe, niveau) ont maintenant l'icône en rouge, comme dans la fenêtre de quête du jeu, et le nom pâli : on voit d'un coup d'œil ce qui ne sert à rien. Merci à ToxinPix pour l'idée !
+- Aperçu des quêtes : les récompenses que votre personnage ne peut pas utiliser (type d'armure, arme, classe, niveau) ont maintenant l'icône en rouge, comme dans la fenêtre de quête du jeu, et le nom pâli : on voit d'un coup d'œil ce qui ne sert à rien. Merci au joueur qui l'a signalé !
 
 ## 1.11.4
 
@@ -525,14 +559,14 @@
 **English**
 
 ### New
-- New option: hide the game interface while you talk to an NPC or read a book. Off by default, and nothing is hidden in combat. Thanks to jamesdiato23 for the idea!
+- New option: hide the game interface while you talk to an NPC or read a book. Off by default, and nothing is hidden in combat. Thanks to the player who suggested it!
 
 ---
 
 **Français**
 
 ### Nouveautés
-- Nouvelle option : cacher l'interface du jeu pendant les dialogues et les livres. Désactivée par défaut, et rien n'est caché en combat. Merci à jamesdiato23 pour l'idée !
+- Nouvelle option : cacher l'interface du jeu pendant les dialogues et les livres. Désactivée par défaut, et rien n'est caché en combat. Merci au joueur qui l'a proposée !
 
 ## 1.6.1
 

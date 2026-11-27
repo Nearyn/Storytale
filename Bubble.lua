@@ -698,7 +698,46 @@ local function WordColor()
     end
     return light and HL_ON_DARK or HL_ON_LIGHT
 end
+-- API publique de Spoken (docs/spoken/API.md de Spoken) : un contrat que rusty garde stable.
+-- Les acces internes (SpokenEnv, champs prives des repliques) ne servent plus qu'en secours,
+-- pour un Spoken plus ancien que cette API.
+local function SpokenAPI()
+    local api = rawget(_G, "Spoken")
+    if type(api) ~= "table" or type(api.IsCompatible) ~= "function" then return nil end
+    local ok, yes = pcall(api.IsCompatible, api, 1)
+    return ok and yes and api or nil
+end
+DWE.SpokenAPI = SpokenAPI
+-- Sous-titre de la replique qui parle (ou en pause), seulement si c'est bien `clip` quand il est donne.
+local function SpokenCaption(clip)
+    local api = SpokenAPI()
+    if not (api and type(api.GetCaption) == "function") then return nil end
+    local ok, cap = pcall(api.GetCaption, api)
+    if not ok or type(cap) ~= "table" or type(cap.words) ~= "table" then return nil end
+    if clip ~= nil and not rawequal(cap.clip, clip) then return nil end
+    return cap
+end
+DWE.SpokenCaption = SpokenCaption
+-- Debut du son de `clip` (secondes, horloge GetTime), nil si inconnu : d'apres la part du son
+-- deja jouee (API publique), sinon d'apres le champ interne spokenAt (fin prevue du son).
+local function ClipStart(clip, length)
+    length = tonumber(length) or (type(clip) == "table" and tonumber(clip.length))
+    if not (length and length > 0) then return nil end
+    local cap = SpokenCaption(clip)
+    if cap then
+        local p = tonumber(cap.progress)
+        if p then return GetTime() - p * length end
+    end
+    local at = type(clip) == "table" and tonumber(clip.spokenAt)
+    return at and (at - length) or nil
+end
+DWE.SpokenClipStart = ClipStart
 local function SpokenHighlightWords()
+    local api = SpokenAPI()
+    if api and type(api.GetCaptionOptions) == "function" then
+        local ok, hl = pcall(api.GetCaptionOptions, api)
+        if ok then return hl == true end
+    end
     local env = rawget(_G, "SpokenEnv")
     local addon = type(env) == "table" and rawget(env, "Addon")
     if type(addon) ~= "table" then return false end
@@ -809,8 +848,17 @@ end
 -- seulement avec la case "Surligner le mot lu" de Storytale et "Highlight Words" dans Spoken
 -- (sans elles : la page entiere, sans couleur). (Avant : ecriture progressive tant que la
 -- voix n'etait pas partie, puis page entiere d'un coup : le passage se voyait.)
+-- Mode "avance manuelle" (DialogueWheelE_BubbleMode = "manual", demande de joueur) : comme un
+-- livre, chaque partie s'affiche entiere sans aucune trace de la voix (ni ecriture, ni mot colore)
+-- et reste jusqu'a ce que le joueur la tourne (clic gauche ou "Texte : suite") ou revienne en
+-- arriere (clic droit ou "Texte : precedent").
+-- La voix de Spoken lit toute la replique : le jeu ne sait pas reprendre un son au milieu.
+local function ManualMode()
+    return DialogueWheelE_BubbleMode == "manual"
+end
+DWE.BubbleManualMode = ManualMode
 local function PageMode()
-    return DialogueWheelE_BubbleMode == "page" and not state.dots and state.phase == "typing"
+    return (DialogueWheelE_BubbleMode == "page" or ManualMode()) and not state.dots and state.phase == "typing"
 end
 DWE.BubblePageMode = PageMode
 
@@ -839,7 +887,7 @@ local function PageReveal(seg, n)
     if DWE.BubbleHideTails then DWE.BubbleHideTails() end
     local want, key = seg, "plain"
     local at, len
-    if state.voiced and not state.manual then at, len = PageWord(n) end
+    if state.voiced and not state.manual and not ManualMode() then at, len = PageWord(n) end
     if at and not seg:find("|", 1, true) and HighlightOn() then
         local a, b = #Utf8Prefix(seg, at), #Utf8Prefix(seg, at + len)
         want = seg:sub(1, a) .. WordColor() .. seg:sub(a + 1, b) .. "|r" .. seg:sub(b + 1)
@@ -1300,9 +1348,20 @@ local function FinishTyping()
     if hasGradient then text:SetAlphaGradient(len + FADE_LETTERS + 1, 1) end
 end
 
+-- Avance manuelle : la partie s'affiche comme en "Tout d'un coup" (texte entier mis en page par
+-- le jeu). FinishTyping passait par les lignes de l'ecriture progressive, coupees pour une autre
+-- largeur : en jeu, le texte de la 2e partie depassait du bas de la bulle (vu le 27/11).
+function DWE.BubbleManualShow()
+    Reveal()
+    state.phase, state.readT = "reading", 0
+    state.typed = state.lens[state.index] or Utf8Len(state.segs[state.index] or "")
+end
+
 local function Advance()
     state.manual = true -- le joueur prend la main : on ne suit plus la voix
-    if state.phase == "typing" then
+    if state.phase == "typing" and ManualMode() and not state.dots then
+        DWE.BubbleManualShow()
+    elseif state.phase == "typing" then
         FinishTyping()
     elseif state.phase == "reading" and state.index < #state.segs then
         StartSegment(state.index + 1)
@@ -1545,23 +1604,48 @@ local function VoiceStep(st, pos, share, length, dt)
     return math.max(pos, new)
 end
 
--- Part du texte deja lue d'apres le mot courant des sous-titres de Spoken (SpokenEnv.Transcript),
+-- Part du texte deja lue d'apres le mot courant des sous-titres de Spoken (Spoken:GetCaption),
 -- nil si ce n'est pas disponible pour cette replique.
-local function WordShare(st, clip)
+-- Mot lu par Spoken pour `clip` : mots, poids total, progression et indice du mot, seulement
+-- avec les vraies durees des mots (fournies par la voix). API publique (GetCaption) d'abord,
+-- sinon l'objet interne SpokenEnv.Transcript d'un Spoken plus ancien.
+local function WordAtWeight(words, target)
+    local low, high = 1, #words
+    while low < high do
+        local mid = math.floor((low + high) / 2)
+        if (tonumber(words[mid].finish) or 0) <= target then low = mid + 1 else high = mid end
+    end
+    return low
+end
+local function SpokenWords(clip)
+    local cap = SpokenCaption(clip)
+    if cap then
+        local prog = tonumber(cap.progress)
+        if not cap.timed or not prog or #cap.words == 0 then return nil end
+        local total = tonumber(cap.totalWeight) or 0
+        return cap.words, total, prog, WordAtWeight(cap.words, prog * total)
+    end
     local env = rawget(_G, "SpokenEnv")
     local T = type(env) == "table" and rawget(env, "Transcript")
-    -- Seulement avec les vraies durees des mots (fournies par la voix) : sans elles, Spoken les
-    -- estime (un mot court y dure presque autant qu'un long), ce qui ferait hesiter l'ecriture
-    -- sur certains mots. Le rythme moyen de la voix est alors plus regulier.
     if type(T) ~= "table" or not T.timed or not rawequal(T.clip, clip) or type(T.words) ~= "table" then return nil end
-    local n, m = #T.words, st.words and #st.words or 0
-    if n == 0 or m == 0 or not (st.total and st.total > 0) then return nil end
     local okP, prog = pcall(T.GetProgress, T)
     if not okP or type(prog) ~= "number" then return nil end
     local okW, i = pcall(T.WordAt, T, prog)
-    local w = okW and type(i) == "number" and T.words[i]
+    if not okW or type(i) ~= "number" then return nil end
+    return T.words, tonumber(T.totalWeight) or 0, prog, i
+end
+DWE.SpokenWords = SpokenWords
+local function WordShare(st, clip)
+    -- Seulement avec les vraies durees des mots (fournies par la voix) : sans elles, Spoken les
+    -- estime (un mot court y dure presque autant qu'un long), ce qui ferait hesiter l'ecriture
+    -- sur certains mots. Le rythme moyen de la voix est alors plus regulier.
+    local words, totalW, prog, i = SpokenWords(clip)
+    if not words then return nil end
+    local n, m = #words, st.words and #st.words or 0
+    if n == 0 or m == 0 or not (st.total and st.total > 0) then return nil end
+    local w = words[i]
     if not w or type(w.start) ~= "number" or type(w.finish) ~= "number" then return nil end
-    local tw = (tonumber(T.totalWeight) or 0) * prog
+    local tw = totalW * prog
     local frac = math.max(0, math.min(1, (tw - w.start) / math.max(1e-6, w.finish - w.start)))
     local pos
     if n == m then
@@ -1631,7 +1715,9 @@ local function GeneratedShare(st, clip, length)
     if not t or m == 0 or not (st.total and st.total > 0) then return nil end
     -- Le son est entendu un peu apres son lancement par Spoken (chargement) : DWE.GEN_DELAY,
     -- mesure en jeu le 24/11 : 0,40 s d'avance sans delai, 0,27 s de retard avec 0,4 s.
-    local e = GetTime() - (clip.spokenAt - length) - DWE.GEN_DELAY
+    local start = ClipStart(clip, length)
+    if not start then return nil end
+    local e = GetTime() - start - DWE.GEN_DELAY
     if e <= t[1] then st.genNextIn = t[1] - e return 0 end
     local n, i = #t, #t
     for k = 1, n - 1 do
@@ -1679,16 +1765,16 @@ local function SpokenShare(st)
         -- commence juste apres l'ouverture de ce texte, c'est bien lui qu'elle lit.
         -- ... mais seulement si c'est la voix du PNJ a qui l'on parle : la voix d'un autre PNJ ou
         -- d'un livre (qui finit de parler) faisait attendre la bulle sur un texte qui n'est pas le sien.
-        if not st.clipMatch and st.setAt and tonumber(clip.spokenAt) and tonumber(clip.length)
-            and DWE.BubbleVoiceIsNPC(clip) then
-            local started = clip.spokenAt - clip.length
+        local started = not st.clipMatch and st.setAt and ClipStart(clip)
+        if started and DWE.BubbleVoiceIsNPC(clip) then
             st.clipMatch = started >= st.setAt - 1 and started <= st.setAt + 6
         end
     end
     if not st.clipMatch then return nil end
     if okP and paused then return "paused" end
     local length = tonumber(clip.length)
-    if not (length and length > 0 and tonumber(clip.spokenAt)) then return "hold" end
+    local start = length and length > 0 and ClipStart(clip, length)
+    if not start then return "hold" end
     -- Voix bien trop courte pour ce texte (ex. la salutation du PNJ, encore en cours, prise pour
     -- la voix du texte de quete) : ce n'est pas elle qui lit ce texte. On ne la suit pas, sinon le
     -- texte defilait a toute vitesse.
@@ -1705,7 +1791,7 @@ local function SpokenShare(st)
     -- Le son met un instant a etre entendu apres son lancement (chargement, silence au debut du
     -- fichier) : la voix parle pendant (duree - delai), a partir du delai.
     local lead = math.max(0, math.min(length * 0.3, tonumber(DWE.VOICE_LEAD) or 0))
-    local timeShare = math.max(0, math.min(1, (now - (clip.spokenAt - length) - lead) / (length - lead)))
+    local timeShare = math.max(0, math.min(1, (now - start - lead) / (length - lead)))
     -- Vraies durees des mots fournies par la voix : on suit directement le mot lu (pauses
     -- comprises), sans rien deviner ni ajouter (ni delai, ni pauses de page).
     local share = WordShare(st, clip)
@@ -1799,10 +1885,11 @@ DWE.JOIN_AFTER = 1.5
 function DWE.BubbleJoinVoice(st, share, length)
     local clip = st.clip
     if type(clip) ~= "table" or not st.setAt or share <= 0 then return end
-    local spokenAt, len = tonumber(clip.spokenAt), tonumber(clip.length)
-    if not (spokenAt and len) then return end
+    local len = tonumber(clip.length)
+    local start = len and ClipStart(clip, len)
+    if not start then return end
     local lead = math.max(0, math.min(len * 0.3, tonumber(DWE.VOICE_LEAD) or 0))
-    if st.setAt - (spokenAt - len) - lead < DWE.JOIN_AFTER then return end
+    if st.setAt - start - lead < DWE.JOIN_AFTER then return end
     local map = not st.timed and st.wmap
     local pos
     if map then
@@ -1840,6 +1927,11 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
     if state.fresh then state.fresh = nil state.shownN = nil Reveal() end
     if state.phase == "typing" then Reveal() end -- garde le fondu en place, meme en pause
     if state.phase == "idle" then return end
+    -- Page a la main : la page s'affiche entiere tout de suite et n'avance jamais seule.
+    if ManualMode() and not state.dots then
+        if state.phase == "typing" then DWE.BubbleManualShow() end
+        return
+    end
 
     local share, length = SpokenShare(state)
     -- Diagnostic (/storytale sync) : une ligne par seconde sur le suivi de la voix.
@@ -1850,17 +1942,12 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
             local clip = state.clip
             local present = type(clip) == "table" and type(clip.present) == "table" and clip.present or {}
             local who = type(clip) == "table" and DWE.SpokenFocus and DWE.SpokenFocus.SpeakerOf and DWE.SpokenFocus.SpeakerOf(clip)
-            local env = rawget(_G, "SpokenEnv")
-            local T = type(env) == "table" and rawget(env, "Transcript")
-            local tw = type(T) == "table" and rawequal(T.clip, clip) and T.words
-            local wi = "-"
-            if tw and type(T.GetProgress) == "function" and type(T.WordAt) == "function" then
-                local okP, prog = pcall(T.GetProgress, T)
-                local okW, i = pcall(T.WordAt, T, prog)
-                if okW and type(i) == "number" and tw[i] then wi = i .. ":" .. tostring(tw[i].text) end
-            end
-            print(("|cff33ff99Storytale|r sync: minutage=%s genere=%s motSpoken=%s"):format(
-                tostring(type(T) == "table" and T.timed), tostring(state.generated == true), wi))
+            local tw, wi
+            if type(clip) == "table" then local w, _, _, i = SpokenWords(clip) tw, wi = w, i end
+            local cap = type(clip) == "table" and SpokenCaption(clip)
+            wi = tw and tw[wi] and (wi .. ":" .. tostring(tw[wi].text)) or "-"
+            print(("|cff33ff99Storytale|r sync: api=%s minutage=%s genere=%s motSpoken=%s"):format(
+                tostring(cap ~= nil), tostring(tw ~= nil), tostring(state.generated == true), wi))
             print(("|cff33ff99Storytale|r sync: %s pos=%d/%d voix=%s match=%s duree=%s qui=%s texte=%s"):format(
                 tostring(state.phase), CurrentPos(), state.total or 0,
                 type(share) == "number" and string.format("%.0f%%", share * 100) or tostring(share),
@@ -1989,8 +2076,29 @@ bubble:HookScript("OnUpdate", function(_, elapsed)
     end
 end)
 
+-- Retour a la partie precedente : en avance manuelle seulement (dans les autres modes, la bulle
+-- repartirait seule vers l'avant).
+local function Back()
+    if not ManualMode() or state.dots or (state.index or 1) <= 1 then return false end
+    StartSegment(state.index - 1)
+    return true
+end
+
+-- Raccourcis "Texte : suite" et "Texte : precedent" (Raccourcis > AddOns > Storytale).
+function DWE.BubbleNext()
+    if not bubble:IsShown() or state.phase == "idle" then return false end
+    Advance()
+    return true
+end
+function DWE.BubblePrev()
+    if not bubble:IsShown() or state.phase == "idle" then return false end
+    return Back()
+end
+
 bubble:SetScript("OnMouseUp", function(_, button)
-    if button == "LeftButton" and not DWE.JustDragged() then Advance() end
+    if DWE.JustDragged() then return end
+    if button == "LeftButton" then Advance()
+    elseif button == "RightButton" then Back() end
 end)
 bubble:SetScript("OnDragStart", function() DWE.DragStart("bubble") end)
 bubble:SetScript("OnDragStop", function() DWE.DragStop("bubble") end)
@@ -2082,7 +2190,11 @@ function DWE.Bubble.Refit()
         if seg then
             -- Page deja ecrite : ses lignes etaient dessinees a l'ancienne police / taille (elles
             -- debordaient de la bulle) ; la page entiere est remise dans le texte et remesuree.
-            if state.phase == "reading" then HideSoft() end
+            if state.phase == "reading" then
+                HideSoft()
+                state.customShown = nil
+                text:SetAlpha(1)
+            end
             FitTo(seg, (hasGradient or state.phase == "reading") and seg or text:GetText())
             state.shownN = nil
             if state.phase == "typing" then Reveal() end
@@ -2130,6 +2242,8 @@ function DWE.Bubble.SetShown(show)
     if DWE.Gw2Native and DWE.Gw2Native(name) then
         face = UNIT_NAME_FONT or STANDARD_TEXT_FONT
     end
+    -- Police choisie dans les options : elle passe avant celle du style, quelle que soit la bulle.
+    if DWE.FontChosen and DWE.FontChosen() then face = DWE.FontPath(DWE.ThemeFontId()) end
     if bubble.fontKey ~= face .. size then
         bubble.fontKey = face .. size
         DWE.SafeSetFont(text, face, size)
@@ -2193,7 +2307,12 @@ function DWE.Bubble.PopupText(s)
     pop.lastTarget, pop.tvel, pop.spd, pop.genStops, pop.genWaitAt, pop.genNextIn = nil, nil, nil, nil, nil, nil
     pop.setAt = GetTime and GetTime() or nil
     pop.len = (type(s) == "string" and not IsSecret(s)) and Utf8Len(s) or 0
-    if not popupHasGradient or not SpokenInstalled() or IsSecret(s) or pop.len == 0 then
+    -- "Tout d'un coup" et "Avance manuelle" : le cadre de texte (themes sans bulle) n'a qu'une
+    -- partie, montree entiere, sans suivre la voix.
+    local whole = DialogueWheelE_BubbleMode == "page" or DialogueWheelE_BubbleMode == "manual"
+    -- (texte retenu meme affiche d'un coup : l'avance manuelle s'en sert pour couper la voix)
+    pop.norm = (type(s) == "string" and not IsSecret(s)) and Normalize(s) or nil
+    if whole or not popupHasGradient or not SpokenInstalled() or IsSecret(s) or pop.len == 0 then
         PopupShowAll()
         return
     end
@@ -2276,3 +2395,66 @@ function DWE.BubbleVoiceIsNPC(clip)
     if (issecretvalue and (issecretvalue(who) or issecretvalue(npc))) then return true end
     return who == npc
 end
+
+--------------------------------------------------------------------------------
+-- Avance manuelle sans voix : on lit a son rythme, Spoken ne lit pas le dialogue. La voix de ce
+-- texte est arretee des qu'elle commence (Skip de l'API publique de Spoken). (Une voix qui lirait
+-- partie par partie demande a Spoken de reprendre une replique au milieu : pas encore possible.)
+--------------------------------------------------------------------------------
+local muteFrame = CreateFrame("Frame")
+local muteAcc, mutedClip = 0, nil
+local function VoiceOf(st, clip)
+    if not (st and st.norm and st.setAt) then return false end
+    local present = type(clip.present) == "table" and clip.present or {}
+    if SameText(st, present.transcript or clip.text) then return true end
+    local started = ClipStart(clip)
+    return started ~= nil and DWE.BubbleVoiceIsNPC(clip) and started >= st.setAt - 1 and started <= st.setAt + 6
+end
+function DWE.ManualVoiceCheck()
+    if not ManualMode() then return false end
+    if not (bubble:IsShown() or (textBox and textBox:IsShown())) then return false end
+    local api = DWE.SpokenAPI and DWE.SpokenAPI()
+    if not (api and type(api.GetNowPlaying) == "function" and type(api.Skip) == "function") then return false end
+    local ok, clip = pcall(api.GetNowPlaying, api)
+    if not ok or type(clip) ~= "table" or clip.textOnly or rawequal(clip, mutedClip) then return false end
+    -- le texte ouvert le plus recemment (bulle ou cadre de texte)
+    local st = state
+    if pop.setAt and (not st.setAt or pop.setAt > st.setAt) then st = pop end
+    if not VoiceOf(st, clip) then return false end
+    mutedClip = clip
+    pcall(api.Skip, api)
+    return true
+end
+-- Le plus tot possible : des que Spoken lance la voix du PNJ a qui l'on parle (meme image), avant
+-- qu'on l'entende ; avec seulement le controle ci-dessus, on entendait un bout de la voix.
+local function TalkingTo()
+    if not (UnitExists and UnitExists("npc")) then return false end
+    return true
+end
+function DWE.ManualVoiceStarted(clip)
+    if not ManualMode() or type(clip) ~= "table" or clip.textOnly then return false end
+    local f = DWE.SpokenFocus
+    if f and f.IsBook and f.IsBook(clip) then return false end
+    if not TalkingTo() or not DWE.BubbleVoiceIsNPC(clip) then return false end
+    local api = DWE.SpokenAPI and DWE.SpokenAPI()
+    if not (api and type(api.Skip) == "function") then return false end
+    mutedClip = clip
+    pcall(api.Skip, api)
+    return true
+end
+-- (rappel pose une fois, au premier passage ou l'API de Spoken repond)
+local voiceHooked = false
+local function HookVoice()
+    if voiceHooked then return end
+    local api = DWE.SpokenAPI and DWE.SpokenAPI()
+    if not (api and type(api.RegisterCallback) == "function") then return end
+    voiceHooked = true
+    pcall(api.RegisterCallback, api, "CLIP_STARTED", function(clip) DWE.ManualVoiceStarted(clip) end)
+end
+muteFrame:SetScript("OnUpdate", function(_, elapsed)
+    muteAcc = muteAcc + elapsed
+    if muteAcc < 0.05 then return end
+    muteAcc = 0
+    HookVoice()
+    DWE.ManualVoiceCheck()
+end)

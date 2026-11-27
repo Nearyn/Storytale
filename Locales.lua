@@ -723,6 +723,28 @@ for loc, text in pairs(HIDE_UI) do
     local dest = (loc == "enUS") and enUS or T[loc]
     if dest then dest.HIDE_UI = text end
 end
+-- Ce que "Cacher l'interface" garde visible (rien par defaut) : titre, puis discussion,
+-- mini-carte, portraits, barres d'action, effets (ameliorations), suivi des quetes.
+local HIDE_KEEP = {
+    enUS = { "Keep visible:", "Chat", "Minimap", "Unit frames", "Action bars", "Buffs", "Quest tracker", "Names" },
+    frFR = { "Garder visibles :", "Discussion", "Mini-carte", "Portraits", "Barres d'action", "Effets", "Suivi des quêtes", "Noms" },
+    deDE = { "Sichtbar lassen:", "Chat", "Minimap", "Einheitenfenster", "Aktionsleisten", "Buffs", "Questverfolgung", "Namen" },
+    esES = { "Mantener visibles:", "Chat", "Minimapa", "Marcos de unidad", "Barras de acción", "Beneficios", "Seguimiento", "Nombres" },
+    esMX = { "Mantener visibles:", "Chat", "Minimapa", "Marcos de unidad", "Barras de acción", "Beneficios", "Seguimiento", "Nombres" },
+    itIT = { "Lascia visibili:", "Chat", "Minimappa", "Riquadri unità", "Barre azione", "Benefici", "Missioni", "Nomi" },
+    ptBR = { "Manter visíveis:", "Bate-papo", "Minimapa", "Quadros de unidade", "Barras de ação", "Bônus", "Missões", "Nomes" },
+    ruRU = { "Оставить видимыми:", "Чат", "Миникарта", "Рамки юнитов", "Панели команд", "Эффекты", "Задания", "Имена" },
+    koKR = { "계속 표시:", "대화창", "미니맵", "유닛 프레임", "행동 단축바", "강화 효과", "퀘스트 추적", "이름" },
+    zhCN = { "保持显示：", "聊天", "小地图", "单位框体", "动作条", "增益效果", "任务追踪", "名字" },
+    zhTW = { "保持顯示：", "聊天", "小地圖", "單位框架", "快捷列", "增益效果", "任務追蹤", "名字" },
+}
+for loc, v in pairs(HIDE_KEEP) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then
+        dest.HIDE_KEEP, dest.HIDE_KEEP_CHAT, dest.HIDE_KEEP_MINIMAP, dest.HIDE_KEEP_UNITS = v[1], v[2], v[3], v[4]
+        dest.HIDE_KEEP_BARS, dest.HIDE_KEEP_AURAS, dest.HIDE_KEEP_TRACKER, dest.HIDE_KEEP_NAMES = v[5], v[6], v[7], v[8]
+    end
+end
 
 -- Option : illustration du lieu au-dessus de la petite fenetre de Spoken.
 local ZONE_ART = {
@@ -1193,45 +1215,57 @@ for loc, v in pairs({
 
 -- Affichage de la bulle : ecriture progressive ou page entiere.
 local BUBBLE_MODE = {
-    enUS = { "Bubble display:", "Typewriter", "Whole page",
+    enUS = { "Text display:", "Typewriter", "All at once",
         "The text is written letter by letter, at the pace of the voice when a voice reads.",
-        "Each page is shown at once. While a voice reads, the word it is saying is coloured, like Spoken's narrator, when \"Highlight the word being read\" is checked (and \"Highlight Words\" in Spoken's options)." },
-    frFR = { "Affichage de la bulle :", "Écriture progressive", "Page entière",
+        "The text is shown at once. In bubbles, each part turns on its own; while a voice reads, the word it is saying is coloured when \"Highlight the word being read\" is checked (and \"Highlight Words\" in Spoken's options).",
+        "Manual advance", "The text is shown at once, without highlighting. In bubbles, each part stays until you turn it, like a book: left-click the bubble or use \"Text: next\", right-click or \"Text: previous\" to go back (Key Bindings > AddOns > Storytale; a gamepad button works too). The voice is off: you read at your own pace.", "Text: next", "Text: previous" },
+    frFR = { "Affichage du texte :", "Écriture progressive", "Tout d'un coup",
         "Le texte s'écrit lettre par lettre, au rythme de la voix quand une voix lit.",
-        "Chaque page s'affiche d'un coup. Quand une voix lit, le mot qu'elle dit est mis en couleur, comme le narrateur de Spoken, si « Surligner le mot lu » est coché (et « Highlight Words » dans les options de Spoken)." },
-    deDE = { "Anzeige der Sprechblase:", "Schreibmaschine", "Ganze Seite",
+        "Le texte s'affiche d'un coup. Dans les bulles, chaque partie passe toute seule ; quand une voix lit, le mot qu'elle dit est mis en couleur si « Surligner le mot lu » est coché (et « Highlight Words » dans les options de Spoken).",
+        "Avance manuelle", "Le texte s'affiche d'un coup, sans surlignage. Dans les bulles, chaque partie reste jusqu'à ce que vous la tourniez, comme un livre : clic gauche sur la bulle ou « Texte : suite », clic droit ou « Texte : précédent » pour revenir (Raccourcis > AddOns > Storytale ; un bouton de manette marche aussi). La voix est coupée : vous lisez à votre rythme.", "Texte : suite", "Texte : précédent" },
+    deDE = { "Textanzeige:", "Schreibmaschine", "Alles auf einmal",
         "Der Text wird Buchstabe für Buchstabe geschrieben, im Tempo der Stimme, wenn eine Stimme liest.",
-        "Jede Seite wird auf einmal angezeigt. Während eine Stimme liest, wird das gesprochene Wort farbig hervorgehoben, wie beim Erzähler von Spoken, wenn „Gelesenes Wort hervorheben“ aktiviert ist (und „Highlight Words“ in den Optionen von Spoken)." },
-    esES = { "Visualización del bocadillo:", "Escritura progresiva", "Página entera",
+        "Der Text wird auf einmal angezeigt. In Sprechblasen wechselt jeder Teil von selbst; während eine Stimme liest, wird das gesprochene Wort farbig hervorgehoben, wenn „Gelesenes Wort hervorheben“ aktiviert ist (und „Highlight Words“ in den Optionen von Spoken).",
+        "Manuell weiter", "Der Text wird auf einmal angezeigt, ohne Hervorhebung. In Sprechblasen bleibt jeder Teil, bis du weiterblätterst, wie in einem Buch: Linksklick auf die Sprechblase oder „Text: weiter“, Rechtsklick oder „Text: zurück“ zum Zurückgehen (Tastenbelegung > AddOns > Storytale; auch eine Controllertaste geht). Die Stimme ist aus: Du liest in deinem Tempo.", "Text: weiter", "Text: zurück" },
+    esES = { "Visualización del texto:", "Escritura progresiva", "Todo de una vez",
         "El texto se escribe letra a letra, al ritmo de la voz cuando lee una voz.",
-        "Cada página se muestra de una vez. Mientras lee una voz, la palabra que dice se colorea, como el narrador de Spoken, si «Resaltar la palabra leída» está marcado (y «Highlight Words» en las opciones de Spoken)." },
-    esMX = { "Visualización del globo:", "Escritura progresiva", "Página completa",
+        "El texto se muestra de una vez. En los bocadillos, cada parte pasa sola; mientras lee una voz, la palabra que dice se colorea si «Resaltar la palabra leída» está marcado (y «Highlight Words» en las opciones de Spoken).",
+        "Avance manual", "El texto se muestra de una vez, sin resaltado. En los bocadillos, cada parte se queda hasta que la pases, como un libro: clic izquierdo en el bocadillo o «Texto: siguiente», clic derecho o «Texto: anterior» para volver (Asignar teclas > Accesorios > Storytale; también vale un botón del mando). La voz está desactivada: lees a tu ritmo.", "Texto: siguiente", "Texto: anterior" },
+    esMX = { "Visualización del texto:", "Escritura progresiva", "Todo de una vez",
         "El texto se escribe letra por letra, al ritmo de la voz cuando lee una voz.",
-        "Cada página se muestra de una vez. Mientras lee una voz, la palabra que dice se colorea, como el narrador de Spoken, si «Resaltar la palabra leída» está marcado (y «Highlight Words» en las opciones de Spoken)." },
-    itIT = { "Visualizzazione del fumetto:", "Scrittura progressiva", "Pagina intera",
+        "El texto se muestra de una vez. En los globos, cada parte pasa sola; mientras lee una voz, la palabra que dice se colorea si «Resaltar la palabra leída» está marcado (y «Highlight Words» en las opciones de Spoken).",
+        "Avance manual", "El texto se muestra de una vez, sin resaltado. En los globos, cada parte se queda hasta que la pases, como un libro: clic izquierdo en el globo o «Texto: siguiente», clic derecho o «Texto: anterior» para regresar (Asignar teclas > Accesorios > Storytale; también sirve un botón del control). La voz está desactivada: lees a tu ritmo.", "Texto: siguiente", "Texto: anterior" },
+    itIT = { "Visualizzazione del testo:", "Scrittura progressiva", "Tutto subito",
         "Il testo si scrive lettera per lettera, al ritmo della voce quando una voce legge.",
-        "Ogni pagina appare subito. Mentre una voce legge, la parola che sta dicendo viene colorata, come il narratore di Spoken, se «Evidenzia la parola letta» è selezionato (e «Highlight Words» nelle opzioni di Spoken)." },
-    ptBR = { "Exibição do balão:", "Escrita progressiva", "Página inteira",
+        "Il testo appare subito. Nei fumetti, ogni parte passa da sola; mentre una voce legge, la parola che sta dicendo viene colorata se «Evidenzia la parola letta» è selezionato (e «Highlight Words» nelle opzioni di Spoken).",
+        "Avanzamento manuale", "Il testo appare subito, senza evidenziazione. Nei fumetti, ogni parte resta finché non la giri, come un libro: clic sinistro sul fumetto o «Testo: avanti», clic destro o «Testo: indietro» per tornare (Comandi > AddOn > Storytale; va bene anche un tasto del controller). La voce è disattivata: leggi al tuo ritmo.", "Testo: avanti", "Testo: indietro" },
+    ptBR = { "Exibição do texto:", "Escrita progressiva", "Tudo de uma vez",
         "O texto é escrito letra por letra, no ritmo da voz quando uma voz lê.",
-        "Cada página aparece de uma vez. Enquanto uma voz lê, a palavra que ela diz fica colorida, como o narrador do Spoken, se «Destacar a palavra lida» estiver marcado (e «Highlight Words» nas opções do Spoken)." },
-    ruRU = { "Показ облачка:", "Постепенно", "Вся страница",
+        "O texto aparece de uma vez. Nos balões, cada parte passa sozinha; enquanto uma voz lê, a palavra que ela diz fica colorida se «Destacar a palavra lida» estiver marcado (e «Highlight Words» nas opções do Spoken).",
+        "Avanço manual", "O texto aparece de uma vez, sem destaque. Nos balões, cada parte fica até você virá-la, como um livro: clique esquerdo no balão ou «Texto: próximo», clique direito ou «Texto: anterior» para voltar (Atalhos > AddOns > Storytale; um botão do controle também serve). A voz fica desligada: você lê no seu ritmo.", "Texto: próximo", "Texto: anterior" },
+    ruRU = { "Показ текста:", "Постепенно", "Сразу целиком",
         "Текст пишется по буквам, в темпе голоса, когда читает голос.",
-        "Каждая страница показывается сразу. Пока читает голос, произносимое слово выделяется цветом, как у рассказчика Spoken, если включено «Подсвечивать читаемое слово» (и «Highlight Words» в настройках Spoken)." },
-    koKR = { "말풍선 표시:", "한 글자씩", "페이지 전체",
+        "Текст показывается сразу. В облачках каждая часть сменяется сама; пока читает голос, произносимое слово выделяется цветом, если включено «Подсвечивать читаемое слово» (и «Highlight Words» в настройках Spoken).",
+        "Вручную", "Текст показывается сразу, без подсветки. В облачках каждая часть остаётся, пока вы её не перевернёте, как в книге: левый щелчок по облачку или «Текст: далее», правый щелчок или «Текст: назад», чтобы вернуться (Назначение клавиш > Модификации > Storytale; подойдёт и кнопка геймпада). Голос выключен: вы читаете в своём темпе.", "Текст: далее", "Текст: назад" },
+    koKR = { "텍스트 표시:", "한 글자씩", "한 번에",
         "글이 한 글자씩 써집니다. 목소리가 읽을 때는 목소리의 속도에 맞춥니다.",
-        "각 페이지가 한 번에 표시됩니다. 목소리가 읽는 동안 읽고 있는 단어에 색을 입힙니다. Spoken의 내레이터와 같습니다. 「읽는 단어 강조」가 켜져 있을 때만 (Spoken 설정의 「Highlight Words」도 필요)." },
-    zhCN = { "气泡显示：", "逐字显示", "整页显示",
+        "텍스트가 한 번에 표시됩니다. 말풍선에서는 각 부분이 저절로 넘어갑니다. 목소리가 읽는 동안 「읽는 단어 강조」가 켜져 있으면 읽고 있는 단어에 색을 입힙니다 (Spoken 설정의 「Highlight Words」도 필요).",
+        "수동 넘김", "텍스트가 강조 없이 한 번에 표시됩니다. 말풍선에서는 책처럼 직접 넘길 때까지 각 부분이 유지됩니다: 말풍선 왼쪽 클릭 또는 「텍스트: 다음」, 오른쪽 클릭 또는 「텍스트: 이전」으로 돌아가기 (단축키 설정 > 애드온 > Storytale, 게임패드 버튼도 가능). 목소리는 꺼지며, 원하는 속도로 읽습니다.", "텍스트: 다음", "텍스트: 이전" },
+    zhCN = { "文字显示：", "逐字显示", "一次显示",
         "文字逐字出现；有语音朗读时随语音的节奏。",
-        "每页文字一次显示。语音朗读时，正在朗读的词会着色，与 Spoken 的旁白相同（需勾选「高亮正在朗读的词」，以及 Spoken 选项中的「Highlight Words」）。" },
-    zhTW = { "泡泡顯示：", "逐字顯示", "整頁顯示",
+        "文字一次显示。在气泡中，每一段会自动切换；语音朗读时，若勾选「高亮正在朗读的词」（以及 Spoken 选项中的「Highlight Words」），正在朗读的词会着色。",
+        "手动翻页", "文字一次显示，不高亮。在气泡中，每一段会停留到你翻页为止，就像一本书：左键点击气泡或「文字：下一段」，右键或「文字：上一段」返回（按键设置 > 插件 > Storytale；也可用手柄按键）。不播放语音，按你自己的节奏阅读。", "文字：下一段", "文字：上一段" },
+    zhTW = { "文字顯示：", "逐字顯示", "一次顯示",
         "文字逐字出現；有語音朗讀時隨語音的節奏。",
-        "每頁文字一次顯示。語音朗讀時，正在朗讀的詞會上色，與 Spoken 的旁白相同（需勾選「醒目標示正在朗讀的詞」，以及 Spoken 選項中的「Highlight Words」）。" },
+        "文字一次顯示。在泡泡中，每一段會自動切換；語音朗讀時，若勾選「醒目標示正在朗讀的詞」（以及 Spoken 選項中的「Highlight Words」），正在朗讀的詞會上色。",
+        "手動翻頁", "文字一次顯示，不醒目標示。在泡泡中，每一段會停留到你翻頁為止，就像一本書：左鍵點擊泡泡或「文字：下一段」，右鍵或「文字：上一段」返回（按鍵設定 > 插件 > Storytale；也可用手把按鍵）。不播放語音，依你自己的節奏閱讀。", "文字：下一段", "文字：上一段" },
 }
 for loc, v in pairs(BUBBLE_MODE) do
     local dest = (loc == "enUS") and enUS or T[loc]
     if dest then
         dest.BUBBLE_MODE, dest.BUBBLE_MODE_TYPE, dest.BUBBLE_MODE_PAGE = v[1], v[2], v[3]
         dest.BUBBLE_MODE_TYPE_TIP, dest.BUBBLE_MODE_PAGE_TIP = v[4], v[5]
+        dest.BUBBLE_MODE_MANUAL, dest.BUBBLE_MODE_MANUAL_TIP, dest.BUBBLE_NEXT_KEY, dest.BUBBLE_PREV_KEY = v[6], v[7], v[8], v[9]
     end
 end
 

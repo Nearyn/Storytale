@@ -459,6 +459,102 @@ do -- l'interface s'efface pendant la cinematique et revient ensuite
     DialogueWheelE_Theme = "cinema"; DWE.OnThemeChanged()
     bar:Hide()
 end
+-- "Cacher l'interface" : exceptions choisies, opacite changee par un autre addon, cadre conteneur
+do
+    DialogueWheelE_Theme = "whisper"; DWE.OnThemeChanged()
+    local function run() for _ = 1, 40 do if DWE.cineBars:IsShown() then DWE.cineBars._scripts.OnUpdate(DWE.cineBars, 0.05) end end end
+    run()
+    local chat = CreateFrame("Frame", "ChatFrame1", UIParent); chat:Show(); chat:SetAlpha(1)
+    local other = CreateFrame("Frame", "SomeAddonFrame", UIParent); other:Show(); other:SetAlpha(1)
+    local holder = CreateFrame("Frame", "SomeUIParentTest", UIParent); holder:Show(); holder:SetAlpha(1)
+    local elvMap = CreateFrame("Frame", "MMHolder", holder); elvMap:Show(); elvMap:SetAlpha(1)
+    local elvBar = CreateFrame("Frame", "ElvUI_Bar1", holder); elvBar:Show(); elvBar:SetAlpha(1)
+    DialogueWheelE_HideUI = true
+    DWE.UpdateTextPanelVisuals(); DWE.UpdateCinemaBars(); run()
+    check(chat:GetAlpha() < 0.01 and other:GetAlpha() < 0.01 and holder:GetAlpha() < 0.01, "hide UI: everything hidden by default")
+    check(not chat:IsShown() and not other:IsShown(), "hide UI: faded frames are also hidden (no mouse over them)")
+    -- un addon remontre un cadre pendant la conversation : recache, et rendu a la fin
+    chat:Show()
+    check(not chat:IsShown(), "hide UI: a frame shown again meanwhile is hidden again")
+    -- un autre addon cache un cadre pendant la conversation : il reste cache a la fin
+    local gone = CreateFrame("Frame", "SomeGoneFrame", UIParent); gone:Show(); gone:SetAlpha(1)
+    DWE.RefreshHideUI(); run()
+    gone:Hide()
+    other:SetAlpha(0)
+    DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
+    check(other:GetAlpha() < 0.01, "hide UI: a frame another addon hid meanwhile is not shown again")
+    check(not gone:IsShown(), "hide UI: a frame another addon hid (Hide) meanwhile stays hidden")
+    check(chat:IsShown() and other:IsShown(), "hide UI: hidden frames shown again at the end")
+    gone:Hide(); _G.SomeGoneFrame = nil
+    check(math.abs(chat:GetAlpha() - 1) < 0.001 and math.abs(holder:GetAlpha() - 1) < 0.001, "hide UI: the rest comes back")
+    other:SetAlpha(1)
+    -- noms au-dessus des personnages : caches pendant la conversation, rendus a la fin
+    M.cvars.UnitNameNPC, M.cvars.UnitNameFriendlyPlayerName, M.cvars.UnitNameOwn = "1", "1", "0"
+    DialogueWheelE_HideUI = true; DWE.UpdateCinemaBars(); run()
+    check(M.cvars.UnitNameNPC == "0" and M.cvars.UnitNameFriendlyPlayerName == "0", "hide UI: names above characters hidden")
+    check(type(DialogueWheelE_NameCVars) == "table" and DialogueWheelE_NameCVars.UnitNameNPC == "1", "hide UI: name settings kept in the saved variables")
+    DWE.RestoreNames() -- (ce que fait l'entree en combat)
+    check(M.cvars.UnitNameNPC == "1" and DialogueWheelE_NameCVars == nil, "hide UI: names back at once (combat)")
+    DWE.UpdateCinemaBars(); run()
+    check(M.cvars.UnitNameNPC == "0", "hide UI: names hidden again after combat")
+    DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
+    check(M.cvars.UnitNameNPC == "1" and M.cvars.UnitNameOwn == "0" and DialogueWheelE_NameCVars == nil, "hide UI: names restored as they were")
+    DialogueWheelE_NameCVars = { UnitNameNPC = "1" }; M.cvars.UnitNameNPC = "0"
+    DWE.RestoreNames() -- (ce que fait PLAYER_LOGIN)
+    check(M.cvars.UnitNameNPC == "1" and DialogueWheelE_NameCVars == nil, "hide UI: names restored at the next login after a crash")
+    DialogueWheelE_HideKeep = { names = true }
+    DialogueWheelE_HideUI = true; DWE.UpdateCinemaBars(); run()
+    check(M.cvars.UnitNameNPC == "1", "hide UI: names kept when ticked")
+    DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
+    DialogueWheelE_HideKeep = nil
+    -- carte de la mini-carte : effacee elle-meme (elle ignore l'opacite de son cadre), rendue en combat
+    local cluster = CreateFrame("Frame", "MinimapClusterTest", UIParent); cluster:Show(); cluster:SetAlpha(1)
+    local mm = CreateFrame("Frame", "Minimap", cluster); mm:Show(); mm:SetAlpha(1)
+    DialogueWheelE_HideUI = true; DWE.UpdateCinemaBars(); run()
+    check(mm:GetAlpha() < 0.01, "hide UI: the minimap map itself faded")
+    local pin = CreateFrame("Frame", "QuestieFrameTest", mm); pin:Show(); pin:SetAlpha(1)
+    run(); for _ = 1, 15 do DWE.cineBars._scripts.OnUpdate(DWE.cineBars, 0.05) end
+    check(pin:GetAlpha() < 0.01, "hide UI: an icon added to the minimap meanwhile (Questie) is faded too")
+    DWE.RestoreProtectedUI()
+    DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
+    check(math.abs(mm:GetAlpha() - 1) < 0.001 and math.abs(pin:GetAlpha() - 1) < 0.001, "hide UI: minimap map and its icons back at the end")
+    DialogueWheelE_HideKeep = { minimap = true }
+    DialogueWheelE_HideUI = true; DWE.UpdateCinemaBars(); run()
+    check(math.abs(mm:GetAlpha() - 1) < 0.001, "hide UI: minimap map kept when ticked")
+    DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
+    DialogueWheelE_HideKeep = nil
+    cluster:Hide(); mm:Hide(); _G.Minimap, _G.MinimapClusterTest = nil, nil
+    -- plaques de nom des autres (et leurs icones d'addons) : effacees, pas celle du PNJ
+    local savedPlates = M.plates
+    local pOther = CreateFrame("Frame"); pOther.namePlateUnitToken = "nameplate7"; pOther:Show(); pOther:SetAlpha(1)
+    local icon = CreateFrame("Frame", nil, pOther); icon:Show()
+    local pNpc = CreateFrame("Frame"); pNpc.namePlateUnitToken = "nameplate1"; pNpc:Show(); pNpc:SetAlpha(1)
+    M.plates = { pOther, pNpc }
+    DialogueWheelE_HideUI = true; DWE.UpdateCinemaBars(); run()
+    check(pOther:GetAlpha() < 0.01 and math.abs(pNpc:GetAlpha() - 1) < 0.001, "hide UI: other nameplates (and icons on them) hidden, not the NPC's " .. pOther:GetAlpha() .. " " .. pNpc:GetAlpha() .. " " .. tostring(DWE.cineBars.want))
+    DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
+    check(math.abs(pOther:GetAlpha() - 1) < 0.001, "hide UI: nameplates back at the end")
+    M.plates = savedPlates
+    pOther:Hide(); pNpc:Hide()
+    -- exceptions : discussion et mini-carte gardees (ElvUI : seul son enfant mini-carte reste)
+    DialogueWheelE_HideKeep = { chat = true, minimap = true }
+    DialogueWheelE_HideUI = true; DWE.UpdateCinemaBars(); run()
+    check(math.abs(chat:GetAlpha() - 1) < 0.001, "hide UI: kept chat stays visible")
+    check(other:GetAlpha() < 0.01, "hide UI: the rest still hidden with exceptions")
+    check(math.abs(holder:GetAlpha() - 1) < 0.001 and math.abs(elvMap:GetAlpha() - 1) < 0.001 and elvBar:GetAlpha() < 0.01,
+        "hide UI: inside a container frame only the kept child stays")
+    -- exception retiree pendant la conversation : la discussion s'efface tout de suite
+    DialogueWheelE_HideKeep = { minimap = true }
+    DWE.RefreshHideUI(); run()
+    check(chat:GetAlpha() < 0.01, "hide UI: unticking an exception hides it right away")
+    DialogueWheelE_HideUI = nil; DialogueWheelE_HideKeep = nil
+    DWE.UpdateCinemaBars(); run()
+    check(math.abs(chat:GetAlpha() - 1) < 0.001 and math.abs(elvBar:GetAlpha() - 1) < 0.001 and math.abs(other:GetAlpha() - 1) < 0.001,
+        "hide UI: everything restored at the end")
+    for _, f in ipairs({ chat, other, holder }) do f:Hide() end
+    _G.ChatFrame1, _G.SomeAddonFrame, _G.SomeUIParentTest, _G.MMHolder, _G.ElvUI_Bar1 = nil, nil, nil, nil, nil
+    DialogueWheelE_Theme = "cinema"; DWE.OnThemeChanged()
+end
 DialogueWheelE_Font = "lora"; DWE.ApplyFont()
 if not (DWE.IS_CJK or DWE.IS_CYRILLIC) then check((DWE.textBody:GetFont() or ""):find("Lora") ~= nil, "cinema: user font kept when chosen") end
 DialogueWheelE_Font = nil
@@ -1997,6 +2093,26 @@ check(not DialogueWheelEEscapeCatcher:IsShown(), "option off: Escape not used")
 M.FireEvent("GOSSIP_CLOSED")
 DialogueWheelE_EscClose = nil
 
+-- Font chosen in the options: used by every bubble, game bubble included, and changed live
+if not (DWE.IS_CJK or DWE.IS_CYRILLIC) then
+    DialogueWheelE_Theme = "bubble"
+    DialogueWheelE_Font = nil
+    M.FireEvent("GOSSIP_SHOW")
+    DWE.SetDialogueText("x", "Hello there, friend.")
+    DWE.ApplyFont()
+    check(not (DWE.bubbleTextFS:GetFont() or ""):find("MORPHEUS"), "game bubble: Blizzard font by default")
+    DialogueWheelE_Font = "morpheus"
+    DWE.ApplyFont()
+    check((DWE.bubbleTextFS:GetFont() or ""):find("MORPHEUS") ~= nil, "game bubble: chosen font applied live")
+    DialogueWheelE_Font = "skurri"
+    DWE.ApplyFont()
+    check((DWE.bubbleTextFS:GetFont() or ""):find("SKURRI") ~= nil, "game bubble: second font change applied live")
+    DialogueWheelE_Font = nil
+    DWE.ApplyFont()
+    check(not (DWE.bubbleTextFS:GetFont() or ""):find("SKURRI"), "game bubble: back to Blizzard font")
+    M.FireEvent("GOSSIP_CLOSED")
+end
+
 -- Popup (other themes): gradual text only with Spoken installed
 DialogueWheelE_Theme = "dark"
 DialogueWheelE_ShowText = true
@@ -2063,6 +2179,145 @@ do
 end
 DWE.SetDialogueText("NPC", "")
 check(DWE.textBody._grad >= 1000, "no-text label fully visible")
+end
+-- Synchro des bulles par l'API publique de Spoken (GetCaption, GetCaptionOptions), sans
+-- SpokenEnv ni champ interne spokenAt : le debut du son vient de la progression du sous-titre.
+do
+    local savedSpoken, savedGT, savedHL = Spoken, GetTime, DialogueWheelE_BubbleHighlight
+    local t0 = 5000
+    GetTime = function() return t0 end
+    local txt = "Welcome to the inn, traveler. Rest your weary bones by the fire."
+    local tw = { { start = 0, finish = 5 } }
+    for i = 2, 12 do tw[i] = { start = 5 + (i - 2) * 5 / 11, finish = 5 + (i - 1) * 5 / 11 } end
+    local pub = { length = 10, text = txt, present = { transcript = txt } }
+    local prog = 0.5
+    local caption = { clip = pub, words = tw, totalWeight = 10, timed = true }
+    Spoken = { IsCompatible = function(_, v) return v <= 1 end,
+        GetNowPlaying = function() return pub end, IsPaused = function() return false end,
+        GetCaption = function() caption.progress = prog return caption end,
+        GetCaptionOptions = function() return true, false, "letter" end }
+    check(DWE.SpokenAPI() == Spoken, "public API: Spoken detected through IsCompatible(1)")
+    check(DWE.SpokenClipStart(pub) == t0 - 5, "public API: sound start from caption progress")
+    local words, total, p, i = DWE.SpokenWords(pub)
+    check(words == tw and total == 10 and p == 0.5 and i == 2, "public API: word read at 50% is word 2: " .. tostring(i))
+    caption.timed = false
+    check(DWE.SpokenWords(pub) == nil, "public API: estimated word times are not followed")
+    caption.timed = true
+    check(DWE.SpokenWords({ length = 10 }) == nil and DWE.SpokenClipStart({ length = 10 }) == nil,
+        "public API: another line's caption is ignored")
+    DialogueWheelE_BubbleHighlight = true
+    check(DWE.BubbleHighlightOn() == true, "public API: Highlight Words read from GetCaptionOptions")
+    Spoken.GetCaptionOptions = function() return false, false, "letter" end
+    check(DWE.BubbleHighlightOn() == false, "public API: Highlight Words off follows Spoken")
+    -- Spoken plus ancien que l'API publique : repli sur le champ interne spokenAt
+    Spoken = { GetNowPlaying = function() return pub end, IsPaused = function() return false end }
+    check(DWE.SpokenAPI() == nil, "older Spoken: no public API")
+    local old = { length = 10, spokenAt = t0 + 7 }
+    check(DWE.SpokenClipStart(old) == t0 - 3, "older Spoken: sound start from spokenAt")
+    Spoken, GetTime, DialogueWheelE_BubbleHighlight = savedSpoken, savedGT, savedHL
+end
+-- Mode "page a la main" : page entiere tout de suite, aucune avance seule, meme avec le temps ;
+-- le raccourci "Bulle : page suivante" (DWE.BubbleNext) tourne la page, comme un clic.
+do
+    local savedMode, savedSpoken, savedGT = DialogueWheelE_BubbleMode, Spoken, GetTime
+    local t1 = 9000
+    GetTime = function() return t1 end
+    Spoken = nil
+    DialogueWheelE_BubbleMode = "manual"
+    local st = DWE.bubbleState
+    local parts = {}
+    for i = 1, 60 do parts[i] = "word" .. i end
+    local long = table.concat(parts, " ") .. "."
+    DWE.SetDialogueText("NPC", long)
+    local tick = function(dt) t1 = t1 + dt; DWE.bubble._scripts.OnUpdate(DWE.bubble, dt) end
+    for _ = 1, 3 do tick(0.05) end
+    check(DWE.BubbleManualMode() and st.phase == "reading" and st.index == 1,
+        "manual pages: the first page is shown whole at once: " .. tostring(st.phase) .. " " .. tostring(st.index))
+    local manySegs = st.segs and #st.segs > 1
+    for _ = 1, 600 do tick(0.05) end
+    check(st.index == 1 and st.phase == "reading", "manual pages: the page never turns on its own (30 s)")
+    if manySegs then
+        DWE.bubble:Hide()
+        check(DWE.BubbleNext() == false and st.index == 1, "manual pages: the key binding does nothing while no bubble is shown")
+        DWE.bubble:Show()
+        local turned = DWE.BubbleNext() == true and st.index == 2
+        tick(0.05)
+        check(turned and st.index == 2 and st.phase == "reading",
+            "manual pages: the key binding turns to the next page, shown whole: " .. tostring(st.index))
+    else
+        check(false, "manual pages: the test text should need several pages")
+    end
+    -- Retour en arriere : clic droit ou "Texte : precedent", en avance manuelle seulement
+    check(DWE.BubblePrev() == true and st.index == 1, "manual pages: back to the previous part")
+    tick(0.05)
+    check(st.phase == "reading" and st.index == 1, "manual pages: the previous part is shown whole")
+    check(DWE.BubblePrev() == false and st.index == 1, "manual pages: nothing before the first part")
+    DWE.BubbleNext(); tick(0.05)
+    DWE.bubble._scripts.OnMouseUp(DWE.bubble, "RightButton")
+    check(st.index == 1, "manual pages: right-click goes back")
+    tick(0.05)
+    DWE.bubble._scripts.OnMouseUp(DWE.bubble, "LeftButton")
+    check(st.index == 2, "manual pages: left-click goes on")
+    DialogueWheelE_BubbleMode = "page"
+    check(DWE.BubblePrev() == false and st.index == 2, "all at once: no going back (the bubble would turn on its own)")
+    DialogueWheelE_BubbleMode = nil
+    check(not DWE.BubbleManualMode(), "manual pages: off by default")
+    DWE.SetDialogueText("NPC", "")
+    DialogueWheelE_BubbleMode, Spoken, GetTime = savedMode, savedSpoken, savedGT
+end
+-- Avance manuelle : la voix du dialogue est coupee (Skip) sauf si "Voix en avance manuelle" est coche
+do
+    local savedMode, savedSpoken, savedGT, savedMV = DialogueWheelE_BubbleMode, Spoken, GetTime, DialogueWheelE_ManualVoice
+    local t2 = 9500
+    GetTime = function() return t2 end
+    local line = "The road to the north is long and the wolves are hungry this winter."
+    local skips, playing = 0, nil
+    Spoken = { IsCompatible = function() return true end, GetNowPlaying = function() return playing end,
+        IsPaused = function() return false end, Skip = function() skips = skips + 1; playing = nil; return true end }
+    local function run(mode, mv)
+        DialogueWheelE_BubbleMode, DialogueWheelE_ManualVoice = mode, mv
+        DWE.SetDialogueText("NPC", "")
+        DWE.SetDialogueText("NPC", line)
+        DWE.bubble:Show()
+        skips = 0
+        playing = { text = line, length = 5, spokenAt = t2 + 5 }
+        DWE.ManualVoiceCheck()
+        DWE.ManualVoiceCheck()
+        return skips
+    end
+    check(run("manual", nil) == 1, "manual advance: the voice of this text is stopped once")
+    check(run(nil, nil) == 0, "typewriter: the voice is never stopped")
+    check(run("page", nil) == 0, "all at once: the voice is never stopped")
+    DialogueWheelE_BubbleMode, DialogueWheelE_ManualVoice = "manual", nil
+    DWE.SetDialogueText("NPC", "")
+    DWE.SetDialogueText("NPC", line)
+    skips = 0
+    playing = { text = "A completely different book page about the history of Stormwind.", length = 5, spokenAt = t2 - 30 }
+    DWE.ManualVoiceCheck()
+    check(skips == 0, "manual advance: another voice (book, other NPC) is left alone")
+    -- au demarrage de la voix (rappel CLIP_STARTED de Spoken) : coupee dans la meme image
+    skips = 0
+    check(DWE.ManualVoiceStarted({ text = "Anything at all", length = 3 }) == true and skips == 1, "manual advance: the NPC voice is stopped as soon as it starts")
+    DialogueWheelE_BubbleMode = nil
+    skips = 0
+    check(DWE.ManualVoiceStarted({ text = "Anything at all", length = 3 }) == false and skips == 0, "typewriter: a starting voice is left alone")
+    DWE.SetDialogueText("NPC", "")
+    DialogueWheelE_BubbleMode, Spoken, GetTime, DialogueWheelE_ManualVoice = savedMode, savedSpoken, savedGT, savedMV
+end
+-- Themes sans bulle : "Tout d'un coup" et "Avance manuelle" montrent tout le texte du cadre
+-- d'un coup, meme quand une voix de Spoken lit.
+do
+    local savedMode, savedSpoken, savedTheme, savedShow = DialogueWheelE_BubbleMode, Spoken, DialogueWheelE_Theme, DialogueWheelE_ShowText
+    DialogueWheelE_Theme, DialogueWheelE_ShowText = "dark", true
+    Spoken = { GetNowPlaying = function() return nil end, IsPaused = function() return false end }
+    for _, mode in ipairs({ "page", "manual" }) do
+        DialogueWheelE_BubbleMode = mode
+        DWE.SetDialogueText("NPC", "")
+        DWE.SetDialogueText("NPC", "A long road lies ahead of you, traveler, and the night is cold. " .. mode)
+        check((DWE.textBody._grad or 100000) >= 1000, "text box, " .. mode .. ": the whole text at once, even with Spoken")
+    end
+    DWE.SetDialogueText("NPC", "")
+    DialogueWheelE_BubbleMode, Spoken, DialogueWheelE_Theme, DialogueWheelE_ShowText = savedMode, savedSpoken, savedTheme, savedShow
 end
 Spoken = nil
 GetTime = nil
