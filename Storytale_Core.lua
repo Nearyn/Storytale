@@ -3176,6 +3176,28 @@ local function HideNames()
     DialogueWheelE_NameCVars = saved
     for k in pairs(saved) do pcall(SetCVar, k, "0") end
 end
+-- Ce qui est accroche a la mini-carte (boutons LibDBIcon, icones de Questie et des autres
+-- addons) ne suivait pas son opacite : chaque enfant est efface lui-meme. Revu deux fois par
+-- seconde : Questie en ajoute en continu.
+function DWE.HideMinimapPins()
+    if InCombatLockdown and InCombatLockdown() then return end
+    local keep = DialogueWheelE_HideKeep
+    if type(keep) == "table" and keep.minimap then return end
+    local mm = rawget(_G, "Minimap")
+    if type(mm) ~= "table" or not mm.GetChildren then return end
+    for _, k in ipairs({ mm:GetChildren() }) do
+        pcall(function()
+            if hiddenUI[k] or (k.IsForbidden and k:IsForbidden()) or not k:IsShown() then return end
+            local a = k:GetAlpha()
+            if type(a) == "number" and not (issecretvalue and issecretvalue(a)) and a > 0 then
+                hiddenUI[k] = a
+                if k.IsProtected and k:IsProtected() then protectedUI[k] = true end
+                WatchAlpha(k)
+                FadeOne(k, a * (1 - (DWE.cineBars and DWE.cineBars.alpha or 0)))
+            end
+        end)
+    end
+end
 local function CollectUI()
     if InCombatLockdown and InCombatLockdown() then return end
     HideNames()
@@ -3239,6 +3261,7 @@ local function CollectUI()
             end
         end)
     end
+    pcall(DWE.HideMinimapPins)
     -- Plaques de nom (hors d'UIParent) et tout ce que d'autres addons y accrochent (icones de
     -- quetes de Questie...), sauf celle du PNJ a qui l'on parle (Storytale s'en sert deja) et sauf
     -- si le joueur garde les noms.
@@ -3304,6 +3327,11 @@ cineBars:SetScript("OnUpdate", function(self, dt)
     if a ~= self.lastA or self.tick > 0.1 then
         self.lastA, self.tick = a, 0
         FadeUI(a)
+    end
+    self.pinTick = (self.pinTick or 0) + dt
+    if self.want and self.pinTick > 0.5 then
+        self.pinTick = 0
+        pcall(DWE.HideMinimapPins)
     end
     if a == 0 and not self.want then
         RestoreUI()

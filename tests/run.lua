@@ -502,9 +502,12 @@ do
     local mm = CreateFrame("Frame", "Minimap", cluster); mm:Show(); mm:SetAlpha(1)
     DialogueWheelE_HideUI = true; DWE.UpdateCinemaBars(); run()
     check(mm:GetAlpha() < 0.01, "hide UI: the minimap map itself faded")
+    local pin = CreateFrame("Frame", "QuestieFrameTest", mm); pin:Show(); pin:SetAlpha(1)
+    run(); for _ = 1, 15 do DWE.cineBars._scripts.OnUpdate(DWE.cineBars, 0.05) end
+    check(pin:GetAlpha() < 0.01, "hide UI: an icon added to the minimap meanwhile (Questie) is faded too")
     DWE.RestoreProtectedUI()
     DialogueWheelE_HideUI = false; DWE.UpdateCinemaBars(); run()
-    check(math.abs(mm:GetAlpha() - 1) < 0.001, "hide UI: minimap map back at the end")
+    check(math.abs(mm:GetAlpha() - 1) < 0.001 and math.abs(pin:GetAlpha() - 1) < 0.001, "hide UI: minimap map and its icons back at the end")
     DialogueWheelE_HideKeep = { minimap = true }
     DialogueWheelE_HideUI = true; DWE.UpdateCinemaBars(); run()
     check(math.abs(mm:GetAlpha() - 1) < 0.001, "hide UI: minimap map kept when ticked")
