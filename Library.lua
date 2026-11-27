@@ -828,6 +828,7 @@ end
 -- Parchemins : sur les etageres, ceux d'Uldaman (feuillet plie, debout ; paire de rouleaux,
 -- couchee) ; sur le pupitre, le vrai modele s'il est connu, sinon un parchemin ouvert du jeu.
 -- Le meme parchemin garde toujours le meme (choisi par son titre).
+Lib.SHELF_BOOK_OK = { [200900] = true, [200901] = true, [200902] = true, [200903] = true, [200904] = true, [200905] = true }
 Lib.SCROLL_SHELF = { 203430 } -- (le feuillet plie, 203429, rendait mal sur les rayons)
 Lib.SCROLL_OPEN = { 198451, 198452, 198454, 198455, 201113 }
 local function TitleHash(t)
@@ -840,7 +841,11 @@ function Lib.ModelFor(row, where)
     if row.kind == "letter" and where == "shelf" then
         return tonumber(DialogueWheelE_LibraryScroll) or Lib.SCROLL_SHELF[TitleHash(row.title) % #Lib.SCROLL_SHELF + 1]
     end
-    if o and OBJ_MODEL[o] then return OBJ_MODEL[o] end
+    -- (sur les etageres, seuls les livres g_book01 se tiennent debout de profil ; les autres
+    -- reliures du jeu montraient leur couverture de face : on prend la g_book01 la plus proche)
+    if o and OBJ_MODEL[o] and not (where == "shelf" and row.kind == "book" and not Lib.SHELF_BOOK_OK[OBJ_MODEL[o]]) then
+        return OBJ_MODEL[o]
+    end
     if row.kind == "letter" then return Lib.SCROLL_OPEN[TitleHash(row.title) % #Lib.SCROLL_OPEN + 1] end
     if row.kind == "plate" then return MODELS.plate end
     local c = Lib.Spine(row)
@@ -988,13 +993,19 @@ function Lib.ShelfPose(row, i)
     p.size = size
     p.dist = base.dist / size
     -- Penche (vu de face, la camera tourne) : appuye sur son voisin de gauche.
-    local every = row.kind == "letter" and 3 or 5
-    if h % every == 0 then p.lean = 12 + (h % 9) end
+    -- (penche vers la droite, appuye sur son voisin : seulement s'il y en a un, voir Refresh)
+    local every = row.kind == "letter" and 4 or 5
+    if h % every == 0 and not row.noLean then p.lean = 12 + (h % 9) end
     -- Parchemins : couches, empiles. Quelques livres couches aussi, par deux ou trois.
     if row.kind == "letter" then
         -- (debout comme les livres, parfois penches : rouleaux d'Uldaman et feuillet plie)
-        if Lib.ModelFor(row, "shelf") == 203430 then
-            -- (un peu plus petits que les livres : ils ne touchent plus la planche du dessus)
+        if Lib.ModelFor(row, "shelf") == 203430 and (h % 5 < 2) then
+            -- (couches, en pile de deux ou trois, comme des rouleaux ranges a plat)
+            p.lean = nil
+            p.yaw, p.pitch, p.roll, p.vfrac, p.flat = 90, 0, 0, 0.32, true
+            p.dist = 1.25
+        elseif Lib.ModelFor(row, "shelf") == 203430 then
+            -- (debout, un peu plus petits que les livres : ils ne touchent plus la planche)
             p.yaw, p.pitch, p.roll, p.vfrac = 90, 90, 0, 1
             p.dist = 1.3 / size
         else
@@ -2134,6 +2145,19 @@ function Refresh()
             stack = p.flat and { slot = cur.slot, view = #views, x = cur.x, w = w, n = 1, kind = row.kind } or nil
             cur.x = cur.x + w + 2
             cur.n = cur.n + 1
+        end
+    end
+    -- Un livre penche s'appuie sur son voisin de droite : sans voisin debout sur le meme rayon
+    -- (fin de rangee, pile couchee a cote), il se tient droit.
+    if use3d then
+        for idx, row in ipairs(rows) do
+            local pl = placed[idx]
+            if (pl.level or 0) == 0 and Lib.ShelfPose(row).lean then
+                local nx, np = placed[idx + 1], rows[idx + 1]
+                local ok = nx and np and nx.view == pl.view and nx.slot == pl.slot and (nx.level or 0) == 0
+                    and not Lib.ShelfPose(np).flat
+                if not ok then row.noLean = true end
+            end
         end
     end
     state.shelf = math.max(1, math.min(state.shelf, #views))
