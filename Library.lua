@@ -1325,6 +1325,10 @@ local function Build()
     end)
     sort:SetPoint("TOPRIGHT", head, "TOPRIGHT", -30, -84)
     ui.sort = sort
+    -- Le carnet d'estampages (plaques, monuments, tombes), a part des etageres.
+    local rubBtn = TextButton(head, L.RUB_TITLE or "Rubbings", function() if Lib.ToggleRubbings then Lib.ToggleRubbings() end end, GOLD)
+    rubBtn:SetPoint("LEFT", ui.filters[#ui.filters], "RIGHT", 16, 0)
+    ui.rubBtn = rubBtn
     -- Etageres suivantes / precedentes (sous les bibliotheques).
     local up = TextButton(head, "<", function() state.shelf = state.shelf - 1; Refresh() end)
     local down = TextButton(head, ">", function() state.shelf = state.shelf + 1; Refresh() end)
@@ -2461,4 +2465,226 @@ function Lib.Show(title)
     state.key = key
     Refresh()
     if key then Lib.Read(key) end
+end
+
+--------------------------------------------------------------------------------
+-- Carnet d'estampages : plaques, steles, monuments et tombes, a part des etageres. Un carnet
+-- de cuir gris (RubbingBook.png) ouvert : a gauche le vrai modele 3D du monument, qui tourne
+-- lentement, son nom, le lieu et la date ; a droite l'estampage, le texte grave qui ressort en
+-- clair sur le fusain (RubbingCharcoal.png). Un monument par double page.
+--------------------------------------------------------------------------------
+local RB = { w = 1024, h = 627, scale = 0.8,
+    left = { 122, 55, 515, 578 }, right = { 523, 55, 910, 578 } }
+local rub, rui
+local rstate = { index = 1, search = "" }
+Lib.rubState = rstate
+
+local function RubRows()
+    local rows = Lib.List("plate", rstate.search, "az")
+    return rows
+end
+Lib.RubRows = RubRows
+
+-- Texte grave : ajuste a la zone de fusain (police reduite jusqu'a ce qu'il tienne).
+local function FitText(fs, text, maxW, maxH)
+    for size = 17, 9, -1 do
+        Font(fs, size, { 0.90, 0.87, 0.80 })
+        fs:SetWidth(maxW)
+        fs:SetText(text)
+        local h = fs:GetStringHeight() or 0
+        if h <= maxH then return size end
+    end
+    return 9
+end
+
+local function RubRefresh()
+    if not rub then return end
+    local rows = RubRows()
+    local n = #rows
+    rstate.index = math.max(1, math.min(rstate.index, math.max(1, n)))
+    local row = rows[rstate.index]
+    rui.count:SetText(n > 0 and (rstate.index .. " / " .. n) or "")
+    rui.prev:SetShown(rstate.index > 1)
+    rui.next:SetShown(rstate.index < n)
+    if not row then
+        rui.name:SetText("")
+        rui.meta:SetText("")
+        rui.text:SetText("")
+        rui.charcoal:Hide()
+        if rui.model then rui.model:Hide() end
+        rui.empty:SetText(L.RUB_EMPTY or "Every plaque, monument or tombstone you read is copied here.")
+        rui.empty:Show()
+        return
+    end
+    rui.empty:Hide()
+    rui.charcoal:Show()
+    rui.name:SetText(row.title)
+    local e = row.entry
+    local meta = {}
+    if e and e.z then meta[#meta + 1] = e.z end
+    if e and e.d and date and e.d > 0 then meta[#meta + 1] = date("%d/%m/%Y", e.d) end
+    if not e then meta[#meta + 1] = L.LIB_NOT_FOUND or "not found yet" end
+    rui.meta:SetText(table.concat(meta, " - "))
+    local pages = Lib.Pages(row)
+    local text = DWE.PlainItemText and DWE.PlainItemText(table.concat(pages, "\n\n")) or table.concat(pages, "\n\n")
+    FitText(rui.text, text, rui.textW, rui.textH)
+    -- (pas encore trouve : estampage pale)
+    local a = e and 1 or 0.45
+    rui.charcoal:SetAlpha(a); rui.text:SetAlpha(a)
+    if rui.model then
+        local id = Lib.ModelFor(row, "lectern")
+        local ok = LoadModel(rui.model, id, Lib.RUB_POSE)
+        rui.model:SetShown(ok)
+        rui.model:SetAlpha(a)
+    end
+end
+Lib.RubRefresh = RubRefresh
+Lib.RUB_POSE = { dist = 1.15, yaw = 0, pitch = 8, roll = 0 }
+
+local function RubBuild()
+    if rub then return end
+    local s = RB.scale
+    rub = CreateFrame("Frame", "StorytaleRubbingsFrame", UIParent)
+    rub:SetSize(RB.w * s, RB.h * s)
+    rub:SetPoint("CENTER")
+    rub:SetFrameStrata("FULLSCREEN")
+    rub:SetToplevel(true)
+    rub:SetMovable(true)
+    rub:SetClampedToScreen(true)
+    rub:EnableMouse(true)
+    rub:RegisterForDrag("LeftButton")
+    rub:SetScript("OnDragStart", function(self) if not DialogueWheelE_Locked then self:StartMoving() end end)
+    rub:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local x, y = self:GetCenter()
+        local ux, uy = UIParent:GetCenter()
+        if x and ux then
+            local sc = self:GetScale()
+            DialogueWheelE_RubbingsPos = { math.floor(x * sc - ux + 0.5) / sc, math.floor(y * sc - uy + 0.5) / sc }
+        end
+    end)
+    rub:Hide()
+    if UISpecialFrames then table.insert(UISpecialFrames, "StorytaleRubbingsFrame") end
+    Lib.rubFrame = rub
+    rui = {}
+    Lib.rui = rui
+    local function P(x, y) return x * s, -y * s end
+    local bg = rub:CreateTexture(nil, "BACKGROUND")
+    bg:SetTexture(ADDON .. "RubbingBook.png")
+    bg:SetTexCoord(0, 1, 0, RB.h / 1024)
+    bg:SetAllPoints()
+    -- Page de gauche : modele 3D, nom, lieu et date.
+    local L1 = RB.left
+    local m = NewScene(rub)
+    if m then
+        m:SetSize(250 * s, 250 * s)
+        m:SetPoint("TOP", rub, "TOPLEFT", (L1[1] + L1[3]) / 2 * s, -(L1[2] + 40) * s)
+        rui.model = m
+        -- (tourne lentement sur lui-meme)
+        local yaw = 0
+        m:SetScript("OnUpdate", function(self, el)
+            yaw = yaw + (el or 0) * 0.5
+            local a = self.actor
+            if a and a.SetYaw then pcall(a.SetYaw, a, yaw) end
+        end)
+    end
+    local name = rub:CreateFontString(nil, "OVERLAY")
+    name:SetPoint("TOP", rub, "TOPLEFT", (L1[1] + L1[3]) / 2 * s, -(L1[2] + 320) * s)
+    name:SetWidth((L1[3] - L1[1] - 50) * s)
+    Font(name, 18, { 0.24, 0.17, 0.11 })
+    name:SetJustifyH("CENTER")
+    rui.name = name
+    local meta = rub:CreateFontString(nil, "OVERLAY")
+    meta:SetPoint("TOP", name, "BOTTOM", 0, -6)
+    meta:SetWidth((L1[3] - L1[1] - 50) * s)
+    Font(meta, 12, { 0.40, 0.32, 0.24 })
+    meta:SetJustifyH("CENTER")
+    rui.meta = meta
+    -- Page de droite : l'estampage.
+    local R1 = RB.right
+    local ch = rub:CreateTexture(nil, "ARTWORK")
+    ch:SetTexture(ADDON .. "RubbingCharcoal.png")
+    ch:SetPoint("TOPLEFT", rub, "TOPLEFT", (R1[1] + 16) * s, -(R1[2] + 26) * s)
+    ch:SetPoint("BOTTOMRIGHT", rub, "TOPLEFT", (R1[3] - 14) * s, -(R1[4] - 30) * s)
+    rui.charcoal = ch
+    local text = rub:CreateFontString(nil, "OVERLAY")
+    text:SetPoint("CENTER", ch, "CENTER", 0, 0)
+    text:SetJustifyH("CENTER")
+    text:SetJustifyV("MIDDLE")
+    text:SetShadowOffset(0, 0)
+    rui.text = text
+    rui.textW = (R1[3] - R1[1] - 110) * s
+    rui.textH = (R1[4] - R1[2] - 130) * s
+    Font(text, 15, { 0.90, 0.87, 0.80 })
+    local empty = rub:CreateFontString(nil, "OVERLAY")
+    empty:SetPoint("CENTER", rub, "TOPLEFT", (R1[1] + R1[3]) / 2 * s, -(R1[2] + R1[4]) / 2 * s)
+    empty:SetWidth((R1[3] - R1[1] - 60) * s)
+    Font(empty, 14, { 0.35, 0.28, 0.20 })
+    rui.empty = empty
+    -- En haut : titre, recherche ; en bas : pages ; la croix.
+    local title = rub:CreateFontString(nil, "OVERLAY")
+    title:SetPoint("BOTTOMLEFT", rub, "TOPLEFT", 20 * s, 8)
+    Font(title, 22, GOLD)
+    title:SetShadowOffset(1, -1)
+    title:SetText(L.RUB_TITLE or "Rubbings")
+    rui.title = title
+    local search = CreateFrame("EditBox", nil, rub, "SearchBoxTemplate")
+    search:SetSize(220, 20)
+    search:SetPoint("LEFT", title, "RIGHT", 20, -2)
+    search:SetAutoFocus(false)
+    search:HookScript("OnTextChanged", function(self)
+        rstate.search = self:GetText() or ""
+        rstate.index = 1
+        RubRefresh()
+    end)
+    rui.search = search
+    local close = CreateFrame("Button", nil, rub, "UIPanelCloseButton")
+    close:SetPoint("BOTTOMRIGHT", rub, "TOPRIGHT", -4, 0)
+    close:SetScript("OnClick", function() rub:Hide() end)
+    rui.close = close
+    local prev = TextButton(rub, "<", function() rstate.index = rstate.index - 1; RubRefresh() end, { 0.30, 0.22, 0.15 })
+    local nextb = TextButton(rub, ">", function() rstate.index = rstate.index + 1; RubRefresh() end, { 0.30, 0.22, 0.15 })
+    local count = rub:CreateFontString(nil, "OVERLAY")
+    count:SetPoint("BOTTOM", rub, "BOTTOM", 0, 6)
+    Font(count, 12, PALE)
+    prev:SetPoint("BOTTOMLEFT", rub, "TOPLEFT", (L1[1] + 20) * s, -(L1[4] - 6) * s)
+    nextb:SetPoint("BOTTOMRIGHT", rub, "TOPLEFT", (R1[3] - 20) * s, -(R1[4] - 6) * s)
+    -- (les boutons de page reprennent la couleur sombre de l'encre au repos)
+    for _, b in ipairs({ prev, nextb }) do
+        b:SetScript("OnLeave", function(self) local c = self.color; self.text:SetTextColor(c[1], c[2], c[3]) end)
+    end
+    rui.prev, rui.next, rui.count = prev, nextb, count
+    rub:EnableMouseWheel(true)
+    rub:SetScript("OnMouseWheel", function(_, delta)
+        rstate.index = rstate.index - delta
+        RubRefresh()
+    end)
+    local p = DialogueWheelE_RubbingsPos
+    if type(p) == "table" and p[1] then
+        rub:ClearAllPoints()
+        rub:SetPoint("CENTER", UIParent, "CENTER", p[1], p[2] or 0)
+    end
+    if DWE.MakeResizeGrip then
+        DWE.MakeResizeGrip(rub, {
+            get = function() return rub:GetWidth() * rub:GetScale(), 0 end,
+            set = function(w)
+                DialogueWheelE_RubbingsScale = math.max(0.6, math.min(1.8, w / rub:GetWidth()))
+                rub:SetScale(DialogueWheelE_RubbingsScale)
+            end,
+        })
+    end
+    rub:SetScale(math.max(0.6, math.min(1.8, tonumber(DialogueWheelE_RubbingsScale) or 1)))
+end
+
+function Lib.OpenRubbings()
+    if not Lib.Enabled() then return end
+    RubBuild()
+    rub:Show()
+    rub:Raise()
+    RubRefresh()
+end
+function Lib.ToggleRubbings()
+    if not Lib.Enabled() then if rub then rub:Hide() end return end
+    RubBuild()
+    if rub:IsShown() then rub:Hide() else Lib.OpenRubbings() end
 end

@@ -2444,6 +2444,14 @@ do
         dx, dy = Lib.Escape({ 300, 300, 400, 400 }, { { 500, 500, 600, 600 } })
         check(dx == 0 and dy == 0, "library: nothing in the way, it stays")
     end
+    -- Carnet d'estampages : les plaques, a part des etageres, un monument par double page
+    do
+        Lib.ToggleRubbings()
+        check(Lib.rubFrame and Lib.rubFrame:IsShown(), "rubbings: the notebook opens")
+        check(Lib.rui.title:GetText() ~= nil and Lib.rui.text:GetFont() ~= nil, "rubbings: titled, text has a font")
+        Lib.ToggleRubbings()
+        check(not Lib.rubFrame:IsShown(), "rubbings: closes again")
+    end
     -- Fond reglable : de plein a rien
     DialogueWheelE_LibraryBg = 0
     Lib.ApplyBg()

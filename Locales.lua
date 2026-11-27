@@ -950,6 +950,25 @@ for loc, text in pairs(LIB_PARTIAL) do
     end
 end
 
+-- Carnet d'estampages (plaques, monuments, tombes) : son nom, et le texte quand il est vide.
+local RUB = {
+    enUS = { "Rubbings", "Every plaque, monument or tombstone you read is copied here." },
+    frFR = { "Estampages", "Chaque plaque, monument ou pierre tombale que vous lisez est recopié ici." },
+    deDE = { "Abriebe", "Jede Tafel, jedes Denkmal und jeder Grabstein, den Ihr lest, wird hier abgerieben." },
+    esES = { "Calcos", "Cada placa, monumento o lápida que leas se calca aquí." },
+    esMX = { "Calcos", "Cada placa, monumento o lápida que leas se calca aquí." },
+    itIT = { "Ricalchi", "Ogni targa, monumento o lapide che leggi viene ricalcata qui." },
+    ptBR = { "Decalques", "Cada placa, monumento ou lápide que você ler é decalcada aqui." },
+    ruRU = { "Оттиски", "Каждая прочитанная табличка, памятник или надгробие копируется сюда." },
+    koKR = { "탁본", "읽은 모든 명판, 기념비, 묘비가 여기에 탁본으로 남습니다." },
+    zhCN = { "拓本", "你读过的每块铭牌、纪念碑和墓碑都会拓印在这里。" },
+    zhTW = { "拓本", "你讀過的每塊銘牌、紀念碑和墓碑都會拓印在這裡。" },
+}
+for loc, v in pairs(RUB) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.RUB_TITLE, dest.RUB_EMPTY = v[1], v[2] end
+end
+
 -- Bibliotheque activee (decochee : plus rien ne l'ouvre, ni clic droit, ni raccourci).
 local LIB_ENABLE = {
     enUS = { "Enable the library", "Click: options. Drag: move this button." },

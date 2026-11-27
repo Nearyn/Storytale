@@ -12,7 +12,7 @@ do
     local EXTRA = { "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose",
         "BookVoiceOff", "RibbonSeen", "GamePad", "PadTipSeen", "PadTips", "DUIPos", "SpokenStyleChosen",
         "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "HideKeep", "NameCVars", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen", "Profiles", "PlateRestore", "BubbleHighlight", "BubbleMode",
-        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "NarratorPos", "LibraryShared", "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryLayout", "LibraryOff", "LibraryScroll", "LibraryLectern" }
+        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "NarratorPos", "LibraryShared", "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryLayout", "LibraryOff", "LibraryScroll", "LibraryLectern", "RubbingsPos", "RubbingsScale" }
     DWE.EXTRA_VARS = EXTRA
     local me = ...
 
@@ -3281,7 +3281,8 @@ SlashCmdList.DIALOGUEWHEELE = function(msg)
             Out(string.format("%s : %.2f %d %d %d", which, pose.dist, pose.yaw, pose.pitch, pose.roll))
         end
     elseif msg:match("^%s*librar") or msg:match("^%s*biblio") then
-        if DWE.Library and msg:match("reset") then DWE.Library.ResetLayout()
+        if DWE.Library and msg:match("rub") then DWE.Library.ToggleRubbings()
+        elseif DWE.Library and msg:match("reset") then DWE.Library.ResetLayout()
         elseif DWE.Library and msg:match("scroll") then DWE.Library.ScrollPicker()
         elseif DWE.Library then DWE.Library.Toggle() end
     elseif msg:match("forget") then
