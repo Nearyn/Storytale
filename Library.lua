@@ -227,7 +227,13 @@ ev:RegisterEvent("ITEM_TEXT_BEGIN")
 ev:RegisterEvent("ITEM_TEXT_READY")
 ev:RegisterEvent("ITEM_TEXT_CLOSED")
 ev:SetScript("OnEvent", function(_, event)
-    if event == "PLAYER_LOGIN" then pcall(Lib.CleanEmpty); pcall(Lib.ImportRead) return end
+    if event == "PLAYER_LOGIN" then
+        pcall(Lib.CleanEmpty); pcall(Lib.ImportRead)
+        -- Preparee en coulisse peu apres la connexion (fenetre, liste, modeles des etageres
+        -- charges un par un) : la premiere ouverture ne fige plus le jeu.
+        if C_Timer and C_Timer.After then C_Timer.After(4, function() pcall(Lib.Warm) end) end
+        return
+    end
     if event == "ITEM_TEXT_CLOSED" then open = nil return end
     local title = ItemTextGetItem and Clean(ItemTextGetItem())
     if not title or title == "" then return end
@@ -985,7 +991,7 @@ function Lib.ShelfPose(row, i)
 end
 -- Chargement etale : quelques modeles par image (ouvrir la bibliotheque ou tourner une page
 -- pleine ne fige pas le jeu). Le livre apparait des que son modele est charge.
-Lib.LOADS_PER_FRAME = 4
+Lib.LOADS_PER_FRAME = 2
 local loadQueue, loader = {}, nil
 local function RunQueue()
     local n = 0
@@ -1553,15 +1559,21 @@ function Lib.ApplyLayout()
     end
     local pos = (type(all.pos) == "table" and all.pos[1]) and all.pos
     if not pos then
-        local cx = x1 and ((x1 + x2) / 2 - room:GetWidth() / 2) or 0
-        local cy = y1 and ((y1 + y2) / 2 - room:GetHeight() / 2) or 0
-        pos = { "CENTER", -cx, -cy }
+        -- (place par defaut : celle de Nearyn, a droite de l'ecran ; style simple : centree)
+        if Lib.Style() == "room" then
+            pos = Lib.DEFAULT_POS
+        else
+            local cx = x1 and ((x1 + x2) / 2 - room:GetWidth() / 2) or 0
+            local cy = y1 and ((y1 + y2) / 2 - room:GetHeight() / 2) or 0
+            pos = { "CENTER", -cx, -cy }
+        end
     end
     room:ClearAllPoints()
     room:SetPoint(pos[1], UIParent, pos[1], (pos[2] or 0) + (ra and ra[1] or 0), (pos[3] or 0) + (ra and ra[2] or 0))
 end
 -- Disposition par defaut de la piece entiere : l'en-tete en haut, le pupitre a gauche, la
 -- bibliotheque a droite (la seconde a cote quand elle se remplit).
+Lib.DEFAULT_POS = { "CENTER", 638, 70 }
 Lib.DEFAULT_LAYOUT = {
     room = {
         header = { x = 3, y = -48, s = 0.923 },
@@ -2165,6 +2177,13 @@ end
 -- Bibliotheque desactivee dans les options : rien ne l'ouvre (clic droit sur le bouton de la
 -- mini-carte, raccourci, commande). Les ecrits lus restent gardes, pour le jour ou on la remet.
 function Lib.Enabled() return DialogueWheelE_LibraryOff ~= true end
+function Lib.Warm()
+    if not Lib.Enabled() or (InCombatLockdown and InCombatLockdown()) then return end
+    if room and room:IsShown() then return end
+    Build()
+    Lib.SpokenTitles()
+    Refresh()
+end
 function Lib.Open()
     if not Lib.Enabled() then return end
     Build()
