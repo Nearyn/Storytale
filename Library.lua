@@ -2772,8 +2772,9 @@ local function RubBuild()
     -- Marque-page (vert, celui du livre est rouge) : marque le monument affiche ; le carnet se
     -- rouvre a cette page.
     local rib = CreateFrame("Button", nil, rub)
-    rib:SetSize(30 * s / 0.8, 48 * s / 0.8)
-    rib:SetPoint("TOP", rub, "TOPLEFT", (RB.right[3] - 60) * s, -(RB.right[2] - 14) * s)
+    -- (comme celui du livre de Storytale : a cheval sur la reliure, en haut, 55 x 96)
+    rib:SetSize(55 * s, 96 * s)
+    rib:SetPoint("TOPLEFT", rub, "TOPLEFT", ((RB.left[3] + RB.right[1]) / 2 - 27) * s, -(RB.left[2] + 20) * s)
     rib:SetFrameLevel(rub:GetFrameLevel() + 8)
     local rt = rib:CreateTexture(nil, "ARTWORK")
     rt:SetAllPoints()
