@@ -2242,6 +2242,8 @@ function DWE.Bubble.SetShown(show)
     if DWE.Gw2Native and DWE.Gw2Native(name) then
         face = UNIT_NAME_FONT or STANDARD_TEXT_FONT
     end
+    -- Police choisie dans les options : elle passe avant celle du style, quelle que soit la bulle.
+    if DWE.FontChosen and DWE.FontChosen() then face = DWE.FontPath(DWE.ThemeFontId()) end
     if bubble.fontKey ~= face .. size then
         bubble.fontKey = face .. size
         DWE.SafeSetFont(text, face, size)

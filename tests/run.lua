@@ -1997,6 +1997,26 @@ check(not DialogueWheelEEscapeCatcher:IsShown(), "option off: Escape not used")
 M.FireEvent("GOSSIP_CLOSED")
 DialogueWheelE_EscClose = nil
 
+-- Font chosen in the options: used by every bubble, game bubble included, and changed live
+if not (DWE.IS_CJK or DWE.IS_CYRILLIC) then
+    DialogueWheelE_Theme = "bubble"
+    DialogueWheelE_Font = nil
+    M.FireEvent("GOSSIP_SHOW")
+    DWE.SetDialogueText("x", "Hello there, friend.")
+    DWE.ApplyFont()
+    check(not (DWE.bubbleTextFS:GetFont() or ""):find("MORPHEUS"), "game bubble: Blizzard font by default")
+    DialogueWheelE_Font = "morpheus"
+    DWE.ApplyFont()
+    check((DWE.bubbleTextFS:GetFont() or ""):find("MORPHEUS") ~= nil, "game bubble: chosen font applied live")
+    DialogueWheelE_Font = "skurri"
+    DWE.ApplyFont()
+    check((DWE.bubbleTextFS:GetFont() or ""):find("SKURRI") ~= nil, "game bubble: second font change applied live")
+    DialogueWheelE_Font = nil
+    DWE.ApplyFont()
+    check(not (DWE.bubbleTextFS:GetFont() or ""):find("SKURRI"), "game bubble: back to Blizzard font")
+    M.FireEvent("GOSSIP_CLOSED")
+end
+
 -- Popup (other themes): gradual text only with Spoken installed
 DialogueWheelE_Theme = "dark"
 DialogueWheelE_ShowText = true

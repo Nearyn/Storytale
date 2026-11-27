@@ -1317,6 +1317,13 @@ end
 
 -- Police a utiliser : celle du theme (Encre et or, Cinematique) tant que le joueur garde la
 -- police par defaut ; sinon celle qu'il a choisie.
+-- Police choisie par le joueur (autre que celle par defaut) : elle s'applique partout, bulles du
+-- jeu comprises (avant, les bulles "jeu", PNJ et murmure gardaient la police de Blizzard).
+function DWE.FontChosen()
+    local u = DialogueWheelE_Font
+    return u ~= nil and u ~= "friz" and not DWE.IS_CJK
+end
+
 function DWE.ThemeFontId()
     local u = DialogueWheelE_Font
     if u == nil or u == "friz" then
@@ -1398,6 +1405,11 @@ function DWE.ApplyFont()
     if choiceBox:IsShown() then
         DWE.UpdateVisuals()
         DWE.UpdateTextPanelVisuals()
+        -- La bulle prend sa police dans SetShown : sans cet appel, elle gardait l'ancienne police
+        -- jusqu'au dialogue suivant (vu en jeu le 27/11).
+        if DWE.bubble and DWE.bubble:IsShown() and DWE.Bubble and DWE.Bubble.SetShown then
+            DWE.Bubble.SetShown(true)
+        end
         if DWE.Bubble and DWE.Bubble.Refit then DWE.Bubble.Refit() end
     elseif textBox:IsShown() then
         DWE.UpdateTextPanelVisuals()
@@ -6461,7 +6473,7 @@ end
 local function ApplyWheelFont(fs, defaultObject, size, forceSize)
     local key = "default"
     local sk = DWE.WheelPillStyle() and DWE.BubbleSkin()
-    if sk and sk.optFont then
+    if sk and (sk.optFont or DWE.FontChosen()) then
         key = FontPath(DWE.ThemeFontId()) .. size
     elseif forceSize then
         key = "obj" .. size
@@ -6469,7 +6481,7 @@ local function ApplyWheelFont(fs, defaultObject, size, forceSize)
     if fs.dweFontKey == key then return end
     if key == "default" then
         if fs.dweFontKey then fs:SetFontObject(defaultObject) end
-    elseif sk and sk.optFont then
+    elseif sk and (sk.optFont or DWE.FontChosen()) then
         SafeSetFont(fs, FontPath(DWE.ThemeFontId()), size)
     else
         local path, _, flags = defaultObject:GetFont()
