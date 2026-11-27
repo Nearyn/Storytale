@@ -2533,6 +2533,7 @@ do
         -- (en avant : la page de gauche garde l'ancien monument sous la feuille qui arrive, la
         -- droite montre deja le nouveau, decouvert par la feuille qui se souleve)
         check(Lib.rui.name:GetText() == rowsT[1].title, "rubbings: left page kept until the sheet lands (" .. tostring(Lib.rui.name:GetText()) .. ")")
+        check(Lib.rui.count:GetText() == "2" and Lib.rui.right:GetAlpha() == 0, "rubbings: page number belongs to the uncovered page (hidden until the sheet passes)")
         check(Lib.rui.content:GetAlpha() == 1, "rubbings: the left page does not vanish while the sheet turns")
         do local u = Lib.rui.flipper:GetScript("OnUpdate"); u(Lib.rui.flipper, 0.1) end
         check(Lib.rui.flipShadow:IsShown(), "rubbings: the lifted sheet casts a shadow on the page")

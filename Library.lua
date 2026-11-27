@@ -851,9 +851,10 @@ Lib.BOOK_THICK = 0.23 -- (epaisseur d'un livre debout, en part de sa hauteur)
 -- qu'un, le cadre etant juste assez large et la camera decalee sur lui : un cercle = un ecrit)
 Lib.SCROLL_PILE = { dist = 0.9, w = 0.171, dia = 0.171 }
 Lib.SHELF_BOOK_OK = { [200900] = true, [200901] = true, [200902] = true, [200903] = true, [200904] = true, [200905] = true }
-Lib.SCROLL_SHELF = { 203429, 512439 } -- (Uldaman scroll 1 et Held scroll, melanges)
+Lib.SCROLL_SHELF = { 203430 } -- (Uldaman scroll 2, vu par le bout : un rouleau)
+Lib.SCROLL_POSED = { [203430] = true } -- (modeles dont la vue sur le rayon est reglee)
 -- Rouleaux qui se tiennent debout sur le rayon (et leur vue : /storytale libpose sheet ...).
-Lib.SHEET_MODELS = { [203429] = true, [512439] = true }
+Lib.SHEET_MODELS = {}
 Lib.SHEET_POSE = { dist = 1.0, yaw = 0, pitch = 0, roll = 0, vfrac = 0.55, across = 1.0 }
 Lib.SCROLL_OPEN = { 198451, 198452, 198454, 198455, 201113 }
 local function TitleHash(t)
@@ -870,7 +871,11 @@ function Lib.ModelFor(row, where)
         where = "lectern"
     end
     if row.kind == "letter" and where == "shelf" then
-        return tonumber(DialogueWheelE_LibraryScroll) or Lib.SCROLL_SHELF[TitleHash(row.title) % #Lib.SCROLL_SHELF + 1]
+        -- (le choix fait dans la fenetre d'essai ne vaut que pour un modele dont la vue sur le
+        -- rayon est reglee : les autres, vus par le bout, ne ressemblent a rien)
+        local pick = tonumber(DialogueWheelE_LibraryScroll)
+        if pick and Lib.SCROLL_POSED[pick] then return pick end
+        return Lib.SCROLL_SHELF[TitleHash(row.title) % #Lib.SCROLL_SHELF + 1]
     end
     -- (sur les etageres, seuls les livres g_book01 se tiennent debout de profil ; les autres
     -- reliures du jeu montraient leur couverture de face : on prend la g_book01 la plus proche)
@@ -2736,6 +2741,12 @@ local function RubDrawRight(row, w)
     end
     local a = e and 1 or 0.45
     w.charcoal:SetAlpha(a); w.text:SetAlpha(a)
+    -- (le numero est imprime sur cette page : il part et revient avec elle)
+    if w.count then
+        local n = ""
+        for i, r in ipairs(RubRows()) do if r.key == row.key then n = tostring(i) end end
+        w.count:SetText(n)
+    end
 end
 -- Modele affiche pour de bon (charge par le jeu, ou on n'attend plus).
 function Lib.ModelReady(sc)
@@ -2761,7 +2772,7 @@ local function RubRefresh()
     local n = #rows
     rstate.index = math.max(1, math.min(rstate.index, math.max(1, n)))
     local row = rows[rstate.index]
-    rui.count:SetText(n > 0 and tostring(rstate.index) or "")
+    if n == 0 then rui.count:SetText("") end
     Lib.RubBarRefresh(n)
     if rui.menu and rui.menu:IsShown() and not rui.menu.closing then Lib.RubMenuRefresh() end
     if not row then
@@ -3110,6 +3121,10 @@ local function RubBuild()
         sw.preview:SetVertexColor(0.30, 0.22, 0.15)
         sw.charcoal = sw.right:CreateTexture(nil, "ARTWORK")
         sw.charcoal:SetTexture(ADDON .. "RubbingCharcoal.png")
+        sw.count = sw.right:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        sw.count:SetPoint("BOTTOM", rub, "TOPLEFT", (R1[1] + R1[3]) / 2 * s, -(R1[4] - 14) * s)
+        sw.count:SetTextColor(0.40, 0.22, 0.08)
+        sw.count:SetShadowOffset(0, 0)
         sw.text = sw.right:CreateFontString(nil, "OVERLAY")
         sw.text:SetPoint("CENTER", sw.charcoal, "CENTER", 0, 0)
         sw.text:SetJustifyH("CENTER")
