@@ -660,7 +660,6 @@ local OBJ_MODEL = {
     [177208] = 200554, -- The White Stag and the Moon
     [177209] = 200554, -- Hatred of the Centaur
     [177222] = 199983, -- Pteradon Skeleton
-    [179706] = 198022, -- A Treatise on Military Ranks
     [179707] = 198026, -- Military Ranks of the Horde & Alliance
     [179735] = 199981, -- Alliance Military Ranks
     [179741] = 199983, -- Horde Military Ranks
