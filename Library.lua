@@ -2552,6 +2552,25 @@ local function RubRefresh()
     local pages = Lib.Pages(row)
     local text = DWE.PlainItemText and DWE.PlainItemText(table.concat(pages, "\n\n")) or table.concat(pages, "\n\n")
     FitText(rui.text, text, rui.textW, rui.textH)
+    -- Fusain a la taille du texte : un texte court, un petit frottis (on ne frotte que la ou
+    -- c'est grave), dans la limite de la page.
+    do
+        local fs = rui.text
+        local w = rui.textW
+        local longest = 0
+        for line in (text .. "\n"):gmatch("(.-)\n") do
+            fs:SetWidth(0); fs:SetText(line)
+            longest = math.max(longest, fs:GetStringWidth() or 0)
+        end
+        w = math.min(rui.textW, math.max(60, longest + 4))
+        fs:SetWidth(w); fs:SetText(text)
+        local h = fs:GetStringHeight() or rui.textH
+        local cw = math.min(rui.chMaxW, math.max(rui.chMinW, w + 70))
+        local chh = math.min(rui.chMaxH, math.max(rui.chMinH, h + 80))
+        rui.charcoal:ClearAllPoints()
+        rui.charcoal:SetPoint("CENTER", rub, "TOPLEFT", rui.chCX, rui.chCY)
+        rui.charcoal:SetSize(cw, chh)
+    end
     -- (pas encore trouve : estampage pale)
     local a = e and 1 or 0.45
     rui.charcoal:SetAlpha(a); rui.text:SetAlpha(a)
@@ -2564,6 +2583,27 @@ local function RubRefresh()
     end
 end
 Lib.RubRefresh = RubRefresh
+-- Marque-page : bien visible sur la page marquee, pale ailleurs.
+function Lib.RubRibbon()
+    if not (rui and rui.ribbon) then return end
+    local row = RubRows()[rstate.index]
+    local on = row and DialogueWheelE_RubbingMark == row.key
+    rui.ribbon.tex:SetAlpha(on and 1 or 0.35)
+    rui.ribbon:SetShown(row ~= nil)
+end
+function Lib.RubTurn(dir)
+    local n = #RubRows()
+    local to = math.max(1, math.min(n, rstate.index + dir))
+    if to == rstate.index then return end
+    rstate.index = to
+    RubRefresh()
+    Lib.RubRibbon()
+    if DialogueWheelE_BookTurnFX ~= false and rui.flipper then
+        if PlaySound then pcall(PlaySound, SOUNDKIT and (SOUNDKIT.IG_ABILITY_PAGE_TURN or SOUNDKIT.IG_SPELLBOOK_PAGE_TURN) or 836) end
+        rui.flipper.t, rui.flipper.dir = 0, dir
+        rui.flipper:Show()
+    end
+end
 Lib.RUB_POSE = { dist = 1.15, yaw = 0, pitch = 8, roll = 0 }
 
 local function RubBuild()
@@ -2640,6 +2680,9 @@ local function RubBuild()
     ch:SetPoint("TOPLEFT", rub, "TOPLEFT", (R1[1] + 16) * s, -(R1[2] + 26) * s)
     ch:SetPoint("BOTTOMRIGHT", rub, "TOPLEFT", (R1[3] - 14) * s, -(R1[4] - 30) * s)
     rui.charcoal = ch
+    rui.chMaxW, rui.chMaxH = (R1[3] - R1[1] - 30) * s, (R1[4] - R1[2] - 56) * s
+    rui.chMinW, rui.chMinH = 150 * s, 120 * s
+    rui.chCX, rui.chCY = (R1[1] + R1[3]) / 2 * s, -((R1[2] + R1[4]) / 2 - 2) * s
     local text = rub:CreateFontString(nil, "OVERLAY")
     text:SetPoint("CENTER", ch, "CENTER", 0, 0)
     text:SetJustifyH("CENTER")
@@ -2675,8 +2718,8 @@ local function RubBuild()
     close:SetPoint("BOTTOMRIGHT", rub, "TOPRIGHT", -4, 0)
     close:SetScript("OnClick", function() rub:Hide() end)
     rui.close = close
-    local prev = TextButton(rub, "<", function() rstate.index = rstate.index - 1; RubRefresh() end, { 0.30, 0.22, 0.15 })
-    local nextb = TextButton(rub, ">", function() rstate.index = rstate.index + 1; RubRefresh() end, { 0.30, 0.22, 0.15 })
+    local prev = TextButton(rub, "<", function() Lib.RubTurn(-1) end, { 0.30, 0.22, 0.15 })
+    local nextb = TextButton(rub, ">", function() Lib.RubTurn(1) end, { 0.30, 0.22, 0.15 })
     local count = rub:CreateFontString(nil, "OVERLAY")
     count:SetPoint("BOTTOM", rub, "BOTTOM", 0, 6)
     Font(count, 12, PALE)
@@ -2693,10 +2736,63 @@ local function RubBuild()
     pv:SetScript("OnLeave", function(self) local c = self.color; self.text:SetTextColor(c[1], c[2], c[3]) end)
     rui.preview = pv
     rub:EnableMouseWheel(true)
-    rub:SetScript("OnMouseWheel", function(_, delta)
-        rstate.index = rstate.index - delta
-        RubRefresh()
+    rub:SetScript("OnMouseWheel", function(_, delta) Lib.RubTurn(-delta) end)
+    -- Page qui tourne (option "Animation et son des pages", comme le livre de Storytale) : une
+    -- feuille part du bord de la page et se replie vers la reliure, puis se deplie de l'autre cote.
+    local flip = rub:CreateTexture(nil, "OVERLAY", nil, 6)
+    flip:SetTexture(ADDON .. "RubbingBook.png")
+    flip:Hide()
+    rui.flip = flip
+    local fl = CreateFrame("Frame", nil, rub)
+    fl:Hide()
+    rui.flipper = fl
+    local spineX = (RB.left[3] + RB.right[1]) / 2
+    fl:SetScript("OnUpdate", function(self, el)
+        self.t = self.t + (el or 0)
+        local k = math.min(1, self.t / 0.36)
+        local first = k < 0.5
+        local fromRight = (self.dir > 0) == first
+        local pg = fromRight and RB.right or RB.left
+        local f = first and (1 - k * 2) or ((k - 0.5) * 2)
+        f = math.max(0.001, first and (f * f) or (1 - (1 - f) * (1 - f)))
+        local pw, ph = (pg[3] - pg[1]) * s, (pg[4] - pg[2]) * s
+        flip:SetTexCoord(pg[1] / RB.w, pg[3] / RB.w, pg[2] / 1024, pg[4] / 1024)
+        flip:ClearAllPoints()
+        if fromRight then
+            flip:SetPoint("TOPLEFT", rub, "TOPLEFT", spineX * s, -pg[2] * s)
+        else
+            flip:SetPoint("TOPRIGHT", rub, "TOPLEFT", spineX * s, -pg[2] * s)
+        end
+        flip:SetSize(math.max(0.5, pw * f), ph)
+        local shade = 0.62 + 0.38 * f
+        flip:SetVertexColor(shade, shade * 0.97, shade * 0.93)
+        flip:Show()
+        if k >= 1 then self:Hide(); flip:Hide() end
     end)
+    -- Marque-page (vert, celui du livre est rouge) : marque le monument affiche ; le carnet se
+    -- rouvre a cette page.
+    local rib = CreateFrame("Button", nil, rub)
+    rib:SetSize(30 * s / 0.8, 48 * s / 0.8)
+    rib:SetPoint("TOP", rub, "TOPLEFT", (RB.right[3] - 60) * s, -(RB.right[2] - 14) * s)
+    rib:SetFrameLevel(rub:GetFrameLevel() + 8)
+    local rt = rib:CreateTexture(nil, "ARTWORK")
+    rt:SetAllPoints()
+    rt:SetTexture(ADDON .. "RibbonGreen.png")
+    rib.tex = rt
+    rib:SetScript("OnClick", function()
+        local row = RubRows()[rstate.index]
+        if not row then return end
+        DialogueWheelE_RubbingMark = (DialogueWheelE_RubbingMark ~= row.key) and row.key or nil
+        Lib.RubRibbon()
+    end)
+    rib:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(L.MENU_MARK or "Bookmark this page", 1, 0.82, 0)
+        GameTooltip:Show()
+        self.tex:SetAlpha(1)
+    end)
+    rib:SetScript("OnLeave", function() GameTooltip:Hide(); Lib.RubRibbon() end)
+    rui.ribbon = rib
     local p = DialogueWheelE_RubbingsPos
     if type(p) == "table" and p[1] then
         rub:ClearAllPoints()
@@ -2734,10 +2830,16 @@ function Lib.PreviewRubbing()
 end
 function Lib.OpenRubbings()
     if not Lib.Enabled() then return end
+    local fresh = not rub
     RubBuild()
     rub:Show()
     rub:Raise()
+    -- (ouvert la premiere fois a la page marquee)
+    if fresh and DialogueWheelE_RubbingMark then
+        for i, r in ipairs(RubRows()) do if r.key == DialogueWheelE_RubbingMark then rstate.index = i end end
+    end
     RubRefresh()
+    Lib.RubRibbon()
 end
 function Lib.ToggleRubbings()
     if not Lib.Enabled() then if rub then rub:Hide() end return end

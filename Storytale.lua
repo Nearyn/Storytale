@@ -12,7 +12,7 @@ do
     local EXTRA = { "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose",
         "BookVoiceOff", "RibbonSeen", "GamePad", "PadTipSeen", "PadTips", "DUIPos", "SpokenStyleChosen",
         "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "HideKeep", "NameCVars", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen", "Profiles", "PlateRestore", "BubbleHighlight", "BubbleMode",
-        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "NarratorPos", "LibraryShared", "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryLayout", "LibraryOff", "LibraryScroll", "LibraryLectern", "RubbingsPos", "RubbingsScale" }
+        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "NarratorPos", "LibraryShared", "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryLayout", "LibraryOff", "LibraryScroll", "LibraryLectern", "RubbingsPos", "RubbingsScale", "RubbingMark" }
     DWE.EXTRA_VARS = EXTRA
     local me = ...
 
