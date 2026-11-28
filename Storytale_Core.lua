@@ -9235,7 +9235,7 @@ function DWE.InitOptionsPanel()
         DWE.RefreshBindings()
     end)
     -- Lignes d'aide a positions fixes (les deux dernieres peuvent passer sur deux lignes).
-    for _, h in ipairs({ { "PAD_HELP1", 62 }, { "PAD_HELP2", 80 }, { "PAD_HELP4", 98 }, { "PAD_HELP3", 130 } }) do
+    for _, h in ipairs({ { "PAD_HELP1", 62 }, { "PAD_HELP2", 80 }, { "PAD_HELP4", 98 }, { "PAD_HELP3", 130 }, { "PAD_HELP5", 162 } }) do
         local fs = AddText(L[h[1]], 20, y - h[2], "GameFontHighlightSmall")
         fs:SetWidth(560)
         fs:SetJustifyH("LEFT")
@@ -9249,19 +9249,19 @@ function DWE.InitOptionsPanel()
         for i, id in ipairs(DWE.PAD_MANUAL_CHOICES) do items[i] = { id = id, label = PAD_NAMES[id] } end
         AddGroup(items, 16, y - rowY - 18, 0, get, set, 1, 80)
     end
-    PadRow(L.PAD_MANUAL_NEXT or "Manual advance, next part:", 172, function()
+    PadRow(L.PAD_MANUAL_NEXT or "Manual advance, next part:", 196, function()
         local nx = DWE.PadManualKeys()
         return nx or "NONE"
     end, function(id) DialogueWheelE_PadNext = id end)
-    PadRow(L.PAD_MANUAL_PREV or "Manual advance, previous part:", 222, function()
+    PadRow(L.PAD_MANUAL_PREV or "Manual advance, previous part:", 246, function()
         local _, pv = DWE.PadManualKeys()
         return pv or "NONE"
     end, function(id) DialogueWheelE_PadPrev = id end)
-    local ps = AddText(L.PAD_PS_NAMES or "", 20, y - 272, "GameFontDisableSmall")
+    local ps = AddText(L.PAD_PS_NAMES or "", 20, y - 296, "GameFontDisableSmall")
     if ps and ps.SetWidth then ps:SetWidth(560); ps:SetJustifyH("LEFT") end
 
     ---------------------------------------------------------------- Spoken
-    y = y - 300
+    y = y - 324
     NewPage(L.SEC_SPOKEN, y)
     AddSection(L.SEC_SPOKEN, y)
     local spokenOn = DWE.SpokenFocus and DWE.SpokenFocus.Available()

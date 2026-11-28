@@ -3199,7 +3199,7 @@ end
 -- Astuce manette, montree une seule fois (premiere conversation en mode manette).
 -- Astuces manette, chacune montree une seule fois, la premiere fois que l'element sert a la
 -- manette : conversation, livre (pages, ruban), lecteur miniature de Spoken (Share).
-DWE.PAD_TIPS = { talk = "PAD_TIP", book = "PAD_TIP_BOOK", spoken = "PAD_TIP_SPOKEN" }
+DWE.PAD_TIPS = { talk = "PAD_TIP", book = "PAD_TIP_BOOK", spoken = "PAD_TIP_SPOKEN", manual = "PAD_TIP_MANUAL" }
 function DWE.PadTipSeen(kind)
     if type(DialogueWheelE_PadTips) ~= "table" then
         DialogueWheelE_PadTips = { talk = DialogueWheelE_PadTipSeen == true or nil }
@@ -3212,6 +3212,10 @@ function DWE.PadTipCheck()
     if DWE.padCatcher:IsShown() then
         local kind = DWE.bookMode and "book" or "talk"
         if not DWE.PadTipSeen(kind) then return DWE.ShowPadTip(kind) end
+        -- Avance manuelle : ses boutons (L1 / R1), une fois, a la premiere bulle dans ce mode.
+        if kind == "talk" and DWE.BubblePadActive and DWE.BubblePadActive() and not DWE.PadTipSeen("manual") then
+            return DWE.ShowPadTip("manual")
+        end
     end
     local ui = DWE.SpokenQueueUI
     if (DWE.SpokenControlsShown() or (ui and ui.NoticeShown and ui.NoticeShown()))
