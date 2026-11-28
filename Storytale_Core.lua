@@ -998,6 +998,10 @@ function DWE.ThemeIsBubble(id)
 end
 
 -- Habillage bulle en cours (nil = pas de bulle : theme en cadre, Sans cadre ou livre ouvert).
+-- Habillage bulle du theme choisi, meme en mode cadre (la bulle du chat des options).
+function DWE.ThemeBubbleSkin()
+    return BUBBLE_SKINS[CurrentTheme()]
+end
 function DWE.BubbleSkin()
     if DWE.bookMode then return nil end
     local t = CurrentTheme()
@@ -8124,6 +8128,12 @@ DWE.OPTION_VARS = {}
 for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI HideKeep LibraryAll LibraryUnlock LibraryStyle LibraryBg LibraryOff ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
+    -- Voix des livres coupee : le reglage est remis, et aussi son etat en cours (sinon le livre
+    -- suivant s'ouvrait encore muet, et seulement celui d'apres parlait ; vu le 28/11).
+    local sf = DWE.SpokenFocus
+    if sf and sf.bookMuted then
+        if DWE.bookMode and sf.SetBookMuted then pcall(sf.SetBookMuted, false) else sf.bookMuted = nil end
+    end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
     DWE.SettingsChanged()
 end
@@ -8201,8 +8211,12 @@ function DWE.Ask(opts)
             pcall(f.EnableGamePadButton, f, true)
             if f.SetPropagateGamePadInput then pcall(f.SetPropagateGamePadInput, f, false) end
             f:SetScript("OnGamePadButtonDown", function(_, b)
-                -- Fenetre d'options ouverte : ses liaisons transmettent deja le bouton (pas deux fois).
-                if DWE.OptionsPadActive and DWE.OptionsPadActive() and not f.fromOptions then return end
+                -- Cette fenetre prend le bouton (il ne va plus aux liaisons de la fenetre d'options) :
+                -- elle le traite toujours elle-meme. Avant, fenetre d'options ouverte, elle le
+                -- laissait a ces liaisons qui ne le recevaient jamais : "Oui" impossible (28/11).
+                local now = GetTime and GetTime() or nil
+                if now and f.padAt == now then return end -- (meme appui deja traite)
+                f.padAt = now
                 if b == "PAD1" then Done(f.sel ~= 2)
                 elseif b == "PAD2" then Done(false)
                 elseif b == "PADDLEFT" then Pick(1)
@@ -9225,14 +9239,33 @@ function DWE.InitOptionsPanel()
         DWE.RefreshBindings()
     end)
     -- Lignes d'aide a positions fixes (les deux dernieres peuvent passer sur deux lignes).
-    for _, h in ipairs({ { "PAD_HELP1", 62 }, { "PAD_HELP2", 80 }, { "PAD_HELP4", 98 }, { "PAD_HELP3", 130 } }) do
+    for _, h in ipairs({ { "PAD_HELP1", 62 }, { "PAD_HELP2", 80 }, { "PAD_HELP4", 98 }, { "PAD_HELP3", 130 }, { "PAD_HELP5", 162 } }) do
         local fs = AddText(L[h[1]], 20, y - h[2], "GameFontHighlightSmall")
         fs:SetWidth(560)
         fs:SetJustifyH("LEFT")
     end
+    -- Avance manuelle : bouton "suite" (RB par defaut) et "precedent" (LB par defaut).
+    local PAD_NAMES = { NONE = L.PAD_NONE or "None", PAD1 = "A", PAD3 = "X", PADLSHOULDER = "LB",
+        PADRSHOULDER = "RB", PADLTRIGGER = "LT", PADRTRIGGER = "RT" }
+    local function PadRow(label, rowY, get, set)
+        AddText(label, 20, y - rowY, "GameFontNormalSmall")
+        local items = {}
+        for i, id in ipairs(DWE.PAD_MANUAL_CHOICES) do items[i] = { id = id, label = PAD_NAMES[id] } end
+        AddGroup(items, 16, y - rowY - 18, 0, get, set, 1, 80)
+    end
+    PadRow(L.PAD_MANUAL_NEXT or "Manual advance, next part:", 196, function()
+        local nx = DWE.PadManualKeys()
+        return nx or "NONE"
+    end, function(id) DialogueWheelE_PadNext = id end)
+    PadRow(L.PAD_MANUAL_PREV or "Manual advance, previous part:", 246, function()
+        local _, pv = DWE.PadManualKeys()
+        return pv or "NONE"
+    end, function(id) DialogueWheelE_PadPrev = id end)
+    local ps = AddText(L.PAD_PS_NAMES or "", 20, y - 296, "GameFontDisableSmall")
+    if ps and ps.SetWidth then ps:SetWidth(560); ps:SetJustifyH("LEFT") end
 
     ---------------------------------------------------------------- Spoken
-    y = y - 170
+    y = y - 324
     NewPage(L.SEC_SPOKEN, y)
     AddSection(L.SEC_SPOKEN, y)
     local spokenOn = DWE.SpokenFocus and DWE.SpokenFocus.Available()

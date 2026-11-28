@@ -2288,8 +2288,77 @@ do
     tick(0.05)
     DWE.bubble._scripts.OnMouseUp(DWE.bubble, "LeftButton")
     check(st.index == 2, "manual pages: left-click goes on")
+    -- Manette (demande de deux joueurs) : A montre la suite, LB revient, rien de pris sans partie ou aller.
+    do
+        local pad = DWE.padCatcher._scripts and DWE.padCatcher._scripts.OnGamePadButtonDown
+        local savedNext, savedPrev, savedBook = DialogueWheelE_PadNext, DialogueWheelE_PadPrev, DWE.bookMode
+        DWE.bookMode = nil
+        local nx, pv = DWE.PadManualKeys()
+        check(nx == "PADRSHOULDER" and pv == "PADLSHOULDER", "manual pages, gamepad: RB and LB by default (A stays for the choices)")
+        if pad then
+            pad(DWE.padCatcher, "PADLSHOULDER"); DWE.padCatcher._scripts.OnGamePadButtonUp(DWE.padCatcher, "PADLSHOULDER"); tick(0.05)
+            check(st.index == 1, "manual pages, gamepad: LB goes back")
+            DWE.padHeld.PADRSHOULDER = true
+            pad(DWE.padCatcher, "PADLSHOULDER"); DWE.padCatcher._scripts.OnGamePadButtonUp(DWE.padCatcher, "PADLSHOULDER")
+            DWE.padHeld.PADRSHOULDER = nil
+            check(st.index == 1, "manual pages, gamepad: LB with RB held stays the zoom")
+            -- RB presse un peu avant LB (zoom) : rien ne tourne
+            local up = DWE.padCatcher._scripts.OnGamePadButtonUp
+            pad(DWE.padCatcher, "PADRSHOULDER"); pad(DWE.padCatcher, "PADLSHOULDER")
+            up(DWE.padCatcher, "PADLSHOULDER"); up(DWE.padCatcher, "PADRSHOULDER"); tick(0.05)
+            check(st.index == 1, "manual pages, gamepad: RB then LB together (zoom) turns nothing")
+            pad(DWE.padCatcher, "PAD1"); DWE.padCatcher._scripts.OnGamePadButtonUp(DWE.padCatcher, "PAD1"); tick(0.05)
+            check(st.index == 1, "manual pages, gamepad: A does not turn the text (it stays for the choices)")
+            pad(DWE.padCatcher, "PADRSHOULDER"); DWE.padCatcher._scripts.OnGamePadButtonUp(DWE.padCatcher, "PADRSHOULDER"); tick(0.05)
+            check(st.index == 2, "manual pages, gamepad: RB shows the next part")
+            DWE.BubblePrev(); tick(0.05)
+            check(DWE.BubblePadStep(1) == true and st.index == 2, "manual pages, gamepad: next button shows the next part")
+            tick(0.05)
+            while st.index < #st.segs do DWE.BubblePadStep(1); tick(0.05) end
+            check(DWE.BubblePadStep(1) == false, "manual pages, gamepad: on the last part, the next button is left to the game")
+            DialogueWheelE_PadNext, DialogueWheelE_PadPrev = "NONE", "PADRTRIGGER"
+            nx, pv = DWE.PadManualKeys()
+            check(nx == nil and pv == "PADRTRIGGER", "manual pages, gamepad: buttons can be changed or set to none")
+            while st.index > 2 do DWE.BubblePrev(); tick(0.05) end
+        else
+            check(false, "manual pages, gamepad: no pad handler")
+        end
+        DialogueWheelE_PadNext, DialogueWheelE_PadPrev, DWE.bookMode = savedNext, savedPrev, savedBook
+    end
+    -- Machine a ecrire : revenir en arriere met la bulle en pause (le joueur relit) ; la suite la relance.
+    DialogueWheelE_BubbleMode = nil
+    DWE.SetDialogueText("NPC", long)
+    for _ = 1, 2000 do tick(0.05); if st.index >= 2 and st.phase == "reading" then break end end
+    check(st.index >= 2, "typewriter: the text goes on by itself: " .. tostring(st.index))
+    local at = st.index
+    DWE.bubble:Show()
+    check(DWE.BubblePrev() == true and st.index == at - 1 and st.phase == "reading", "typewriter: back shows the previous part whole")
+    for _ = 1, 600 do tick(0.05) end
+    check(st.index == at - 1, "typewriter: after going back, the bubble waits for the player (30 s)")
+    DWE.BubbleNext(); tick(0.05)
+    check(st.index == at, "typewriter: next goes on again")
+    -- Tout d'un coup : tout le texte dans une seule bulle, qui defile s'il est long.
     DialogueWheelE_BubbleMode = "page"
-    check(DWE.BubblePrev() == false and st.index == 2, "all at once: no going back (the bubble would turn on its own)")
+    DWE.SetDialogueText("NPC", long .. " " .. long .. " " .. long)
+    DWE.bubble:Show()
+    tick(0.05)
+    check(#st.segs == 1, "all at once: the whole text in one bubble: " .. tostring(#st.segs))
+    local sc = DWE.bubbleScroll
+    if sc.max > 0 then
+        check(DWE.BubblePadCan(-1) == false, "all at once: nothing above at the start")
+        check(DWE.BubblePadStep(1) == true and sc.target > 0, "all at once: R1 scrolls down"); for _ = 1, 40 do DWE.bubbleClip._scripts.OnUpdate(DWE.bubbleClip, 0.02) end; check(math.abs(sc.off - sc.target) < 1, "all at once: the text glides to its place")
+        check(DWE.BubblePadStep(-1) == true and sc.target == 0, "all at once: L1 scrolls back up")
+        -- R1 maintenu : le texte continue de defiler
+        local pad = DWE.padCatcher._scripts.OnGamePadButtonDown
+        local up = DWE.padCatcher._scripts.OnGamePadButtonUp
+        pad(DWE.padCatcher, "PADRSHOULDER")
+        for _ = 1, 50 do DWE.bubbleClip._scripts.OnUpdate(DWE.bubbleClip, 0.02) end
+        local heldTo = sc.target
+        up(DWE.padCatcher, "PADRSHOULDER")
+        check(heldTo > 0 and sc.target == heldTo, "all at once: holding R1 keeps scrolling, letting go adds no extra step: " .. tostring(heldTo))
+    end
+    DWE.SetDialogueText("NPC", long)
+    st.index = 2
     DialogueWheelE_BubbleMode = nil
     check(not DWE.BubbleManualMode(), "manual pages: off by default")
     DWE.SetDialogueText("NPC", "")
@@ -4371,6 +4440,37 @@ do -- Ecriture sans le fondu du jeu : le texte ecrit est toujours le debut du te
     check(stepsOk, "no game fade: what is written is always the start of the final text (no word jumping lines)")
     check(final:find("\n") ~= nil or #long < 40, "no game fade: line breaks worked out in advance")
     _G.Spoken = oldSp
+end
+-- "Default all" apres avoir coupe la voix des livres : le livre suivant parle tout de suite.
+do
+    local sf = DWE.SpokenFocus
+    if sf then
+        local savedBook = DWE.bookMode
+        DWE.bookMode = nil
+        DialogueWheelE_BookVoiceOff, sf.bookMuted = true, true
+        DWE.ResetAllOptions()
+        check(DialogueWheelE_BookVoiceOff == nil and not sf.bookMuted, "default all: books are no longer muted, from the next book on")
+        DWE.bookMode = savedBook
+    end
+end
+-- Le chat des options parle dans une vraie bulle, jamais pendant une conversation.
+do
+    local lines = DWE.L.CAT_LINES
+    check(type(lines) == "table" and #lines >= 4, "options cat: has its phrases in this language")
+    local cat = CreateFrame("Button", nil, UIParent)
+    local wasConv = DWE.choiceBox:IsShown()
+    DWE.choiceBox:Hide(); DWE.bubble:Hide()
+    check(DWE.BubbleCatSay(cat, lines[1]) == true and DWE.bubble:IsShown(), "options cat: says a phrase in a bubble")
+    check(DWE.bubble:GetFrameStrata() == "TOOLTIP", "options cat: bubble above the options window")
+    DWE.bubble._scripts.OnMouseUp(DWE.bubble, "RightButton")
+    check(not DWE.bubble:IsShown() and DWE.bubble:GetScale() == 1 and not DWE.catSaying, "options cat: right-click closes the bubble, put back as it was")
+    DWE.BubbleCatSay(cat, lines[2])
+    for _ = 1, 400 do DWE.bubble._scripts.OnUpdate(DWE.bubble, 0.05) end
+    DWE.bubble._scripts.OnMouseUp(DWE.bubble, "LeftButton")
+    check(not DWE.catSaying, "options cat: left-click on the whole text closes the bubble")
+    DWE.choiceBox:Show()
+    check(DWE.BubbleCatSay(cat, lines[1]) == false, "options cat: quiet during a conversation")
+    if not wasConv then DWE.choiceBox:Hide() end
 end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))

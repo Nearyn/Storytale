@@ -162,10 +162,28 @@ local function MakeWindow()
                 self.glow:SetAlpha(a)
             end)
         end
-        cat:SetScript("OnEnter", function() Glow(1) end)
-        cat:SetScript("OnLeave", function() Glow(0) end)
+        -- Survol : le curseur "parler" des PNJ (le chat montre aussi ce que fait Storytale).
+        cat:SetScript("OnEnter", function()
+            Glow(1)
+            if SetCursor and cat:IsMouseOver() then pcall(SetCursor, "Interface\\Cursor\\Speak") end
+        end)
+        cat:SetScript("OnLeave", function()
+            Glow(0)
+            if ResetCursor then pcall(ResetCursor) end
+        end)
+        -- Il parle : une phrase au hasard (jamais deux fois la meme de suite).
+        function cat.Say()
+            local lines = DWE.L and DWE.L.CAT_LINES
+            if type(lines) ~= "table" or #lines == 0 or not DWE.BubbleCatSay then return false end
+            local i = math.random(#lines)
+            if #lines > 1 and i == cat.lastLine then i = i % #lines + 1 end
+            cat.lastLine = i
+            return DWE.BubbleCatSay(cat, lines[i])
+        end
+        cat.Glow = Glow
         cat:SetScript("OnClick", function()
             Glow(1)
+            cat.Say()
             if C_Timer and C_Timer.After then C_Timer.After(0.6, function() if not cat:IsMouseOver() then Glow(0) end end) end
         end)
         f.cat = cat
@@ -311,21 +329,121 @@ local function MakeWindow()
         end
         local x, y = Center(cur)
         local best, score
-        for _, w in ipairs(list) do
-            if w ~= cur then
-                local cx, cy = Center(w)
-                local ok, sc
-                if dy ~= 0 then
-                    local d = (cy - y) * dy
-                    ok = d > 4
-                    sc = d + 2.5 * math.abs(cx - x)
-                else
-                    local d = (cx - x) * dx
-                    ok = d > 4 and math.abs(cy - y) < 16
-                    sc = d + 4 * math.abs(cy - y)
-                end
-                if ok and (not score or sc < score) then best, score = w, sc end
+        local function Span(w)
+            local l, r = w:GetLeft(), w:GetRight()
+            local t = w.Text or w.text
+            if type(t) == "table" and t.GetRight and t.IsShown and t:IsShown() then
+                -- (largeur du texte ecrit, pas celle de sa zone, parfois bien plus large)
+                local tl, sw = t:GetLeft(), t.GetStringWidth and t:GetStringWidth()
+                local tx = t.GetText and t:GetText()
+                if tl and sw and tx and tx ~= "" then r = math.max(r or (tl + sw), tl + sw) end
             end
+            return l or 0, r or 0
+        end
+        local function Side(w)
+            if w == f.cat then return "tab" end
+            for _, t in ipairs(f.tabs) do if t == w then return "tab" end end
+            return "page"
+        end
+        -- Haut / bas : la ligne la plus proche d'abord (aucune ligne sautee), puis dans cette ligne
+        -- l'element le plus proche a l'horizontale. Avant, un element bien aligne deux lignes plus
+        -- loin passait devant celui de la ligne voisine, un peu decale (vu le 28/11 en remontant).
+        if dy ~= 0 then
+            -- On reste dans sa colonne : les onglets entre eux, la page entre elle (gauche/droite
+            -- pour passer de l'une a l'autre).
+            local mine = Side(cur)
+            local kept = {}
+            for _, w in ipairs(list) do if Side(w) == mine then kept[#kept + 1] = w end end
+            list = kept
+            -- D'abord la meme colonne : les elements qui chevauchent celui-ci a l'horizontale
+            -- (case + son texte), le plus proche en hauteur. Deux colonnes aux lignes decalees
+            -- ("Verrouiller" a gauche, "A droite du PNJ" un peu plus bas a droite) : bas reste a
+            -- gauche (vu le 28/11).
+            local cl, cr = Span(cur)
+            for _, w in ipairs(list) do
+                if w ~= cur then
+                    local cx, cy = Center(w)
+                    local d = (cy - y) * dy
+                    local wl, wr = Span(w)
+                    if d > 4 and wl < cr and wr > cl then
+                        local sc = d + 0.1 * math.abs(cx - x)
+                        if not score or sc < score then best, score = w, sc end
+                    end
+                end
+            end
+            if best then f.Select(best) return end
+            local rowD
+            for _, w in ipairs(list) do
+                if w ~= cur then
+                    local _, cy = Center(w)
+                    local d = (cy - y) * dy
+                    if d > 4 and (not rowD or d < rowD) then rowD = d end
+                end
+            end
+            if rowD then
+                for _, w in ipairs(list) do
+                    if w ~= cur then
+                        local cx, cy = Center(w)
+                        local d = (cy - y) * dy
+                        if d > 4 and d <= rowD + 8 then
+                            local sc = math.abs(cx - x) + d * 0.01
+                            if not score or sc < score then best, score = w, sc end
+                        end
+                    end
+                end
+            end
+            if best then f.Select(best) end
+            return
+        end
+        -- D'une categorie vers sa page : le premier reglage de la page (en haut a gauche du contenu),
+        -- pas celui qui se trouve a la hauteur de la categorie (28/11, page Spoken).
+        local onTab = cur == f.cat
+        for _, t in ipairs(f.tabs) do if t == cur then onTab = true end end
+        if onTab and dx > 0 then
+            local pg = Page()
+            local first, fx, fy
+            for _, w in ipairs(list) do
+                local inside, p = false, w
+                while p do
+                    if pg and p == pg.child then inside = true break end
+                    p = p:GetParent()
+                end
+                if inside then
+                    local wx, wy = Center(w)
+                    if not first or wy > fy + 4 or (math.abs(wy - fy) <= 4 and wx < fx) then first, fx, fy = w, wx, wy end
+                end
+            end
+            if first then f.Select(first) return end
+        end
+        -- Gauche / droite : seulement ce qui est vraiment de ce cote (pas un element en dessous qui
+        -- deborde, comme le bouton de touche sous "Bouton Bulle / Spoken"), d'abord sur la meme
+        -- ligne (hauteurs qui se chevauchent), le plus pres ; sinon le plus proche, la hauteur
+        -- comptant beaucoup (vu le 28/11 dans la page Spoken).
+        -- Gauche dans une page : un reglage de la page d'abord ; les categories seulement s'il n'y
+        -- a plus rien de ce cote dans la page ("Same as voices" -> "Bouton Bulle / Spoken", 28/11).
+        local cl, cr = Span(cur)
+        local ct, cb = cur:GetTop() or y, cur:GetBottom() or y
+        local rowBest, rowScore
+        local mine = Side(cur)
+        for pass = 1, 2 do
+        for _, w in ipairs(list) do
+            if w ~= cur and (pass == 2 or Side(w) == mine) then
+                local wl, wr = Span(w)
+                local gap = dx > 0 and (wl - cr) or (cl - wr)
+                if gap > -2 then
+                    local _, cy = Center(w)
+                    local wt, wb = w:GetTop() or cy, w:GetBottom() or cy
+                    if wb < ct and wt > cb then
+                        if not rowScore or gap < rowScore then rowBest, rowScore = w, gap end
+                    else
+                        local sc = math.max(gap, 0) + 3 * math.abs(cy - y)
+                        if not score or sc < score then best, score = w, sc end
+                    end
+                end
+            end
+        end
+        if rowBest then best = rowBest end
+        if best then break end
         end
         if best then f.Select(best) end
     end
@@ -403,6 +521,7 @@ local function MakeWindow()
     -- Clavier : seule Echap est prise (ferme la fenetre). Tout le reste va au jeu : on peut se
     -- deplacer, sauter, lancer des sorts en changeant ses options (la souris suffit ici).
     f:SetScript("OnKeyDown", function(self, key)
+        self.idleT = 0
         local busy = (DWE.askFrame and DWE.askFrame:IsShown())
             or (GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus())
         local mine = key == "ESCAPE" and not busy
@@ -413,11 +532,12 @@ local function MakeWindow()
     -- ouverte (sinon A faisait aussi sauter le personnage). Liaisons de remplacement, retirees a
     -- la fermeture (pas en combat : le jeu l'interdit, la fenetre ne prend alors que le clavier).
     local function Pad(b)
+        f.idleT = 0
         -- Fenetre de choix ou de confirmation ouverte : c'est elle qui recoit le bouton.
         for _, w in ipairs({ DWE.askFrame }) do
             if w and w:IsShown() then
                 local h = w:GetScript("OnGamePadButtonDown")
-                if h then w.fromOptions = true; pcall(h, w, b); w.fromOptions = nil end
+                if h then pcall(h, w, b) end
                 return
             end
         end
@@ -455,12 +575,27 @@ local function MakeWindow()
         f.BindPad(true)
         -- Couleurs du theme Personnalise changees dans la page : la fenetre suit (relu 2 fois/s).
         f.colorT = 0
+        -- Le chat parle parfois tout seul : rarement (toutes les 2 a 4 minutes), seulement si le
+        -- joueur n'a rien touche depuis quelques secondes.
+        f.catNext, f.idleT = math.random(120, 240), 0
         f:SetScript("OnUpdate", function(self, elapsed)
             self.colorT = self.colorT + elapsed
             if self.colorT > 0.5 then self.colorT = 0; self.ApplyColors() end
+            local mx, my = GetCursorPosition()
+            if mx ~= self.lastMX or my ~= self.lastMY then self.idleT = 0 else self.idleT = self.idleT + elapsed end
+            self.lastMX, self.lastMY = mx, my
+            self.catNext = self.catNext - elapsed
+            if self.catNext <= 0 and self.idleT > 6 and self.cat and self.cat.Say then
+                self.catNext = math.random(120, 240)
+                if self.cat.Say() and self.cat.Glow then
+                    self.cat.Glow(1)
+                    if C_Timer and C_Timer.After then C_Timer.After(0.8, function() if not self.cat:IsMouseOver() then self.cat.Glow(0) end end) end
+                end
+            end
         end)
     end)
     f:SetScript("OnHide", function()
+        if DWE.BubbleCatEnd then DWE.BubbleCatEnd() end
         f:SetScript("OnUpdate", nil)
         f.BindPad(false)
         Detach()

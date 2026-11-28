@@ -373,6 +373,127 @@ local function Pad()
     return STYLES[styleName or "game"].pad
 end
 
+-- "Tout d'un coup" : tout le texte dans une seule bulle ; plus haut que PAGE_LINES lignes, il
+-- defile dedans (molette sur la bulle, L1 / R1 a la manette), et suit la voix tant que le
+-- joueur n'a pas fait defiler lui-meme. Le texte est dans un cadre qui le coupe au bord.
+local PAGE_LINES = 8
+local scroll = { off = 0, target = 0, max = 0, full = 0, user = false }
+DWE.bubbleScroll = scroll
+local clip = CreateFrame("Frame", nil, holder)
+if clip.SetClipsChildren then clip:SetClipsChildren(true) end
+clip:SetFrameLevel(holder:GetFrameLevel())
+clip:SetAllPoints(bubble)
+text:SetParent(clip)
+ghost:SetParent(clip)
+-- Barre de defilement discrete, a droite dans la bulle : un rail a peine visible et un curseur
+-- qui montre en direct ou l'on en est dans le texte (couleur du texte de la bulle, 28/11).
+local track = holder:CreateTexture(nil, "OVERLAY")
+track:SetColorTexture(1, 1, 1, 1)
+track:SetWidth(1.5)
+track:Hide()
+local thumb = holder:CreateTexture(nil, "OVERLAY")
+thumb:SetColorTexture(1, 1, 1, 1)
+thumb:SetWidth(1.5)
+thumb:Hide()
+local function ScrollBar()
+    if scroll.max <= 0 then track:Hide(); thumb:Hide() return end
+    local pad = Pad()
+    -- (de la premiere a la derniere ligne visible du texte : arrivee en bout de texte, le curseur
+    -- touche le bout du rail ; un rail plus court donnait une impression de texte bloque, 28/11)
+    local inset = pad
+    local h = (bubble:GetHeight() or 0) - 2 * inset
+    if h <= 10 then track:Hide(); thumb:Hide() return end
+    local r, g, b = text:GetTextColor()
+    r, g, b = r or 1, g or 1, b or 1
+    track:SetVertexColor(r, g, b, 0.10)
+    thumb:SetVertexColor(r, g, b, 0.45)
+    track:ClearAllPoints()
+    track:SetPoint("TOPRIGHT", bubble, "TOPRIGHT", -math.max(3, pad * 0.4), -inset)
+    track:SetHeight(h)
+    local full = math.max(1, scroll.full or 1)
+    local th = math.max(8, h * (full - scroll.max) / full)
+    local y = (h - th) * (scroll.off / scroll.max)
+    thumb:ClearAllPoints()
+    thumb:SetPoint("TOP", track, "TOP", 0, -y)
+    thumb:SetHeight(th)
+    track:Show(); thumb:Show()
+end
+local function ScrollMode()
+    return DialogueWheelE_BubbleMode == "page"
+end
+local function ApplyScroll()
+    local pad = Pad()
+    scroll.off = math.max(0, math.min(scroll.max, scroll.off or 0))
+    scroll.target = math.max(0, math.min(scroll.max, scroll.target or 0))
+    clip:ClearAllPoints()
+    -- (au bord du texte : sans marge, le bas de la ligne du dessus se voyait en haut)
+    clip:SetPoint("TOPLEFT", bubble, "TOPLEFT", 0, -pad)
+    clip:SetPoint("BOTTOMRIGHT", bubble, "BOTTOMRIGHT", 0, pad - 2)
+    text:ClearAllPoints()
+    text:SetPoint("TOPLEFT", bubble, "TOPLEFT", pad, -pad + scroll.off)
+    ScrollBar()
+    if bubble.EnableMouseWheel then bubble:EnableMouseWheel(scroll.max > 0) end
+end
+DWE.BubbleApplyScroll = ApplyScroll
+-- Hauteur maximale d'une bulle "Tout d'un coup" (nil dans les autres modes).
+local function ScrollCap(fontSize)
+    if not ScrollMode() then return nil end
+    local lh = (DWE.BubbleLineHeight and DWE.BubbleLineHeight()) or (fontSize or 14) * 1.22
+    return PAGE_LINES * lh
+end
+-- Fait defiler le texte : dir > 0 vers le bas. false s'il n'y a rien a faire defiler de ce cote.
+-- Hauteur d'une ligne de la bulle (celle de la mise en page si connue).
+local function LineH()
+    if scroll.lh and scroll.lh > 0 then return scroll.lh end
+    local okF, _, size = pcall(text.GetFont, text)
+    return (okF and type(size) == "number" and size or 14) * 1.22
+end
+-- Calee sur une ligne entiere (aucune ligne coupee en haut de la bulle, vu le 28/11).
+local function Snap(v)
+    local lh = LineH()
+    -- (le bas du texte n'est pas toujours a une ligne entiere : pres du bout, on va au bout)
+    if v >= scroll.max - lh * 0.5 then return scroll.max end
+    v = math.floor(v / lh + 0.5) * lh
+    return math.max(0, math.min(scroll.max, v))
+end
+-- Defilement en douceur (comme la roue) : chaque appui deplace la cible de deux lignes, le
+-- texte glisse jusqu'a elle (vu le 28/11 : trois lignes d'un coup, c'etait trop brusque).
+function DWE.BubbleScroll(dir)
+    if scroll.max <= 0 then return false end
+    local before = scroll.target
+    scroll.target = Snap(scroll.target + dir * LineH() * 2)
+    scroll.user = true
+    ApplyScroll()
+    return scroll.target ~= before
+end
+DWE.BubbleScrollSnap = Snap
+DWE.bubbleClip = clip
+clip:SetScript("OnUpdate", function(_, elapsed)
+    -- L1 / R1 maintenus (manette) : le texte continue de defiler tant qu'on tient le bouton.
+    local pm = DWE.padManual
+    if pm and not pm.cancel and scroll.max > 0 then
+        pm.heldT = (pm.heldT or 0) + elapsed
+        if pm.heldT > 0.3 then
+            pm.held = true -- (le relachement ne refait pas un pas de plus)
+            scroll.target = math.max(0, math.min(scroll.max, scroll.target + pm.dir * LineH() * 7 * elapsed))
+            scroll.user = true
+            scroll.wasHeld = true
+        end
+    end
+    -- Bouton lache apres un defilement continu : on finit sur une ligne entiere.
+    if scroll.wasHeld and not (pm and pm.held) then
+        scroll.wasHeld = nil
+        scroll.target = Snap(scroll.target)
+    end
+    local d = (scroll.target or 0) - (scroll.off or 0)
+    if math.abs(d) < 0.5 then
+        if d ~= 0 then scroll.off = scroll.target; ApplyScroll() end
+        return
+    end
+    scroll.off = scroll.off + d * math.min(1, elapsed * 12)
+    ApplyScroll()
+end)
+
 -- Opacite du fond (option "Opacite du fond") : le fond et la pointe de la bulle, jamais le texte.
 function DWE.ApplyBubbleOpacity()
     local op = tonumber(DialogueWheelE_Opacity) or 1
@@ -516,8 +637,7 @@ local function ApplyStyle(name)
     end
     if DWE.Bubble and DWE.Bubble.RefreshCustom then DWE.Bubble.RefreshCustom() end
     if DWE.ApplyBubbleOpacity then DWE.ApplyBubbleOpacity() end
-    text:ClearAllPoints()
-    text:SetPoint("TOPLEFT", bubble, "TOPLEFT", st.pad, -st.pad)
+    ApplyScroll()
     local tc = st.custom and DWE.CustomColor("text") or st.color
     text:SetTextColor(tc[1], tc[2], tc[3])
     text:SetShadowOffset(st.shadow and 1 or 0, st.shadow and -1 or 0)
@@ -533,6 +653,7 @@ local function Measure(fn, default)
 end
 
 local function MaxWidth()
+    if DWE.catSaying then return 250 end -- (bulle du chat des options, a sa taille)
     return tonumber(DialogueWheelE_BubbleWidth) or DEFAULT_WIDTH
 end
 DWE.BubbleMaxWidth = MaxWidth
@@ -568,10 +689,15 @@ local function FitTo(s, shown)
         if okW and type(wrapped) == "string" and lh and lh > 0 then
             local _, breaks = wrapped:gsub("\n", "")
             h = (breaks + 1) * lh
+            scroll.lh = lh
         end
     end
+    local cap = ScrollCap(fontSize)
+    scroll.full, scroll.max = h, 0
+    if cap and h > cap + 2 then scroll.max, h = h - cap, cap end
     bubble:SetSize(w + 2 * pad, h + 2 * pad + 2)
     text:SetText(shown or s)
+    ApplyScroll()
     -- Le jeu peut ne finir la mise en page qu'a l'image suivante : on revérifie la hauteur.
     if C_Timer and C_Timer.After then
         -- On remesure le morceau complet (pas le texte deja ecrit) : la bulle grandit s'il
@@ -582,9 +708,13 @@ local function FitTo(s, shown)
             text:SetText(s)
             local ok, real = pcall(text.GetStringHeight, text)
             text:SetText(cur)
-            if ok and type(real) == "number" and real >= fontSize * 0.8 and math.abs(real - h) > 3 then
+            if ok and type(real) == "number" and real >= fontSize * 0.8 and math.abs(real - (scroll.full or h)) > 3 then
+                local cap2 = ScrollCap(fontSize)
+                scroll.full, scroll.max = real, 0
+                if cap2 and real > cap2 + 2 then scroll.max, real = real - cap2, cap2 end
                 h = real
                 bubble:SetHeight(real + 2 * pad + 2)
+                ApplyScroll()
             end
         end
         C_Timer.After(0, Recheck)
@@ -886,6 +1016,17 @@ local function PageWord(n)
 end
 
 local function PageReveal(seg, n)
+    -- Texte long qui defile : il suit la voix (la ligne lue reste a l'ecran), tant que le joueur
+    -- n'a pas fait defiler lui-meme.
+    if scroll.max > 0 and not scroll.user and state.voiced and (state.total or 0) > 0 then
+        local want = (n or 0) / state.total * (scroll.full or 0) - (scroll.full - scroll.max) * 0.4
+        want = math.max(0, math.min(scroll.max, want))
+        want = DWE.BubbleScrollSnap and DWE.BubbleScrollSnap(want) or want
+        if math.abs(want - scroll.target) > 1 then
+            scroll.target = want
+            DWE.BubbleApplyScroll()
+        end
+    end
     -- Passage a « page entiere » pendant l'ecriture : les lignes de l'ecriture progressive
     -- restaient figees par-dessus le texte un moment ; on les retire tout de suite.
     if state.customShown == "soft" and DWE.BubbleHideBufs then DWE.BubbleHideBufs() end
@@ -1364,6 +1505,7 @@ end
 
 local function Advance()
     state.manual = true -- le joueur prend la main : on ne suit plus la voix
+    state.paused = nil
     if state.phase == "typing" and ManualMode() and not state.dots then
         DWE.BubbleManualShow()
     elseif state.phase == "typing" then
@@ -2005,7 +2147,7 @@ bubble:SetScript("OnUpdate", DWE.Prof("bulle", function(_, elapsed)
         end
         -- On va jusqu'au bout du fondu pour que les dernieres lettres apparaissent aussi en douceur.
         if state.typed >= (state.lens[state.index] or 0) then FinishTyping() else Reveal() end
-    elseif state.phase == "reading" and state.index < #state.segs then
+    elseif state.phase == "reading" and state.index < #state.segs and not state.paused then
         state.readT = (state.readT or 0) + elapsed
         if state.readT >= state.duration then StartSegment(state.index + 1) end
     end
@@ -2083,9 +2225,17 @@ end)
 
 -- Retour a la partie precedente : en avance manuelle seulement (dans les autres modes, la bulle
 -- repartirait seule vers l'avant).
+-- Retour a la partie precedente. En avance manuelle, la bulle attend deja le joueur ; dans les
+-- autres modes, la partie s'affiche entiere et la bulle se met en pause (le joueur relit) jusqu'a
+-- ce qu'il passe a la suite (demande d'un joueur, 28/11).
 local function Back()
-    if not ManualMode() or state.dots or (state.index or 1) <= 1 then return false end
+    if state.dots or (state.index or 1) <= 1 then return false end
+    state.manual = true -- le joueur prend la main : on ne suit plus la voix
     StartSegment(state.index - 1)
+    if not ManualMode() then
+        FinishTyping()
+        state.paused = true
+    end
     return true
 end
 
@@ -2099,14 +2249,50 @@ function DWE.BubblePrev()
     if not bubble:IsShown() or state.phase == "idle" then return false end
     return Back()
 end
+-- Manette en avance manuelle : le bouton "suite" n'est pris que s'il reste du texte (sinon A
+-- choisit la reponse de la roue, comme avant) ; "precedent" seulement s'il y a une partie avant.
+-- Manette : L1 / R1 dans la bulle, quel que soit le mode (avance manuelle : partie par partie ;
+-- machine a ecrire : passer / revenir et relire ; tout d'un coup : faire defiler).
+function DWE.BubblePadActive()
+    return not state.dots and bubble:IsShown() and state.phase ~= "idle" or false
+end
+function DWE.BubblePadCan(dir)
+    if state.dots or not bubble:IsShown() or state.phase == "idle" then return false end
+    if scroll.max > 0 then
+        if dir < 0 then return scroll.target > 1 end
+        return scroll.target < scroll.max - 1
+    end
+    if dir < 0 then return (state.index or 1) > 1 end
+    return state.phase == "typing" or (state.phase == "reading" and (state.index or 1) < #(state.segs or {}))
+end
+function DWE.BubblePadStep(dir)
+    if not DWE.BubblePadCan(dir) then return false end
+    if scroll.max > 0 then return DWE.BubbleScroll(dir) end
+    if dir < 0 then return Back() end
+    Advance()
+    return true
+end
 
 bubble:SetScript("OnMouseUp", function(_, button)
     if DWE.JustDragged() then return end
+    -- Bulle du chat des options : clic gauche comme sur un PNJ (texte entier d'abord), puis elle
+    -- se ferme ; clic droit, elle se ferme tout de suite.
+    if DWE.catSaying then
+        -- ("Tout d'un coup" : le texte est deja entier pendant son ecriture invisible ; un clic
+        -- suffit a fermer, comme dans les autres modes.)
+        local more = (state.phase == "typing" and not PageMode())
+            or (state.phase == "reading" and (state.index or 1) < #(state.segs or {}))
+        if button == "LeftButton" and more then Advance() else DWE.BubbleCatEnd() end
+        return
+    end
     if button == "LeftButton" then Advance()
     elseif button == "RightButton" then Back() end
 end)
-bubble:SetScript("OnDragStart", function() DWE.DragStart("bubble") end)
-bubble:SetScript("OnDragStop", function() DWE.DragStop("bubble") end)
+if bubble.EnableMouseWheel then
+    bubble:SetScript("OnMouseWheel", function(_, d) DWE.BubbleScroll(-d) end)
+end
+bubble:SetScript("OnDragStart", function() if not DWE.catSaying then DWE.DragStart("bubble") end end)
+bubble:SetScript("OnDragStop", function() if not DWE.catSaying then DWE.DragStop("bubble") end end)
 
 --------------------------------------------------------------------------------
 -- Interface avec le reste de l'addon
@@ -2164,6 +2350,10 @@ function DWE.Bubble.SetText(s)
         return
     end
     state.segs = Split(s)
+    -- "Tout d'un coup" : tout le texte dans une seule bulle (qui defile s'il est long).
+    if ScrollMode() and #state.segs > 1 then state.segs = { table.concat(state.segs, " ") } end
+    scroll.off, scroll.target, scroll.user = 0, 0, false
+    state.paused = nil
     state.lens, state.total = {}, 0
     for i, seg in ipairs(state.segs) do
         state.lens[i] = Utf8Len(seg)
@@ -2227,12 +2417,14 @@ function DWE.Bubble.Restyle()
     DWE.Bubble.RefreshHighlight()
 end
 function DWE.Bubble.SetShown(show)
+    if DWE.catSaying and DWE.BubbleCatEnd then DWE.BubbleCatEnd() end -- une vraie conversation passe avant
     bubble.dweOff = not show
     if not show then
         bubble:Hide()
         return
     end
     local sk = DWE.BubbleSkin and DWE.BubbleSkin()
+    if DWE.catStarting and DWE.ThemeBubbleSkin then sk = DWE.ThemeBubbleSkin() or sk end
     local name = sk and STYLES[sk.bubble] and sk.bubble or "game"
     local changed = styleName ~= name
     ApplyStyle(name)
@@ -2268,6 +2460,7 @@ end
 
 -- Accroche la bulle au-dessus de la plaque du PNJ (nil = position fixe).
 function DWE.Bubble.Pin(plate, x, y)
+    if DWE.catSaying and DWE.BubbleCatEnd then DWE.BubbleCatEnd() end
     bubble:ClearAllPoints()
     if plate then
         local dx = DWE.bubbleTipDX or 0
@@ -2464,3 +2657,58 @@ muteFrame:SetScript("OnUpdate", function(_, elapsed)
     HookVoice()
     DWE.ManualVoiceCheck()
 end)
+
+
+--------------------------------------------------------------------------------
+-- Le chat des options : clic (ou A a la manette) sur lui, il dit une phrase dans une vraie bulle
+-- de Storytale au-dessus de sa tete : meme theme (personnalise compris), meme police, meme mode
+-- d'affichage que les dialogues en jeu, a sa taille. Jamais pendant une vraie conversation.
+--------------------------------------------------------------------------------
+local catToken = 0
+function DWE.BubbleCatEnd()
+    if not DWE.catSaying then return end
+    DWE.catSaying = nil
+    catToken = catToken + 1
+    bubble.dweNoGrip = nil
+    bubble:SetScale(1)
+    bubble:SetFrameStrata("DIALOG")
+    bubble.pinned = false
+    bubble:Hide()
+    state.raw = nil
+end
+function DWE.BubbleCatSay(anchor, phrase)
+    if type(anchor) ~= "table" or type(phrase) ~= "string" then return false end
+    -- Bulle deja prise par un PNJ : le chat se tait.
+    if bubble:IsShown() and not DWE.catSaying then return false end
+    if DWE.choiceBox and DWE.choiceBox:IsShown() then return false end
+    if DWE.catSaying then DWE.BubbleCatEnd() end
+    -- Style du theme (meme en mode cadre), police et taille : comme une bulle de PNJ.
+    styleName = nil
+    bubble.fontKey = nil
+    DWE.catStarting = true
+    pcall(DWE.Bubble.SetShown, true)
+    DWE.catStarting = nil
+    DWE.catSaying = true
+    bubble.pinned = true
+    bubble:SetFrameStrata("TOOLTIP")
+    bubble:SetScale(0.85)
+    bubble:ClearAllPoints()
+    -- Pointe sur la tete du chat, comme sur un PNJ (meme decalage que DWE.Bubble.Pin) ; pas de
+    -- poignee de taille ni de deplacement : cette bulle n'est pas celle des PNJ (vu le 28/11).
+    bubble:SetPoint("BOTTOM", anchor, "TOP", DWE.bubbleTipDX or 0, 4)
+    bubble.dweNoGrip = true
+    if DWE.SetGripCorner then DWE.SetGripCorner(bubble, "BOTTOM") end
+    state.raw = nil
+    DWE.Bubble.SetText(phrase)
+    -- Le chat n'a pas de voix : on n'attend pas que Spoken commence a lire (l'ecriture
+    -- ralentissait et s'arretait sur des mots en l'attendant, vu le 28/11).
+    state.manual = true
+    bubble:Show()
+    catToken = catToken + 1
+    local mine = catToken
+    local stay = math.max(5, Utf8Len(phrase) * 0.09 + 3)
+    if C_Timer and C_Timer.After then
+        C_Timer.After(stay, function() if catToken == mine then DWE.BubbleCatEnd() end end)
+    end
+    return true
+end

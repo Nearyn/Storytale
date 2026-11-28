@@ -1305,10 +1305,87 @@ local PAD_HELP = {
         PAD_HELP3 = "Spoken 播放器：Share（Xbox One 為檢視鍵）短按暫停，長按跳過，按住 Share + Y 開啟佇列。",
         PAD_TIP = "方向鍵：選擇  ·  A：確認  ·  B：關閉（全部按鍵見 Storytale 設定）" },
 }
+-- Avance manuelle a la manette : bouton "suite" et bouton "precedent".
+local PAD_MANUAL = {
+    enUS = { OPT_WINDOW_HINT = "Gamepad: D-pad to move, A to select, B to close, L1 / R1 (LB / RB) for the previous / next category",
+        PAD_HELP5 = "Bubble text: R1 (RB) goes on, L1 (LB) goes back (the bubble then waits while you reread). With \"All at once\", they scroll the text. A picks an answer at any time.",
+        PAD_TIP_MANUAL = "Bubble text:  R1: go on  ·  L1: go back  ·  A: answer",
+        PAD_MANUAL_NEXT = "Bubble text, go on:", PAD_MANUAL_PREV = "Bubble text, go back:",
+        PAD_NONE = "None", PAD_PS_NAMES = "PlayStation: A = Cross, X = Square, LB/RB = L1/R1, LT/RT = L2/R2." },
+    frFR = { OPT_WINDOW_HINT = "Manette : croix pour se déplacer, A pour valider, B pour fermer, L1 / R1 (LB / RB) pour la catégorie précédente / suivante",
+        PAD_HELP5 = "Texte de la bulle : R1 (RB) avance, L1 (LB) revient en arrière (la bulle attend alors que vous relisiez). En « Tout d'un coup », ils font défiler le texte. A choisit une réponse à tout moment.",
+        PAD_TIP_MANUAL = "Texte de la bulle :  R1 : avancer  ·  L1 : revenir  ·  A : répondre",
+        PAD_MANUAL_NEXT = "Texte de la bulle, avancer :", PAD_MANUAL_PREV = "Texte de la bulle, revenir :",
+        PAD_NONE = "Aucun", PAD_PS_NAMES = "PlayStation : A = Croix, X = Carré, LB/RB = L1/R1, LT/RT = L2/R2." },
+    deDE = { OPT_WINDOW_HINT = "Controller: Steuerkreuz zum Bewegen, A zum Auswählen, B zum Schließen, L1 / R1 (LB / RB) für die vorherige / nächste Kategorie",
+        PAD_HELP5 = "Blasentext: R1 (RB) geht weiter, L1 (LB) zurück (die Blase wartet dann, während du nachliest). Bei „Alles auf einmal“ scrollen sie den Text. A wählt jederzeit eine Antwort.",
+        PAD_TIP_MANUAL = "Blasentext:  R1: weiter  ·  L1: zurück  ·  A: antworten",
+        PAD_MANUAL_NEXT = "Blasentext, weiter:", PAD_MANUAL_PREV = "Blasentext, zurück:",
+        PAD_NONE = "Keine", PAD_PS_NAMES = "PlayStation: A = Kreuz, X = Quadrat, LB/RB = L1/R1, LT/RT = L2/R2." },
+    esES = { OPT_WINDOW_HINT = "Mando: cruceta para moverse, A para elegir, B para cerrar, L1 / R1 (LB / RB) para la categoría anterior / siguiente",
+        PAD_HELP5 = "Texto del bocadillo: R1 (RB) avanza, L1 (LB) retrocede (el bocadillo espera mientras relees). Con «Todo de una vez», desplazan el texto. A elige una respuesta en cualquier momento.",
+        PAD_TIP_MANUAL = "Texto del bocadillo:  R1: avanzar  ·  L1: retroceder  ·  A: responder",
+        PAD_MANUAL_NEXT = "Texto del bocadillo, avanzar:", PAD_MANUAL_PREV = "Texto del bocadillo, retroceder:",
+        PAD_NONE = "Ninguno", PAD_PS_NAMES = "PlayStation: A = Equis, X = Cuadrado, LB/RB = L1/R1, LT/RT = L2/R2." },
+    itIT = { OPT_WINDOW_HINT = "Controller: croce per spostarsi, A per scegliere, B per chiudere, L1 / R1 (LB / RB) per la categoria precedente / successiva",
+        PAD_HELP5 = "Testo del fumetto: R1 (RB) va avanti, L1 (LB) torna indietro (il fumetto aspetta mentre rileggi). Con «Tutto subito», scorrono il testo. A sceglie una risposta in qualsiasi momento.",
+        PAD_TIP_MANUAL = "Testo del fumetto:  R1: avanti  ·  L1: indietro  ·  A: rispondi",
+        PAD_MANUAL_NEXT = "Testo del fumetto, avanti:", PAD_MANUAL_PREV = "Testo del fumetto, indietro:",
+        PAD_NONE = "Nessuno", PAD_PS_NAMES = "PlayStation: A = Croce, X = Quadrato, LB/RB = L1/R1, LT/RT = L2/R2." },
+    ptBR = { OPT_WINDOW_HINT = "Controle: direcional para mover, A para escolher, B para fechar, L1 / R1 (LB / RB) para a categoria anterior / seguinte",
+        PAD_HELP5 = "Texto do balão: R1 (RB) avança, L1 (LB) volta (o balão espera enquanto você relê). Em \"Tudo de uma vez\", eles rolam o texto. A escolhe uma resposta a qualquer momento.",
+        PAD_TIP_MANUAL = "Texto do balão:  R1: avançar  ·  L1: voltar  ·  A: responder",
+        PAD_MANUAL_NEXT = "Texto do balão, avançar:", PAD_MANUAL_PREV = "Texto do balão, voltar:",
+        PAD_NONE = "Nenhum", PAD_PS_NAMES = "PlayStation: A = Xis, X = Quadrado, LB/RB = L1/R1, LT/RT = L2/R2." },
+    ruRU = { OPT_WINDOW_HINT = "Геймпад: крестовина — перемещение, A — выбрать, B — закрыть, L1 / R1 (LB / RB) — предыдущая / следующая категория",
+        PAD_HELP5 = "Текст облачка: R1 (RB) — дальше, L1 (LB) — назад (облачко ждёт, пока вы перечитываете). В режиме «Сразу целиком» они прокручивают текст. A выбирает ответ в любой момент.",
+        PAD_TIP_MANUAL = "Текст облачка:  R1: дальше  ·  L1: назад  ·  A: ответить",
+        PAD_MANUAL_NEXT = "Текст облачка, дальше:", PAD_MANUAL_PREV = "Текст облачка, назад:",
+        PAD_NONE = "Нет", PAD_PS_NAMES = "PlayStation: A = Крест, X = Квадрат, LB/RB = L1/R1, LT/RT = L2/R2." },
+    koKR = { OPT_WINDOW_HINT = "게임패드: 방향키로 이동, A로 선택, B로 닫기, L1 / R1 (LB / RB)로 이전 / 다음 분류",
+        PAD_HELP5 = "말풍선 텍스트: R1(RB)은 다음으로, L1(LB)은 이전으로 (다시 읽는 동안 말풍선이 기다립니다). \"한 번에\"에서는 텍스트를 스크롤합니다. A로 언제든지 답을 고를 수 있습니다.",
+        PAD_TIP_MANUAL = "말풍선 텍스트:  R1: 다음  ·  L1: 이전  ·  A: 대답",
+        PAD_MANUAL_NEXT = "말풍선 텍스트, 다음:", PAD_MANUAL_PREV = "말풍선 텍스트, 이전:",
+        PAD_NONE = "없음", PAD_PS_NAMES = "PlayStation: A = X 버튼, X = 네모, LB/RB = L1/R1, LT/RT = L2/R2." },
+    zhCN = { OPT_WINDOW_HINT = "手柄：方向键移动，A 选择，B 关闭，L1 / R1（LB / RB）切换上一个 / 下一个分类",
+        PAD_HELP5 = "气泡文字：R1（RB）前进，L1（LB）后退（重读时气泡会等待）。“一次显示”模式下用于滚动文字。随时可按 A 选择回答。",
+        PAD_TIP_MANUAL = "气泡文字：R1：前进  ·  L1：后退  ·  A：回答",
+        PAD_MANUAL_NEXT = "气泡文字，前进：", PAD_MANUAL_PREV = "气泡文字，后退：",
+        PAD_NONE = "无", PAD_PS_NAMES = "PlayStation：A = 叉，X = 方块，LB/RB = L1/R1，LT/RT = L2/R2。" },
+    zhTW = { OPT_WINDOW_HINT = "手把：方向鍵移動，A 選擇，B 關閉，L1 / R1（LB / RB）切換上一個 / 下一個分類",
+        PAD_HELP5 = "泡泡文字：R1（RB）前進，L1（LB）後退（重讀時泡泡會等待）。「一次顯示」模式下用於捲動文字。隨時可按 A 選擇回答。",
+        PAD_TIP_MANUAL = "泡泡文字：R1：前進  ·  L1：後退  ·  A：回答",
+        PAD_MANUAL_NEXT = "泡泡文字，前進：", PAD_MANUAL_PREV = "泡泡文字，後退：",
+        PAD_NONE = "無", PAD_PS_NAMES = "PlayStation：A = 叉，X = 方塊，LB/RB = L1/R1，LT/RT = L2/R2。" },
+}
+for loc, list in pairs(PAD_MANUAL) do
+    local h = PAD_HELP[loc]
+    if h then for k, v in pairs(list) do h[k] = v end end
+end
 PAD_HELP.esMX = PAD_HELP.esES
 for loc, list in pairs(PAD_HELP) do
     local dest = (loc == "enUS") and enUS or T[loc]
     if dest then for k, v in pairs(list) do dest[k] = v end end
+end
+
+
+-- Le chat des options : ses phrases au hasard.
+local CAT = {
+    enUS = { "Thanks for using Storytale! I hope you enjoy your stories.", "Something wrong? Tell Nearyn on CurseForge, everything gets read.", "Meow. That means \"have a good adventure\".", "I guard the books. Mostly, I sleep on them.", "Every NPC has a story. I nap through most of them.", "Your choices are safe with me. Purr..." },
+    frFR = { "Merci d'utiliser Storytale ! J'espère que tes histoires te plaisent.", "Un souci ? Dis-le à Nearyn sur CurseForge, il lit tout.", "Miaou. Ça veut dire « bonne aventure ».", "Je veille sur les livres. Enfin… surtout, je dors dessus.", "Chaque PNJ a une histoire. Je fais la sieste pendant la plupart.", "Tes choix sont en sécurité avec moi. Ronron..." },
+    deDE = { "Danke, dass du Storytale nutzt! Ich hoffe, deine Geschichten gefallen dir.", "Stimmt etwas nicht? Sag es Nearyn auf CurseForge, er liest alles.", "Miau. Das heißt „gutes Abenteuer“.", "Ich wache über die Bücher. Na ja… meistens schlafe ich darauf.", "Jeder NPC hat eine Geschichte. Die meisten verschlafe ich.", "Deine Entscheidungen sind bei mir sicher. Schnurr..." },
+    esES = { "¡Gracias por usar Storytale! Espero que disfrutes de tus historias.", "¿Algo va mal? Díselo a Nearyn en CurseForge, lo lee todo.", "Miau. Eso significa «buena aventura».", "Velo por los libros. Bueno… sobre todo, duermo encima.", "Cada PNJ tiene una historia. Me echo la siesta en casi todas.", "Tus decisiones están a salvo conmigo. Rrrr..." },
+    itIT = { "Grazie per usare Storytale! Spero che le tue storie ti piacciano.", "Qualcosa non va? Dillo a Nearyn su CurseForge, legge tutto.", "Miao. Vuol dire «buona avventura».", "Veglio sui libri. Be'… soprattutto, ci dormo sopra.", "Ogni PNG ha una storia. Io dormo durante quasi tutte.", "Le tue scelte sono al sicuro con me. Purr..." },
+    ptBR = { "Obrigado por usar o Storytale! Espero que você goste das suas histórias.", "Algo errado? Conte ao Nearyn no CurseForge, ele lê tudo.", "Miau. Isso quer dizer \"boa aventura\".", "Eu cuido dos livros. Bom… principalmente, durmo em cima deles.", "Todo PNJ tem uma história. Eu cochilo na maioria.", "Suas escolhas estão seguras comigo. Rrrr..." },
+    ruRU = { "Спасибо, что пользуешься Storytale! Надеюсь, тебе нравятся твои истории.", "Что-то не так? Напиши Nearyn на CurseForge, он читает всё.", "Мяу. Это значит «удачного приключения».", "Я стерегу книги. Ну… в основном сплю на них.", "У каждого НИП есть история. Большую часть я просыпаю.", "Твои решения в безопасности со мной. Мрр..." },
+    koKR = { "Storytale을 써 줘서 고마워! 이야기들이 마음에 들면 좋겠어.", "문제가 있어? CurseForge에서 Nearyn에게 알려 줘, 그는 다 읽어.", "야옹. \"즐거운 모험 되길\"이라는 뜻이야.", "나는 책을 지켜. 음… 주로 그 위에서 자지만.", "NPC마다 이야기가 있어. 나는 대부분 낮잠으로 보내.", "네 선택은 나와 함께라면 안전해. 그르릉..." },
+    zhCN = { "感谢使用 Storytale！希望你喜欢这些故事。", "遇到问题？在 CurseForge 上告诉 Nearyn，他每条都会看。", "喵。意思是“冒险愉快”。", "我守护着这些书。嗯……其实大多时候是睡在上面。", "每个 NPC 都有故事。大多数时候我在打盹。", "你的选择在我这里很安全。呼噜噜……" },
+    zhTW = { "感謝使用 Storytale！希望你喜歡這些故事。", "遇到問題？在 CurseForge 上告訴 Nearyn，他每則都會看。", "喵。意思是「冒險愉快」。", "我守護著這些書。嗯……其實大多時候是睡在上面。", "每個 NPC 都有故事。大多數時候我在打盹。", "你的選擇在我這裡很安全。呼嚕嚕……" },
+}
+CAT.esMX = CAT.esES
+for loc, list in pairs(CAT) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.CAT_LINES = list end
 end
 
 -- Recherche dans les options.
@@ -1435,47 +1512,47 @@ for loc, v in pairs({
 local BUBBLE_MODE = {
     enUS = { "Text display:", "Typewriter", "All at once",
         "The text is written letter by letter, at the pace of the voice when a voice reads.",
-        "The text is shown at once. In bubbles, each part turns on its own; while a voice reads, the word it is saying is coloured when \"Highlight the word being read\" is checked (and \"Highlight Words\" in Spoken's options).",
+        "The text is shown at once. In bubbles, the whole text is in one bubble: when it is long, scroll it with the mouse wheel over the bubble or L1 / R1 on a gamepad (it follows the voice until you scroll). While a voice reads, the word it is saying is coloured when \"Highlight the word being read\" is checked (and \"Highlight Words\" in Spoken's options).",
         "Manual advance", "The text is shown at once, without highlighting. In bubbles, each part stays until you turn it, like a book: left-click the bubble or use \"Text: next\", right-click or \"Text: previous\" to go back (Key Bindings > AddOns > Storytale; a gamepad button works too). The voice is off: you read at your own pace.", "Text: next", "Text: previous" },
     frFR = { "Affichage du texte :", "Écriture progressive", "Tout d'un coup",
         "Le texte s'écrit lettre par lettre, au rythme de la voix quand une voix lit.",
-        "Le texte s'affiche d'un coup. Dans les bulles, chaque partie passe toute seule ; quand une voix lit, le mot qu'elle dit est mis en couleur si « Surligner le mot lu » est coché (et « Highlight Words » dans les options de Spoken).",
+        "Le texte s'affiche d'un coup. Dans les bulles, tout le texte tient dans une seule bulle : quand il est long, faites-le défiler avec la molette sur la bulle ou L1 / R1 à la manette (il suit la voix tant que vous ne le faites pas défiler). Quand une voix lit, le mot qu'elle dit est mis en couleur si « Surligner le mot lu » est coché (et « Highlight Words » dans les options de Spoken).",
         "Avance manuelle", "Le texte s'affiche d'un coup, sans surlignage. Dans les bulles, chaque partie reste jusqu'à ce que vous la tourniez, comme un livre : clic gauche sur la bulle ou « Texte : suite », clic droit ou « Texte : précédent » pour revenir (Raccourcis > AddOns > Storytale ; un bouton de manette marche aussi). La voix est coupée : vous lisez à votre rythme.", "Texte : suite", "Texte : précédent" },
     deDE = { "Textanzeige:", "Schreibmaschine", "Alles auf einmal",
         "Der Text wird Buchstabe für Buchstabe geschrieben, im Tempo der Stimme, wenn eine Stimme liest.",
-        "Der Text wird auf einmal angezeigt. In Sprechblasen wechselt jeder Teil von selbst; während eine Stimme liest, wird das gesprochene Wort farbig hervorgehoben, wenn „Gelesenes Wort hervorheben“ aktiviert ist (und „Highlight Words“ in den Optionen von Spoken).",
+        "Der Text wird auf einmal angezeigt. In Sprechblasen steht der ganze Text in einer Blase: Ist er lang, scrollst du ihn mit dem Mausrad über der Blase oder mit L1 / R1 am Controller (er folgt der Stimme, bis du selbst scrollst). Während eine Stimme liest, wird das gesprochene Wort farbig hervorgehoben, wenn „Gelesenes Wort hervorheben“ aktiviert ist (und „Highlight Words“ in den Optionen von Spoken).",
         "Manuell weiter", "Der Text wird auf einmal angezeigt, ohne Hervorhebung. In Sprechblasen bleibt jeder Teil, bis du weiterblätterst, wie in einem Buch: Linksklick auf die Sprechblase oder „Text: weiter“, Rechtsklick oder „Text: zurück“ zum Zurückgehen (Tastenbelegung > AddOns > Storytale; auch eine Controllertaste geht). Die Stimme ist aus: Du liest in deinem Tempo.", "Text: weiter", "Text: zurück" },
     esES = { "Visualización del texto:", "Escritura progresiva", "Todo de una vez",
         "El texto se escribe letra a letra, al ritmo de la voz cuando lee una voz.",
-        "El texto se muestra de una vez. En los bocadillos, cada parte pasa sola; mientras lee una voz, la palabra que dice se colorea si «Resaltar la palabra leída» está marcado (y «Highlight Words» en las opciones de Spoken).",
+        "El texto se muestra de una vez. En los bocadillos, todo el texto cabe en un solo bocadillo: si es largo, desplázalo con la rueda del ratón sobre el bocadillo o con L1 / R1 en el mando (sigue a la voz hasta que lo desplaces tú). Mientras lee una voz, la palabra que dice se colorea si «Resaltar la palabra leída» está marcado (y «Highlight Words» en las opciones de Spoken).",
         "Avance manual", "El texto se muestra de una vez, sin resaltado. En los bocadillos, cada parte se queda hasta que la pases, como un libro: clic izquierdo en el bocadillo o «Texto: siguiente», clic derecho o «Texto: anterior» para volver (Asignar teclas > Accesorios > Storytale; también vale un botón del mando). La voz está desactivada: lees a tu ritmo.", "Texto: siguiente", "Texto: anterior" },
     esMX = { "Visualización del texto:", "Escritura progresiva", "Todo de una vez",
         "El texto se escribe letra por letra, al ritmo de la voz cuando lee una voz.",
-        "El texto se muestra de una vez. En los globos, cada parte pasa sola; mientras lee una voz, la palabra que dice se colorea si «Resaltar la palabra leída» está marcado (y «Highlight Words» en las opciones de Spoken).",
+        "El texto se muestra de una vez. En los globos, todo el texto cabe en un solo globo: si es largo, desplázalo con la rueda del ratón sobre el globo o con L1 / R1 en el control (sigue a la voz hasta que lo desplaces tú). Mientras lee una voz, la palabra que dice se colorea si «Resaltar la palabra leída» está marcado (y «Highlight Words» en las opciones de Spoken).",
         "Avance manual", "El texto se muestra de una vez, sin resaltado. En los globos, cada parte se queda hasta que la pases, como un libro: clic izquierdo en el globo o «Texto: siguiente», clic derecho o «Texto: anterior» para regresar (Asignar teclas > Accesorios > Storytale; también sirve un botón del control). La voz está desactivada: lees a tu ritmo.", "Texto: siguiente", "Texto: anterior" },
     itIT = { "Visualizzazione del testo:", "Scrittura progressiva", "Tutto subito",
         "Il testo si scrive lettera per lettera, al ritmo della voce quando una voce legge.",
-        "Il testo appare subito. Nei fumetti, ogni parte passa da sola; mentre una voce legge, la parola che sta dicendo viene colorata se «Evidenzia la parola letta» è selezionato (e «Highlight Words» nelle opzioni di Spoken).",
+        "Il testo appare subito. Nei fumetti, tutto il testo sta in un solo fumetto: se è lungo, scorrilo con la rotellina sul fumetto o con L1 / R1 sul controller (segue la voce finché non lo scorri tu). Mentre una voce legge, la parola che sta dicendo viene colorata se «Evidenzia la parola letta» è selezionato (e «Highlight Words» nelle opzioni di Spoken).",
         "Avanzamento manuale", "Il testo appare subito, senza evidenziazione. Nei fumetti, ogni parte resta finché non la giri, come un libro: clic sinistro sul fumetto o «Testo: avanti», clic destro o «Testo: indietro» per tornare (Comandi > AddOn > Storytale; va bene anche un tasto del controller). La voce è disattivata: leggi al tuo ritmo.", "Testo: avanti", "Testo: indietro" },
     ptBR = { "Exibição do texto:", "Escrita progressiva", "Tudo de uma vez",
         "O texto é escrito letra por letra, no ritmo da voz quando uma voz lê.",
-        "O texto aparece de uma vez. Nos balões, cada parte passa sozinha; enquanto uma voz lê, a palavra que ela diz fica colorida se «Destacar a palavra lida» estiver marcado (e «Highlight Words» nas opções do Spoken).",
+        "O texto aparece de uma vez. Nos balões, todo o texto fica em um só balão: se for longo, role-o com a roda do mouse sobre o balão ou com L1 / R1 no controle (ele segue a voz até você rolar). Enquanto uma voz lê, a palavra que ela diz fica colorida se «Destacar a palavra lida» estiver marcado (e «Highlight Words» nas opções do Spoken).",
         "Avanço manual", "O texto aparece de uma vez, sem destaque. Nos balões, cada parte fica até você virá-la, como um livro: clique esquerdo no balão ou «Texto: próximo», clique direito ou «Texto: anterior» para voltar (Atalhos > AddOns > Storytale; um botão do controle também serve). A voz fica desligada: você lê no seu ritmo.", "Texto: próximo", "Texto: anterior" },
     ruRU = { "Показ текста:", "Постепенно", "Сразу целиком",
         "Текст пишется по буквам, в темпе голоса, когда читает голос.",
-        "Текст показывается сразу. В облачках каждая часть сменяется сама; пока читает голос, произносимое слово выделяется цветом, если включено «Подсвечивать читаемое слово» (и «Highlight Words» в настройках Spoken).",
+        "Текст показывается сразу. В облачках весь текст помещается в одно облачко: если он длинный, прокручивайте его колесом мыши над облачком или L1 / R1 на геймпаде (он следует за голосом, пока вы не прокрутите сами). Пока читает голос, произносимое слово выделяется цветом, если включено «Подсвечивать читаемое слово» (и «Highlight Words» в настройках Spoken).",
         "Вручную", "Текст показывается сразу, без подсветки. В облачках каждая часть остаётся, пока вы её не перевернёте, как в книге: левый щелчок по облачку или «Текст: далее», правый щелчок или «Текст: назад», чтобы вернуться (Назначение клавиш > Модификации > Storytale; подойдёт и кнопка геймпада). Голос выключен: вы читаете в своём темпе.", "Текст: далее", "Текст: назад" },
     koKR = { "텍스트 표시:", "한 글자씩", "한 번에",
         "글이 한 글자씩 써집니다. 목소리가 읽을 때는 목소리의 속도에 맞춥니다.",
-        "텍스트가 한 번에 표시됩니다. 말풍선에서는 각 부분이 저절로 넘어갑니다. 목소리가 읽는 동안 「읽는 단어 강조」가 켜져 있으면 읽고 있는 단어에 색을 입힙니다 (Spoken 설정의 「Highlight Words」도 필요).",
+        "텍스트가 한 번에 표시됩니다. 말풍선에서는 전체 텍스트가 하나의 말풍선에 들어갑니다. 길면 말풍선 위에서 마우스 휠이나 게임패드의 L1 / R1로 스크롤합니다 (직접 스크롤하기 전까지는 목소리를 따라갑니다). 목소리가 읽는 동안 「읽는 단어 강조」가 켜져 있으면 읽고 있는 단어에 색을 입힙니다 (Spoken 설정의 「Highlight Words」도 필요).",
         "수동 넘김", "텍스트가 강조 없이 한 번에 표시됩니다. 말풍선에서는 책처럼 직접 넘길 때까지 각 부분이 유지됩니다: 말풍선 왼쪽 클릭 또는 「텍스트: 다음」, 오른쪽 클릭 또는 「텍스트: 이전」으로 돌아가기 (단축키 설정 > 애드온 > Storytale, 게임패드 버튼도 가능). 목소리는 꺼지며, 원하는 속도로 읽습니다.", "텍스트: 다음", "텍스트: 이전" },
     zhCN = { "文字显示：", "逐字显示", "一次显示",
         "文字逐字出现；有语音朗读时随语音的节奏。",
-        "文字一次显示。在气泡中，每一段会自动切换；语音朗读时，若勾选「高亮正在朗读的词」（以及 Spoken 选项中的「Highlight Words」），正在朗读的词会着色。",
+        "文字一次显示。在气泡中，全部文字在同一个气泡里：文字较长时，可在气泡上用鼠标滚轮或手柄的 L1 / R1 滚动（在你自己滚动之前会跟随语音）。语音朗读时，若勾选「高亮正在朗读的词」（以及 Spoken 选项中的「Highlight Words」），正在朗读的词会着色。",
         "手动翻页", "文字一次显示，不高亮。在气泡中，每一段会停留到你翻页为止，就像一本书：左键点击气泡或「文字：下一段」，右键或「文字：上一段」返回（按键设置 > 插件 > Storytale；也可用手柄按键）。不播放语音，按你自己的节奏阅读。", "文字：下一段", "文字：上一段" },
     zhTW = { "文字顯示：", "逐字顯示", "一次顯示",
         "文字逐字出現；有語音朗讀時隨語音的節奏。",
-        "文字一次顯示。在泡泡中，每一段會自動切換；語音朗讀時，若勾選「醒目標示正在朗讀的詞」（以及 Spoken 選項中的「Highlight Words」），正在朗讀的詞會上色。",
+        "文字一次顯示。在泡泡中，全部文字在同一個泡泡裡：文字較長時，可在泡泡上用滑鼠滾輪或手把的 L1 / R1 捲動（在你自己捲動之前會跟隨語音）。語音朗讀時，若勾選「醒目標示正在朗讀的詞」（以及 Spoken 選項中的「Highlight Words」），正在朗讀的詞會上色。",
         "手動翻頁", "文字一次顯示，不醒目標示。在泡泡中，每一段會停留到你翻頁為止，就像一本書：左鍵點擊泡泡或「文字：下一段」，右鍵或「文字：上一段」返回（按鍵設定 > 插件 > Storytale；也可用手把按鍵）。不播放語音，依你自己的節奏閱讀。", "文字：下一段", "文字：上一段" },
 }
 for loc, v in pairs(BUBBLE_MODE) do

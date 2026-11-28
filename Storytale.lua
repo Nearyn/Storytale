@@ -12,7 +12,7 @@ do
     local EXTRA = { "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose",
         "BookVoiceOff", "RibbonSeen", "GamePad", "PadTipSeen", "PadTips", "DUIPos", "SpokenStyleChosen",
         "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "HideKeep", "NameCVars", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen", "Profiles", "PlateRestore", "BubbleHighlight", "BubbleMode",
-        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "NarratorPos", "LibraryShared", "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryLayout", "LibraryOff", "LibraryScroll", "LibraryLectern", "RubbingsPos", "RubbingsScale", "RubbingMark", "ExhibitPick" }
+        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "NarratorPos", "LibraryShared", "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryLayout", "LibraryOff", "LibraryScroll", "LibraryLectern", "RubbingsPos", "RubbingsScale", "RubbingMark", "ExhibitPick", "PadNext", "PadPrev" }
     DWE.EXTRA_VARS = EXTRA
     local me = ...
 
@@ -28,7 +28,7 @@ do
         local list, seen = {}, {}
         local function Add(k) if not seen[k] and not NOT_IN_PROFILE[k] then seen[k] = true; list[#list + 1] = k end end
         for _, k in ipairs(DWE.OPTION_VARS or {}) do Add(k) end
-        for _, k in ipairs({ "GamePad", "PadTips", "PadFreeLook", "DUIPos" }) do Add(k) end
+        for _, k in ipairs({ "GamePad", "PadTips", "PadFreeLook", "DUIPos", "PadNext", "PadPrev" }) do Add(k) end
         return list
     end
     DWE.ProfileVars = ProfileVars
@@ -2231,6 +2231,17 @@ DWE.PAD_ACTIONS = {
     PAD2 = "DWE_PadCloseBtn", PADDLEFT = "DWE_PadPrevBtn", PADDRIGHT = "DWE_PadNextBtn",
     PAD4 = "DWE_PadRibbonBtn",
 }
+-- Boutons de l'avance manuelle (options > Manette) : RB suite, LB retour par defaut (A reste aux
+-- choix de la roue : on peut repondre sans tout lire), "NONE" = aucun.
+DWE.PAD_MANUAL_CHOICES = { "NONE", "PAD1", "PAD3", "PADLSHOULDER", "PADRSHOULDER", "PADLTRIGGER", "PADRTRIGGER" }
+function DWE.PadManualKeys()
+    local function K(v, def)
+        if v == nil then return def end
+        if v == "NONE" then return nil end
+        return v
+    end
+    return K(DialogueWheelE_PadNext, "PADRSHOULDER"), K(DialogueWheelE_PadPrev, "PADLSHOULDER")
+end
 -- Menu du ruban ouvert : la croix, A et B servent au menu.
 DWE.PAD_RIBBON = { PADDLEFT = -1, PADDUP = -1, PADDRIGHT = 1, PADDDOWN = 1 }
 DWE.padCatcher = CreateFrame("Frame", "DWE_PadCatcher", UIParent)
@@ -2274,6 +2285,26 @@ if DWE.padCatcher.EnableGamePadButton then
             elseif button == "PAD2" or button == "PAD4" then DWE.RibbonPadToggle() end
             return
         end
+        -- Avance manuelle : RB (par defaut) montre la suite du texte, LB revient en arriere. Pris
+        -- seulement quand il y a une partie ou aller. Le texte tourne au relachement : LB puis RB
+        -- appuyes ensemble (le zoom) ne tournent rien, meme si l'un est presse un peu avant l'autre.
+        if DWE.padManual and button ~= DWE.padManual.button then
+            local pair = { PADLSHOULDER = true, PADRSHOULDER = true }
+            if pair[button] and pair[DWE.padManual.button] then DWE.padManual.cancel = true end
+        end
+        if not DWE.bookMode and DWE.BubblePadCan then
+            local nx, pv = DWE.PadManualKeys()
+            local dir = (button == nx and 1) or (button == pv and -1) or nil
+            local other = button == "PADLSHOULDER" and "PADRSHOULDER" or button == "PADRSHOULDER" and "PADLSHOULDER"
+            if other and DWE.padHeld[other] then dir = nil end
+            -- Bouton garde pendant toute la bulle en avance manuelle, meme sans partie ou aller :
+            -- sinon le jeu ciblait un autre personnage (L1 / R1) et la roue se decrochait (28/11).
+            if dir and DWE.BubblePadActive and DWE.BubblePadActive() then
+                DWE.padManual = { button = button, dir = dir }
+                if self.SetPropagateGamePadInput and not InCombatLockdown() then self:SetPropagateGamePadInput(false) end
+                return
+            end
+        end
         local isA = button == "PAD1" or (DWE.padInteract and DWE.padInteract[button])
         -- Un objet de la quete est vise : A le choisit, il ne declenche pas la roue.
         if isA and not DWE.bookMode and DWE.padRewardBtn and DWE.PadRewardPick() then
@@ -2304,6 +2335,22 @@ end
 if DWE.padCatcher.EnableGamePadButton then
     DWE.padCatcher:SetScript("OnGamePadButtonUp", function(self, button)
         if DWE.padHeld then DWE.padHeld[button] = nil end
+        local pm = DWE.padManual
+        if pm and pm.button == button then
+            DWE.padManual = nil
+            if not pm.cancel and not pm.held and DWE.BubblePadStep then DWE.BubblePadStep(pm.dir) end
+            -- Le relachement aussi reste a Storytale : le jeu agit au relachement de L1 / R1
+            -- (ciblage "Tap/Hold") et changeait la cible. On rend la manette juste apres.
+            if self.SetPropagateGamePadInput and not InCombatLockdown() then
+                self:SetPropagateGamePadInput(false)
+                if C_Timer and C_Timer.After then
+                    C_Timer.After(0, function()
+                        if not InCombatLockdown() then pcall(self.SetPropagateGamePadInput, self, true) end
+                    end)
+                end
+            end
+            return
+        end
         if DWE.PAD_PLAYER_KEYS[button] and DWE.padPlayer.downAt then DWE.PadShareFire(false) end
         -- Un bouton garde pour Storytale coupait la manette au jeu jusqu'au bouton suivant : le
         -- stick droit (camera) restait sans effet dans la conversation ou le livre. Relache, on
@@ -2724,7 +2771,7 @@ function DWE.PadZoomTick(el)
     local down = Down("PADLSHOULDER") and Down("PADRSHOULDER")
     local gp = rawget(_G, "C_GamePad")
     if not (down and gp and gp.GetDeviceMappedState and GetCameraZoom and CameraZoomIn) then
-        padZoom.t, padZoom.drive, padZoom.game, padZoom.evY = nil, nil, nil, nil
+        padZoom.t, padZoom.drive, padZoom.game, padZoom.evY, padZoom.evSeen, padZoom.base = nil, nil, nil, nil, nil, nil
         if padZoom.stick then
             padZoom.stick = nil
             DWE.PadZoomStick(false)
@@ -2752,13 +2799,20 @@ function DWE.PadZoomTick(el)
     -- sinon L1 + R1 seuls continuaient a zoomer sans toucher au stick.
     if padZoom.evY and padZoom.evT and (GetTime and GetTime() or 0) - padZoom.evT > 0.3 then padZoom.evY = nil end
     if not found then y = 0 end -- 2e stick sans nom : peut etre une gachette, pas la camera
+    -- Apres la souris, l'etat de la manette garde une vieille valeur du stick (journal du 28/11 :
+    -- 0,31 stick lache, tout le long de l'appui) : L1 + R1 seuls zoomaient tout seuls. On mesure
+    -- a partir de la valeur du debut de l'appui, et seul un vrai mouvement du stick compte.
+    if padZoom.base == nil then padZoom.base = y end
+    y = y - padZoom.base
+
     if padZoom.evY and math.abs(padZoom.evY) > math.abs(y) then y = padZoom.evY end
     padZoom.logT = (padZoom.logT or 0) + el
     if DWE.FLog and padZoom.logT > 0.5 then
         padZoom.logT = 0
-        DWE.FLog(("zoom : L1+R1 tenus, stick=%.2f (%s) jeu=%s nous=%s"):format(y, found and "Camera" or "2e", tostring(padZoom.game), tostring(padZoom.drive)))
+        DWE.FLog(("zoom : L1+R1 tenus, stick=%.2f (%s) evenement=%s %s base=%s jeu=%s nous=%s"):format(y, found and "Camera" or "2e",
+            tostring(padZoom.evName), tostring(padZoom.evY), tostring(padZoom.base), tostring(padZoom.game), tostring(padZoom.drive)))
     end
-    if math.abs(y) < 0.25 then padZoom.t = nil return end
+    if math.abs(y) < 0.4 then padZoom.t = nil return end
     if padZoom.game then return end
     local okZ, z = pcall(GetCameraZoom)
     if not okZ then return end
@@ -2775,10 +2829,16 @@ end
 
 -- Le stick n'est ecoute (script pose) que pendant L1 + R1 : un script de stick pose en
 -- permanence prenait le stick droit a la camera pendant toute la conversation.
+-- Seul le stick de la camera compte. Les autres (deplacement, curseur de la manette : la souris
+-- y laissait une valeur apres usage) zoomaient tout seuls (journal du 28/11 : 0,86 stick lache).
+-- ("Look" n'est pas le stick droit : journal du 28/11, valeur 1 en continu stick lache.)
+local ZOOM_STICKS = { Camera = true, Right = true }
 local function ZoomStick(_, stick, x, y)
-    if stick == "Movement" or stick == "Left" then return end
+    padZoom.evName = tostring(stick)
+    if not ZOOM_STICKS[stick] then return end
     padZoom.evY = tonumber(y) or 0
     padZoom.evT = GetTime and GetTime() or 0
+    if math.abs(padZoom.evY) > 0.4 then padZoom.evSeen = true end
 end
 function DWE.PadZoomStick(on)
     local c = DWE.padCatcher
@@ -3152,7 +3212,7 @@ end
 -- Astuce manette, montree une seule fois (premiere conversation en mode manette).
 -- Astuces manette, chacune montree une seule fois, la premiere fois que l'element sert a la
 -- manette : conversation, livre (pages, ruban), lecteur miniature de Spoken (Share).
-DWE.PAD_TIPS = { talk = "PAD_TIP", book = "PAD_TIP_BOOK", spoken = "PAD_TIP_SPOKEN" }
+DWE.PAD_TIPS = { talk = "PAD_TIP", book = "PAD_TIP_BOOK", spoken = "PAD_TIP_SPOKEN", manual = "PAD_TIP_MANUAL" }
 function DWE.PadTipSeen(kind)
     if type(DialogueWheelE_PadTips) ~= "table" then
         DialogueWheelE_PadTips = { talk = DialogueWheelE_PadTipSeen == true or nil }
@@ -3165,6 +3225,10 @@ function DWE.PadTipCheck()
     if DWE.padCatcher:IsShown() then
         local kind = DWE.bookMode and "book" or "talk"
         if not DWE.PadTipSeen(kind) then return DWE.ShowPadTip(kind) end
+        -- Avance manuelle : ses boutons (L1 / R1), une fois, a la premiere bulle dans ce mode.
+        if kind == "talk" and DWE.BubblePadActive and DWE.BubblePadActive() and not DWE.PadTipSeen("manual") then
+            return DWE.ShowPadTip("manual")
+        end
     end
     local ui = DWE.SpokenQueueUI
     if (DWE.SpokenControlsShown() or (ui and ui.NoticeShown and ui.NoticeShown()))
