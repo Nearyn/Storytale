@@ -2346,8 +2346,8 @@ do
     local sc = DWE.bubbleScroll
     if sc.max > 0 then
         check(DWE.BubblePadCan(-1) == false, "all at once: nothing above at the start")
-        check(DWE.BubblePadStep(1) == true and sc.off > 0, "all at once: R1 scrolls down")
-        check(DWE.BubblePadStep(-1) == true and sc.off == 0, "all at once: L1 scrolls back up")
+        check(DWE.BubblePadStep(1) == true and sc.target > 0, "all at once: R1 scrolls down"); for _ = 1, 40 do DWE.bubbleClip._scripts.OnUpdate(DWE.bubbleClip, 0.02) end; check(math.abs(sc.off - sc.target) < 1, "all at once: the text glides to its place")
+        check(DWE.BubblePadStep(-1) == true and sc.target == 0, "all at once: L1 scrolls back up")
     end
     DWE.SetDialogueText("NPC", long)
     st.index = 2

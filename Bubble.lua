@@ -377,7 +377,7 @@ end
 -- defile dedans (molette sur la bulle, L1 / R1 a la manette), et suit la voix tant que le
 -- joueur n'a pas fait defiler lui-meme. Le texte est dans un cadre qui le coupe au bord.
 local PAGE_LINES = 8
-local scroll = { off = 0, max = 0, full = 0, user = false }
+local scroll = { off = 0, target = 0, max = 0, full = 0, user = false }
 DWE.bubbleScroll = scroll
 local clip = CreateFrame("Frame", nil, holder)
 if clip.SetClipsChildren then clip:SetClipsChildren(true) end
@@ -401,13 +401,14 @@ end
 local function ApplyScroll()
     local pad = Pad()
     scroll.off = math.max(0, math.min(scroll.max, scroll.off or 0))
+    scroll.target = math.max(0, math.min(scroll.max, scroll.target or 0))
     clip:ClearAllPoints()
     clip:SetPoint("TOPLEFT", bubble, "TOPLEFT", 0, -math.max(0, pad - 2))
     clip:SetPoint("BOTTOMRIGHT", bubble, "BOTTOMRIGHT", 0, math.max(0, pad - 2))
     text:ClearAllPoints()
     text:SetPoint("TOPLEFT", bubble, "TOPLEFT", pad, -pad + scroll.off)
-    arrowDown:SetShown(scroll.max > 0 and scroll.off < scroll.max - 1)
-    arrowUp:SetShown(scroll.max > 0 and scroll.off > 1)
+    arrowDown:SetShown(scroll.max > 0 and scroll.target < scroll.max - 1)
+    arrowUp:SetShown(scroll.max > 0 and scroll.target > 1)
     if bubble.EnableMouseWheel then bubble:EnableMouseWheel(scroll.max > 0) end
 end
 DWE.BubbleApplyScroll = ApplyScroll
@@ -418,16 +419,28 @@ local function ScrollCap(fontSize)
     return PAGE_LINES * lh
 end
 -- Fait defiler le texte : dir > 0 vers le bas. false s'il n'y a rien a faire defiler de ce cote.
+-- Defilement en douceur (comme la roue) : chaque appui deplace la cible de deux lignes, le
+-- texte glisse jusqu'a elle (vu le 28/11 : trois lignes d'un coup, c'etait trop brusque).
 function DWE.BubbleScroll(dir)
     if scroll.max <= 0 then return false end
     local okF, _, size = pcall(text.GetFont, text)
     local lh = (okF and type(size) == "number" and size or 14) * 1.22
-    local before = scroll.off
-    scroll.off = scroll.off + dir * lh * 3
+    local before = scroll.target
+    scroll.target = math.max(0, math.min(scroll.max, scroll.target + dir * lh * 2))
     scroll.user = true
     ApplyScroll()
-    return scroll.off ~= before
+    return scroll.target ~= before
 end
+DWE.bubbleClip = clip
+clip:SetScript("OnUpdate", function(_, elapsed)
+    local d = (scroll.target or 0) - (scroll.off or 0)
+    if math.abs(d) < 0.5 then
+        if d ~= 0 then scroll.off = scroll.target; ApplyScroll() end
+        return
+    end
+    scroll.off = scroll.off + d * math.min(1, elapsed * 12)
+    ApplyScroll()
+end)
 
 -- Opacite du fond (option "Opacite du fond") : le fond et la pointe de la bulle, jamais le texte.
 function DWE.ApplyBubbleOpacity()
@@ -954,8 +967,8 @@ local function PageReveal(seg, n)
     if scroll.max > 0 and not scroll.user and state.voiced and (state.total or 0) > 0 then
         local want = (n or 0) / state.total * (scroll.full or 0) - (scroll.full - scroll.max) * 0.4
         want = math.max(0, math.min(scroll.max, want))
-        if math.abs(want - scroll.off) > 1 then
-            scroll.off = scroll.off + (want - scroll.off) * 0.15
+        if math.abs(want - scroll.target) > 1 then
+            scroll.target = want
             DWE.BubbleApplyScroll()
         end
     end
@@ -2191,8 +2204,8 @@ end
 function DWE.BubblePadCan(dir)
     if state.dots or not bubble:IsShown() or state.phase == "idle" then return false end
     if scroll.max > 0 then
-        if dir < 0 then return scroll.off > 1 end
-        return scroll.off < scroll.max - 1
+        if dir < 0 then return scroll.target > 1 end
+        return scroll.target < scroll.max - 1
     end
     if dir < 0 then return (state.index or 1) > 1 end
     return state.phase == "typing" or (state.phase == "reading" and (state.index or 1) < #(state.segs or {}))
@@ -2274,7 +2287,7 @@ function DWE.Bubble.SetText(s)
     state.segs = Split(s)
     -- "Tout d'un coup" : tout le texte dans une seule bulle (qui defile s'il est long).
     if ScrollMode() and #state.segs > 1 then state.segs = { table.concat(state.segs, " ") } end
-    scroll.off, scroll.user = 0, false
+    scroll.off, scroll.target, scroll.user = 0, 0, false
     state.paused = nil
     state.lens, state.total = {}, 0
     for i, seg in ipairs(state.segs) do
