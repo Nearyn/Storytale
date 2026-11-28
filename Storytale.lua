@@ -12,7 +12,7 @@ do
     local EXTRA = { "BookAutoScroll", "BookHighlight", "BookTurnFX", "BookVoiceTurn", "BookStopOnClose",
         "BookVoiceOff", "RibbonSeen", "GamePad", "PadTipSeen", "PadTips", "DUIPos", "SpokenStyleChosen",
         "SpokenSkin", "SpokenButton", "BookSkin", "PlateSkin", "CustomColors", "CustomPresets", "HideUI", "HideKeep", "NameCVars", "ZoneArt", "ZoneArtPaper", "MinimapHide", "MinimapAngle", "DefaultsV", "SpokenTipSeen", "RoundScale", "RoundPos", "RoundRibbonSeen", "Profiles", "PlateRestore", "BubbleHighlight", "BubbleMode",
-        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "NarratorPos", "LibraryShared", "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryLayout", "LibraryOff", "LibraryScroll", "LibraryLectern", "RubbingsPos", "RubbingsScale", "RubbingMark", "ExhibitPick" }
+        "NumberKeys", "NumberVisible", "NumberBright", "NumberIntensity", "NarratorPos", "LibraryShared", "LibraryAll", "LibraryUnlock", "LibraryStyle", "LibraryBg", "LibraryLayout", "LibraryOff", "LibraryScroll", "LibraryLectern", "RubbingsPos", "RubbingsScale", "RubbingMark", "ExhibitPick", "PadNext", "PadPrev" }
     DWE.EXTRA_VARS = EXTRA
     local me = ...
 
@@ -28,7 +28,7 @@ do
         local list, seen = {}, {}
         local function Add(k) if not seen[k] and not NOT_IN_PROFILE[k] then seen[k] = true; list[#list + 1] = k end end
         for _, k in ipairs(DWE.OPTION_VARS or {}) do Add(k) end
-        for _, k in ipairs({ "GamePad", "PadTips", "PadFreeLook", "DUIPos" }) do Add(k) end
+        for _, k in ipairs({ "GamePad", "PadTips", "PadFreeLook", "DUIPos", "PadNext", "PadPrev" }) do Add(k) end
         return list
     end
     DWE.ProfileVars = ProfileVars
@@ -2231,6 +2231,16 @@ DWE.PAD_ACTIONS = {
     PAD2 = "DWE_PadCloseBtn", PADDLEFT = "DWE_PadPrevBtn", PADDRIGHT = "DWE_PadNextBtn",
     PAD4 = "DWE_PadRibbonBtn",
 }
+-- Boutons de l'avance manuelle (options > Manette) : A et LB par defaut, "NONE" = aucun.
+DWE.PAD_MANUAL_CHOICES = { "NONE", "PAD1", "PAD3", "PADLSHOULDER", "PADRSHOULDER", "PADLTRIGGER", "PADRTRIGGER" }
+function DWE.PadManualKeys()
+    local function K(v, def)
+        if v == nil then return def end
+        if v == "NONE" then return nil end
+        return v
+    end
+    return K(DialogueWheelE_PadNext, "PAD1"), K(DialogueWheelE_PadPrev, "PADLSHOULDER")
+end
 -- Menu du ruban ouvert : la croix, A et B servent au menu.
 DWE.PAD_RIBBON = { PADDLEFT = -1, PADDUP = -1, PADDRIGHT = 1, PADDDOWN = 1 }
 DWE.padCatcher = CreateFrame("Frame", "DWE_PadCatcher", UIParent)
@@ -2273,6 +2283,18 @@ if DWE.padCatcher.EnableGamePadButton then
             elseif button == "PAD1" then DWE.RibbonPadClick()
             elseif button == "PAD2" or button == "PAD4" then DWE.RibbonPadToggle() end
             return
+        end
+        -- Avance manuelle : A (par defaut) montre la suite du texte, LB revient en arriere. Pris
+        -- seulement quand il y a une partie ou aller ; LB+RB ensemble reste le zoom.
+        if not DWE.bookMode and DWE.BubblePadStep then
+            local nx, pv = DWE.PadManualKeys()
+            local dir = (button == nx and 1) or (button == pv and -1) or nil
+            local other = button == "PADLSHOULDER" and "PADRSHOULDER" or button == "PADRSHOULDER" and "PADLSHOULDER"
+            if other and DWE.padHeld[other] then dir = nil end
+            if dir and DWE.BubblePadStep(dir) then
+                if self.SetPropagateGamePadInput and not InCombatLockdown() then self:SetPropagateGamePadInput(false) end
+                return
+            end
         end
         local isA = button == "PAD1" or (DWE.padInteract and DWE.padInteract[button])
         -- Un objet de la quete est vise : A le choisit, il ne declenche pas la roue.

@@ -9230,9 +9230,28 @@ function DWE.InitOptionsPanel()
         fs:SetWidth(560)
         fs:SetJustifyH("LEFT")
     end
+    -- Avance manuelle : bouton "suite" (A par defaut) et "precedent" (LB par defaut).
+    local PAD_NAMES = { NONE = L.PAD_NONE or "None", PAD1 = "A", PAD3 = "X", PADLSHOULDER = "LB",
+        PADRSHOULDER = "RB", PADLTRIGGER = "LT", PADRTRIGGER = "RT" }
+    local function PadRow(label, rowY, get, set)
+        AddText(label, 20, y - rowY, "GameFontNormalSmall")
+        local items = {}
+        for i, id in ipairs(DWE.PAD_MANUAL_CHOICES) do items[i] = { id = id, label = PAD_NAMES[id] } end
+        AddGroup(items, 16, y - rowY - 18, 0, get, set, 1, 80)
+    end
+    PadRow(L.PAD_MANUAL_NEXT or "Manual advance, next part:", 172, function()
+        local nx = DWE.PadManualKeys()
+        return nx or "NONE"
+    end, function(id) DialogueWheelE_PadNext = id end)
+    PadRow(L.PAD_MANUAL_PREV or "Manual advance, previous part:", 222, function()
+        local _, pv = DWE.PadManualKeys()
+        return pv or "NONE"
+    end, function(id) DialogueWheelE_PadPrev = id end)
+    local ps = AddText(L.PAD_PS_NAMES or "", 20, y - 272, "GameFontDisableSmall")
+    if ps and ps.SetWidth then ps:SetWidth(560); ps:SetJustifyH("LEFT") end
 
     ---------------------------------------------------------------- Spoken
-    y = y - 170
+    y = y - 300
     NewPage(L.SEC_SPOKEN, y)
     AddSection(L.SEC_SPOKEN, y)
     local spokenOn = DWE.SpokenFocus and DWE.SpokenFocus.Available()

@@ -2288,6 +2288,33 @@ do
     tick(0.05)
     DWE.bubble._scripts.OnMouseUp(DWE.bubble, "LeftButton")
     check(st.index == 2, "manual pages: left-click goes on")
+    -- Manette (demande de deux joueurs) : A montre la suite, LB revient, rien de pris sans partie ou aller.
+    do
+        local pad = DWE.padCatcher._scripts and DWE.padCatcher._scripts.OnGamePadButtonDown
+        local savedNext, savedPrev, savedBook = DialogueWheelE_PadNext, DialogueWheelE_PadPrev, DWE.bookMode
+        DWE.bookMode = nil
+        local nx, pv = DWE.PadManualKeys()
+        check(nx == "PAD1" and pv == "PADLSHOULDER", "manual pages, gamepad: A and LB by default")
+        if pad then
+            pad(DWE.padCatcher, "PADLSHOULDER"); DWE.padCatcher._scripts.OnGamePadButtonUp(DWE.padCatcher, "PADLSHOULDER"); tick(0.05)
+            check(st.index == 1, "manual pages, gamepad: LB goes back")
+            DWE.padHeld.PADRSHOULDER = true
+            pad(DWE.padCatcher, "PADLSHOULDER"); DWE.padCatcher._scripts.OnGamePadButtonUp(DWE.padCatcher, "PADLSHOULDER")
+            DWE.padHeld.PADRSHOULDER = nil
+            check(st.index == 1, "manual pages, gamepad: LB with RB held stays the zoom")
+            check(DWE.BubblePadStep(1) == true and st.index == 2, "manual pages, gamepad: A shows the next part")
+            tick(0.05)
+            while st.index < #st.segs do DWE.BubblePadStep(1); tick(0.05) end
+            check(DWE.BubblePadStep(1) == false, "manual pages, gamepad: on the last part, A is left to the wheel")
+            DialogueWheelE_PadNext, DialogueWheelE_PadPrev = "NONE", "PADRTRIGGER"
+            nx, pv = DWE.PadManualKeys()
+            check(nx == nil and pv == "PADRTRIGGER", "manual pages, gamepad: buttons can be changed or set to none")
+            while st.index > 2 do DWE.BubblePrev(); tick(0.05) end
+        else
+            check(false, "manual pages, gamepad: no pad handler")
+        end
+        DialogueWheelE_PadNext, DialogueWheelE_PadPrev, DWE.bookMode = savedNext, savedPrev, savedBook
+    end
     DialogueWheelE_BubbleMode = "page"
     check(DWE.BubblePrev() == false and st.index == 2, "all at once: no going back (the bubble would turn on its own)")
     DialogueWheelE_BubbleMode = nil

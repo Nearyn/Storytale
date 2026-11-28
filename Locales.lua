@@ -1305,6 +1305,33 @@ local PAD_HELP = {
         PAD_HELP3 = "Spoken 播放器：Share（Xbox One 為檢視鍵）短按暫停，長按跳過，按住 Share + Y 開啟佇列。",
         PAD_TIP = "方向鍵：選擇  ·  A：確認  ·  B：關閉（全部按鍵見 Storytale 設定）" },
 }
+-- Avance manuelle a la manette : bouton "suite" et bouton "precedent".
+local PAD_MANUAL = {
+    enUS = { PAD_MANUAL_NEXT = "Manual advance, next part:", PAD_MANUAL_PREV = "Manual advance, previous part:",
+        PAD_NONE = "None", PAD_PS_NAMES = "PlayStation: A = Cross, X = Square, LB/RB = L1/R1, LT/RT = L2/R2." },
+    frFR = { PAD_MANUAL_NEXT = "Avance manuelle, partie suivante :", PAD_MANUAL_PREV = "Avance manuelle, partie précédente :",
+        PAD_NONE = "Aucun", PAD_PS_NAMES = "PlayStation : A = Croix, X = Carré, LB/RB = L1/R1, LT/RT = L2/R2." },
+    deDE = { PAD_MANUAL_NEXT = "Manuelles Weiterblättern, nächster Teil:", PAD_MANUAL_PREV = "Manuelles Weiterblättern, vorheriger Teil:",
+        PAD_NONE = "Keine", PAD_PS_NAMES = "PlayStation: A = Kreuz, X = Quadrat, LB/RB = L1/R1, LT/RT = L2/R2." },
+    esES = { PAD_MANUAL_NEXT = "Avance manual, parte siguiente:", PAD_MANUAL_PREV = "Avance manual, parte anterior:",
+        PAD_NONE = "Ninguno", PAD_PS_NAMES = "PlayStation: A = Equis, X = Cuadrado, LB/RB = L1/R1, LT/RT = L2/R2." },
+    itIT = { PAD_MANUAL_NEXT = "Avanzamento manuale, parte successiva:", PAD_MANUAL_PREV = "Avanzamento manuale, parte precedente:",
+        PAD_NONE = "Nessuno", PAD_PS_NAMES = "PlayStation: A = Croce, X = Quadrato, LB/RB = L1/R1, LT/RT = L2/R2." },
+    ptBR = { PAD_MANUAL_NEXT = "Avanço manual, próxima parte:", PAD_MANUAL_PREV = "Avanço manual, parte anterior:",
+        PAD_NONE = "Nenhum", PAD_PS_NAMES = "PlayStation: A = Xis, X = Quadrado, LB/RB = L1/R1, LT/RT = L2/R2." },
+    ruRU = { PAD_MANUAL_NEXT = "Ручная прокрутка, следующая часть:", PAD_MANUAL_PREV = "Ручная прокрутка, предыдущая часть:",
+        PAD_NONE = "Нет", PAD_PS_NAMES = "PlayStation: A = Крест, X = Квадрат, LB/RB = L1/R1, LT/RT = L2/R2." },
+    koKR = { PAD_MANUAL_NEXT = "수동 넘기기, 다음 부분:", PAD_MANUAL_PREV = "수동 넘기기, 이전 부분:",
+        PAD_NONE = "없음", PAD_PS_NAMES = "PlayStation: A = X 버튼, X = 네모, LB/RB = L1/R1, LT/RT = L2/R2." },
+    zhCN = { PAD_MANUAL_NEXT = "手动翻页，下一部分：", PAD_MANUAL_PREV = "手动翻页，上一部分：",
+        PAD_NONE = "无", PAD_PS_NAMES = "PlayStation：A = 叉，X = 方块，LB/RB = L1/R1，LT/RT = L2/R2。" },
+    zhTW = { PAD_MANUAL_NEXT = "手動翻頁，下一部分：", PAD_MANUAL_PREV = "手動翻頁，上一部分：",
+        PAD_NONE = "無", PAD_PS_NAMES = "PlayStation：A = 叉，X = 方塊，LB/RB = L1/R1，LT/RT = L2/R2。" },
+}
+for loc, list in pairs(PAD_MANUAL) do
+    local h = PAD_HELP[loc]
+    if h then for k, v in pairs(list) do h[k] = v end end
+end
 PAD_HELP.esMX = PAD_HELP.esES
 for loc, list in pairs(PAD_HELP) do
     local dest = (loc == "enUS") and enUS or T[loc]

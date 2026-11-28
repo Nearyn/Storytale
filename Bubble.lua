@@ -2099,6 +2099,16 @@ function DWE.BubblePrev()
     if not bubble:IsShown() or state.phase == "idle" then return false end
     return Back()
 end
+-- Manette en avance manuelle : le bouton "suite" n'est pris que s'il reste du texte (sinon A
+-- choisit la reponse de la roue, comme avant) ; "precedent" seulement s'il y a une partie avant.
+function DWE.BubblePadStep(dir)
+    if not ManualMode() or state.dots or not bubble:IsShown() or state.phase == "idle" then return false end
+    if dir < 0 then return Back() end
+    local more = state.phase == "typing" or (state.phase == "reading" and (state.index or 1) < #(state.segs or {}))
+    if not more then return false end
+    Advance()
+    return true
+end
 
 bubble:SetScript("OnMouseUp", function(_, button)
     if DWE.JustDragged() then return end
