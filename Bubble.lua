@@ -2695,6 +2695,9 @@ function DWE.BubbleCatSay(anchor, phrase)
     bubble:SetPoint("BOTTOM", anchor, "TOP", 0, 4)
     state.raw = nil
     DWE.Bubble.SetText(phrase)
+    -- Le chat n'a pas de voix : on n'attend pas que Spoken commence a lire (l'ecriture
+    -- ralentissait et s'arretait sur des mots en l'attendant, vu le 28/11).
+    state.manual = true
     bubble:Show()
     catToken = catToken + 1
     local mine = catToken
