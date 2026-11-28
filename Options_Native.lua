@@ -311,6 +311,44 @@ local function MakeWindow()
         end
         local x, y = Center(cur)
         local best, score
+        -- Haut / bas : la ligne la plus proche d'abord (aucune ligne sautee), puis dans cette ligne
+        -- l'element le plus proche a l'horizontale. Avant, un element bien aligne deux lignes plus
+        -- loin passait devant celui de la ligne voisine, un peu decale (vu le 28/11 en remontant).
+        if dy ~= 0 then
+            -- On reste dans sa colonne : les onglets entre eux, la page entre elle (gauche/droite
+            -- pour passer de l'une a l'autre).
+            local function Side(w)
+                if w == f.cat then return "tab" end
+                for _, t in ipairs(f.tabs) do if t == w then return "tab" end end
+                return "page"
+            end
+            local mine = Side(cur)
+            local kept = {}
+            for _, w in ipairs(list) do if Side(w) == mine then kept[#kept + 1] = w end end
+            list = kept
+            local rowD
+            for _, w in ipairs(list) do
+                if w ~= cur then
+                    local _, cy = Center(w)
+                    local d = (cy - y) * dy
+                    if d > 4 and (not rowD or d < rowD) then rowD = d end
+                end
+            end
+            if rowD then
+                for _, w in ipairs(list) do
+                    if w ~= cur then
+                        local cx, cy = Center(w)
+                        local d = (cy - y) * dy
+                        if d > 4 and d <= rowD + 8 then
+                            local sc = math.abs(cx - x) + d * 0.01
+                            if not score or sc < score then best, score = w, sc end
+                        end
+                    end
+                end
+            end
+            if best then f.Select(best) end
+            return
+        end
         for _, w in ipairs(list) do
             if w ~= cur then
                 local cx, cy = Center(w)
