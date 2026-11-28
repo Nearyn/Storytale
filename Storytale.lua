@@ -2771,7 +2771,7 @@ function DWE.PadZoomTick(el)
     local down = Down("PADLSHOULDER") and Down("PADRSHOULDER")
     local gp = rawget(_G, "C_GamePad")
     if not (down and gp and gp.GetDeviceMappedState and GetCameraZoom and CameraZoomIn) then
-        padZoom.t, padZoom.drive, padZoom.game, padZoom.evY = nil, nil, nil, nil
+        padZoom.t, padZoom.drive, padZoom.game, padZoom.evY, padZoom.evSeen = nil, nil, nil, nil, nil
         if padZoom.stick then
             padZoom.stick = nil
             DWE.PadZoomStick(false)
@@ -2799,6 +2799,10 @@ function DWE.PadZoomTick(el)
     -- sinon L1 + R1 seuls continuaient a zoomer sans toucher au stick.
     if padZoom.evY and padZoom.evT and (GetTime and GetTime() or 0) - padZoom.evT > 0.3 then padZoom.evY = nil end
     if not found then y = 0 end -- 2e stick sans nom : peut etre une gachette, pas la camera
+    -- Apres la souris, l'etat de la manette garde parfois une vieille valeur du stick : L1 + R1
+    -- seuls dezoomaient tout seuls (vu le 28/11). On ne zoome qu'apres un vrai mouvement du
+    -- stick pendant cet appui.
+    if not padZoom.evSeen then y = 0 end
     if padZoom.evY and math.abs(padZoom.evY) > math.abs(y) then y = padZoom.evY end
     padZoom.logT = (padZoom.logT or 0) + el
     if DWE.FLog and padZoom.logT > 0.5 then
@@ -2826,6 +2830,7 @@ local function ZoomStick(_, stick, x, y)
     if stick == "Movement" or stick == "Left" then return end
     padZoom.evY = tonumber(y) or 0
     padZoom.evT = GetTime and GetTime() or 0
+    if math.abs(padZoom.evY) > 0.25 then padZoom.evSeen = true end
 end
 function DWE.PadZoomStick(on)
     local c = DWE.padCatcher

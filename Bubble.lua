@@ -389,27 +389,28 @@ ghost:SetParent(clip)
 -- qui montre en direct ou l'on en est dans le texte (couleur du texte de la bulle, 28/11).
 local track = holder:CreateTexture(nil, "OVERLAY")
 track:SetColorTexture(1, 1, 1, 1)
-track:SetWidth(2)
+track:SetWidth(1.5)
 track:Hide()
 local thumb = holder:CreateTexture(nil, "OVERLAY")
 thumb:SetColorTexture(1, 1, 1, 1)
-thumb:SetWidth(2)
+thumb:SetWidth(1.5)
 thumb:Hide()
 local function ScrollBar()
     if scroll.max <= 0 then track:Hide(); thumb:Hide() return end
     local pad = Pad()
-    local inset = math.max(4, pad - 2)
+    -- (plus courte que la bulle : centree, environ les deux tiers de sa hauteur)
+    local inset = math.max(4, pad - 2) + (bubble:GetHeight() or 0) * 0.15
     local h = (bubble:GetHeight() or 0) - 2 * inset
     if h <= 10 then track:Hide(); thumb:Hide() return end
     local r, g, b = text:GetTextColor()
     r, g, b = r or 1, g or 1, b or 1
-    track:SetVertexColor(r, g, b, 0.12)
-    thumb:SetVertexColor(r, g, b, 0.55)
+    track:SetVertexColor(r, g, b, 0.10)
+    thumb:SetVertexColor(r, g, b, 0.45)
     track:ClearAllPoints()
     track:SetPoint("TOPRIGHT", bubble, "TOPRIGHT", -math.max(3, pad * 0.4), -inset)
     track:SetHeight(h)
     local full = math.max(1, scroll.full or 1)
-    local th = math.max(10, h * (full - scroll.max) / full)
+    local th = math.max(8, h * (full - scroll.max) / full)
     local y = (h - th) * (scroll.off / scroll.max)
     thumb:ClearAllPoints()
     thumb:SetPoint("TOP", track, "TOP", 0, -y)
@@ -424,8 +425,9 @@ local function ApplyScroll()
     scroll.off = math.max(0, math.min(scroll.max, scroll.off or 0))
     scroll.target = math.max(0, math.min(scroll.max, scroll.target or 0))
     clip:ClearAllPoints()
-    clip:SetPoint("TOPLEFT", bubble, "TOPLEFT", 0, -math.max(0, pad - 2))
-    clip:SetPoint("BOTTOMRIGHT", bubble, "BOTTOMRIGHT", 0, math.max(0, pad - 2))
+    -- (au bord du texte : sans marge, le bas de la ligne du dessus se voyait en haut)
+    clip:SetPoint("TOPLEFT", bubble, "TOPLEFT", 0, -pad)
+    clip:SetPoint("BOTTOMRIGHT", bubble, "BOTTOMRIGHT", 0, pad - 2)
     text:ClearAllPoints()
     text:SetPoint("TOPLEFT", bubble, "TOPLEFT", pad, -pad + scroll.off)
     ScrollBar()
@@ -439,18 +441,29 @@ local function ScrollCap(fontSize)
     return PAGE_LINES * lh
 end
 -- Fait defiler le texte : dir > 0 vers le bas. false s'il n'y a rien a faire defiler de ce cote.
+-- Hauteur d'une ligne de la bulle (celle de la mise en page si connue).
+local function LineH()
+    if scroll.lh and scroll.lh > 0 then return scroll.lh end
+    local okF, _, size = pcall(text.GetFont, text)
+    return (okF and type(size) == "number" and size or 14) * 1.22
+end
+-- Calee sur une ligne entiere (aucune ligne coupee en haut de la bulle, vu le 28/11).
+local function Snap(v)
+    local lh = LineH()
+    v = math.floor(v / lh + 0.5) * lh
+    return math.max(0, math.min(scroll.max, v))
+end
 -- Defilement en douceur (comme la roue) : chaque appui deplace la cible de deux lignes, le
 -- texte glisse jusqu'a elle (vu le 28/11 : trois lignes d'un coup, c'etait trop brusque).
 function DWE.BubbleScroll(dir)
     if scroll.max <= 0 then return false end
-    local okF, _, size = pcall(text.GetFont, text)
-    local lh = (okF and type(size) == "number" and size or 14) * 1.22
     local before = scroll.target
-    scroll.target = math.max(0, math.min(scroll.max, scroll.target + dir * lh * 2))
+    scroll.target = Snap(scroll.target + dir * LineH() * 2)
     scroll.user = true
     ApplyScroll()
     return scroll.target ~= before
 end
+DWE.BubbleScrollSnap = Snap
 DWE.bubbleClip = clip
 clip:SetScript("OnUpdate", function(_, elapsed)
     -- L1 / R1 maintenus (manette) : le texte continue de defiler tant qu'on tient le bouton.
@@ -459,11 +472,15 @@ clip:SetScript("OnUpdate", function(_, elapsed)
         pm.heldT = (pm.heldT or 0) + elapsed
         if pm.heldT > 0.3 then
             pm.held = true -- (le relachement ne refait pas un pas de plus)
-            local okF, _, size = pcall(text.GetFont, text)
-            local lh = (okF and type(size) == "number" and size or 14) * 1.22
-            scroll.target = math.max(0, math.min(scroll.max, scroll.target + pm.dir * lh * 7 * elapsed))
+            scroll.target = math.max(0, math.min(scroll.max, scroll.target + pm.dir * LineH() * 7 * elapsed))
             scroll.user = true
+            scroll.wasHeld = true
         end
+    end
+    -- Bouton lache apres un defilement continu : on finit sur une ligne entiere.
+    if scroll.wasHeld and not (pm and pm.held) then
+        scroll.wasHeld = nil
+        scroll.target = Snap(scroll.target)
     end
     local d = (scroll.target or 0) - (scroll.off or 0)
     if math.abs(d) < 0.5 then
@@ -668,6 +685,7 @@ local function FitTo(s, shown)
         if okW and type(wrapped) == "string" and lh and lh > 0 then
             local _, breaks = wrapped:gsub("\n", "")
             h = (breaks + 1) * lh
+            scroll.lh = lh
         end
     end
     local cap = ScrollCap(fontSize)
@@ -999,6 +1017,7 @@ local function PageReveal(seg, n)
     if scroll.max > 0 and not scroll.user and state.voiced and (state.total or 0) > 0 then
         local want = (n or 0) / state.total * (scroll.full or 0) - (scroll.full - scroll.max) * 0.4
         want = math.max(0, math.min(scroll.max, want))
+        want = DWE.BubbleScrollSnap and DWE.BubbleScrollSnap(want) or want
         if math.abs(want - scroll.target) > 1 then
             scroll.target = want
             DWE.BubbleApplyScroll()
