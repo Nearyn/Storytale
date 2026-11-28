@@ -322,17 +322,17 @@ local function MakeWindow()
             end
             return l or 0, r or 0
         end
+        local function Side(w)
+            if w == f.cat then return "tab" end
+            for _, t in ipairs(f.tabs) do if t == w then return "tab" end end
+            return "page"
+        end
         -- Haut / bas : la ligne la plus proche d'abord (aucune ligne sautee), puis dans cette ligne
         -- l'element le plus proche a l'horizontale. Avant, un element bien aligne deux lignes plus
         -- loin passait devant celui de la ligne voisine, un peu decale (vu le 28/11 en remontant).
         if dy ~= 0 then
             -- On reste dans sa colonne : les onglets entre eux, la page entre elle (gauche/droite
             -- pour passer de l'une a l'autre).
-            local function Side(w)
-                if w == f.cat then return "tab" end
-                for _, t in ipairs(f.tabs) do if t == w then return "tab" end end
-                return "page"
-            end
             local mine = Side(cur)
             local kept = {}
             for _, w in ipairs(list) do if Side(w) == mine then kept[#kept + 1] = w end end
@@ -401,11 +401,15 @@ local function MakeWindow()
         -- deborde, comme le bouton de touche sous "Bouton Bulle / Spoken"), d'abord sur la meme
         -- ligne (hauteurs qui se chevauchent), le plus pres ; sinon le plus proche, la hauteur
         -- comptant beaucoup (vu le 28/11 dans la page Spoken).
+        -- Gauche dans une page : un reglage de la page d'abord ; les categories seulement s'il n'y
+        -- a plus rien de ce cote dans la page ("Same as voices" -> "Bouton Bulle / Spoken", 28/11).
         local cl, cr = Span(cur)
         local ct, cb = cur:GetTop() or y, cur:GetBottom() or y
         local rowBest, rowScore
+        local mine = Side(cur)
+        for pass = 1, 2 do
         for _, w in ipairs(list) do
-            if w ~= cur then
+            if w ~= cur and (pass == 2 or Side(w) == mine) then
                 local wl, wr = Span(w)
                 local gap = dx > 0 and (wl - cr) or (cl - wr)
                 if gap > -2 then
@@ -421,6 +425,8 @@ local function MakeWindow()
             end
         end
         if rowBest then best = rowBest end
+        if best then break end
+        end
         if best then f.Select(best) end
     end
     local function IsSlider(w)
