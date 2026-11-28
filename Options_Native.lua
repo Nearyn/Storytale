@@ -311,6 +311,17 @@ local function MakeWindow()
         end
         local x, y = Center(cur)
         local best, score
+        local function Span(w)
+            local l, r = w:GetLeft(), w:GetRight()
+            local t = w.Text or w.text
+            if type(t) == "table" and t.GetRight and t.IsShown and t:IsShown() then
+                -- (largeur du texte ecrit, pas celle de sa zone, parfois bien plus large)
+                local tl, sw = t:GetLeft(), t.GetStringWidth and t:GetStringWidth()
+                local tx = t.GetText and t:GetText()
+                if tl and sw and tx and tx ~= "" then r = math.max(r or (tl + sw), tl + sw) end
+            end
+            return l or 0, r or 0
+        end
         -- Haut / bas : la ligne la plus proche d'abord (aucune ligne sautee), puis dans cette ligne
         -- l'element le plus proche a l'horizontale. Avant, un element bien aligne deux lignes plus
         -- loin passait devant celui de la ligne voisine, un peu decale (vu le 28/11 en remontant).
@@ -330,16 +341,6 @@ local function MakeWindow()
             -- (case + son texte), le plus proche en hauteur. Deux colonnes aux lignes decalees
             -- ("Verrouiller" a gauche, "A droite du PNJ" un peu plus bas a droite) : bas reste a
             -- gauche (vu le 28/11).
-            local function Span(w)
-                local l, r = w:GetLeft(), w:GetRight()
-                local t = w.Text or w.text
-                if type(t) == "table" and t.GetRight and t.IsShown and t:IsShown() then
-                    local tr = t:GetRight()
-                    local tx = t.GetText and t:GetText()
-                    if tr and tx and tx ~= "" then r = math.max(r or tr, tr) end
-                end
-                return l or 0, r or 0
-            end
             local cl, cr = Span(cur)
             for _, w in ipairs(list) do
                 if w ~= cur then
@@ -376,34 +377,30 @@ local function MakeWindow()
             if best then f.Select(best) end
             return
         end
+        -- Gauche / droite : seulement ce qui est vraiment de ce cote (pas un element en dessous qui
+        -- deborde, comme le bouton de touche sous "Bouton Bulle / Spoken"), d'abord sur la meme
+        -- ligne (hauteurs qui se chevauchent), le plus pres ; sinon le plus proche, la hauteur
+        -- comptant beaucoup (vu le 28/11 dans la page Spoken).
+        local cl, cr = Span(cur)
+        local ct, cb = cur:GetTop() or y, cur:GetBottom() or y
+        local rowBest, rowScore
         for _, w in ipairs(list) do
             if w ~= cur then
-                local cx, cy = Center(w)
-                local ok, sc
-                if dy ~= 0 then
-                    local d = (cy - y) * dy
-                    ok = d > 4
-                    sc = d + 2.5 * math.abs(cx - x)
-                else
-                    local d = (cx - x) * dx
-                    ok = d > 4 and math.abs(cy - y) < 16
-                    sc = d + 4 * math.abs(cy - y)
-                end
-                if ok and (not score or sc < score) then best, score = w, sc end
-            end
-        end
-        -- Rien sur la meme ligne (ex. d'un onglet vers une page dont le premier element est plus
-        -- haut ou plus bas) : l'element le plus proche de ce cote, a n'importe quelle hauteur.
-        if not best and dx ~= 0 then
-            for _, w in ipairs(list) do
-                if w ~= cur then
-                    local cx, cy = Center(w)
-                    local d = (cx - x) * dx
-                    local sc = d + 1.5 * math.abs(cy - y)
-                    if d > 4 and (not score or sc < score) then best, score = w, sc end
+                local wl, wr = Span(w)
+                local gap = dx > 0 and (wl - cr) or (cl - wr)
+                if gap > -2 then
+                    local _, cy = Center(w)
+                    local wt, wb = w:GetTop() or cy, w:GetBottom() or cy
+                    if wb < ct and wt > cb then
+                        if not rowScore or gap < rowScore then rowBest, rowScore = w, gap end
+                    else
+                        local sc = math.max(gap, 0) + 3 * math.abs(cy - y)
+                        if not score or sc < score then best, score = w, sc end
+                    end
                 end
             end
         end
+        if rowBest then best = rowBest end
         if best then f.Select(best) end
     end
     local function IsSlider(w)
