@@ -2297,7 +2297,9 @@ if DWE.padCatcher.EnableGamePadButton then
             local dir = (button == nx and 1) or (button == pv and -1) or nil
             local other = button == "PADLSHOULDER" and "PADRSHOULDER" or button == "PADRSHOULDER" and "PADLSHOULDER"
             if other and DWE.padHeld[other] then dir = nil end
-            if dir and DWE.BubblePadCan(dir) then
+            -- Bouton garde pendant toute la bulle en avance manuelle, meme sans partie ou aller :
+            -- sinon le jeu ciblait un autre personnage (L1 / R1) et la roue se decrochait (28/11).
+            if dir and DWE.BubblePadActive and DWE.BubblePadActive() then
                 DWE.padManual = { button = button, dir = dir }
                 if self.SetPropagateGamePadInput and not InCombatLockdown() then self:SetPropagateGamePadInput(false) end
                 return
@@ -2337,6 +2339,17 @@ if DWE.padCatcher.EnableGamePadButton then
         if pm and pm.button == button then
             DWE.padManual = nil
             if not pm.cancel and DWE.BubblePadStep then DWE.BubblePadStep(pm.dir) end
+            -- Le relachement aussi reste a Storytale : le jeu agit au relachement de L1 / R1
+            -- (ciblage "Tap/Hold") et changeait la cible. On rend la manette juste apres.
+            if self.SetPropagateGamePadInput and not InCombatLockdown() then
+                self:SetPropagateGamePadInput(false)
+                if C_Timer and C_Timer.After then
+                    C_Timer.After(0, function()
+                        if not InCombatLockdown() then pcall(self.SetPropagateGamePadInput, self, true) end
+                    end)
+                end
+            end
+            return
         end
         if DWE.PAD_PLAYER_KEYS[button] and DWE.padPlayer.downAt then DWE.PadShareFire(false) end
         -- Un bouton garde pour Storytale coupait la manette au jeu jusqu'au bouton suivant : le
