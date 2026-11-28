@@ -2338,7 +2338,7 @@ if DWE.padCatcher.EnableGamePadButton then
         local pm = DWE.padManual
         if pm and pm.button == button then
             DWE.padManual = nil
-            if not pm.cancel and DWE.BubblePadStep then DWE.BubblePadStep(pm.dir) end
+            if not pm.cancel and not pm.held and DWE.BubblePadStep then DWE.BubblePadStep(pm.dir) end
             -- Le relachement aussi reste a Storytale : le jeu agit au relachement de L1 / R1
             -- (ciblage "Tap/Hold") et changeait la cible. On rend la manette juste apres.
             if self.SetPropagateGamePadInput and not InCombatLockdown() then

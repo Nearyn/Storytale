@@ -385,16 +385,37 @@ clip:SetFrameLevel(holder:GetFrameLevel())
 clip:SetAllPoints(bubble)
 text:SetParent(clip)
 ghost:SetParent(clip)
-local arrowDown = holder:CreateTexture(nil, "OVERLAY")
-arrowDown:SetTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up")
-arrowDown:SetSize(18, 18)
-arrowDown:SetPoint("BOTTOMRIGHT", bubble, "BOTTOMRIGHT", -2, 2)
-arrowDown:Hide()
-local arrowUp = holder:CreateTexture(nil, "OVERLAY")
-arrowUp:SetTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up")
-arrowUp:SetSize(18, 18)
-arrowUp:SetPoint("TOPRIGHT", bubble, "TOPRIGHT", -2, -2)
-arrowUp:Hide()
+-- Barre de defilement discrete, a droite dans la bulle : un rail a peine visible et un curseur
+-- qui montre en direct ou l'on en est dans le texte (couleur du texte de la bulle, 28/11).
+local track = holder:CreateTexture(nil, "OVERLAY")
+track:SetColorTexture(1, 1, 1, 1)
+track:SetWidth(2)
+track:Hide()
+local thumb = holder:CreateTexture(nil, "OVERLAY")
+thumb:SetColorTexture(1, 1, 1, 1)
+thumb:SetWidth(2)
+thumb:Hide()
+local function ScrollBar()
+    if scroll.max <= 0 then track:Hide(); thumb:Hide() return end
+    local pad = Pad()
+    local inset = math.max(4, pad - 2)
+    local h = (bubble:GetHeight() or 0) - 2 * inset
+    if h <= 10 then track:Hide(); thumb:Hide() return end
+    local r, g, b = text:GetTextColor()
+    r, g, b = r or 1, g or 1, b or 1
+    track:SetVertexColor(r, g, b, 0.12)
+    thumb:SetVertexColor(r, g, b, 0.55)
+    track:ClearAllPoints()
+    track:SetPoint("TOPRIGHT", bubble, "TOPRIGHT", -math.max(3, pad * 0.4), -inset)
+    track:SetHeight(h)
+    local full = math.max(1, scroll.full or 1)
+    local th = math.max(10, h * (full - scroll.max) / full)
+    local y = (h - th) * (scroll.off / scroll.max)
+    thumb:ClearAllPoints()
+    thumb:SetPoint("TOP", track, "TOP", 0, -y)
+    thumb:SetHeight(th)
+    track:Show(); thumb:Show()
+end
 local function ScrollMode()
     return DialogueWheelE_BubbleMode == "page"
 end
@@ -407,8 +428,7 @@ local function ApplyScroll()
     clip:SetPoint("BOTTOMRIGHT", bubble, "BOTTOMRIGHT", 0, math.max(0, pad - 2))
     text:ClearAllPoints()
     text:SetPoint("TOPLEFT", bubble, "TOPLEFT", pad, -pad + scroll.off)
-    arrowDown:SetShown(scroll.max > 0 and scroll.target < scroll.max - 1)
-    arrowUp:SetShown(scroll.max > 0 and scroll.target > 1)
+    ScrollBar()
     if bubble.EnableMouseWheel then bubble:EnableMouseWheel(scroll.max > 0) end
 end
 DWE.BubbleApplyScroll = ApplyScroll
@@ -433,6 +453,18 @@ function DWE.BubbleScroll(dir)
 end
 DWE.bubbleClip = clip
 clip:SetScript("OnUpdate", function(_, elapsed)
+    -- L1 / R1 maintenus (manette) : le texte continue de defiler tant qu'on tient le bouton.
+    local pm = DWE.padManual
+    if pm and not pm.cancel and scroll.max > 0 then
+        pm.heldT = (pm.heldT or 0) + elapsed
+        if pm.heldT > 0.3 then
+            pm.held = true -- (le relachement ne refait pas un pas de plus)
+            local okF, _, size = pcall(text.GetFont, text)
+            local lh = (okF and type(size) == "number" and size or 14) * 1.22
+            scroll.target = math.max(0, math.min(scroll.max, scroll.target + pm.dir * lh * 7 * elapsed))
+            scroll.user = true
+        end
+    end
     local d = (scroll.target or 0) - (scroll.off or 0)
     if math.abs(d) < 0.5 then
         if d ~= 0 then scroll.off = scroll.target; ApplyScroll() end

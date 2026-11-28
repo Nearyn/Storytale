@@ -2348,6 +2348,14 @@ do
         check(DWE.BubblePadCan(-1) == false, "all at once: nothing above at the start")
         check(DWE.BubblePadStep(1) == true and sc.target > 0, "all at once: R1 scrolls down"); for _ = 1, 40 do DWE.bubbleClip._scripts.OnUpdate(DWE.bubbleClip, 0.02) end; check(math.abs(sc.off - sc.target) < 1, "all at once: the text glides to its place")
         check(DWE.BubblePadStep(-1) == true and sc.target == 0, "all at once: L1 scrolls back up")
+        -- R1 maintenu : le texte continue de defiler
+        local pad = DWE.padCatcher._scripts.OnGamePadButtonDown
+        local up = DWE.padCatcher._scripts.OnGamePadButtonUp
+        pad(DWE.padCatcher, "PADRSHOULDER")
+        for _ = 1, 50 do DWE.bubbleClip._scripts.OnUpdate(DWE.bubbleClip, 0.02) end
+        local heldTo = sc.target
+        up(DWE.padCatcher, "PADRSHOULDER")
+        check(heldTo > 0 and sc.target == heldTo, "all at once: holding R1 keeps scrolling, letting go adds no extra step: " .. tostring(heldTo))
     end
     DWE.SetDialogueText("NPC", long)
     st.index = 2
