@@ -8124,6 +8124,12 @@ DWE.OPTION_VARS = {}
 for k in ("Pos TextPos Theme Font FontSize Opacity ShowText UseBlizzKey InteractKey ToggleKey WheelScroll SpokenTheme AttachNPC NPCOffset WheelWidth TextW TextH BubbleWidth Locked WheelTheme EscClose BookStyle ThemeFrames BookLook BookPos BookScale NoteScale QuestWidth QuestAuto PlaceSkin SpokenButton SpokenSkin SpokenStyleChosen BookSkin PlateSkin ChoiceSize WheelSide PlateStyle PlateLook ReadMarks BookTipCursor BookAutoScroll BookHighlight BookTurnFX BookVoiceTurn BookStopOnClose BookVoiceOff SpokenSmart BubbleHighlight BubbleMode CustomColors HideUI HideKeep LibraryAll LibraryUnlock LibraryStyle LibraryBg LibraryOff ZoneArt ZoneArtPaper MinimapHide DefaultsV RoundScale RoundPos NumberKeys NumberVisible NumberBright NumberIntensity"):gmatch("%S+") do DWE.OPTION_VARS[#DWE.OPTION_VARS + 1] = k end
 function DWE.ResetAllOptions()
     for _, k in ipairs(DWE.OPTION_VARS) do _G["DialogueWheelE_" .. k] = nil end
+    -- Voix des livres coupee : le reglage est remis, et aussi son etat en cours (sinon le livre
+    -- suivant s'ouvrait encore muet, et seulement celui d'apres parlait ; vu le 28/11).
+    local sf = DWE.SpokenFocus
+    if sf and sf.bookMuted then
+        if DWE.bookMode and sf.SetBookMuted then pcall(sf.SetBookMuted, false) else sf.bookMuted = nil end
+    end
     if DWE.ResetSpokenPlace then pcall(DWE.ResetSpokenPlace) end
     DWE.SettingsChanged()
 end

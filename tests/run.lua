@@ -4399,6 +4399,18 @@ do -- Ecriture sans le fondu du jeu : le texte ecrit est toujours le debut du te
     check(final:find("\n") ~= nil or #long < 40, "no game fade: line breaks worked out in advance")
     _G.Spoken = oldSp
 end
+-- "Default all" apres avoir coupe la voix des livres : le livre suivant parle tout de suite.
+do
+    local sf = DWE.SpokenFocus
+    if sf then
+        local savedBook = DWE.bookMode
+        DWE.bookMode = nil
+        DialogueWheelE_BookVoiceOff, sf.bookMuted = true, true
+        DWE.ResetAllOptions()
+        check(DialogueWheelE_BookVoiceOff == nil and not sf.bookMuted, "default all: books are no longer muted, from the next book on")
+        DWE.bookMode = savedBook
+    end
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end
