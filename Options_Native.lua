@@ -166,6 +166,14 @@ local function MakeWindow()
         cat:SetScript("OnLeave", function() Glow(0) end)
         cat:SetScript("OnClick", function()
             Glow(1)
+            -- Il parle : une phrase au hasard (jamais deux fois la meme de suite).
+            local lines = DWE.L and DWE.L.CAT_LINES
+            if type(lines) == "table" and #lines > 0 and DWE.BubbleCatSay then
+                local i = math.random(#lines)
+                if #lines > 1 and i == cat.lastLine then i = i % #lines + 1 end
+                cat.lastLine = i
+                DWE.BubbleCatSay(cat, lines[i])
+            end
             if C_Timer and C_Timer.After then C_Timer.After(0.6, function() if not cat:IsMouseOver() then Glow(0) end end) end
         end)
         f.cat = cat
@@ -561,6 +569,7 @@ local function MakeWindow()
         end)
     end)
     f:SetScript("OnHide", function()
+        if DWE.BubbleCatEnd then DWE.BubbleCatEnd() end
         f:SetScript("OnUpdate", nil)
         f.BindPad(false)
         Detach()

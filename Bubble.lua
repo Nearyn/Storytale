@@ -653,6 +653,7 @@ local function Measure(fn, default)
 end
 
 local function MaxWidth()
+    if DWE.catSaying then return 250 end -- (bulle du chat des options, a sa taille)
     return tonumber(DialogueWheelE_BubbleWidth) or DEFAULT_WIDTH
 end
 DWE.BubbleMaxWidth = MaxWidth
@@ -2406,12 +2407,14 @@ function DWE.Bubble.Restyle()
     DWE.Bubble.RefreshHighlight()
 end
 function DWE.Bubble.SetShown(show)
+    if DWE.catSaying and DWE.BubbleCatEnd then DWE.BubbleCatEnd() end -- une vraie conversation passe avant
     bubble.dweOff = not show
     if not show then
         bubble:Hide()
         return
     end
     local sk = DWE.BubbleSkin and DWE.BubbleSkin()
+    if DWE.catStarting and DWE.ThemeBubbleSkin then sk = DWE.ThemeBubbleSkin() or sk end
     local name = sk and STYLES[sk.bubble] and sk.bubble or "game"
     local changed = styleName ~= name
     ApplyStyle(name)
@@ -2447,6 +2450,7 @@ end
 
 -- Accroche la bulle au-dessus de la plaque du PNJ (nil = position fixe).
 function DWE.Bubble.Pin(plate, x, y)
+    if DWE.catSaying and DWE.BubbleCatEnd then DWE.BubbleCatEnd() end
     bubble:ClearAllPoints()
     if plate then
         local dx = DWE.bubbleTipDX or 0
@@ -2643,3 +2647,50 @@ muteFrame:SetScript("OnUpdate", function(_, elapsed)
     HookVoice()
     DWE.ManualVoiceCheck()
 end)
+
+
+--------------------------------------------------------------------------------
+-- Le chat des options : clic (ou A a la manette) sur lui, il dit une phrase dans une vraie bulle
+-- de Storytale au-dessus de sa tete : meme theme (personnalise compris), meme police, meme mode
+-- d'affichage que les dialogues en jeu, a sa taille. Jamais pendant une vraie conversation.
+--------------------------------------------------------------------------------
+local catToken = 0
+function DWE.BubbleCatEnd()
+    if not DWE.catSaying then return end
+    DWE.catSaying = nil
+    catToken = catToken + 1
+    bubble:SetScale(1)
+    bubble:SetFrameStrata("DIALOG")
+    bubble.pinned = false
+    bubble:Hide()
+    state.raw = nil
+end
+function DWE.BubbleCatSay(anchor, phrase)
+    if type(anchor) ~= "table" or type(phrase) ~= "string" then return false end
+    -- Bulle deja prise par un PNJ : le chat se tait.
+    if bubble:IsShown() and not DWE.catSaying then return false end
+    if DWE.choiceBox and DWE.choiceBox:IsShown() then return false end
+    if DWE.catSaying then DWE.BubbleCatEnd() end
+    -- Style du theme (meme en mode cadre), police et taille : comme une bulle de PNJ.
+    styleName = nil
+    bubble.fontKey = nil
+    DWE.catStarting = true
+    pcall(DWE.Bubble.SetShown, true)
+    DWE.catStarting = nil
+    DWE.catSaying = true
+    bubble.pinned = true
+    bubble:SetFrameStrata("TOOLTIP")
+    bubble:SetScale(0.85)
+    bubble:ClearAllPoints()
+    bubble:SetPoint("BOTTOM", anchor, "TOP", 0, 4)
+    state.raw = nil
+    DWE.Bubble.SetText(phrase)
+    bubble:Show()
+    catToken = catToken + 1
+    local mine = catToken
+    local stay = math.max(5, Utf8Len(phrase) * 0.09 + 3)
+    if C_Timer and C_Timer.After then
+        C_Timer.After(stay, function() if catToken == mine then DWE.BubbleCatEnd() end end)
+    end
+    return true
+end

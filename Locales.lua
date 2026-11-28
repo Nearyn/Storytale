@@ -1368,6 +1368,26 @@ for loc, list in pairs(PAD_HELP) do
     if dest then for k, v in pairs(list) do dest[k] = v end end
 end
 
+
+-- Le chat des options : ses phrases au hasard.
+local CAT = {
+    enUS = { "Thanks for using Storytale! I hope you enjoy your stories.", "Something wrong? Tell Nearyn on CurseForge, everything gets read.", "Meow. That means \"have a good adventure\".", "I guard the books. Mostly, I sleep on them.", "Every NPC has a story. I nap through most of them.", "Your choices are safe with me. Purr..." },
+    frFR = { "Merci d'utiliser Storytale ! J'espère que tes histoires te plaisent.", "Un souci ? Dis-le à Nearyn sur CurseForge, tout est lu.", "Miaou. Ça veut dire « bonne aventure ».", "Je garde les livres. Surtout, je dors dessus.", "Chaque PNJ a une histoire. Je fais la sieste pendant la plupart.", "Tes choix sont en sécurité avec moi. Ronron..." },
+    deDE = { "Danke, dass du Storytale nutzt! Ich hoffe, deine Geschichten gefallen dir.", "Stimmt etwas nicht? Sag es Nearyn auf CurseForge, alles wird gelesen.", "Miau. Das heißt „gutes Abenteuer“.", "Ich bewache die Bücher. Meistens schlafe ich darauf.", "Jeder NPC hat eine Geschichte. Die meisten verschlafe ich.", "Deine Entscheidungen sind bei mir sicher. Schnurr..." },
+    esES = { "¡Gracias por usar Storytale! Espero que disfrutes de tus historias.", "¿Algo va mal? Díselo a Nearyn en CurseForge, se lee todo.", "Miau. Eso significa «buena aventura».", "Vigilo los libros. Sobre todo, duermo encima.", "Cada PNJ tiene una historia. Me echo la siesta en casi todas.", "Tus decisiones están a salvo conmigo. Rrrr..." },
+    itIT = { "Grazie per usare Storytale! Spero che le tue storie ti piacciano.", "Qualcosa non va? Dillo a Nearyn su CurseForge, si legge tutto.", "Miao. Vuol dire «buona avventura».", "Custodisco i libri. Soprattutto, ci dormo sopra.", "Ogni PNG ha una storia. Io dormo durante quasi tutte.", "Le tue scelte sono al sicuro con me. Purr..." },
+    ptBR = { "Obrigado por usar o Storytale! Espero que você goste das suas histórias.", "Algo errado? Conte ao Nearyn no CurseForge, tudo é lido.", "Miau. Isso quer dizer \"boa aventura\".", "Eu guardo os livros. Principalmente, durmo em cima deles.", "Todo PNJ tem uma história. Eu cochilo na maioria.", "Suas escolhas estão seguras comigo. Rrrr..." },
+    ruRU = { "Спасибо, что пользуешься Storytale! Надеюсь, тебе нравятся твои истории.", "Что-то не так? Напиши Nearyn на CurseForge, всё читается.", "Мяу. Это значит «удачного приключения».", "Я охраняю книги. В основном сплю на них.", "У каждого НИП есть история. Большую часть я просыпаю.", "Твои решения в безопасности со мной. Мрр..." },
+    koKR = { "Storytale을 써 줘서 고마워! 이야기들이 마음에 들면 좋겠어.", "문제가 있어? CurseForge에서 Nearyn에게 알려 줘, 다 읽어.", "야옹. \"즐거운 모험 되길\"이라는 뜻이야.", "나는 책을 지켜. 주로 그 위에서 자지만.", "NPC마다 이야기가 있어. 나는 대부분 낮잠으로 보내.", "네 선택은 나와 함께라면 안전해. 그르릉..." },
+    zhCN = { "感谢使用 Storytale！希望你喜欢这些故事。", "遇到问题？在 CurseForge 上告诉 Nearyn，每条都会看。", "喵。意思是“冒险愉快”。", "我看守着这些书。其实大多时候是睡在上面。", "每个 NPC 都有故事。大多数时候我在打盹。", "你的选择在我这里很安全。呼噜噜……" },
+    zhTW = { "感謝使用 Storytale！希望你喜歡這些故事。", "遇到問題？在 CurseForge 上告訴 Nearyn，每則都會看。", "喵。意思是「冒險愉快」。", "我看守著這些書。其實大多時候是睡在上面。", "每個 NPC 都有故事。大多數時候我在打盹。", "你的選擇在我這裡很安全。呼嚕嚕……" },
+}
+CAT.esMX = CAT.esES
+for loc, list in pairs(CAT) do
+    local dest = (loc == "enUS") and enUS or T[loc]
+    if dest then dest.CAT_LINES = list end
+end
+
 -- Recherche dans les options.
 local OPT_SEARCH = {
     enUS = { OPT_SEARCH = "Search options", OPT_SEARCH_NONE = "No match" },

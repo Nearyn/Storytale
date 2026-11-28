@@ -148,7 +148,8 @@ function Object:SetTexture(t)
     end
 end
 function Object:GetTexture() return self._texture end
-function Object:GetFrameStrata() return "MEDIUM" end
+function Object:GetFrameStrata() return self._strata or "MEDIUM" end
+function Object:SetFrameStrata(s) self._strata = s end
 function Object:CreateTexture(name, layer, tmpl, sub)
     if sub ~= nil then assert(sub >= -8 and sub <= 7, "texture sublevel out of range: " .. sub) end
     return new("Texture", name, self)

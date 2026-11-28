@@ -4453,6 +4453,21 @@ do
         DWE.bookMode = savedBook
     end
 end
+-- Le chat des options parle dans une vraie bulle, jamais pendant une conversation.
+do
+    local lines = DWE.L.CAT_LINES
+    check(type(lines) == "table" and #lines >= 4, "options cat: has its phrases in this language")
+    local cat = CreateFrame("Button", nil, UIParent)
+    local wasConv = DWE.choiceBox:IsShown()
+    DWE.choiceBox:Hide(); DWE.bubble:Hide()
+    check(DWE.BubbleCatSay(cat, lines[1]) == true and DWE.bubble:IsShown(), "options cat: says a phrase in a bubble")
+    check(DWE.bubble:GetFrameStrata() == "TOOLTIP", "options cat: bubble above the options window")
+    DWE.BubbleCatEnd()
+    check(not DWE.bubble:IsShown() and DWE.bubble:GetScale() == 1 and not DWE.catSaying, "options cat: bubble put back as it was")
+    DWE.choiceBox:Show()
+    check(DWE.BubbleCatSay(cat, lines[1]) == false, "options cat: quiet during a conversation")
+    if not wasConv then DWE.choiceBox:Hide() end
+end
 for t in pairs(M.missingTextures) do check(false, "missing texture file: " .. t) end
 print(string.format("[%s DUI=%s Spoken=%s] %d checks, %d failed, %d runtime errors", locale, tostring(withDUI), tostring(withSpoken), checks, failed, #M.errors))
 for _, e in ipairs(M.errors) do print("  ERROR: " .. e) end

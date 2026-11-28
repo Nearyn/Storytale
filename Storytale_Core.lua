@@ -998,6 +998,10 @@ function DWE.ThemeIsBubble(id)
 end
 
 -- Habillage bulle en cours (nil = pas de bulle : theme en cadre, Sans cadre ou livre ouvert).
+-- Habillage bulle du theme choisi, meme en mode cadre (la bulle du chat des options).
+function DWE.ThemeBubbleSkin()
+    return BUBBLE_SKINS[CurrentTheme()]
+end
 function DWE.BubbleSkin()
     if DWE.bookMode then return nil end
     local t = CurrentTheme()
