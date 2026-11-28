@@ -8,7 +8,7 @@
 - Gamepad: R1 and L1 now move through the speech bubble's text in every display mode. Typewriter: R1 goes on, L1 goes back and the bubble waits while you reread. All at once: they scroll the text (hold to keep scrolling). Manual advance: part by part. A picks an answer at any time. Both buttons can be changed in the options (Gamepad).
 - All at once: the whole text now fits in one bubble. A long text scrolls smoothly with the mouse wheel or L1 / R1, with a discreet bar showing where you are, and follows the voice until you scroll.
 - Typewriter: right-click (or L1) goes back to the previous part, and the bubble waits while you reread.
-- The cat in the options window has a few things to say. Click it.
+- The cat in the options window has a few things to say. Click it. :)
 
 ### Changed
 - Options window with a gamepad: the D-pad always goes to the nearest setting in that direction, without skipping any, and from a category, right goes to the first setting of its page.
@@ -28,7 +28,7 @@
 - Manette : R1 et L1 permettent maintenant de se déplacer dans le texte de la bulle, dans tous les modes d'affichage. Écriture progressive : R1 avance, L1 revient en arrière et la bulle attend pendant que vous relisez. Tout d'un coup : ils font défiler le texte (maintenus, le défilement continue). Avance manuelle : partie par partie. A choisit une réponse à tout moment. Les deux boutons se changent dans les options (Manette).
 - Tout d'un coup : tout le texte tient maintenant dans une seule bulle. Un long texte défile en douceur avec la molette ou L1 / R1, avec une barre discrète qui montre où vous en êtes, et suit la voix tant que vous ne le faites pas défiler.
 - Écriture progressive : clic droit (ou L1) pour revenir à la partie précédente, et la bulle attend pendant que vous relisez.
-- Le chat de la fenêtre d'options a quelques mots à vous dire. Cliquez dessus.
+- Le chat de la fenêtre d'options a quelques mots à vous dire. Cliquez dessus. :)
 
 ### Changements
 - Fenêtre d'options à la manette : la croix va toujours à l'option la plus proche dans cette direction, sans en sauter aucune, et depuis une catégorie, droite va sur le premier réglage de sa page.
