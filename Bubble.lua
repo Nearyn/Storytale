@@ -2291,8 +2291,8 @@ end)
 if bubble.EnableMouseWheel then
     bubble:SetScript("OnMouseWheel", function(_, d) DWE.BubbleScroll(-d) end)
 end
-bubble:SetScript("OnDragStart", function() DWE.DragStart("bubble") end)
-bubble:SetScript("OnDragStop", function() DWE.DragStop("bubble") end)
+bubble:SetScript("OnDragStart", function() if not DWE.catSaying then DWE.DragStart("bubble") end end)
+bubble:SetScript("OnDragStop", function() if not DWE.catSaying then DWE.DragStop("bubble") end end)
 
 --------------------------------------------------------------------------------
 -- Interface avec le reste de l'addon
@@ -2669,6 +2669,7 @@ function DWE.BubbleCatEnd()
     if not DWE.catSaying then return end
     DWE.catSaying = nil
     catToken = catToken + 1
+    bubble.dweNoGrip = nil
     bubble:SetScale(1)
     bubble:SetFrameStrata("DIALOG")
     bubble.pinned = false
@@ -2692,7 +2693,11 @@ function DWE.BubbleCatSay(anchor, phrase)
     bubble:SetFrameStrata("TOOLTIP")
     bubble:SetScale(0.85)
     bubble:ClearAllPoints()
-    bubble:SetPoint("BOTTOM", anchor, "TOP", 0, 4)
+    -- Pointe sur la tete du chat (pas tout a fait au milieu de son image) ; pas de poignee de
+    -- taille ni de deplacement : cette bulle n'est pas celle des PNJ (vu le 28/11).
+    bubble:SetPoint("BOTTOM", anchor, "TOP", 12 + (DWE.bubbleTipDX or 0), 4)
+    bubble.dweNoGrip = true
+    if DWE.SetGripCorner then DWE.SetGripCorner(bubble, "BOTTOM") end
     state.raw = nil
     DWE.Bubble.SetText(phrase)
     -- Le chat n'a pas de voix : on n'attend pas que Spoken commence a lire (l'ecriture
