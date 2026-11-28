@@ -491,7 +491,7 @@ local function MakeWindow()
         for _, w in ipairs({ DWE.askFrame }) do
             if w and w:IsShown() then
                 local h = w:GetScript("OnGamePadButtonDown")
-                if h then w.fromOptions = true; pcall(h, w, b); w.fromOptions = nil end
+                if h then pcall(h, w, b) end
                 return
             end
         end

@@ -8207,8 +8207,11 @@ function DWE.Ask(opts)
             pcall(f.EnableGamePadButton, f, true)
             if f.SetPropagateGamePadInput then pcall(f.SetPropagateGamePadInput, f, false) end
             f:SetScript("OnGamePadButtonDown", function(_, b)
-                -- Fenetre d'options ouverte : ses liaisons transmettent deja le bouton (pas deux fois).
-                if DWE.OptionsPadActive and DWE.OptionsPadActive() and not f.fromOptions then return end
+                -- Cette fenetre prend le bouton (il ne va plus aux liaisons de la fenetre d'options) :
+                -- elle le traite toujours elle-meme. Avant, fenetre d'options ouverte, elle le
+                -- laissait a ces liaisons qui ne le recevaient jamais : "Oui" impossible (28/11).
+                if f.padAt == GetTime() then return end -- (meme appui deja traite)
+                f.padAt = GetTime()
                 if b == "PAD1" then Done(f.sel ~= 2)
                 elseif b == "PAD2" then Done(false)
                 elseif b == "PADDLEFT" then Pick(1)
