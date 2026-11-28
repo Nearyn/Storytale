@@ -377,6 +377,26 @@ local function MakeWindow()
             if best then f.Select(best) end
             return
         end
+        -- D'une categorie vers sa page : le premier reglage de la page (en haut a gauche du contenu),
+        -- pas celui qui se trouve a la hauteur de la categorie (28/11, page Spoken).
+        local onTab = cur == f.cat
+        for _, t in ipairs(f.tabs) do if t == cur then onTab = true end end
+        if onTab and dx > 0 then
+            local pg = Page()
+            local first, fx, fy
+            for _, w in ipairs(list) do
+                local inside, p = false, w
+                while p do
+                    if pg and p == pg.child then inside = true break end
+                    p = p:GetParent()
+                end
+                if inside then
+                    local wx, wy = Center(w)
+                    if not first or wy > fy + 4 or (math.abs(wy - fy) <= 4 and wx < fx) then first, fx, fy = w, wx, wy end
+                end
+            end
+            if first then f.Select(first) return end
+        end
         -- Gauche / droite : seulement ce qui est vraiment de ce cote (pas un element en dessous qui
         -- deborde, comme le bouton de touche sous "Bouton Bulle / Spoken"), d'abord sur la meme
         -- ligne (hauteurs qui se chevauchent), le plus pres ; sinon le plus proche, la hauteur
