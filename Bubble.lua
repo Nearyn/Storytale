@@ -2278,7 +2278,10 @@ bubble:SetScript("OnMouseUp", function(_, button)
     -- Bulle du chat des options : clic gauche comme sur un PNJ (texte entier d'abord), puis elle
     -- se ferme ; clic droit, elle se ferme tout de suite.
     if DWE.catSaying then
-        local more = state.phase == "typing" or (state.phase == "reading" and (state.index or 1) < #(state.segs or {}))
+        -- ("Tout d'un coup" : le texte est deja entier pendant son ecriture invisible ; un clic
+        -- suffit a fermer, comme dans les autres modes.)
+        local more = (state.phase == "typing" and not PageMode())
+            or (state.phase == "reading" and (state.index or 1) < #(state.segs or {}))
         if button == "LeftButton" and more then Advance() else DWE.BubbleCatEnd() end
         return
     end
