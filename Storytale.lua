@@ -2809,7 +2809,8 @@ function DWE.PadZoomTick(el)
     padZoom.logT = (padZoom.logT or 0) + el
     if DWE.FLog and padZoom.logT > 0.5 then
         padZoom.logT = 0
-        DWE.FLog(("zoom : L1+R1 tenus, stick=%.2f (%s) jeu=%s nous=%s"):format(y, found and "Camera" or "2e", tostring(padZoom.game), tostring(padZoom.drive)))
+        DWE.FLog(("zoom : L1+R1 tenus, stick=%.2f (%s) evenement=%s %s base=%s jeu=%s nous=%s"):format(y, found and "Camera" or "2e",
+            tostring(padZoom.evName), tostring(padZoom.evY), tostring(padZoom.base), tostring(padZoom.game), tostring(padZoom.drive)))
     end
     if math.abs(y) < 0.4 then padZoom.t = nil return end
     if padZoom.game then return end
@@ -2828,8 +2829,12 @@ end
 
 -- Le stick n'est ecoute (script pose) que pendant L1 + R1 : un script de stick pose en
 -- permanence prenait le stick droit a la camera pendant toute la conversation.
+-- Seul le stick de la camera compte. Les autres (deplacement, curseur de la manette : la souris
+-- y laissait une valeur apres usage) zoomaient tout seuls (journal du 28/11 : 0,86 stick lache).
+local ZOOM_STICKS = { Camera = true, Right = true, Look = true }
 local function ZoomStick(_, stick, x, y)
-    if stick == "Movement" or stick == "Left" then return end
+    padZoom.evName = tostring(stick)
+    if not ZOOM_STICKS[stick] then return end
     padZoom.evY = tonumber(y) or 0
     padZoom.evT = GetTime and GetTime() or 0
     if math.abs(padZoom.evY) > 0.4 then padZoom.evSeen = true end
