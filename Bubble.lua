@@ -398,8 +398,9 @@ thumb:Hide()
 local function ScrollBar()
     if scroll.max <= 0 then track:Hide(); thumb:Hide() return end
     local pad = Pad()
-    -- (plus courte que la bulle : centree, environ les deux tiers de sa hauteur)
-    local inset = math.max(4, pad - 2) + (bubble:GetHeight() or 0) * 0.15
+    -- (de la premiere a la derniere ligne visible du texte : arrivee en bout de texte, le curseur
+    -- touche le bout du rail ; un rail plus court donnait une impression de texte bloque, 28/11)
+    local inset = pad
     local h = (bubble:GetHeight() or 0) - 2 * inset
     if h <= 10 then track:Hide(); thumb:Hide() return end
     local r, g, b = text:GetTextColor()
@@ -450,6 +451,8 @@ end
 -- Calee sur une ligne entiere (aucune ligne coupee en haut de la bulle, vu le 28/11).
 local function Snap(v)
     local lh = LineH()
+    -- (le bas du texte n'est pas toujours a une ligne entiere : pres du bout, on va au bout)
+    if v >= scroll.max - lh * 0.5 then return scroll.max end
     v = math.floor(v / lh + 0.5) * lh
     return math.max(0, math.min(scroll.max, v))
 end
