@@ -162,18 +162,28 @@ local function MakeWindow()
                 self.glow:SetAlpha(a)
             end)
         end
-        cat:SetScript("OnEnter", function() Glow(1) end)
-        cat:SetScript("OnLeave", function() Glow(0) end)
+        -- Survol : le curseur "parler" des PNJ (le chat montre aussi ce que fait Storytale).
+        cat:SetScript("OnEnter", function()
+            Glow(1)
+            if SetCursor and cat:IsMouseOver() then pcall(SetCursor, "Interface\\Cursor\\Speak") end
+        end)
+        cat:SetScript("OnLeave", function()
+            Glow(0)
+            if ResetCursor then pcall(ResetCursor) end
+        end)
+        -- Il parle : une phrase au hasard (jamais deux fois la meme de suite).
+        function cat.Say()
+            local lines = DWE.L and DWE.L.CAT_LINES
+            if type(lines) ~= "table" or #lines == 0 or not DWE.BubbleCatSay then return false end
+            local i = math.random(#lines)
+            if #lines > 1 and i == cat.lastLine then i = i % #lines + 1 end
+            cat.lastLine = i
+            return DWE.BubbleCatSay(cat, lines[i])
+        end
+        cat.Glow = Glow
         cat:SetScript("OnClick", function()
             Glow(1)
-            -- Il parle : une phrase au hasard (jamais deux fois la meme de suite).
-            local lines = DWE.L and DWE.L.CAT_LINES
-            if type(lines) == "table" and #lines > 0 and DWE.BubbleCatSay then
-                local i = math.random(#lines)
-                if #lines > 1 and i == cat.lastLine then i = i % #lines + 1 end
-                cat.lastLine = i
-                DWE.BubbleCatSay(cat, lines[i])
-            end
+            cat.Say()
             if C_Timer and C_Timer.After then C_Timer.After(0.6, function() if not cat:IsMouseOver() then Glow(0) end end) end
         end)
         f.cat = cat
@@ -511,6 +521,7 @@ local function MakeWindow()
     -- Clavier : seule Echap est prise (ferme la fenetre). Tout le reste va au jeu : on peut se
     -- deplacer, sauter, lancer des sorts en changeant ses options (la souris suffit ici).
     f:SetScript("OnKeyDown", function(self, key)
+        self.idleT = 0
         local busy = (DWE.askFrame and DWE.askFrame:IsShown())
             or (GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus())
         local mine = key == "ESCAPE" and not busy
@@ -521,6 +532,7 @@ local function MakeWindow()
     -- ouverte (sinon A faisait aussi sauter le personnage). Liaisons de remplacement, retirees a
     -- la fermeture (pas en combat : le jeu l'interdit, la fenetre ne prend alors que le clavier).
     local function Pad(b)
+        f.idleT = 0
         -- Fenetre de choix ou de confirmation ouverte : c'est elle qui recoit le bouton.
         for _, w in ipairs({ DWE.askFrame }) do
             if w and w:IsShown() then
@@ -563,9 +575,23 @@ local function MakeWindow()
         f.BindPad(true)
         -- Couleurs du theme Personnalise changees dans la page : la fenetre suit (relu 2 fois/s).
         f.colorT = 0
+        -- Le chat parle parfois tout seul : rarement (toutes les 2 a 4 minutes), seulement si le
+        -- joueur n'a rien touche depuis quelques secondes.
+        f.catNext, f.idleT = math.random(120, 240), 0
         f:SetScript("OnUpdate", function(self, elapsed)
             self.colorT = self.colorT + elapsed
             if self.colorT > 0.5 then self.colorT = 0; self.ApplyColors() end
+            local mx, my = GetCursorPosition()
+            if mx ~= self.lastMX or my ~= self.lastMY then self.idleT = 0 else self.idleT = self.idleT + elapsed end
+            self.lastMX, self.lastMY = mx, my
+            self.catNext = self.catNext - elapsed
+            if self.catNext <= 0 and self.idleT > 6 and self.cat and self.cat.Say then
+                self.catNext = math.random(120, 240)
+                if self.cat.Say() and self.cat.Glow then
+                    self.cat.Glow(1)
+                    if C_Timer and C_Timer.After then C_Timer.After(0.8, function() if not self.cat:IsMouseOver() then self.cat.Glow(0) end end) end
+                end
+            end
         end)
     end)
     f:SetScript("OnHide", function()

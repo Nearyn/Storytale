@@ -4462,8 +4462,12 @@ do
     DWE.choiceBox:Hide(); DWE.bubble:Hide()
     check(DWE.BubbleCatSay(cat, lines[1]) == true and DWE.bubble:IsShown(), "options cat: says a phrase in a bubble")
     check(DWE.bubble:GetFrameStrata() == "TOOLTIP", "options cat: bubble above the options window")
-    DWE.BubbleCatEnd()
-    check(not DWE.bubble:IsShown() and DWE.bubble:GetScale() == 1 and not DWE.catSaying, "options cat: bubble put back as it was")
+    DWE.bubble._scripts.OnMouseUp(DWE.bubble, "RightButton")
+    check(not DWE.bubble:IsShown() and DWE.bubble:GetScale() == 1 and not DWE.catSaying, "options cat: right-click closes the bubble, put back as it was")
+    DWE.BubbleCatSay(cat, lines[2])
+    for _ = 1, 400 do DWE.bubble._scripts.OnUpdate(DWE.bubble, 0.05) end
+    DWE.bubble._scripts.OnMouseUp(DWE.bubble, "LeftButton")
+    check(not DWE.catSaying, "options cat: left-click on the whole text closes the bubble")
     DWE.choiceBox:Show()
     check(DWE.BubbleCatSay(cat, lines[1]) == false, "options cat: quiet during a conversation")
     if not wasConv then DWE.choiceBox:Hide() end

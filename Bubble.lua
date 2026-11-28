@@ -2275,6 +2275,13 @@ end
 
 bubble:SetScript("OnMouseUp", function(_, button)
     if DWE.JustDragged() then return end
+    -- Bulle du chat des options : clic gauche comme sur un PNJ (texte entier d'abord), puis elle
+    -- se ferme ; clic droit, elle se ferme tout de suite.
+    if DWE.catSaying then
+        local more = state.phase == "typing" or (state.phase == "reading" and (state.index or 1) < #(state.segs or {}))
+        if button == "LeftButton" and more then Advance() else DWE.BubbleCatEnd() end
+        return
+    end
     if button == "LeftButton" then Advance()
     elseif button == "RightButton" then Back() end
 end)
