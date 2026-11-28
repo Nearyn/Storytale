@@ -2693,9 +2693,9 @@ function DWE.BubbleCatSay(anchor, phrase)
     bubble:SetFrameStrata("TOOLTIP")
     bubble:SetScale(0.85)
     bubble:ClearAllPoints()
-    -- Pointe sur la tete du chat (pas tout a fait au milieu de son image) ; pas de poignee de
-    -- taille ni de deplacement : cette bulle n'est pas celle des PNJ (vu le 28/11).
-    bubble:SetPoint("BOTTOM", anchor, "TOP", 12 + (DWE.bubbleTipDX or 0), 4)
+    -- Pointe sur la tete du chat, comme sur un PNJ (meme decalage que DWE.Bubble.Pin) ; pas de
+    -- poignee de taille ni de deplacement : cette bulle n'est pas celle des PNJ (vu le 28/11).
+    bubble:SetPoint("BOTTOM", anchor, "TOP", DWE.bubbleTipDX or 0, 4)
     bubble.dweNoGrip = true
     if DWE.SetGripCorner then DWE.SetGripCorner(bubble, "BOTTOM") end
     state.raw = nil
