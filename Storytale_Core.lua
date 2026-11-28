@@ -9240,7 +9240,7 @@ function DWE.InitOptionsPanel()
         fs:SetWidth(560)
         fs:SetJustifyH("LEFT")
     end
-    -- Avance manuelle : bouton "suite" (A par defaut) et "precedent" (LB par defaut).
+    -- Avance manuelle : bouton "suite" (RB par defaut) et "precedent" (LB par defaut).
     local PAD_NAMES = { NONE = L.PAD_NONE or "None", PAD1 = "A", PAD3 = "X", PADLSHOULDER = "LB",
         PADRSHOULDER = "RB", PADLTRIGGER = "LT", PADRTRIGGER = "RT" }
     local function PadRow(label, rowY, get, set)

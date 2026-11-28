@@ -2294,7 +2294,7 @@ do
         local savedNext, savedPrev, savedBook = DialogueWheelE_PadNext, DialogueWheelE_PadPrev, DWE.bookMode
         DWE.bookMode = nil
         local nx, pv = DWE.PadManualKeys()
-        check(nx == "PAD1" and pv == "PADLSHOULDER", "manual pages, gamepad: A and LB by default")
+        check(nx == "PADRSHOULDER" and pv == "PADLSHOULDER", "manual pages, gamepad: RB and LB by default (A stays for the choices)")
         if pad then
             pad(DWE.padCatcher, "PADLSHOULDER"); DWE.padCatcher._scripts.OnGamePadButtonUp(DWE.padCatcher, "PADLSHOULDER"); tick(0.05)
             check(st.index == 1, "manual pages, gamepad: LB goes back")
@@ -2302,10 +2302,20 @@ do
             pad(DWE.padCatcher, "PADLSHOULDER"); DWE.padCatcher._scripts.OnGamePadButtonUp(DWE.padCatcher, "PADLSHOULDER")
             DWE.padHeld.PADRSHOULDER = nil
             check(st.index == 1, "manual pages, gamepad: LB with RB held stays the zoom")
-            check(DWE.BubblePadStep(1) == true and st.index == 2, "manual pages, gamepad: A shows the next part")
+            -- RB presse un peu avant LB (zoom) : rien ne tourne
+            local up = DWE.padCatcher._scripts.OnGamePadButtonUp
+            pad(DWE.padCatcher, "PADRSHOULDER"); pad(DWE.padCatcher, "PADLSHOULDER")
+            up(DWE.padCatcher, "PADLSHOULDER"); up(DWE.padCatcher, "PADRSHOULDER"); tick(0.05)
+            check(st.index == 1, "manual pages, gamepad: RB then LB together (zoom) turns nothing")
+            pad(DWE.padCatcher, "PAD1"); DWE.padCatcher._scripts.OnGamePadButtonUp(DWE.padCatcher, "PAD1"); tick(0.05)
+            check(st.index == 1, "manual pages, gamepad: A does not turn the text (it stays for the choices)")
+            pad(DWE.padCatcher, "PADRSHOULDER"); DWE.padCatcher._scripts.OnGamePadButtonUp(DWE.padCatcher, "PADRSHOULDER"); tick(0.05)
+            check(st.index == 2, "manual pages, gamepad: RB shows the next part")
+            DWE.BubblePrev(); tick(0.05)
+            check(DWE.BubblePadStep(1) == true and st.index == 2, "manual pages, gamepad: next button shows the next part")
             tick(0.05)
             while st.index < #st.segs do DWE.BubblePadStep(1); tick(0.05) end
-            check(DWE.BubblePadStep(1) == false, "manual pages, gamepad: on the last part, A is left to the wheel")
+            check(DWE.BubblePadStep(1) == false, "manual pages, gamepad: on the last part, the next button is left to the game")
             DialogueWheelE_PadNext, DialogueWheelE_PadPrev = "NONE", "PADRTRIGGER"
             nx, pv = DWE.PadManualKeys()
             check(nx == nil and pv == "PADRTRIGGER", "manual pages, gamepad: buttons can be changed or set to none")

@@ -2231,7 +2231,8 @@ DWE.PAD_ACTIONS = {
     PAD2 = "DWE_PadCloseBtn", PADDLEFT = "DWE_PadPrevBtn", PADDRIGHT = "DWE_PadNextBtn",
     PAD4 = "DWE_PadRibbonBtn",
 }
--- Boutons de l'avance manuelle (options > Manette) : A et LB par defaut, "NONE" = aucun.
+-- Boutons de l'avance manuelle (options > Manette) : RB suite, LB retour par defaut (A reste aux
+-- choix de la roue : on peut repondre sans tout lire), "NONE" = aucun.
 DWE.PAD_MANUAL_CHOICES = { "NONE", "PAD1", "PAD3", "PADLSHOULDER", "PADRSHOULDER", "PADLTRIGGER", "PADRTRIGGER" }
 function DWE.PadManualKeys()
     local function K(v, def)
@@ -2239,7 +2240,7 @@ function DWE.PadManualKeys()
         if v == "NONE" then return nil end
         return v
     end
-    return K(DialogueWheelE_PadNext, "PAD1"), K(DialogueWheelE_PadPrev, "PADLSHOULDER")
+    return K(DialogueWheelE_PadNext, "PADRSHOULDER"), K(DialogueWheelE_PadPrev, "PADLSHOULDER")
 end
 -- Menu du ruban ouvert : la croix, A et B servent au menu.
 DWE.PAD_RIBBON = { PADDLEFT = -1, PADDUP = -1, PADDRIGHT = 1, PADDDOWN = 1 }
@@ -2284,14 +2285,20 @@ if DWE.padCatcher.EnableGamePadButton then
             elseif button == "PAD2" or button == "PAD4" then DWE.RibbonPadToggle() end
             return
         end
-        -- Avance manuelle : A (par defaut) montre la suite du texte, LB revient en arriere. Pris
-        -- seulement quand il y a une partie ou aller ; LB+RB ensemble reste le zoom.
-        if not DWE.bookMode and DWE.BubblePadStep then
+        -- Avance manuelle : RB (par defaut) montre la suite du texte, LB revient en arriere. Pris
+        -- seulement quand il y a une partie ou aller. Le texte tourne au relachement : LB puis RB
+        -- appuyes ensemble (le zoom) ne tournent rien, meme si l'un est presse un peu avant l'autre.
+        if DWE.padManual and button ~= DWE.padManual.button then
+            local pair = { PADLSHOULDER = true, PADRSHOULDER = true }
+            if pair[button] and pair[DWE.padManual.button] then DWE.padManual.cancel = true end
+        end
+        if not DWE.bookMode and DWE.BubblePadCan then
             local nx, pv = DWE.PadManualKeys()
             local dir = (button == nx and 1) or (button == pv and -1) or nil
             local other = button == "PADLSHOULDER" and "PADRSHOULDER" or button == "PADRSHOULDER" and "PADLSHOULDER"
             if other and DWE.padHeld[other] then dir = nil end
-            if dir and DWE.BubblePadStep(dir) then
+            if dir and DWE.BubblePadCan(dir) then
+                DWE.padManual = { button = button, dir = dir }
                 if self.SetPropagateGamePadInput and not InCombatLockdown() then self:SetPropagateGamePadInput(false) end
                 return
             end
@@ -2326,6 +2333,11 @@ end
 if DWE.padCatcher.EnableGamePadButton then
     DWE.padCatcher:SetScript("OnGamePadButtonUp", function(self, button)
         if DWE.padHeld then DWE.padHeld[button] = nil end
+        local pm = DWE.padManual
+        if pm and pm.button == button then
+            DWE.padManual = nil
+            if not pm.cancel and DWE.BubblePadStep then DWE.BubblePadStep(pm.dir) end
+        end
         if DWE.PAD_PLAYER_KEYS[button] and DWE.padPlayer.downAt then DWE.PadShareFire(false) end
         -- Un bouton garde pour Storytale coupait la manette au jeu jusqu'au bouton suivant : le
         -- stick droit (camera) restait sans effet dans la conversation ou le livre. Relache, on
