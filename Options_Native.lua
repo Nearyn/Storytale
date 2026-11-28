@@ -326,6 +326,33 @@ local function MakeWindow()
             local kept = {}
             for _, w in ipairs(list) do if Side(w) == mine then kept[#kept + 1] = w end end
             list = kept
+            -- D'abord la meme colonne : les elements qui chevauchent celui-ci a l'horizontale
+            -- (case + son texte), le plus proche en hauteur. Deux colonnes aux lignes decalees
+            -- ("Verrouiller" a gauche, "A droite du PNJ" un peu plus bas a droite) : bas reste a
+            -- gauche (vu le 28/11).
+            local function Span(w)
+                local l, r = w:GetLeft(), w:GetRight()
+                local t = w.Text or w.text
+                if type(t) == "table" and t.GetRight and t.IsShown and t:IsShown() then
+                    local tr = t:GetRight()
+                    local tx = t.GetText and t:GetText()
+                    if tr and tx and tx ~= "" then r = math.max(r or tr, tr) end
+                end
+                return l or 0, r or 0
+            end
+            local cl, cr = Span(cur)
+            for _, w in ipairs(list) do
+                if w ~= cur then
+                    local cx, cy = Center(w)
+                    local d = (cy - y) * dy
+                    local wl, wr = Span(w)
+                    if d > 4 and wl < cr and wr > cl then
+                        local sc = d + 0.1 * math.abs(cx - x)
+                        if not score or sc < score then best, score = w, sc end
+                    end
+                end
+            end
+            if best then f.Select(best) return end
             local rowD
             for _, w in ipairs(list) do
                 if w ~= cur then
