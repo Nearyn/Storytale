@@ -2804,7 +2804,7 @@ function DWE.PadZoomTick(el)
     -- a partir de la valeur du debut de l'appui, et seul un vrai mouvement du stick compte.
     if padZoom.base == nil then padZoom.base = y end
     y = y - padZoom.base
-    if not padZoom.evSeen then y = 0 end
+
     if padZoom.evY and math.abs(padZoom.evY) > math.abs(y) then y = padZoom.evY end
     padZoom.logT = (padZoom.logT or 0) + el
     if DWE.FLog and padZoom.logT > 0.5 then
@@ -2831,7 +2831,8 @@ end
 -- permanence prenait le stick droit a la camera pendant toute la conversation.
 -- Seul le stick de la camera compte. Les autres (deplacement, curseur de la manette : la souris
 -- y laissait une valeur apres usage) zoomaient tout seuls (journal du 28/11 : 0,86 stick lache).
-local ZOOM_STICKS = { Camera = true, Right = true, Look = true }
+-- ("Look" n'est pas le stick droit : journal du 28/11, valeur 1 en continu stick lache.)
+local ZOOM_STICKS = { Camera = true, Right = true }
 local function ZoomStick(_, stick, x, y)
     padZoom.evName = tostring(stick)
     if not ZOOM_STICKS[stick] then return end
