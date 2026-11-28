@@ -2325,8 +2325,32 @@ do
         end
         DialogueWheelE_PadNext, DialogueWheelE_PadPrev, DWE.bookMode = savedNext, savedPrev, savedBook
     end
+    -- Machine a ecrire : revenir en arriere met la bulle en pause (le joueur relit) ; la suite la relance.
+    DialogueWheelE_BubbleMode = nil
+    DWE.SetDialogueText("NPC", long)
+    for _ = 1, 2000 do tick(0.05); if st.index >= 2 and st.phase == "reading" then break end end
+    check(st.index >= 2, "typewriter: the text goes on by itself: " .. tostring(st.index))
+    local at = st.index
+    DWE.bubble:Show()
+    check(DWE.BubblePrev() == true and st.index == at - 1 and st.phase == "reading", "typewriter: back shows the previous part whole")
+    for _ = 1, 600 do tick(0.05) end
+    check(st.index == at - 1, "typewriter: after going back, the bubble waits for the player (30 s)")
+    DWE.BubbleNext(); tick(0.05)
+    check(st.index == at, "typewriter: next goes on again")
+    -- Tout d'un coup : tout le texte dans une seule bulle, qui defile s'il est long.
     DialogueWheelE_BubbleMode = "page"
-    check(DWE.BubblePrev() == false and st.index == 2, "all at once: no going back (the bubble would turn on its own)")
+    DWE.SetDialogueText("NPC", long .. " " .. long .. " " .. long)
+    DWE.bubble:Show()
+    tick(0.05)
+    check(#st.segs == 1, "all at once: the whole text in one bubble: " .. tostring(#st.segs))
+    local sc = DWE.bubbleScroll
+    if sc.max > 0 then
+        check(DWE.BubblePadCan(-1) == false, "all at once: nothing above at the start")
+        check(DWE.BubblePadStep(1) == true and sc.off > 0, "all at once: R1 scrolls down")
+        check(DWE.BubblePadStep(-1) == true and sc.off == 0, "all at once: L1 scrolls back up")
+    end
+    DWE.SetDialogueText("NPC", long)
+    st.index = 2
     DialogueWheelE_BubbleMode = nil
     check(not DWE.BubbleManualMode(), "manual pages: off by default")
     DWE.SetDialogueText("NPC", "")
