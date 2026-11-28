@@ -327,6 +327,18 @@ local function MakeWindow()
                 if ok and (not score or sc < score) then best, score = w, sc end
             end
         end
+        -- Rien sur la meme ligne (ex. d'un onglet vers une page dont le premier element est plus
+        -- haut ou plus bas) : l'element le plus proche de ce cote, a n'importe quelle hauteur.
+        if not best and dx ~= 0 then
+            for _, w in ipairs(list) do
+                if w ~= cur then
+                    local cx, cy = Center(w)
+                    local d = (cx - x) * dx
+                    local sc = d + 1.5 * math.abs(cy - y)
+                    if d > 4 and (not score or sc < score) then best, score = w, sc end
+                end
+            end
+        end
         if best then f.Select(best) end
     end
     local function IsSlider(w)
