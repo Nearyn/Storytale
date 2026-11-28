@@ -2771,7 +2771,7 @@ function DWE.PadZoomTick(el)
     local down = Down("PADLSHOULDER") and Down("PADRSHOULDER")
     local gp = rawget(_G, "C_GamePad")
     if not (down and gp and gp.GetDeviceMappedState and GetCameraZoom and CameraZoomIn) then
-        padZoom.t, padZoom.drive, padZoom.game, padZoom.evY, padZoom.evSeen = nil, nil, nil, nil, nil
+        padZoom.t, padZoom.drive, padZoom.game, padZoom.evY, padZoom.evSeen, padZoom.base = nil, nil, nil, nil, nil, nil
         if padZoom.stick then
             padZoom.stick = nil
             DWE.PadZoomStick(false)
@@ -2799,9 +2799,11 @@ function DWE.PadZoomTick(el)
     -- sinon L1 + R1 seuls continuaient a zoomer sans toucher au stick.
     if padZoom.evY and padZoom.evT and (GetTime and GetTime() or 0) - padZoom.evT > 0.3 then padZoom.evY = nil end
     if not found then y = 0 end -- 2e stick sans nom : peut etre une gachette, pas la camera
-    -- Apres la souris, l'etat de la manette garde parfois une vieille valeur du stick : L1 + R1
-    -- seuls dezoomaient tout seuls (vu le 28/11). On ne zoome qu'apres un vrai mouvement du
-    -- stick pendant cet appui.
+    -- Apres la souris, l'etat de la manette garde une vieille valeur du stick (journal du 28/11 :
+    -- 0,31 stick lache, tout le long de l'appui) : L1 + R1 seuls zoomaient tout seuls. On mesure
+    -- a partir de la valeur du debut de l'appui, et seul un vrai mouvement du stick compte.
+    if padZoom.base == nil then padZoom.base = y end
+    y = y - padZoom.base
     if not padZoom.evSeen then y = 0 end
     if padZoom.evY and math.abs(padZoom.evY) > math.abs(y) then y = padZoom.evY end
     padZoom.logT = (padZoom.logT or 0) + el
@@ -2809,7 +2811,7 @@ function DWE.PadZoomTick(el)
         padZoom.logT = 0
         DWE.FLog(("zoom : L1+R1 tenus, stick=%.2f (%s) jeu=%s nous=%s"):format(y, found and "Camera" or "2e", tostring(padZoom.game), tostring(padZoom.drive)))
     end
-    if math.abs(y) < 0.25 then padZoom.t = nil return end
+    if math.abs(y) < 0.4 then padZoom.t = nil return end
     if padZoom.game then return end
     local okZ, z = pcall(GetCameraZoom)
     if not okZ then return end
@@ -2830,7 +2832,7 @@ local function ZoomStick(_, stick, x, y)
     if stick == "Movement" or stick == "Left" then return end
     padZoom.evY = tonumber(y) or 0
     padZoom.evT = GetTime and GetTime() or 0
-    if math.abs(padZoom.evY) > 0.25 then padZoom.evSeen = true end
+    if math.abs(padZoom.evY) > 0.4 then padZoom.evSeen = true end
 end
 function DWE.PadZoomStick(on)
     local c = DWE.padCatcher
